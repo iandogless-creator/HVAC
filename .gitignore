@@ -1,4 +1,43 @@
-tokentext.txt
-tokentext.txt
-tokentext.txt
-tokentext.txt
+# --- Python & Environment ---
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+.eggs/
+*.log
+*.pot
+
+# --- Virtual Environment ---
+.venv/
+venv/
+env/
+ENV/
+
+# --- PyCharm & JetBrains IDEs ---
+.idea/
+
+# --- System files ---
+.DS_Store
+Thumbs.db
+
+# --- Project-specific ---
+nohup.out
+
+# --- Keep HVAC data files ---
+!data/materials/*.txt
+!data/reference/*.txt
+!data/temp/*.csv
+!data/results/*.csv
+!data/jobs/*.csv
+
+# --- Ignore other loose text/CSV files in root ---
+*.csv
+*.txt
+
+# --- Keep important documentation ---
+!README.md
+!requirements.txt
+!pyproject.toml
+
