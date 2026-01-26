@@ -41,3 +41,15 @@ nohup.out
 !requirements.txt
 !pyproject.toml
 
+# --- Local automation ---
+auto_commit.sh
+autosave_git.sh
+
+# --- Legacy / archives ---
+HVACOLD_*/
+_legacy_scripts/
+
+# --- Working folders ---
+tools/
+/notes/
+docs/
