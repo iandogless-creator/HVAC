@@ -1,86 +1,127 @@
 # HVACgooee
 
-HVACgooee is an open-source HVAC engineering platform focused on
-**deterministic heat-loss and hydronic sizing**, with strict architectural
-separation between:
+**HVACgooee** is an open, engineering-grade HVAC calculation framework written in Python.
 
-- design intent
-- physics engines
-- orchestration
-- project authority
+It is designed to preserve and modernise traditional CIBSE-era methods
+(U-values, steady-state heat-loss, hydronic sizing) while providing a
+clean, modular foundation for future extensions
+(dynamic fabric, comfort models, BIM, and advanced GUI workflows).
 
-This repository contains a **frozen hydronics + heat-loss baseline**
-preserved as an architectural and engineering reference.
+This repository contains the **authoritative core engine** and
+reference orchestration for HVACgooee.
 
 ---
 
-## 🚨 Project Status — FROZEN BASELINE
+## Project Status
 
-**Hydronics and Heat-Loss are frozen.**
+**Active — Core Engines Stable**
 
-The `hydro-frozen-v1` branch (tag: `v1-hydronics-frozen`) represents a
-completed and defensible implementation of:
+- Heat-Loss v3: **Operational**
+- Hydronics v3: **Frozen**
+- Project Model v3: **Authoritative**
+- GUI: Under active redevelopment (`gui_v3`)
 
-- steady-state fabric heat-loss
-- explicit heat-loss payloads
-- deterministic hydronic physics
-- pipe sizing and pressure loss
-- radiator / emitter sizing
-- explicit user oversizing intent (applied once)
+This repository prioritises **correctness, clarity, and architectural
+stability** over rapid UI development.
 
-No new features or refactors will be added to this baseline.
+---
+## Architectural Milestones
 
-All further development continues in **Project Core v3** and later branches,
-with an explicit ProjectModel, validators, and orchestration layer.
+HVACgooee uses explicit architectural bootstraps to lock intent.
 
-This freeze is intentional.
+- **v1.0.0 — EURIKA**
+  First fully working end-to-end authoritative pipeline
+  See: `BOOTSTRAP_EURIKA.md`
+
+## Design Philosophy
+
+HVACgooee is intentionally **fine-grained and modular**.
+
+Each engineering concept is isolated into a small, single-purpose module.
+This increases the total file count, but dramatically improves:
+
+- Traceability of calculations
+- Long-term maintainability
+- Testability of individual engineering steps
+- Resistance to accidental architectural coupling
+
+Large file counts are expected and intentional.
 
 ---
 
-## What This Repository Is
+## Core Principles (Locked)
 
-✔ A **reference implementation**
-✔ A **physics-correct baseline**
-✔ A **known-good hydronics engine**
-✔ A **foundation for future platform work**
+- **Engines are pure**
+  - No GUI imports
+  - No side effects
+  - No implicit state
+- **ProjectState is the single authority**
+- **Factories assemble intent; runners compute**
+- **GUI observes, never decides**
+- **Physics is explicit, never inferred**
 
-## What This Repository Is Not
-
-✘ A finished product
-✘ A workflow engine
-✘ A GUI-driven application
-✘ A dynamic simulation tool
-
----
-
-## Architectural Principles (NON-NEGOTIABLE)
-
-HVACgooee enforces:
-
-- **Explicit design intent**
-- **Pure physics engines**
-- **No hidden coupling**
-- **No implicit recalculation**
-- **No GUI-owned state**
-
-Oversizing is applied **exactly once** at the
-heat-loss → hydronics boundary.
-
-Physics engines:
-
-- consume DTOs
-- emit result DTOs
-- never store state
-- never mutate project models
+These rules are enforced across all v3 components.
 
 ---
 
-## Repository Structure
+## Repository Structure (High-Level)
 
-Authoritative, frozen code lives under:
+HVAC/
+├── constructions/ # Fabric intent, registries, U-value resolution
+├── heatloss_v3/ # Pure heat-loss engine (Qt)
+├── hydronics/ # Hydronic sizing & balancing (v3 frozen)
+├── project_v3/ # Project schema & factory
+├── orchestration/ # Headless runners (end-to-end execution)
+├── project/ # ProjectState (authoritative runtime state)
+├── gui_v3/ # Next-generation GUI (observer-only)
+└── tests/ # Reference and regression tests
 
-- `HVAC/` — heat-loss and hydronic physics engines (frozen)
 
-Other directories at the repository root represent historical,
-experimental, or local working context and are intentionally
-non-authoritative.
+Deprecated or exploratory code is retained for reference but clearly marked.
+
+---
+
+## What HVACgooee Is (and Is Not)
+
+**It is:**
+- A professional calculation engine
+- A learning and preservation tool for traditional HVAC methods
+- A modular platform for future tooling
+
+**It is not:**
+- A quick calculator
+- A monolithic application
+- A GUI-first project
+
+---
+
+## Licensing
+
+HVACgooee core is released under **GPLv3**.
+
+This ensures:
+- Long-term openness of the engineering core
+- Freedom to build proprietary or commercial tools **around** the core
+  via plugins or external interfaces
+
+See `LICENSE` for details.
+
+---
+
+## Roadmap (Short)
+
+- End-to-end v1 reference projects
+- GUI v3 (read-only first, then intent editors)
+- Formal validation examples (CIBSE-style)
+- Documentation freeze for v1 core
+
+---
+
+## Author
+
+HVACgooee is authored and maintained by **Ian**
+(Open-source engineer, HVAC systems designer)
+
+---
+
+*This project favours correctness over speed, and architecture over convenience.*

@@ -53,3 +53,16 @@ _legacy_scripts/
 tools/
 /notes/
 docs/
+# Local dev artefacts
+logs/
+downloads/
+data/
+notes/
+backups/
+venv/
+.venv/
+__pycache__/
+*.log
+import_*.txt
+autosave.log
+tokentext.txt
