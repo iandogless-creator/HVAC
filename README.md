@@ -11,6 +11,13 @@ This repository contains the **authoritative core engine** and
 reference orchestration for HVACgooee.
 
 ---
+## Project Foundations
+
+Before modifying core systems, please read:
+
+- [EURIKA Bootstrap](BOOTSTRAP_EURIKA.md) — architectural authority
+- [Design Philosophy](DESIGN_PHILOSOPHY.md) — how decisions are made
+- [Caveats](CAVEATS.md) — clarifications and intent
 
 ## Project Status
 
