@@ -54,6 +54,8 @@ tools/
 /notes/
 docs/
 # Local dev artefacts
+# Legacy frozen archives (never tracked)
+HVACOLD_*/
 logs/
 downloads/
 data/
