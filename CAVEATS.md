@@ -1,4 +1,4 @@
-# Caveats (Read This With a Cup of Tea)
+# Caveats
 
 This file exists to say a few important things that don’t belong in
 equations, APIs, or tables — but absolutely belong in engineering.
@@ -22,7 +22,6 @@ HVACgooee does **not** impose hard limits on:
 If the maths works, the maths works.
 
 Physics does not stop at DN300.
-Tables stop because humans do.
 
 Any limits encountered in real projects arise from:
 - Manufacturing capability
@@ -94,6 +93,5 @@ You’re in the right place.
 ---
 
 *Nature has no lookup tables.*
-*We use them because we get tired.*
 
 — HVACgooee
