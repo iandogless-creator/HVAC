@@ -68,3 +68,6 @@ __pycache__/
 import_*.txt
 autosave.log
 tokentext.txt
+
+.idea/
+venv_OFF/
