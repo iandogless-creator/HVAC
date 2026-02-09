@@ -1,6 +1,15 @@
 # HVACgooee
 
 **HVACgooee** is an open, engineering-grade HVAC calculation framework written in Python.
+# HVACgooee (Workspace)
+
+⚠ **Important**
+
+Active development happens in the **HVAC** repository:
+
+https://github.com/iandogless-creator/HVAC
+
+This repository exists only as a local workspace shell.
 
 It is designed to preserve and modernise traditional CIBSE-era methods
 (U-values, steady-state heat-loss, hydronic sizing) while providing a
