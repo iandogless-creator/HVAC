@@ -1,0 +1,19 @@
+Engineering Lineage
+
+HVACgooee is not a greenfield engineering project.
+
+The core hydronic sizing and flow logic implemented in HVACgooee traces back
+to engineering methods developed in the late 1980s, including early
+ZX Spectrum-era BASIC implementations and later SC4 / SC5.
+
+The original code from that era no longer exists. However, the underlying
+algorithms and engineering intent were continuously preserved through
+successive re-implementations across later BASIC dialects, Delphi-based
+applications, and spreadsheet-based workflows used in professional practice.
+
+HVACgooee represents a modern, open-source re-expression of this lineage,
+retaining the original engineering logic while updating the physics,
+numerical methods, and software architecture to contemporary standards.
+
+© 1989–2026 HVACgooee Project
+GPL-3.0 Licensed Core · Open-Source Engineering Software

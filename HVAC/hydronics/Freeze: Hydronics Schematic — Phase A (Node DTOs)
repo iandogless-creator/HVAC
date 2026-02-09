@@ -1,0 +1,75 @@
+Freeze: Hydronics Schematic — Phase A (Node DTOs)
+
+Phase A defines the authoritative hydronic topology model.
+Only nodes and logical connections are declared.
+No flow, sizing, pressure, or calculation logic is included.
+
+This phase establishes the immutable structural graph
+upon which all later hydronic engines operate.
+
+LOCKED.
+
+4️⃣ Explicit Phase A rules (write this in the doc)
+
+Phase A forbids:
+
+Geometry (x/y/z)
+
+Qt imports
+
+ProjectState
+
+Engines
+
+Validation
+
+“Convenience” helpers
+
+Phase A guarantees:
+
+Stable contracts
+
+Renderer independence
+
+2D → 3D upgrade path
+
+Zero GUI bleed into physics
+
+5️⃣ Freeze statement (add to your bootstrap)
+
+Freeze: Hydronics Schematic — Phase A (Node DTOs only)
+
+This freeze locks:
+
+Node vs connector semantics
+
+Graph-based topology model
+
+Immutable, read-only DTO contracts
+
+Any change requires a new Phase A bootstrap.
+
+6️⃣ What comes after this (don’t do yet)
+
+Only after Phase A is frozen do we proceed to:
+
+Phase B → already done (static layout ✅)
+
+Phase C → read-only setters on panel
+
+Phase D → adapter builds HydronicSchematicGraphDTO
+
+Phase E → refresh + navigation
+The schematic panel now accepts a HydronicSchematicGraphDTO via a one-way adapter.
+No rendering, interaction, or authority is introduced.
+This establishes the data contract boundary between hydronics topology and GUI.
+
+7️⃣ Next thin slices (pick ONE later)
+
+🔹 Phase D: render nodes as simple labels
+
+🔹 Phase D-alt: graph inspector (text/debug)
+
+🔹 Phase C.1: multiple dummy graphs
+
+🔹 Phase A.1: edge direction semantics

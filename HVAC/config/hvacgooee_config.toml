@@ -1,0 +1,43 @@
+# ============================================================
+# HVACgooee — Global Configuration
+# ============================================================
+
+[project]
+name = "HVACgooee"
+version = "0.1.0-dev"
+author = "Ian Allison"
+license = "GPL-3.0-only"
+
+# ------------------------------------------------------------
+# Paths (relative to HVAC/)
+# ------------------------------------------------------------
+
+[paths]
+data_dir       = "data"
+images_dir     = "data/images"
+materials_dir  = "data/materials"
+logs_dir       = "logs"
+reports_dir    = "reports"
+
+# ------------------------------------------------------------
+# UI Behaviour
+# ------------------------------------------------------------
+
+[ui]
+default_mode = "simple"              # simple | technical
+remember_window_geometry = true
+theme = "gooee_dark_brown"
+
+# ------------------------------------------------------------
+# Default Calculation Assumptions (v1)
+# ------------------------------------------------------------
+
+[calculation]
+default_ti = 21.0
+default_te = -3.0
+default_ach = 0.5
+default_safety_factor = 1.10
+
+# ------------------------------------------------------------
+# Logging
+# --------------------------

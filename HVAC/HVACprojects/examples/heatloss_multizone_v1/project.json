@@ -1,0 +1,61 @@
+{
+  "project": {
+    "name": "Heat-Loss Multizone Example",
+    "reference": "HL-MULTI-001",
+    "revision": "v1"
+  },
+
+  "environment": {
+    "design_temp_outside_c": -3.0
+  },
+
+  "rooms": {
+    "living_room": {
+      "name": "Living Room",
+
+      "design_temp_inside_c": 21.0,
+
+      "geometry": {
+        "type": "rectangular",
+        "length_m": 5.0,
+        "width_m": 4.0,
+        "height_m": 2.4
+      },
+
+      "ventilation": {
+        "ach": 0.7
+      },
+
+      "fabric": {
+        "external_walls": "WALL_STD",
+        "floor": "FLOOR_GROUND_STD",
+        "ceiling": "CEILING_STD",
+        "windows": "WINDOW_DBL_STD"
+      }
+    },
+
+    "bedroom": {
+      "name": "Bedroom",
+
+      "design_temp_inside_c": 18.0,
+
+      "geometry": {
+        "type": "rectangular",
+        "length_m": 4.0,
+        "width_m": 3.0,
+        "height_m": 2.4
+      },
+
+      "ventilation": {
+        "ach": 0.5
+      },
+
+      "fabric": {
+        "external_walls": "WALL_STD",
+        "floor": "FLOOR_GROUND_STD",
+        "ceiling": "CEILING_STD",
+        "windows": "WINDOW_DBL_STD"
+      }
+    }
+  }
+}

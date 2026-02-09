@@ -1,0 +1,115 @@
+{
+  "project_meta": {
+    "project_id": "example_v1_canonical",
+    "name": "Canonical Example Project v1",
+    "description": "Three-room single-storey dwelling used as the authoritative end-to-end test for HVACgooee v1.",
+    "created_uk": "Monday 26 January 2026, 04:24 am",
+    "schema_version": "project_v3",
+    "status": "active"
+  },
+
+  "environment": {
+    "inside_temperature_c": 21.0,
+    "outside_temperature_c": -3.0
+  },
+
+  "templates": {
+    "allowed_set": [
+      "single_quad",
+      "corner_quad_1_ext",
+      "corner_quad_2_ext"
+    ]
+  },
+
+  "constructions": {
+    "presets": {
+      "external_wall": "WALL_STD",
+      "internal_wall": "WALL_INT",
+      "roof": "ROOF_STD",
+      "floor": "FLOOR_STD",
+      "window": "WINDOW_STD",
+      "internal_door": "DOOR_INT"
+    }
+  },
+
+  "rooms": [
+    {
+      "room_id": "living_room",
+      "name": "Living Room",
+      "template": "corner_quad_2_ext",
+
+      "geometry": {
+        "length_m": 5.0,
+        "width_m": 4.0,
+        "height_m": 2.4
+      },
+
+      "openings": [
+        {
+          "opening_id": "lr_window_1",
+          "type": "window",
+          "area_m2": 2.0,
+          "surface_class": "external_wall"
+        }
+      ]
+    },
+
+    {
+      "room_id": "bedroom",
+      "name": "Bedroom",
+      "template": "single_quad",
+
+      "geometry": {
+        "length_m": 4.0,
+        "width_m": 3.0,
+        "height_m": 2.4
+      },
+
+      "openings": [
+        {
+          "opening_id": "br_window_1",
+          "type": "window",
+          "area_m2": 1.5,
+          "surface_class": "external_wall"
+        }
+      ]
+    },
+
+    {
+      "room_id": "bathroom",
+      "name": "Bathroom",
+      "template": "single_quad",
+
+      "geometry": {
+        "length_m": 2.5,
+        "width_m": 2.0,
+        "height_m": 2.4
+      },
+
+      "openings": [
+        {
+          "opening_id": "ba_door_1",
+          "type": "internal_door",
+          "area_m2": 1.6,
+          "surface_class": "internal_wall"
+        }
+      ]
+    }
+  ],
+
+  "heatloss": {
+    "valid": false,
+    "results": null
+  },
+
+  "hydronics": {
+    "valid": false,
+    "system_type": "two_pipe_direct_return",
+    "emitters": [
+      { "room_id": "living_room", "emitter_type": "radiator" },
+      { "room_id": "bedroom", "emitter_type": "radiator" },
+      { "room_id": "bathroom", "emitter_type": "radiator" }
+    ],
+    "results": null
+  }
+}

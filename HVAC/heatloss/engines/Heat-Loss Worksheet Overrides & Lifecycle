@@ -1,0 +1,299 @@
+# ======================================================================
+# HVACgooee — GUI v3 / Heat-Loss Worksheet Architecture
+# Bootstrap: HL-WORKSHEET-BOUNDARIES
+# ======================================================================
+
+**Date:** Monday 6 February 2026, 15:28 pm
+**Status:** FROZEN
+**Scope:** GUI v3 — Heat-Loss Worksheet & Overrides
+
+---
+
+## Purpose
+
+This document defines the **architectural boundaries** for Heat-Loss
+interaction in GUI v3.
+
+It exists to prevent authority bleed between:
+
+- GUI worksheet editing
+- ProjectState (authoritative model)
+- Heat-Loss engine execution
+- Construction / U-value definition
+- Hydronics downstream dependency
+
+The Heat-Loss panel is a **worksheet**, not a wizard.
+
+---
+
+## Proven State (Locked)
+
+- GUI v3 observer architecture is stable
+- Adapters are read-only except via controllers
+- Heat-Loss panel is spreadsheet-like
+- Room selection wiring is functional
+- Run buttons are gated via readiness adapters
+- GUI never mutates ProjectState directly
+
+---
+
+## Core Architectural Truths (LOCKED)
+
+### 1. Editing ≠ Calculation
+
+- Editing worksheet values does not imply calculation
+- Results exist only after an explicit controller run
+- A project may contain worksheet intent with no results
+
+---
+
+### 2. Worksheet Overrides ≠ Model Authority
+
+Worksheet edits:
+
+- ❌ Do not change geometry
+- ❌ Do not change constructions
+- ❌ Do not imply validity
+- ❌ Do not trigger hydronics
+- ✅ Affect heat-loss **only when run**
+
+---
+
+### 3. Calculation Scope
+
+- Heat-Loss is **project-level**
+- If any room requires results → the project requires a run
+- Per-room results exist only as part of a project execution
+
+---
+
+## Heat-Loss Worksheet Overrides (CANONICAL)
+
+### Editable via Heat-Loss Panel
+
+| Field | Scope | Meaning |
+|------|------|---------|
+| Area (A) | Element | Override derived area |
+| ΔT (internal only) | Element | Manual temperature difference |
+| ACH | Room | Ventilation intent |
+| (Future) U-value | Element | Worksheet-only assumption |
+
+---
+
+## Canonical Override DTO (LOCKED)
+
+```python
+@dataclass(frozen=True)
+class HeatLossOverrideDTO:
+    room_id: str
+    element_id: str
+
+    area_m2: float | None = None
+    delta_t_k: float | None = None
+    u_value_w_m2k: float | None = None
+
+Semantics
+
+    Presence ≠ validity
+
+    None = no override
+
+    Worksheet intent only
+
+    Cannot trigger execution
+
+Override Storage (LOCKED)
+
+Overrides are stored outside geometry and construction.
+
+ProjectState.heatloss_overrides: dict[
+    str,  # room_id
+    dict[
+        str,  # element_id
+        HeatLossOverrideDTO
+    ]
+]
+
+Rules:
+
+    Absence = no overrides
+
+    Deleting a DTO clears the override
+
+    Clearing overrides does not imply recalculation
+
+Dirty vs Calculated Lifecycle (LOCKED)
+Canonical Flags
+
+ProjectState.heatloss_dirty: bool
+ProjectState.heatloss_has_run: bool
+
+State Transitions
+Event	dirty	has_run
+Worksheet edit	True	False
+Successful HL run	False	True
+Geometry change	True	False
+Construction change	True	False
+Load (no results)	False	False
+Load (with results)	False	True
+
+No other transitions are valid.
+Controller Intent Routing (LOCKED)
+
+class HeatLossOverrideIntent(NamedTuple):
+    room_id: str
+    element_id: str
+    field: Literal["area_m2", "delta_t_k", "u_value_w_m2k"]
+    value: float | None
+
+Rules:
+
+    GUI emits intent only
+
+    Controller updates override storage
+
+    Sets heatloss_dirty = True
+
+    Clears heatloss_has_run
+
+    Never executes heat-loss here
+
+Panel Responsibilities (LOCKED)
+Heat-Loss Panel
+
+    Spreadsheet-style worksheet
+
+    Displays derived and overridden values
+
+    Allows numeric editing
+
+    Visually marks overrides
+
+Forbidden:
+
+    Calculation
+
+    Validation
+
+    Authority
+
+    Persistence
+
+    Readiness decisions
+
+Construction & U-Value Panels
+
+    Authoritative physics only
+
+    Any change invalidates heat-loss
+
+    No worksheet assumptions
+
+RoomTreePanel
+
+    Selection only
+
+    No authority
+
+    No calculation logic
+
+Visual Language Rules (LOCKED)
+
+    Overrides are subtly marked
+
+    Derived values remain neutral
+
+    No colour semantics (red/green)
+
+    No implication of correctness
+
+    Status text only:
+
+        “Not calculated”
+
+        “Worksheet edited”
+
+        “Results available”
+
+Non-Goals (Explicit)
+
+GUI v3 Heat-Loss does not:
+
+    Auto-run calculations
+
+    Infer defaults
+
+    Validate correctness
+
+    Decide compliance
+
+    Mutate geometry or constructions
+
+    Trigger hydronics implicitly
+
+Any of the above requires a new bootstrap.
+Guiding Ethos (LOCKED)
+
+The Heat-Loss panel is a worksheet, not a wizard.
+
+It should feel:
+
+    Calm
+
+    Familiar
+
+    Spreadsheet-like
+
+    Honest about what is known vs assumed
+
+If the GUI feels “helpful”, it is doing too much.
+Freeze Statement
+
+This document is FROZEN.
+
+All future changes affecting Heat-Loss worksheet behaviour
+must explicitly reference this bootstrap.
+
+
+---
+
+## ✅ 2️⃣ STRAIGHT TO NEW PANELS (NEXT BOOTSTRAP)
+
+Now that Heat-Loss is **architecturally sealed**, the next panels can safely grow **without contaminating authority**.
+
+### Immediate candidates (clean order):
+
+### 🔹 **A) Results Panel — Heat-Loss Results (NEW)**
+- Read-only
+- Displays *only* executed results
+- Clears ambiguity between “worksheet” and “results”
+- Zero editing
+- Strong alignment with hydronics handoff later
+
+➡️ *Recommended next*
+
+---
+
+### 🔹 **B) Ventilation Panel (Room-Level Intent)**
+- ACH, methods, notes
+- Still worksheet intent
+- No physics
+- Feeds Heat-Loss execution only
+
+---
+
+### 🔹 **C) Emitters Readiness Panel (Preview Only)**
+- No sizing
+- Just “data completeness”
+- Bridges mental model to hydronics without coupling
+
+---
+
+### 🔹 **D) Summary / Status Panel**
+- Project-wide clarity:
+  - Geometry OK
+  - HL run stale / valid
+  - Hydronics locked / unlocked
+- No actions, just truth
+
+---

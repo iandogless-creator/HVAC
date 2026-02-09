@@ -1,0 +1,224 @@
+HVACgooee — GUI v3
+Phase C Activation Plan — Read-Only Wiring
+
+Status: DRAFT (PAPER-ONLY)
+Pre-condition: GUI v3 Phase B frozen
+Goal: Introduce explicit, read-only data ingress into GUI panels without granting authority, reactivity, or mutation.
+
+1. Meaning of Phase C (LOCK THIS)
+
+Phase C enables panels to receive data, but never to request, compute, or mutate it.
+
+Panels become observers, not participants.
+
+Phase C is pull-only, invoked by the application lifecycle.
+
+2. Phase Boundary (Very Important)
+Layer	Phase B	Phase C
+Panel	Static layout	Read-only setters
+Adapter	Disabled	Enabled
+Engines	Irrelevant	Still untouched
+ProjectState	Read-only	Read-only
+Signals	None	None
+
+No signals yet.
+No events.
+No feedback loops.
+
+3. Activation Order (MANDATORY)
+
+Phase C must be activated in this order:
+
+Panels gain read-only setters
+
+Adapters are enabled
+
+MainWindow lifecycle calls refresh
+
+GUI verifies no mutation occurs
+
+If you reverse this order, Phase C fails.
+
+4. Panel Contract (STRICT)
+
+Each Phase C panel:
+
+MAY:
+
+accept immutable DTOs
+
+update labels, tables, text
+
+show “not available” if data is missing
+
+MUST NOT:
+
+compute
+
+validate
+
+transform
+
+persist
+
+emit signals
+
+infer missing data
+
+REQUIRED:
+
+setters must be explicitly named read-only
+
+Naming rule (LOCKED):
+set_*_readonly(...)
+
+
+Examples:
+
+set_environment_readonly(env_dto)
+
+set_project_summary_readonly(summary_dto)
+
+set_hydronics_snapshot_readonly(snapshot_dto) (later)
+
+No generic set_data().
+
+5. Adapter Contract (Phase C)
+
+Adapters become the only bridge between:
+
+ProjectState
+
+Panels
+
+Adapter responsibilities:
+
+pull data from ProjectState
+
+adapt to panel DTO shape
+
+call read-only setters
+
+Adapter restrictions:
+
+no caching
+
+no mutation
+
+no calculations
+
+no interpretation
+
+Adapters are plumbing only.
+
+6. MainWindow Lifecycle Changes
+Phase C re-enables:
+def refresh_project_panels(self) -> None:
+    self._project_panel_adapter.refresh()
+    self._environment_panel_adapter.refresh()
+    self._education_panel_adapter.refresh()
+
+
+But:
+
+refresh is manual
+
+refresh is single-shot
+
+no auto-refresh on state change yet
+
+7. Data Sources (Locked for Phase C)
+
+Adapters may only read from:
+
+ProjectState (authoritative intent)
+
+pre-computed result DTOs (if already present)
+
+Adapters must not trigger:
+
+heat-loss
+
+hydronics
+
+environment resolution
+
+If data is missing:
+
+panel shows “Not run”
+
+adapter returns silently
+
+8. Phase C Panel Inventory
+Panel	Phase C Scope
+Project Panel	metadata only
+Environment Panel	temperatures, design assumptions
+Education Panel	static text only
+System Summary	flags only
+Hydronics Schematic	still Phase B (NO data yet)
+
+⚠ Hydronics Schematic does not activate in Phase C
+It waits for Phase D+.
+
+9. Definition of DONE (Phase C)
+
+Phase C is complete when:
+
+panels populate from ProjectState
+
+no panel can mutate state
+
+no adapter imports engines
+
+GUI survives refresh calls
+
+removing adapters breaks nothing
+
+log output remains silent
+
+If anything reacts, Phase C is violated.
+
+10. Explicit Non-Goals (Write This Down)
+
+Phase C does not include:
+
+signals
+
+observers
+
+live updates
+
+recalculation triggers
+
+editing widgets
+
+topology wiring
+
+schematic drawing
+
+All of that is Phase D+.
+
+11. Freeze Statement (Recommended)
+
+GUI v3 Phase C enables read-only data flow into panels via adapters.
+Panels remain non-authoritative observers.
+
+12. Resume Marker
+
+When you stop:
+
+“GUI v3 Phase C activation plan drafted; no code started.”
+
+That gets you back instantly.
+
+Why This Plan Is Strong
+
+It matches your Phase B discipline
+
+It prevents accidental “half-reactive” GUIs
+
+It keeps hydronics schematic isolated
+
+It makes Phase D a choice, not a slide
+
+You’ve built a proper GUI lifecycle, not just screens.
