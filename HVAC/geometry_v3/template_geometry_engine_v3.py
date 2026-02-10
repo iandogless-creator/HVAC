@@ -15,11 +15,11 @@ from __future__ import annotations
 
 from typing import List
 
-from HVAC_legacy.geometry_v3.geometry_templates import (
+from HVAC.geometry_v3.geometry_templates import (
     TemplateType,
     RectangularRoomParams,
 )
-from HVAC_legacy.project_v3.project_models_v3 import SurfaceV3
+from HVAC.project_v3.project_models_v3 import SurfaceV3
 
 
 class TemplateGeometryEngineV3:

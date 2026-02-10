@@ -21,8 +21,8 @@ from __future__ import annotations
 
 from typing import Dict
 
-from HVAC_legacy.hydronics_v3.dto.balancing_target_dto import BalancingTargetDTO
-from HVAC_legacy.hydronics_v3.dto.valve_authority_input_dto import (
+from HVAC.hydronics_v3.dto.balancing_target_dto import BalancingTargetDTO
+from HVAC.hydronics_v3.dto.valve_authority_input_dto import (
     ValveAuthorityInputDTO,
 )
 

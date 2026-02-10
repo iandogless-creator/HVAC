@@ -1,18 +1,18 @@
-from HVAC_legacy.hydronics.committed.committed_hydronic_leg import CommittedHydronicLeg
-from HVAC_legacy.hydronics.pipes.dto.sized_pipe_segment_v1 import SizedPipeSegmentV1
-from HVAC_legacy.hydronics.pipes.dp.pressure_drop_aggregator_v1 import aggregate_pressure_drop_v1
-from HVAC_legacy.hydronics.physics.fittings_k_library_v1 import (
+from HVAC.hydronics.committed.committed_hydronic_leg import CommittedHydronicLeg
+from HVAC.hydronics.pipes.dto.sized_pipe_segment_v1 import SizedPipeSegmentV1
+from HVAC.hydronics.pipes.dp.pressure_drop_aggregator_v1 import aggregate_pressure_drop_v1
+from HVAC.hydronics.physics.fittings_k_library_v1 import (
     get_fitting_k_value,
 )
 
-from HVAC_legacy.hydronics.committed.committed_pipe_segment_v1 import (
+from HVAC.hydronics.committed.committed_pipe_segment_v1 import (
     CommittedPipeSegmentV1,
 )
-from HVAC_legacy.hydronics.committed.committed_leg_geometry_v1 import (
+from HVAC.hydronics.committed.committed_leg_geometry_v1 import (
     CommittedLegGeometryV1,
 )
 
-from HVAC_legacy.hydronics.pumps.pump_selection_integration_v1 import (
+from HVAC.hydronics.pumps.pump_selection_integration_v1 import (
     select_pump_from_hydronics_v1,
 )
 

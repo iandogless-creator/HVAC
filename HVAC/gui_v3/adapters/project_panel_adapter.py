@@ -6,9 +6,9 @@
 
 from __future__ import annotations
 
-from HVAC_legacy.project.project_state import ProjectState
+from HVAC.project.project_state import ProjectState
 
-from HVAC_legacy.gui_v3.panels.project_panel import (
+from HVAC.gui_v3.panels.project_panel import (
     ProjectPanel,
     ProjectSummaryViewModel,
 )
@@ -51,7 +51,8 @@ class ProjectPanelAdapter:
     # ------------------------------------------------------------------
     def refresh(self) -> None:
         """
-        Refresh Project panel from ProjectState.
+        Refresh Project panel from HVAC.project.
+State.
 
         Phase E rules:
         • Read-only

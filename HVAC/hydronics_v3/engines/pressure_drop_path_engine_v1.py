@@ -6,9 +6,9 @@ from __future__ import annotations
 
 from typing import List
 
-from HVAC_legacy.hydronics_v3.dto.pressure_drop_path_dto import PressureDropPathDTO
-from HVAC_legacy.hydronics_v3.dto.hydronic_topology_dto import HydronicTopologyDTO
-from HVAC_legacy.hydronics_v3.models.hydronic_leg import HydronicLeg
+from HVAC.hydronics_v3.dto.pressure_drop_path_dto import PressureDropPathDTO
+from HVAC.hydronics_v3.dto.hydronic_topology_dto import HydronicTopologyDTO
+from HVAC.hydronics_v3.models.hydronic_leg import HydronicLeg
 
 
 class PressureDropPathEngineV1:

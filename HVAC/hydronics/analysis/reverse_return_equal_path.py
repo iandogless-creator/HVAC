@@ -29,7 +29,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Dict, List
 
-from HVAC_legacy.hydronics.committed.committed_hydronic_leg import (
+from HVAC.hydronics.committed.committed_hydronic_leg import (
     CommittedHydronicLeg,
 )
 

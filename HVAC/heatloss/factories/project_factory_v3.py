@@ -23,7 +23,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Dict, Optional, Protocol, Any, List, Tuple
 
-from HVAC_legacy.core.resolution_registry import ResolutionRegistry
+from HVAC.core.resolution_registry import ResolutionRegistry
 
 # ============================================================
 # Design Level (Project-wide single source of truth)
@@ -326,7 +326,8 @@ class TechnicalResolver(AdvancedResolver):
 
 class ProjectFactoryV3:
     """
-    Single entry point: creates ResolvedProjectInputs from ProjectIntent
+    Single entry point: creates ResolvedProjectInputs from HVAC.project.
+Intent
     using the project's design_level.
     """
 

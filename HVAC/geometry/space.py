@@ -55,7 +55,8 @@ class Space:
     enable_tei: bool = False
 
     # Optional explicit TEI override for this room.
-    # If None, TEI will be resolved from project default or design_temp_C.
+    # If None, TEI will be resolved from HVAC.project.
+ default or design_temp_C.
     tei_C: Optional[float] = None
 
     # Calculated internal air temperature (t_ai, °C) from TEI method.

@@ -26,7 +26,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import List, Optional
 
-from HVAC_legacy.constructions.construction_preset import ConstructionPreset
+from HVAC.constructions.construction_preset import ConstructionPreset
 
 
 # ----------------------------------------------------------------------

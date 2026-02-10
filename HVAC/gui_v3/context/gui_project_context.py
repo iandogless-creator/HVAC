@@ -20,29 +20,36 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from HVAC_legacy.gui_v3.context.gui_settings import GuiSettings
-from HVAC_legacy.project.project_state import ProjectState
+from HVAC.gui_v3.context.gui_settings import GuiSettings
+from HVAC.project.project_state import ProjectState
 
 
 class GuiProjectContext:
-    """
-    GUI-facing project context.
-
-    Authority Rules
-    ---------------
-    • Wraps exactly one authoritative ProjectState
-    • GUI code must never mutate ProjectState
-    • Adapters may READ project_state
-    • ProjectState replacement is explicit (New / Open)
-    """
-
     def __init__(self, *, project_state: ProjectState) -> None:
-        self._project_state: ProjectState = project_state
+        # ------------------------------------------------------------------
+        # Authoritative project state (opaque to GUI)
+        # ------------------------------------------------------------------
+        self._project_state = project_state
 
-        # GUI-only persistence (Phase F+)
-        self.gui_settings = GuiSettings(
-            settings_dir=Path.home() / ".hvacgooee"
-        )
+        # ------------------------------------------------------------------
+        # GUI settings (user / installation scoped)
+        # ------------------------------------------------------------------
+        settings_dir = Path.home() / ".hvacgooee" / "gui"
+        settings_dir.mkdir(parents=True, exist_ok=True)
+
+        self._gui_settings = GuiSettings(settings_dir=settings_dir)
+
+        # ------------------------------------------------------------------
+        # Observer registries (UI-only)
+        # ------------------------------------------------------------------
+        self._construction_focus_listeners: list = []
+
+
+
+
+    @property
+    def gui_settings(self) -> GuiSettings:
+        return self._gui_settings
 
     # --------------------------------------------------
     # Read-only access (adapters only)
@@ -65,3 +72,29 @@ class GuiProjectContext:
         GUI must refresh all adapters after calling this.
         """
         self._project_state = project_state
+
+    # ------------------------------------------------------------------
+    # Construction focus (observer-only)
+    # ------------------------------------------------------------------
+
+    def focus_construction_element(self, *, room_id: str, element_id: str) -> None:
+        """
+        Observer-only focus request.
+
+        Emitted by Heat-Loss worksheet selection.
+        Listened to by Construction adapter.
+        """
+        if not hasattr(self, "_construction_focus_listeners"):
+            return
+
+        for cb in self._construction_focus_listeners:
+            cb(room_id=room_id, element_id=element_id)
+
+    def subscribe_construction_focus(self, callback) -> None:
+        """
+        Register observer for construction focus intent.
+        """
+        if not hasattr(self, "_construction_focus_listeners"):
+            self._construction_focus_listeners = []
+
+        self._construction_focus_listeners.append(callback)

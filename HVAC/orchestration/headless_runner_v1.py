@@ -1,7 +1,7 @@
 # HVAC/orchestration/headless_runner_v1.py
 
-from HVAC_legacy.constructions.runner_v1 import resolve_constructions_v1
-from HVAC_legacy.heatloss_v3.heatloss_runner_v3 import HeatLossRunnerV3
+from HVAC.constructions.runner_v1 import resolve_constructions_v1
+from HVAC.heatloss_v3.heatloss_runner_v3 import HeatLossRunnerV3
 
 
 class HeadlessRunnerV1:

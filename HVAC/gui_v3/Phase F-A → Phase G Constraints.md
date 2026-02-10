@@ -9,7 +9,8 @@ This document exists to prevent “just this once” shortcuts later.
 1. Phase G May NOT Read GUI State
 Locked by F-A
 
-Phase F-A proved that all readiness information can be derived from ProjectState.
+Phase F-A proved that all readiness information can be derived from HVAC.project.
+State.
 
 GUI panels expose presentation setters only, no getters, no retained meaning.
 
@@ -31,7 +32,8 @@ Preview text
 
 Panel visibility or docking state
 
-Rule: If Phase G needs information, it must come from ProjectState or an execution DTO, never from GUI memory.
+Rule: If Phase G needs information, it must come from HVAC.project.
+State or an execution DTO, never from GUI memory.
 
 2. Phase G May NOT Re-derive Semantics Already Proven in F-A
 Locked by F-A

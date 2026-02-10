@@ -25,16 +25,16 @@ from __future__ import annotations
 
 from typing import Dict, Iterable, List
 
-from HVAC_legacy.hydronics.committed.committed_hydronic_leg import (
+from HVAC.hydronics.committed.committed_hydronic_leg import (
     CommittedHydronicLeg,
 )
-from HVAC_legacy.hydronics.committed.committed_leg_geometry_v1 import (
+from HVAC.hydronics.committed.committed_leg_geometry_v1 import (
     CommittedLegGeometryV1,
 )
-from HVAC_legacy.hydronics.committed.committed_pipe_segment_v1 import (
+from HVAC.hydronics.committed.committed_pipe_segment_v1 import (
     CommittedPipeSegmentV1,
 )
-from HVAC_legacy.hydronics.physics.fittings_k_library_v1 import (
+from HVAC.hydronics.physics.fittings_k_library_v1 import (
     get_fitting_k_value,
 )
 

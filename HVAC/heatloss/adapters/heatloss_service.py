@@ -14,7 +14,7 @@ No GUI imports.
 
 from __future__ import annotations
 
-from HVAC_legacy.heatloss.adapters.engine_to_dto import build_heatloss_dto
+from HVAC.heatloss.adapters.engine_to_dto import build_heatloss_dto
 
 # IMPORT YOUR REAL ENGINE HERE
 

@@ -29,10 +29,10 @@ from __future__ import annotations
 
 from typing import Dict, Iterable, List
 
-from HVAC_legacy.hydronics.pipes.dto.sized_pipe_segment_v1 import SizedPipeSegmentV1
-from HVAC_legacy.hydronics.committed.committed_hydronic_leg import CommittedHydronicLeg
-from HVAC_legacy.hydronics.committed.committed_leg_geometry_v1 import CommittedLegGeometryV1
-from HVAC_legacy.hydronics.pipes.dp.pressure_drop_path_v1 import PressureDropPathV1
+from HVAC.hydronics.pipes.dto.sized_pipe_segment_v1 import SizedPipeSegmentV1
+from HVAC.hydronics.committed.committed_hydronic_leg import CommittedHydronicLeg
+from HVAC.hydronics.committed.committed_leg_geometry_v1 import CommittedLegGeometryV1
+from HVAC.hydronics.pipes.dp.pressure_drop_path_v1 import PressureDropPathV1
 
 
 RHO_WATER_KG_M3 = 1000.0

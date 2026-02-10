@@ -52,15 +52,15 @@ from datetime import datetime
 from typing import Any, Dict, Tuple, Optional
 
 # Heat-loss + constructions
-from HVAC_legacy.heatloss.room_model.building_model import Building
-from HVAC_legacy.heatloss.room_model.room_model import Room, RoomElement, RoomOpening
+from HVAC.heatloss.room_model.building_model import Building
+from HVAC.heatloss.room_model.room_model import Room, RoomElement, RoomOpening
 from heatloss.physics.constructions import (
     Construction,
     ConstructionLayer,
 )
 
 # Hydronics
-from HVAC_legacy.hydronics.network.hydronics_controller import (
+from HVAC.hydronics.network.hydronics_controller import (
     HydronicPlant,
     HydronicLeg,
     HydronicSubleg,
@@ -68,8 +68,7 @@ from HVAC_legacy.hydronics.network.hydronics_controller import (
 )
 
 # Materials DB
-from HVAC_legacy.core.materials.materials_database import MaterialsDatabase
-
+from HVAC.core.materials.materials_database import MaterialsDatabasefrom HVAC.gui_v3.
 
 # ---------------------------------------------------------------------------
 # Helper serializers — Building & Constructions
@@ -92,8 +91,7 @@ def construction_to_dict(con: Construction) -> Dict[str, Any]:
         "bridging_fraction": con.bridging_fraction,
         "bridging_conductivity": con.bridging_conductivity,
         "mode": con.mode,
-    }
-
+    }from HVAC.gui_v3.
 
 def construction_from_dict(data: Dict[str, Any]) -> Construction:
     layers = [

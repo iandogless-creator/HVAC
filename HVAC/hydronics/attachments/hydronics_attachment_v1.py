@@ -20,15 +20,15 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import List, Optional
 
-from HVAC_legacy.hydronics.config.system_sizing_intent_v1 import SystemSizingIntent
-from HVAC_legacy.hydronics.distribution.hydronics_distribution_result_v1 import (
+from HVAC.hydronics.config.system_sizing_intent_v1 import SystemSizingIntent
+from HVAC.hydronics.distribution.hydronics_distribution_result_v1 import (
     HydronicsDistributionResult,
 )
-from HVAC_legacy.hydronics.emitters.emitter_result_v1 import EmitterResult
-from HVAC_legacy.hydronics.emitters.radiator_sizer_v1 import RadiatorSizerV1
+from HVAC.hydronics.emitters.emitter_result_v1 import EmitterResult
+from HVAC.hydronics.emitters.radiator_sizer_v1 import RadiatorSizerV1
 
-from HVAC_legacy.project.project_factory_v1_LEGACY import apply_system_sizing_intent
-from HVAC_legacy.heatloss.heatloss_payload_v1 import HeatLossPayload
+from HVAC.project.project_factory_v1_LEGACY import apply_system_sizing_intent
+from HVAC.heatloss.heatloss_payload_v1 import HeatLossPayload
 
 
 # ================================================================

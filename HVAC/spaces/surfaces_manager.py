@@ -20,7 +20,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Any
 
-from HVAC_legacy.spaces.surface_types import Surface, SurfaceType
+from HVAC.spaces.surface_types import Surface, SurfaceType
 
 
 class SurfacesManager:
@@ -86,7 +86,7 @@ class SurfacesManager:
 
     def load_from_dict(self, data: Dict[str, List[dict]]):
         """Restore surfaces from saved structure."""
-        from HVAC_legacy.spaces.surface_types import Surface  # local import to avoid circularity
+        from HVAC.spaces.surface_types import Surface  # local import to avoid circularity
         self._surfaces = {}
         for sid, items in data.items():
             self._surfaces[sid] = [Surface.from_dict(d) for d in items]

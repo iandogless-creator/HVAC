@@ -33,7 +33,7 @@ from __future__ import annotations
 from dataclasses import asdict
 from typing import Dict, Optional, List, Any, Tuple
 
-from HVAC_legacy.spaces.space_types import Space, create_space
+from HVAC.spaces.space_types import Space, create_space
 
 
 Point2D = Tuple[float, float]

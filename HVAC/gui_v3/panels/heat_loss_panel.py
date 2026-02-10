@@ -27,15 +27,19 @@ from typing import Optional, Sequence
 
 from PySide6.QtCore import Qt, QModelIndex, Signal
 from PySide6.QtGui import QColor, QPainter
+
 from PySide6.QtWidgets import (
     QWidget,
     QVBoxLayout,
     QHBoxLayout,
     QLabel,
     QPushButton,
+    QTableWidget,
+    QTableWidgetItem,
     QTableView,
     QStyledItemDelegate,
 )
+
 from PySide6.QtCore import QAbstractTableModel
 
 
@@ -255,6 +259,13 @@ class HeatLossPanelV3(QWidget):
         self._build_ui()
         self._wire()
 
+    @property
+    def worksheet_table(self):
+        """
+        Read-only access for adapters (observer-only).
+        """
+        return self._table
+
     def set_rows(self, rows: Sequence[HeatLossWorksheetRow]) -> None:
         self._model.set_rows(rows)
         self._table.resizeColumnsToContents()
@@ -278,10 +289,51 @@ class HeatLossPanelV3(QWidget):
         header.addWidget(self._run_btn)
 
         root.addLayout(header)
+        # ------------------------------------------------------------------
+        # Calculation intent (Phase F-B)
+        # ------------------------------------------------------------------
+        intent_layout = QVBoxLayout()
+
+        self._label_method = QLabel("—")
+        self._label_delta_t = QLabel("—")
+
+        intent_layout.addWidget(self._row("Method:", self._label_method))
+        intent_layout.addWidget(self._row("ΔT (reference):", self._label_delta_t))
+
+        root.addLayout(intent_layout)
+
         root.addWidget(self._table)
 
     def _wire(self) -> None:
         self._run_btn.clicked.connect(self.run_clicked.emit)
+
+    # ------------------------------------------------------------------
+    # Presentation setters (observer-only)
+    # ------------------------------------------------------------------
+    def set_method_text(self, text: str) -> None:
+        """
+        Display declared heat-loss method (intent only).
+        """
+        self._label_method.setText(text)
+
+    def set_delta_t_text(self, text: str) -> None:
+        """
+        Display reference ΔT (non-authoritative).
+        """
+        self._label_delta_t.setText(text)
+
+    # ------------------------------------------------------------------
+    # UI helpers
+    # ------------------------------------------------------------------
+    def _row(self, label: str, value: QWidget) -> QWidget:
+        row = QHBoxLayout()
+        row.addWidget(QLabel(label))
+        row.addStretch()
+        row.addWidget(value)
+
+        wrapper = QWidget()
+        wrapper.setLayout(row)
+        return wrapper
 
 
 __all__ = ["HeatLossPanelV3", "HeatLossWorksheetRow"]

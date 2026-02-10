@@ -8,13 +8,13 @@ Conservative, UK-centric starter tree.
 Small by design. Extend later via version bump.
 """
 
-from HVAC_legacy.constructions.construction_tree import (
+from HVAC.constructions.construction_tree import (
     ConstructionTree,
     ConstructionSurfaceGroup,
     ConstructionFamily,
     ConstructionVariant,
 )
-from HVAC_legacy.constructions.construction_preset import SurfaceClass
+from HVAC.constructions.construction_preset import SurfaceClass
 
 
 def build_default_construction_tree() -> ConstructionTree:

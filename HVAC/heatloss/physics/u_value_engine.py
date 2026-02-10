@@ -20,7 +20,7 @@ from __future__ import annotations
 
 from typing import List
 
-from HVAC_legacy.heatloss.physics.constructions import Construction, Layer
+from HVAC.heatloss.physics.constructions import Construction, Layer
 
 
 def compute_u_for_layers(layers: List[Layer], Rsi: float = 0.13, Rse: float = 0.04) -> float:

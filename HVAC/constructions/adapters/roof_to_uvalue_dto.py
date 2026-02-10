@@ -4,11 +4,11 @@
 
 from __future__ import annotations
 
-from HVAC_legacy.constructions.dto.construction_uvalue_result_dto import (
+from HVAC.constructions.dto.construction_uvalue_result_dto import (
     ConstructionUValueResultDTO,
 )
-from HVAC_legacy.constructions.construction_preset import SurfaceClass
-from HVAC_legacy.constructions.engines.pitched_roof_calculator import (
+from HVAC.constructions.construction_preset import SurfaceClass
+from HVAC.constructions.engines.pitched_roof_calculator import (
     compute_roof_performance,
     PitchedRoof,
 )

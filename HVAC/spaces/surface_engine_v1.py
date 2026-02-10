@@ -49,7 +49,7 @@ from enum import Enum, auto
 from math import atan2, degrees, hypot
 from typing import List, Tuple
 
-from HVAC_legacy.spaces.space_types import Space
+from HVAC.spaces.space_types import Space
 
 
 # ---------------------------------------------------------------------------

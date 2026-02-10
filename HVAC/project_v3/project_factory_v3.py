@@ -19,7 +19,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Optional
 
-from HVAC_legacy.project_v3.project_models_v3 import (
+from HVAC.project_v3.project_models_v3 import (
     ProjectV3,
     ProjectMetaV3,
     ConstructionsV3,

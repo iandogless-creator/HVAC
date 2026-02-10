@@ -36,7 +36,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Optional
 
-from HVAC_legacy.constants.thermal import (
+from HVAC.constants.thermal import (
     DENSITY_AIR,
     SHC_AIR,
     SECONDS_PER_HOUR,

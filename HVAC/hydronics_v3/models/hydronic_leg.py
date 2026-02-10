@@ -5,7 +5,7 @@
 from dataclasses import dataclass, field
 from typing import List, Optional
 
-from HVAC_legacy.hydronics_v3.models.pipe_segment import PipeSegment
+from HVAC.hydronics_v3.models.pipe_segment import PipeSegment
 
 
 

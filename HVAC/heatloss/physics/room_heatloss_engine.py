@@ -35,7 +35,7 @@ from heatloss.physics.ventilation_heatloss_engine import (
     VentilationParams,
     compute_ventilation_loss,
 )
-from HVAC_legacy.models.hvac_dataclasses import HeatLossResult, Room
+from HVAC.models.hvac_dataclasses import HeatLossResult, Room
 
 
 def compute_room_heatloss(

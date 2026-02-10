@@ -15,8 +15,8 @@ Rules:
 
 from __future__ import annotations
 
-from HVAC_legacy.hydronics.hydronics_payload_v1 import HydronicsPayloadV1
-from HVAC_legacy.hydronics.pipe_sizing_solver_v1 import (
+from HVAC.hydronics.hydronics_payload_v1 import HydronicsPayloadV1
+from HVAC.hydronics.pipe_sizing_solver_v1 import (
     size_pipe_for_flow,
     PipeSizingResult,
 )

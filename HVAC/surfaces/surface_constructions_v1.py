@@ -23,9 +23,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import List, Dict
 
-from HVAC_legacy.spaces.surface_engine_v1 import Surface, SurfaceType
-from HVAC_legacy.heatloss.physics.constructions import Construction
-from HVAC_legacy.heatloss.physics.y_value_engine import compute_y_value
+from HVAC.spaces.surface_engine_v1 import Surface, SurfaceType
+from HVAC.heatloss.physics.constructions import Construction
+from HVAC.heatloss.physics.y_value_engine import compute_y_value
 # ================================================================
 # END IMPORTS
 # ================================================================

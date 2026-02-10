@@ -22,7 +22,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import List
 
-from HVAC_legacy.hydronics.estimate.pro_leg_estimate import ProLegEstimate
+from HVAC.hydronics.estimate.pro_leg_estimate import ProLegEstimate
 
 
 @dataclass(slots=True)

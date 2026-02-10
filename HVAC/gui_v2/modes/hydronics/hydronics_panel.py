@@ -25,8 +25,8 @@ from PySide6.QtWidgets import (
     QMessageBox,
 )
 
-from HVAC_legacy.gui_v2.common.gui_view_state import GuiViewState
-from HVAC_legacy.hydronics_v3.dto.hydronics_estimate_result_dto import (
+from HVAC.gui_v2.common.gui_view_state import GuiViewState
+from HVAC.hydronics_v3.dto.hydronics_estimate_result_dto import (
     HydronicsEstimateResultDTO,
 )
 

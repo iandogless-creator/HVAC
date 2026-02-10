@@ -7,13 +7,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Optional, Tuple, List
 
-from HVAC_legacy.hydronics_v3.dto.pump_catalog_dto import (
+from HVAC.hydronics_v3.dto.pump_catalog_dto import (
     PumpCatalogDTO,
     PumpCandidateDTO,
     PumpCurvePointDTO,
 )
-from HVAC_legacy.hydronics_v3.dto.pump_duty_point_dto import PumpDutyPointInputDTO
-from HVAC_legacy.hydronics_v3.dto.pump_selection_result_dto import PumpSelectionResultDTO
+from HVAC.hydronics_v3.dto.pump_duty_point_dto import PumpDutyPointInputDTO
+from HVAC.hydronics_v3.dto.pump_selection_result_dto import PumpSelectionResultDTO
 
 
 _RHO_WATER_KG_M3 = 1000.0

@@ -36,21 +36,21 @@ Design Rules (v1.5)
 # Geometry
 from __future__ import annotations
 
-from HVAC_legacy.geometry.opening_placement_v1 import (
+from HVAC.geometry.opening_placement_v1 import (
     OpeningPlacement,
     resolve_all_openings,
 )
 
 # Heat-loss attribution (SURFACES — not engines)
-from HVAC_legacy.heatloss.surfaces.opening_attribution_v1 import (
+from HVAC.heatloss.surfaces.opening_attribution_v1 import (
     attribute_openings_for_heatloss,
 )
 
-from HVAC_legacy.heatloss.surfaces.wall_attribution_v1 import (
+from HVAC.heatloss.surfaces.wall_attribution_v1 import (
     attribute_walls_for_heatloss,
 )
 
-from HVAC_legacy.heatloss.surfaces.wall_uvalue_application_v1 import (
+from HVAC.heatloss.surfaces.wall_uvalue_application_v1 import (
     apply_uvalues_to_walls,
 )
 

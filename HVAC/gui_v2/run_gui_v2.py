@@ -17,15 +17,15 @@ from PySide6.QtWidgets import QApplication
 # Config loading (GUI-only, ONCE)
 # ---------------------------------------------------------------------------
 
-from HVAC_legacy.config.load_config import load_config
+from HVAC.config.load_config import load_config
 
 # ---------------------------------------------------------------------------
 # GUI core
 # ---------------------------------------------------------------------------
 
-from HVAC_legacy.gui_v2.main_window_v2 import MainWindowV2
-from HVAC_legacy.gui_v2.common.gui_view_state import GuiViewState
-from HVAC_legacy.gui_v2.common.theme_manager import ThemeManagerV2
+from HVAC.gui_v2.main_window_v2 import MainWindowV2
+from HVAC.gui_v2.common.gui_view_state import GuiViewState
+from HVAC.gui_v2.common.theme_manager import ThemeManagerV2
 
 
 # ---------------------------------------------------------------------------

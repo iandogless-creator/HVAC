@@ -21,9 +21,9 @@ from __future__ import annotations
 import math
 from typing import List
 
-from HVAC_legacy.hydronics_v3.dto.valve_catalog_dto import ValveCatalogDTO
-from HVAC_legacy.hydronics_v3.dto.valve_sizing_input_dto import ValveSizingInputDTO
-from HVAC_legacy.hydronics_v3.dto.valve_sizing_result_dto import ValveSizingResultDTO
+from HVAC.hydronics_v3.dto.valve_catalog_dto import ValveCatalogDTO
+from HVAC.hydronics_v3.dto.valve_sizing_input_dto import ValveSizingInputDTO
+from HVAC.hydronics_v3.dto.valve_sizing_result_dto import ValveSizingResultDTO
 
 
 class ValveSizingEngineV1:

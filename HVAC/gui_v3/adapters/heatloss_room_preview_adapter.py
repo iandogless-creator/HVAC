@@ -8,8 +8,8 @@ from __future__ import annotations
 
 from typing import List
 
-from HVAC_legacy.gui_v3.context.gui_project_context import GuiProjectContext
-from HVAC_legacy.gui_v3.dto.heat_loss_preview_dto import HeatLossPreviewDTO
+from HVAC.gui_v3.context.gui_project_context import GuiProjectContext
+from HVAC.gui_v3.dto.heat_loss_preview_dto import HeatLossPreviewDTO
 
 
 class HeatLossRoomPreviewAdapter:

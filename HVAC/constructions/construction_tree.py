@@ -28,7 +28,7 @@ from dataclasses import dataclass
 from typing import Dict, List
 
 
-from HVAC_legacy.constructions.construction_preset import SurfaceClass
+from HVAC.constructions.construction_preset import SurfaceClass
 
 
 # ------------------------------------------------------------------

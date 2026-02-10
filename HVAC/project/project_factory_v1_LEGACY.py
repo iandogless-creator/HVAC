@@ -22,31 +22,31 @@ from dataclasses import dataclass, field
 from typing import Optional, List, Tuple
 
 # ---- Geometry / openings ----
-from HVAC_legacy.geometry.opening_placement_v1 import (
+from HVAC.geometry.opening_placement_v1 import (
     OpeningPlacement,
     resolve_all_openings,
 )
 
 # ---- Heat-loss attribution (SURFACES) ----
-from HVAC_legacy.heatloss.surfaces.opening_attribution_v1 import (
+from HVAC.heatloss.surfaces.opening_attribution_v1 import (
     attribute_openings_for_heatloss,
 )
 
-from HVAC_legacy.heatloss.surfaces.wall_attribution_v1 import (
+from HVAC.heatloss.surfaces.wall_attribution_v1 import (
     attribute_walls_for_heatloss,
 )
 
-from HVAC_legacy.heatloss.surfaces.wall_uvalue_application_v1 import (
+from HVAC.heatloss.surfaces.wall_uvalue_application_v1 import (
     apply_uvalues_to_walls,
 )
 
-from HVAC_legacy.heatloss.heatloss_payload_v1 import (
+from HVAC.heatloss.heatloss_payload_v1 import (
     HeatLossPayload,
     build_heatloss_payload,
 )
 
-from HVAC_legacy.hydronics.config.system_sizing_intent_v1 import SystemSizingIntent
-from HVAC_legacy.hydronics.attachments.hydronics_attachment_v1 import (
+from HVAC.hydronics.config.system_sizing_intent_v1 import SystemSizingIntent
+from HVAC.hydronics.attachments.hydronics_attachment_v1 import (
     HydronicsAttachmentResultV1,
 )
 

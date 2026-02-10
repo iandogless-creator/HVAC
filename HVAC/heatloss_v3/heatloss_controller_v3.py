@@ -21,16 +21,16 @@ Rules
 
 from __future__ import annotations
 
-from HVAC_legacy.heatloss.engines.heatloss_engine_v3 import (
+from HVAC.heatloss.engines.heatloss_engine_v3 import (
     HeatLossEngineV3,
     RoomHeatLossInput,
 )
 
-from HVAC_legacy.heatloss.adapters.engine_to_dto import (
+from HVAC.heatloss.adapters.engine_to_dto import (
     build_heatloss_dto,
 )
 
-from HVAC_legacy.project_v3.project_models_v3 import SurfaceV3
+from HVAC.project_v3.project_models_v3 import SurfaceV3
 
 class HeatLossControllerV3:
     """

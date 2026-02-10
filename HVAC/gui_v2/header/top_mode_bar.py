@@ -26,7 +26,7 @@ from PySide6.QtWidgets import (
     QSizePolicy,
 )
 
-from HVAC_legacy.gui_v2.common.gui_view_state import GuiViewState
+from HVAC.gui_v2.common.gui_view_state import GuiViewState
 
 
 # ============================================================================

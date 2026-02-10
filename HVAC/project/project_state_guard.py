@@ -20,7 +20,7 @@ RULES (LOCKED)
 
 from __future__ import annotations
 
-from HVAC_legacy.project.project_state import ProjectState
+from HVAC.project.project_state import ProjectState
 
 TRACE_GUARD = False
 

@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import math
 
-from HVAC_legacy.hydronics_v3.tests.validation.example_a_steel_25mm_1972_dataset_v1 import (
+from HVAC.hydronics_v3.tests.validation.example_a_steel_25mm_1972_dataset_v1 import (
     EXAMPLE_ID,
     RHO_WATER_75C_KG_M3,
     MU_WATER_75C_PA_S,

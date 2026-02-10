@@ -34,7 +34,7 @@ from PySide6.QtCore import (
     Qt,
 )
 
-from HVAC_legacy.heatloss.dto.room_heatloss_row_dto import RoomHeatLossRowDTO
+from HVAC.heatloss.dto.room_heatloss_row_dto import RoomHeatLossRowDTO
 from .hl_table_columns import HLColumn
 
 

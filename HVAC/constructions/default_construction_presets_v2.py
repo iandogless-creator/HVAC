@@ -7,7 +7,7 @@ HVACgooee — Default Construction Presets (v2, v3-compatible)
 Conservative, orthodox, steady-state effective U-values.
 """
 
-from HVAC_legacy.constructions.construction_preset import (
+from HVAC.constructions.construction_preset import (
     ConstructionPreset,
     SurfaceClass,
 )

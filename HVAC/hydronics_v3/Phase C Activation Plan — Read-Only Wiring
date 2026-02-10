@@ -93,7 +93,8 @@ Panels
 
 Adapter responsibilities:
 
-pull data from ProjectState
+pull data from HVAC.project.
+State
 
 adapt to panel DTO shape
 
@@ -164,7 +165,8 @@ It waits for Phase D+.
 
 Phase C is complete when:
 
-panels populate from ProjectState
+panels populate from HVAC.project.
+State
 
 no panel can mutate state
 

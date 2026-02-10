@@ -175,7 +175,8 @@ Phase C (Construction) — editable construction definitions
 Phase D (UVP) — authoritative U-value resolution
 
 Environment → Heat-Loss enrichment SHALL be passed via a read-only DTO produced by the GUI context.
-Direct reads from ProjectState inside Heat-Loss adapters are forbidden.
+Direct reads from HVAC.project.
+State inside Heat-Loss adapters are forbidden.
 
 Construction defines what it is.
 UVP defines what it does thermally.

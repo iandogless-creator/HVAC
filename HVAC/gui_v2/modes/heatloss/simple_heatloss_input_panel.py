@@ -26,25 +26,25 @@ from PySide6.QtWidgets import (
     QComboBox,
 )
 
-from HVAC_legacy.gui_v2.modes.heatloss.heatloss_panel import HeatLossPanel
+from HVAC.gui_v2.modes.heatloss.heatloss_panel import HeatLossPanel
 
-from HVAC_legacy.constructions.construction_preset import (
+from HVAC.constructions.construction_preset import (
     ConstructionPreset,
     SurfaceClass,
 )
-from HVAC_legacy.constructions.construction_preset_registry import (
+from HVAC.constructions.construction_preset_registry import (
     ConstructionPresetRegistry,
 )
-from HVAC_legacy.constructions.default_construction_presets_v2 import (
+from HVAC.constructions.default_construction_presets_v2 import (
     DEFAULT_CONSTRUCTION_PRESETS_V2,
 )
 
-from HVAC_legacy.heatloss.engines.heatloss_engine_v3 import (
+from HVAC.heatloss.engines.heatloss_engine_v3 import (
     HeatLossEngineV3,
     RoomHeatLossInput,
     BoundaryHeatLossInput,
 )
-from HVAC_legacy.heatloss.adapters.engine_to_dto import build_heatloss_dto
+from HVAC.heatloss.adapters.engine_to_dto import build_heatloss_dto
 
 
 class SimpleHeatLossInputPanel(QWidget):

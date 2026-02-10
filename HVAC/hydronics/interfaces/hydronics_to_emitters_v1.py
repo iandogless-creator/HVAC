@@ -28,7 +28,7 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from HVAC_legacy.hydronics.emitters.emitter_result_v1 import EmitterResult
+from HVAC.hydronics.emitters.emitter_result_v1 import EmitterResult
 
 
 class EmitterSizer(Protocol):

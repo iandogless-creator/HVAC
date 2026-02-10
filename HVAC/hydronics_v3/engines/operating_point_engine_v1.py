@@ -7,12 +7,12 @@ from __future__ import annotations
 import math
 from typing import Optional
 
-from HVAC_legacy.hydronics_v3.dto.system_curve_dto import SystemCurveDTO
-from HVAC_legacy.hydronics_v3.dto.pump_catalog_dto import (
+from HVAC.hydronics_v3.dto.system_curve_dto import SystemCurveDTO
+from HVAC.hydronics_v3.dto.pump_catalog_dto import (
     PumpCandidateDTO,
     PumpCurvePointDTO,
 )
-from HVAC_legacy.hydronics_v3.dto.operating_point_result_dto import (
+from HVAC.hydronics_v3.dto.operating_point_result_dto import (
     OperatingPointResultDTO,
 )
 

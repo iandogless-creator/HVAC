@@ -9,7 +9,7 @@ Prove hydronics physics is callable with:
 ✔ pure numeric inputs
 """
 
-from HVAC_legacy.hydronics.physics.colebrook import (
+from HVAC.hydronics.physics.colebrook import (
     colebrook,
     reynolds_number,
     darcy_weisbach,

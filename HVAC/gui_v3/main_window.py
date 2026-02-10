@@ -20,38 +20,38 @@ from PySide6.QtWidgets import (
 # ----------------------------------------------------------------------
 # GUI context (authority boundary)
 # ----------------------------------------------------------------------
-from HVAC_legacy.gui_v3.context.gui_project_context import GuiProjectContext
+from HVAC.gui_v3.context.gui_project_context import GuiProjectContext
 
 # ----------------------------------------------------------------------
 # Panels
 # ----------------------------------------------------------------------
-from HVAC_legacy.gui_v3.panels.project_panel import ProjectPanel
-from HVAC_legacy.gui_v3.panels.environment_panel import EnvironmentPanel
-from HVAC_legacy.gui_v3.panels.heat_loss_panel import HeatLossPanelV3
-from HVAC_legacy.gui_v3.panels.education_panel import EducationPanel
-from HVAC_legacy.gui_v3.panels.hydronics_schematic_panel import HydronicsSchematicPanel
-from HVAC_legacy.gui_v3.panels.room_tree_panel import RoomTreePanel
+from HVAC.gui_v3.panels.project_panel import ProjectPanel
+from HVAC.gui_v3.panels.environment_panel import EnvironmentPanel
+from HVAC.gui_v3.panels.heat_loss_panel import HeatLossPanelV3
+from HVAC.gui_v3.panels.education_panel import EducationPanel
+from HVAC.gui_v3.panels.hydronics_schematic_panel import HydronicsSchematicPanel
+from HVAC.gui_v3.panels.room_tree_panel import RoomTreePanel
 # ----------------------------------------------------------------------
 # Adapters (read-only)
 # ----------------------------------------------------------------------
-from HVAC_legacy.gui_v3.adapters.project_panel_adapter import ProjectPanelAdapter
-from HVAC_legacy.gui_v3.adapters.environment_panel_adapter import EnvironmentPanelAdapter
-from HVAC_legacy.gui_v3.adapters.heat_loss_panel_adapter import HeatLossPanelAdapter
-from HVAC_legacy.gui_v3.adapters.education_panel_adapter import EducationPanelAdapter
-from HVAC_legacy.gui_v3.adapters.hydronics_schematic_panel_adapter import (
+from HVAC.gui_v3.adapters.project_panel_adapter import ProjectPanelAdapter
+from HVAC.gui_v3.adapters.environment_panel_adapter import EnvironmentPanelAdapter
+from HVAC.gui_v3.adapters.heat_loss_panel_adapter import HeatLossPanelAdapter
+from HVAC.gui_v3.adapters.education_panel_adapter import EducationPanelAdapter
+from HVAC.gui_v3.adapters.hydronics_schematic_panel_adapter import (
     HydronicsSchematicPanelAdapter,
 )
-from HVAC_legacy.gui_v3.adapters.room_tree_panel_adapter import RoomTreePanelAdapter
+from HVAC.gui_v3.adapters.room_tree_panel_adapter import RoomTreePanelAdapter
 # ----------------------------------------------------------------------
 # Controllers
 # ----------------------------------------------------------------------
-from HVAC_legacy.heatloss_v3.heatloss_controller_v4 import HeatLossControllerV4
+from HVAC.heatloss_v3.heatloss_controller_v4 import HeatLossControllerV4
 
-from HVAC_legacy.gui_v3.adapters.heat_loss_worksheet_adapter import (
+from HVAC.gui_v3.adapters.heat_loss_worksheet_adapter import (
     HeatLossWorksheetAdapter,
 )
-from HVAC_legacy.gui_v3.panels.uvp_panel import UVPPanel
-from HVAC_legacy.gui_v3.panels.construction_panel import ConstructionPanel
+from HVAC.gui_v3.panels.uvp_panel import UVPPanel
+from HVAC.gui_v3.panels.construction_panel import ConstructionPanel
 
 # ======================================================================
 # MainWindowV3
@@ -135,6 +135,7 @@ class MainWindowV3(QMainWindow):
         self._heat_loss_panel_adapter = HeatLossPanelAdapter(
             panel=self._heat_loss_panel,
             project_state=context.project_state,
+            gui_context=self._gui_context,
         )
 
         self._heat_loss_worksheet_adapter = HeatLossWorksheetAdapter(
@@ -369,6 +370,7 @@ class MainWindowV3(QMainWindow):
         self._heat_loss_panel_adapter = HeatLossPanelAdapter(
             panel=self._heat_loss_panel,
             project_state=self._context.project_state,
+            gui_context=self._gui_context,
         )
 
         self._heat_loss_worksheet_adapter = HeatLossWorksheetAdapter(
@@ -433,6 +435,11 @@ class MainWindowV3(QMainWindow):
             dock.dockLocationChanged.connect(
                 lambda _=None, self=self: self._update_main_window_visibility()
             )
+        # ------------------------------------------------------------------
+        # Phase F — Development-safe inspector visibility
+        # ------------------------------------------------------------------
+        self._dock_construction.show()
+        self._dock_uvp.show()
 
         # --------------------------------------------------------------
         # Menus (MUST exist in same _build_ui)
@@ -581,7 +588,7 @@ class MainWindowV3(QMainWindow):
             print(f"Selected project: {path}")
 
     def _new_project(self) -> None:
-        from HVAC_legacy.project_v3.project_factory_v3 import ProjectFactoryV3
+        from HVAC.project_v3.project_factory_v3 import ProjectFactoryV3
 
         project = ProjectFactoryV3.create_empty()
         self._context.set_project_state(project)

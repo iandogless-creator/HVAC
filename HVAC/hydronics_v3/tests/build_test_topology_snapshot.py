@@ -1,6 +1,6 @@
 # HVAC/hydronics/tests/build_test_topology_snapshot.py
 
-from HVAC_legacy.hydronics_v3.dto.topology_snapshot_dto import (
+from HVAC.hydronics_v3.dto.topology_snapshot_dto import (
     TopologySnapshotDTO,
     TopologyNodeDTO,
     TopologyEdgeDTO,

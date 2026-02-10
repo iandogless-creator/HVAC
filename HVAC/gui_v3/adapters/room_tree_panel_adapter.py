@@ -8,8 +8,8 @@
 
 from __future__ import annotations
 
-from HVAC_legacy.gui_v3.context.gui_project_context import GuiProjectContext
-from HVAC_legacy.gui_v3.panels.room_tree_panel import RoomTreePanel
+from HVAC.gui_v3.context.gui_project_context import GuiProjectContext
+from HVAC.gui_v3.panels.room_tree_panel import RoomTreePanel
 
 
 class RoomTreePanelAdapter:
@@ -17,7 +17,8 @@ class RoomTreePanelAdapter:
     RoomTreePanelAdapter — GUI v3
 
     Phase E-A responsibilities:
-    • Read room list from ProjectState (read-only)
+    • Read room list from HVAC.project.
+State (read-only)
     • Populate RoomTreePanel
     • Reflect active room selection
     • Propagate user room selection back to context

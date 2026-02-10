@@ -21,8 +21,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import List
 
-from HVAC_legacy.project_v3.diagnostics_v3 import DiagnosticV3, SeverityV3
-from HVAC_legacy.project_v3.model_v3 import ProjectModelV3
+from HVAC.project_v3.diagnostics_v3 import DiagnosticV3, SeverityV3
+from HVAC.project_v3.model_v3 import ProjectModelV3
 
 
 @dataclass(frozen=True, slots=True)

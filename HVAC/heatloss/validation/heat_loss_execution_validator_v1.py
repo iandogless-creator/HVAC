@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Any, List
 
-from HVAC_legacy.heatloss.validation.validation_dto import (
+from HVAC.heatloss.validation.validation_dto import (
     ValidationIssue,
     ValidationReport,
     ValidationSeverity,

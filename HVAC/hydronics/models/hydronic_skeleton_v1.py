@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 
-from HVAC_legacy.hydronics.models.emitter_v1 import EmitterV1
+from HVAC.hydronics.models.emitter_v1 import EmitterV1
 
 
 @dataclass(slots=True)

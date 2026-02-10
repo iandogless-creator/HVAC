@@ -5,7 +5,7 @@
 from __future__ import annotations
 
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QTextBrowser
-from HVAC_legacy.project.project_state import ProjectState
+from HVAC.project.project_state import ProjectState
 
 
 class ProjectStateInspector(QWidget):

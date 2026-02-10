@@ -6,14 +6,14 @@ from __future__ import annotations
 
 from typing import Optional
 
-from HVAC_legacy.hydronics_v3.dto.operating_point_result_dto import (
+from HVAC.hydronics_v3.dto.operating_point_result_dto import (
     OperatingPointResultDTO,
 )
-from HVAC_legacy.hydronics_v3.dto.pump_efficiency_curve_dto import (
+from HVAC.hydronics_v3.dto.pump_efficiency_curve_dto import (
     PumpEfficiencyCurveDTO,
     PumpEfficiencyPointDTO,
 )
-from HVAC_legacy.hydronics_v3.dto.pump_power_result_dto import (
+from HVAC.hydronics_v3.dto.pump_power_result_dto import (
     PumpPowerResultDTO,
 )
 

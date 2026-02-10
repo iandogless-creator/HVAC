@@ -24,8 +24,8 @@ from __future__ import annotations
 
 from typing import List
 
-from HVAC_legacy.hydronics_v3.dto.index_path_result_dto import IndexPathResultDTO
-from HVAC_legacy.hydronics_v3.dto.balancing_target_dto import (
+from HVAC.hydronics_v3.dto.index_path_result_dto import IndexPathResultDTO
+from HVAC.hydronics_v3.dto.balancing_target_dto import (
     BalancingTargetDTO,
     TerminalBalanceTargetDTO,
     BalancingPolicy,

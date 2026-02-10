@@ -21,9 +21,9 @@ RULES (LOCKED)
 
 from __future__ import annotations
 
-from HVAC_legacy.project.project_state import ProjectState
-from HVAC_legacy.constructions.construction_preset import SurfaceClass
-from HVAC_legacy.constructions.dto.construction_uvalue_result_dto import (
+from HVAC.project.project_state import ProjectState
+from HVAC.constructions.construction_preset import SurfaceClass
+from HVAC.constructions.dto.construction_uvalue_result_dto import (
     ConstructionUValueResultDTO,
 )
 

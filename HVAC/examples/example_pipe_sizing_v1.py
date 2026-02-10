@@ -10,7 +10,7 @@ No heat-loss
 Pure hydronics physics.
 """
 
-from HVAC_legacy.hydronics.pipe_sizing_solver_v1 import (
+from HVAC.hydronics.pipe_sizing_solver_v1 import (
     size_pipe_for_flow_lps,
     describe_pipe_sizing,
 )

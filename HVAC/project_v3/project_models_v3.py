@@ -21,7 +21,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
-from HVAC_legacy.constructions.construction_preset import SurfaceClass
+from HVAC.constructions.construction_preset import SurfaceClass
 
 
 # ---------------------------------------------------------------------
@@ -111,7 +111,8 @@ class SurfaceV3:
 class SpaceV3:
     """
     Declared thermal space (room).
-    design_temp_C is set from project environment in v1 canonical.
+    design_temp_C is set from HVAC.project.
+ environment in v1 canonical.
     """
     space_id: str
     name: str

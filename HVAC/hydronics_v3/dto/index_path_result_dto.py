@@ -7,7 +7,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import List
 
-from HVAC_legacy.hydronics_v3.dto.pressure_drop_path_dto import PressureDropPathDTO
+from HVAC.hydronics_v3.dto.pressure_drop_path_dto import PressureDropPathDTO
 
 
 @dataclass(frozen=True, slots=True)

@@ -21,7 +21,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from uuid import uuid4
 
-from HVAC_legacy.project_v3.model_v3 import (
+from HVAC.project_v3.model_v3 import (
     ProjectModelV3,
     ProjectIdentityV3,
     ProjectUnitsV3,

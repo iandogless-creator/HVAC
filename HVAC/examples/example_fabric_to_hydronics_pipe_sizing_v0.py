@@ -13,9 +13,9 @@ from heatloss.factories.project_factory_v3 import (
     build_heatloss_if_ready,
 )
 
-from HVAC_legacy.geometry.opening_placement_v1 import OpeningPlacement
-from HVAC_legacy.hydronics.hydronics_payload_v1 import build_from_fabric
-from HVAC_legacy.hydronics.pipe_sizing_solver_v1 import (
+from HVAC.geometry.opening_placement_v1 import OpeningPlacement
+from HVAC.hydronics.hydronics_payload_v1 import build_from_fabric
+from HVAC.hydronics.pipe_sizing_solver_v1 import (
     size_pipe_for_hydronics,
     describe_pipe_sizing,
 )

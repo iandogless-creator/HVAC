@@ -20,7 +20,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
-from HVAC_legacy.project_v3.project_models_v3 import SurfaceV3
+from HVAC.project_v3.project_models_v3 import SurfaceV3
 
 
 # ---------------------------------------------------------------------

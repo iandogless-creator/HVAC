@@ -18,8 +18,8 @@ Responsibilities
 
 from __future__ import annotations
 
-from HVAC_legacy.education.resolver import resolve
-from HVAC_legacy.gui_v3.panels.education_panel import EducationPanel
+from HVAC.education.resolver import resolve
+from HVAC.gui_v3.panels.education_panel import EducationPanel
 
 
 class EducationPanelAdapter:

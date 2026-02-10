@@ -18,9 +18,9 @@ read-only schematic DTO.
 
 from __future__ import annotations
 
-from HVAC_legacy.project.project_state import ProjectState
-from HVAC_legacy.gui_v3.panels.hydronics_schematic_panel import HydronicsSchematicPanel
-from HVAC_legacy.gui_v3.schematic.dto import (
+from HVAC.project.project_state import ProjectState
+from HVAC.gui_v3.panels.hydronics_schematic_panel import HydronicsSchematicPanel
+from HVAC.gui_v3.schematic.dto import (
     HydronicsSchematicDTO,
     SchematicNodeDTO,
     SchematicEdgeDTO,

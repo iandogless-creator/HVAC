@@ -36,12 +36,12 @@ from PySide6.QtWidgets import (
     QMessageBox,
 )
 
-from HVAC_legacy.constructions.construction_preset import SurfaceClass
-from HVAC_legacy.constructions.registry_v2 import CONSTRUCTION_REGISTRY_V2
-from HVAC_legacy.constructions.dto.construction_uvalue_result_dto import (
+from HVAC.constructions.construction_preset import SurfaceClass
+from HVAC.constructions.registry_v2 import CONSTRUCTION_REGISTRY_V2
+from HVAC.constructions.dto.construction_uvalue_result_dto import (
     ConstructionUValueResultDTO,
 )
-from HVAC_legacy.project.project_state import ProjectState
+from HVAC.project.project_state import ProjectState
 
 
 class ConstructionPanel(QWidget):

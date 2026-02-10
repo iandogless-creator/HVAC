@@ -23,7 +23,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field, asdict
 from typing import List, Dict, Any, Optional
 
-from HVAC_legacy.spaces.space_types import Space
+from HVAC.spaces.space_types import Space
 
 
 # ======================================================================

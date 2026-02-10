@@ -13,7 +13,7 @@ LOCKED:
 from __future__ import annotations
 from typing import Dict, Any
 
-from HVAC_legacy.project_v3.model_v3 import ProjectModelV3
+from HVAC.project_v3.model_v3 import ProjectModelV3
 
 
 def project_to_dict(project: ProjectModelV3) -> Dict[str, Any]:
@@ -44,7 +44,7 @@ def project_to_dict(project: ProjectModelV3) -> Dict[str, Any]:
 
 
 def project_from_dict(data: Dict[str, Any]) -> ProjectModelV3:
-    from HVAC_legacy.project_v3.model_v3 import (
+    from HVAC.project_v3.model_v3 import (
         ProjectIdentityV3,
         ProjectUnitsV3,
         ProjectDeclaredIntentV3,

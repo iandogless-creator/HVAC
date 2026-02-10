@@ -23,7 +23,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from HVAC_legacy.hydronics.dto.hydronics_run_result_dto import (
+from HVAC.hydronics.dto.hydronics_run_result_dto import (
     HydronicsRunInputDTO,
     HydronicsRunResultDTO,
 )
@@ -74,7 +74,7 @@ def calculate_single_run_v1(
     # ------------------------------------------------------------
     # 2) Pipe sizing (velocity-based, v1)
     # ------------------------------------------------------------
-    from HVAC_legacy.hydronics.pipe_sizing_solver_v1 import (
+    from HVAC.hydronics.pipe_sizing_solver_v1 import (
         size_pipe_for_flow,
     )
 
@@ -91,7 +91,7 @@ def calculate_single_run_v1(
     # ------------------------------------------------------------
     # 3) Pressure drop (Darcy–Weisbach via Colebrook)
     # ------------------------------------------------------------
-    from HVAC_legacy.hydronics.physics.colebrook import CalcPipe
+    from HVAC.hydronics.physics.colebrook import CalcPipe
 
     pipe_calc = CalcPipe(
         flow_rate=volume_flow_m3_s,

@@ -4,17 +4,17 @@
 
 from __future__ import annotations
 
-from HVAC_legacy.project.project_state import ProjectState
-from HVAC_legacy.hydronics_v3.dto.hydronics_estimate_input_dto import (
+from HVAC.project.project_state import ProjectState
+from HVAC.hydronics_v3.dto.hydronics_estimate_input_dto import (
     HydronicsEstimateInputDTO,
 )
-from HVAC_legacy.hydronics_v3.dto.hydronics_estimate_result_dto import (
+from HVAC.hydronics_v3.dto.hydronics_estimate_result_dto import (
     HydronicsEstimateResultDTO,
 )
-from HVAC_legacy.hydronics_v3.enums.hydronic_system_type import (
+from HVAC.hydronics_v3.enums.hydronic_system_type import (
     HydronicSystemType,
 )
-from HVAC_legacy.hydronics_v3.engines.hydronics_estimate_engine_v3 import (
+from HVAC.hydronics_v3.engines.hydronics_estimate_engine_v3 import (
     HydronicsEstimateEngineV3,
 )
 

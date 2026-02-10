@@ -8,11 +8,11 @@ from __future__ import annotations
 
 from typing import Optional
 
-from HVAC_legacy.gui_v3.context.gui_project_context import GuiProjectContext
-from HVAC_legacy.gui_v3.dto.project_heatloss_readiness_dto import (
+from HVAC.gui_v3.context.gui_project_context import GuiProjectContext
+from HVAC.gui_v3.dto.project_heatloss_readiness_dto import (
     ProjectHeatLossReadinessDTO,
 )
-from HVAC_legacy.gui_v3.adapters.room_readiness_adapter import RoomReadinessAdapter
+from HVAC.gui_v3.adapters.room_readiness_adapter import RoomReadinessAdapter
 
 
 class ProjectHeatLossReadinessAdapter:

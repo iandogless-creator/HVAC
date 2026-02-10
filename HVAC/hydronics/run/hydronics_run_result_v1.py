@@ -15,10 +15,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Dict, Optional
 
-from HVAC_legacy.hydronics.pipes.dp.pressure_drop_path_v1 import PressureDropPathV1
-from HVAC_legacy.hydronics.pumps.dto.pump_duty_point_v1 import PumpDutyPointV1
-from HVAC_legacy.hydronics.balancing.models.balancing_v1 import BalancingSummaryV1
-from HVAC_legacy.hydronics.dto.topology_snapshot_dto import TopologySnapshotDTO
+from HVAC.hydronics.pipes.dp.pressure_drop_path_v1 import PressureDropPathV1
+from HVAC.hydronics.pumps.dto.pump_duty_point_v1 import PumpDutyPointV1
+from HVAC.hydronics.balancing.models.balancing_v1 import BalancingSummaryV1
+from HVAC.hydronics.dto.topology_snapshot_dto import TopologySnapshotDTO
 
 
 

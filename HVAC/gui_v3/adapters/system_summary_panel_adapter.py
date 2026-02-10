@@ -8,9 +8,9 @@ from __future__ import annotations
 
 from typing import Optional
 
-from HVAC_legacy.project.project_state import ProjectState
+from HVAC.project.project_state import ProjectState
 
-from HVAC_legacy.gui_v3.panels.system_summary_panel import (
+from HVAC.gui_v3.panels.system_summary_panel import (
     SystemSummaryPanel,
     SystemSummaryViewModel,
 )

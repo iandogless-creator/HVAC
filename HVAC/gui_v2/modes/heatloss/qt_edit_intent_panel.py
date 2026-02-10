@@ -26,7 +26,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
 )
 
-from HVAC_legacy.heatloss.dto.room_heatloss_row_dto import RoomHeatLossRowDTO
+from HVAC.heatloss.dto.room_heatloss_row_dto import RoomHeatLossRowDTO
 
 
 class QtEditIntentPanel(QWidget):

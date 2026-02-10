@@ -19,7 +19,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import List
 
-from HVAC_legacy.heatloss.dto.heatloss_results_dto import HeatLossResultDTO
+from HVAC.heatloss.dto.heatloss_results_dto import HeatLossResultDTO
 
 
 @dataclass(slots=True)

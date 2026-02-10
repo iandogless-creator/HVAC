@@ -45,9 +45,9 @@ from PySide6.QtWidgets import (
 )
 
 
-from HVAC_legacy.project.project_state import ProjectState
+from HVAC.project.project_state import ProjectState
 
-from HVAC_legacy.gui_v2.common.system_view_control import (
+from HVAC.gui_v2.common.system_view_control import (
     SystemViewControl,
     SystemViewMode,
 )

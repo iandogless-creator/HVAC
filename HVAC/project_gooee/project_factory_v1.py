@@ -23,22 +23,22 @@ from dataclasses import dataclass, field
 from typing import Optional, List, Tuple
 
 # ---- Geometry / openings ----
-from HVAC_legacy.geometry.opening_placement_v1 import (
+from HVAC.geometry.opening_placement_v1 import (
     OpeningPlacement,
     resolve_all_openings,
 )
 
 # ---- Heat-loss attribution ----
-from HVAC_legacy.heatloss.opening_attribution_v1 import (
+from HVAC.heatloss.opening_attribution_v1 import (
     attribute_openings_for_heatloss,
 )
-from HVAC_legacy.heatloss.wall_attribution_v1 import (
+from HVAC.heatloss.wall_attribution_v1 import (
     attribute_walls_for_heatloss,
 )
-from HVAC_legacy.heatloss.wall_uvalue_application_v1 import (
+from HVAC.heatloss.wall_uvalue_application_v1 import (
     apply_uvalues_to_walls,
 )
-from HVAC_legacy.heatloss.heatloss_payload_v1 import (
+from HVAC.heatloss.heatloss_payload_v1 import (
     HeatLossPayload,
     build_heatloss_payload,
 )

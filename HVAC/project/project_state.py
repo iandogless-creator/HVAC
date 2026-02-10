@@ -12,8 +12,8 @@ from typing import Dict, Optional
 # NOTE:
 # RoomStateV1 is referenced as a forward type only.
 # Import here only if already stable and lightweight.
-from HVAC_legacy.project.room_state_v1 import RoomStateV1
-from HVAC_legacy.project_v3.models.capability_intent import CapabilityIntent
+from HVAC.project.room_state_v1 import RoomStateV1
+from HVAC.project_v3.models.capability_intent import CapabilityIntent
 
 # ----------------------------------------------------------------------
 # Heat-Loss State (v1)
@@ -39,6 +39,11 @@ class HeatLossStateV1:
 
     # Aggregate validity
     project_valid: bool = False
+    # Element-level worksheet overrides (intent-only, pre-run)
+    # room_id -> element_id -> field -> value
+    overrides: Dict[str, Dict[str, Dict[str, Optional[float]]]] = field(
+        default_factory=dict
+    )
 
     # --------------------------------------------------
     # Commit API (Phase D.2)
@@ -89,6 +94,62 @@ class HeatLossStateV1:
 
     def is_project_stale(self) -> bool:
         return not self.project_valid
+
+    def set_override(
+            self,
+            *,
+            room_id: str,
+            element_id: str,
+            field: str,
+            value: Optional[float],
+    ) -> None:
+        """
+        Set or clear a worksheet override value.
+
+        Parameters
+        ----------
+        room_id:
+            Owning room identifier.
+        element_id:
+            Element identifier within the room.
+        field:
+            One of: "area_m2", "delta_t_k", "u_value".
+        value:
+            Override value, or None to clear.
+
+        Semantics
+        ---------
+        • Creates override containers lazily
+        • Setting value=None clears the field
+        • Removes empty element entries automatically
+        • Marks project heat-loss results stale
+        """
+
+        if field not in {"area_m2", "delta_t_k", "u_value"}:
+            raise ValueError(f"Unsupported heat-loss override field: {field}")
+
+        key = (room_id, element_id)
+        elem_map = self.overrides.get(key)
+
+        if value is None:
+            if not elem_map:
+                return
+
+            elem_map.pop(field, None)
+
+            # Prune empty element override
+            if not elem_map:
+                self.overrides.pop(key, None)
+        else:
+            if elem_map is None:
+                elem_map = {}
+                self.overrides[key] = elem_map
+
+            elem_map[field] = float(value)
+
+        # Any override change invalidates committed results
+        self.mark_project_stale()
+
 
 # ----------------------------------------------------------------------
 # Environment State (v1)

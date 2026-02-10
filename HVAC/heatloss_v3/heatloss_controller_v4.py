@@ -6,8 +6,8 @@
 
 from __future__ import annotations
 
-from HVAC_legacy.heatloss_v3.heatloss_runner_v3 import HeatLossRunnerV3
-from HVAC_legacy.project.project_state import ProjectState
+from HVAC.heatloss_v3.heatloss_runner_v3 import HeatLossRunnerV3
+from HVAC.project.project_state import ProjectState
 
 
 class HeatLossControllerV4:

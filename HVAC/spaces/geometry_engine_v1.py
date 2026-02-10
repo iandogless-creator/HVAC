@@ -32,7 +32,7 @@ import math
 from typing import List, Tuple
 
 # Import the unified Space model
-from HVAC_legacy.spaces.space_types import Space
+from HVAC.spaces.space_types import Space
 
 
 # ---------------------------------------------------------------------------

@@ -6,9 +6,9 @@ import sys
 
 from PySide6.QtWidgets import QApplication
 
-from HVAC_legacy.project_v3.project_factory_v3 import ProjectFactoryV3
-from HVAC_legacy.gui_v3.context.gui_project_context import GuiProjectContext
-from HVAC_legacy.gui_v3.main_window import MainWindowV3
+from HVAC.project_v3.project_factory_v3 import ProjectFactoryV3
+from HVAC.gui_v3.context.gui_project_context import GuiProjectContext
+from HVAC.gui_v3.main_window import MainWindowV3
 
 
 def main() -> None:

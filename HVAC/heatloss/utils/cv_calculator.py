@@ -1,4 +1,4 @@
-from HVAC_legacy.gui_v2.common.heatloss_constants import FABRIC_CV_DIVISOR
+from HVAC.gui_v2.common.heatloss_constants import FABRIC_CV_DIVISOR
 
 
 def calculate_cv(

@@ -38,7 +38,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import List, Literal, Optional, Sequence, Tuple
 
-from HVAC_legacy.geometry.edge_bearing_utils_v1 import (
+from HVAC.geometry.edge_bearing_utils_v1 import (
     EdgeGeometry,
     ProjectionResult,
     edge_geometry,

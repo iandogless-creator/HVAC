@@ -14,7 +14,7 @@ to the TopologySnapshotDTO.
 
 from __future__ import annotations
 
-from HVAC_legacy.hydronics.dto.topology_snapshot_dto import (
+from HVAC.hydronics.dto.topology_snapshot_dto import (
     TopologySnapshotDTO,
     TopologyNodeDTO,
     TopologyEdgeDTO,

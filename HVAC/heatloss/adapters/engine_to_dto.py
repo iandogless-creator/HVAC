@@ -22,7 +22,7 @@ from __future__ import annotations
 
 from typing import Any, List
 
-from HVAC_legacy.heatloss.dto.heatloss_results_dto import (
+from HVAC.heatloss.dto.heatloss_results_dto import (
     HeatLossResultDTO,
     BoundaryLossDTO,
 )

@@ -20,14 +20,14 @@ from __future__ import annotations
 
 from typing import Dict, Any, List
 
-from HVAC_legacy.models.hvac_dataclasses import (
+from HVAC.models.hvac_dataclasses import (
     Room,
     HeatLossResult,
 )
 
-from HVAC_legacy.heatloss.physics.room_heatloss_engine import compute_room_heatloss
-from HVAC_legacy.heatloss.engines.fabric_heatloss_engine import FabricSurface
-from HVAC_legacy.heatloss.physics.ventilation_heatloss_engine import VentilationParams
+from HVAC.heatloss.physics.room_heatloss_engine import compute_room_heatloss
+from HVAC.heatloss.engines.fabric_heatloss_engine import FabricSurface
+from HVAC.heatloss.physics.ventilation_heatloss_engine import VentilationParams
 
 
 # ---------------------------------------------------------------------------

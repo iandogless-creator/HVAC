@@ -22,10 +22,10 @@ from __future__ import annotations
 
 from typing import Optional
 
-from HVAC_legacy.hydronics.pipes.models.sized_pipe_segment_v1 import (
+from HVAC.hydronics.pipes.models.sized_pipe_segment_v1 import (
     SizedPipeSegmentV1,
 )
-from HVAC_legacy.hydronics.dto.pipe_sizing_dto_v1 import (
+from HVAC.hydronics.dto.pipe_sizing_dto_v1 import (
     PipeSizingDTOv1,
 )
 

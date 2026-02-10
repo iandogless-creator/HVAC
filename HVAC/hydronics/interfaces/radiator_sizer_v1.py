@@ -25,8 +25,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from HVAC_legacy.hydronics.emitters.emitter_result_v1 import EmitterResult
-from HVAC_legacy.hydronics.interfaces.hydronics_to_emitters_v1 import EmitterSizer
+from HVAC.hydronics.emitters.emitter_result_v1 import EmitterResult
+from HVAC.hydronics.interfaces.hydronics_to_emitters_v1 import EmitterSizer
 
 
 # ---------------------------------------------------------------------------

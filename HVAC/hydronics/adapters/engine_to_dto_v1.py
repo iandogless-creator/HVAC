@@ -11,8 +11,8 @@ Pure translation layer.
 
 from __future__ import annotations
 
-from HVAC_legacy.hydronics.run.hydronics_run_result_v1 import HydronicsRunResultV1
-from HVAC_legacy.hydronics.dto.hydronics_results_dto_v1 import (
+from HVAC.hydronics.run.hydronics_run_result_v1 import HydronicsRunResultV1
+from HVAC.hydronics.dto.hydronics_results_dto_v1 import (
     HydronicsResultsDTO,
     PathPressureDropDTO,
     PumpDutyDTO,

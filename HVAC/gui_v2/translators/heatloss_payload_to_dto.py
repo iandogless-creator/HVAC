@@ -21,8 +21,8 @@ from __future__ import annotations
 
 from typing import List
 
-from HVAC_legacy.heatloss.heatloss_payload_v1 import HeatLossPayload
-from HVAC_legacy.gui_v2.dto.heatloss_dto import (
+from HVAC.heatloss.heatloss_payload_v1 import HeatLossPayload
+from HVAC.gui_v2.dto.heatloss_dto import (
     HeatLossResultDTO,
     WallHeatLossDTO,
     OpeningHeatLossDTO,

@@ -7,12 +7,12 @@ from __future__ import annotations
 import math
 from typing import List
 
-from HVAC_legacy.hydronics_v3.dto.balancing_target_dto import BalancingTargetDTO
-from HVAC_legacy.hydronics_v3.dto.valve_catalog_dto import ValveCatalogDTO
-from HVAC_legacy.hydronics_v3.dto.iterative_balancing_input_dto import (
+from HVAC.hydronics_v3.dto.balancing_target_dto import BalancingTargetDTO
+from HVAC.hydronics_v3.dto.valve_catalog_dto import ValveCatalogDTO
+from HVAC.hydronics_v3.dto.iterative_balancing_input_dto import (
     IterativeBalancingInputDTO,
 )
-from HVAC_legacy.hydronics_v3.dto.iterative_balancing_result_dto import (
+from HVAC.hydronics_v3.dto.iterative_balancing_result_dto import (
     IterativeBalancingResultDTO,
     IterativeBalancingTerminalResultDTO,
 )

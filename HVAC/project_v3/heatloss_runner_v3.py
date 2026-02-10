@@ -12,7 +12,8 @@ Project-level orchestration for heat-loss calculations.
 RULES (LOCKED)
 --------------
 • Runner owns fabric + ventilation physics
-• Geometry comes from ProjectV3 spaces/surfaces
+• Geometry comes from HVAC.project.
+V3 spaces/surfaces
 • surface.surface_class MUST be SurfaceClass (enum)
 • U-values come ONLY from ConstructionUValueResultDTO in ProjectState
 • Commits results to ProjectState
@@ -23,9 +24,9 @@ RULES (LOCKED)
 
 from __future__ import annotations
 
-from HVAC_legacy.project.project_state import ProjectState
-from HVAC_legacy.constructions.construction_preset import SurfaceClass
-from HVAC_legacy.constructions.dto.construction_uvalue_result_dto import (
+from HVAC.project.project_state import ProjectState
+from HVAC.constructions.construction_preset import SurfaceClass
+from HVAC.constructions.dto.construction_uvalue_result_dto import (
     ConstructionUValueResultDTO,
 )
 

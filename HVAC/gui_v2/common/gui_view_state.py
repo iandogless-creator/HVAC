@@ -7,8 +7,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Optional
 
-from HVAC_legacy.heatloss.dto.heatloss_results_dto import HeatLossResultDTO
-from HVAC_legacy.project.project_state import ProjectState
+from HVAC.heatloss.dto.heatloss_results_dto import HeatLossResultDTO
+from HVAC.project.project_state import ProjectState
 
 
 @dataclass(slots=True)

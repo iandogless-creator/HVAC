@@ -17,9 +17,9 @@ NO pressure drop.
 NO sizing.
 """
 
-from HVAC_legacy.hydronics_v3.models.hydronic_leg import HydronicLeg
-from HVAC_legacy.hydronics_v3.dto.hydronic_topology_dto import HydronicTopologyDTO
-from HVAC_legacy.hydronics_v3.engines.hydronic_index_path_engine_v1 import (
+from HVAC.hydronics_v3.models.hydronic_leg import HydronicLeg
+from HVAC.hydronics_v3.dto.hydronic_topology_dto import HydronicTopologyDTO
+from HVAC.hydronics_v3.engines.hydronic_index_path_engine_v1 import (
     HydronicIndexPathEngineV1,
 )
 

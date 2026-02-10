@@ -38,7 +38,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Optional
 
-from HVAC_legacy.data.pipe_emissivity import suggest_emissivity
+from HVAC.data.pipe_emissivity import suggest_emissivity
 
 # =====================================================================
 # CONSTANTS

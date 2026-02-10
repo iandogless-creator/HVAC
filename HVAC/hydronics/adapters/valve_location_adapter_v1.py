@@ -16,13 +16,13 @@ from __future__ import annotations
 
 from typing import Dict
 
-from HVAC_legacy.hydronics.balancing.engines.balancing_engine_v1 import (
+from HVAC.hydronics.balancing.engines.balancing_engine_v1 import (
     ValveLocationHydraulicsV1,
 )
-from HVAC_legacy.hydronics.legs.models.committed_leg_geometry_v1 import (
+from HVAC.hydronics.legs.models.committed_leg_geometry_v1 import (
     CommittedLegGeometryV1,
 )
-from HVAC_legacy.hydronics.pipes.models.sized_pipe_segment_v1 import (
+from HVAC.hydronics.pipes.models.sized_pipe_segment_v1 import (
     SizedPipeSegmentV1,
 )
 

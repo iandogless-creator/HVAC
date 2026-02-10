@@ -8,7 +8,7 @@ from __future__ import annotations
 from dataclasses import asdict
 from typing import Dict, List
 
-from HVAC_legacy.heatloss.surfaces.surface_generation_v1 import (
+from HVAC.heatloss.surfaces.surface_generation_v1 import (
     SurfaceV1,
     generate_surfaces_for_space_v1,
 )

@@ -13,7 +13,7 @@ Temporary development scaffold.
 
 from __future__ import annotations
 
-from HVAC_legacy.heatloss.dto.heatloss_results_dto import (
+from HVAC.heatloss.dto.heatloss_results_dto import (
     HeatLossResultsDTO,
     FabricLossItemDTO,
     VentilationLossDTO,

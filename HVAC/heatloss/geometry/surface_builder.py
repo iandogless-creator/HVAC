@@ -21,7 +21,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import List
 
-from HVAC_legacy.spaces.space_types import Space
+from HVAC.spaces.space_types import Space
 
 
 # ==========================================================

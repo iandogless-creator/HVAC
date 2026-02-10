@@ -1,6 +1,6 @@
 from __future__ import annotations
 from dataclasses import dataclass
-from HVAC_legacy.constructions.construction_preset import SurfaceClass
+from HVAC.constructions.construction_preset import SurfaceClass
 
 
 @dataclass(frozen=True, slots=True)

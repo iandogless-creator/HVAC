@@ -19,21 +19,21 @@ This file:
 
 from __future__ import annotations
 
-from HVAC_legacy.heatloss.engines.heatloss_engine_v3 import (
+from HVAC.heatloss.engines.heatloss_engine_v3 import (
     HeatLossEngineV3,
     RoomHeatLossInput,
     BoundaryHeatLossInput,
 )
 
-from HVAC_legacy.constructions.construction_preset_registry import (
+from HVAC.constructions.construction_preset_registry import (
     ConstructionPresetRegistry,
 )
 
-from HVAC_legacy.constructions.default_construction_presets_v2 import (
+from HVAC.constructions.default_construction_presets_v2 import (
     DEFAULT_CONSTRUCTION_PRESETS_V2,
 )
 
-from HVAC_legacy.project_v3.project_models_v3 import SurfaceV3
+from HVAC.project_v3.project_models_v3 import SurfaceV3
 
 
 # ----------------------------------------------------------------------

@@ -4,10 +4,10 @@
 
 from __future__ import annotations
 
-from HVAC_legacy.hydronics_v3.dto.hydronics_estimate_input_dto import (
+from HVAC.hydronics_v3.dto.hydronics_estimate_input_dto import (
     HydronicsEstimateInputDTO,
 )
-from HVAC_legacy.hydronics_v3.dto.hydronics_estimate_result_dto import (
+from HVAC.hydronics_v3.dto.hydronics_estimate_result_dto import (
     HydronicsEstimateResultDTO,
 )
 

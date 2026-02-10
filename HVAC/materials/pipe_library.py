@@ -33,7 +33,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Dict, Optional
 
-from HVAC_legacy.materials.materials_database import (
+from HVAC.materials.materials_database import (
     PipeMaterial,
     get_material,
 )

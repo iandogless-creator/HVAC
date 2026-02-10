@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Dict, List
 
-from HVAC_legacy.constructions.construction_preset import (
+from HVAC.constructions.construction_preset import (
     ConstructionPreset,
     SurfaceClass,
 )

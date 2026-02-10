@@ -21,28 +21,28 @@ from PySide6.QtWidgets import (
     QFileDialog,
 )
 
-from HVAC_legacy.gui_v2.header.top_mode_bar import TopModeBar
-from HVAC_legacy.gui_v2.common.gui_view_state import GuiViewState
-from HVAC_legacy.gui_v2.common.project_structure_viewer import ProjectStructureViewer
+from HVAC.gui_v2.header.top_mode_bar import TopModeBar
+from HVAC.gui_v2.common.gui_view_state import GuiViewState
+from HVAC.gui_v2.common.project_structure_viewer import ProjectStructureViewer
 
-from HVAC_legacy.gui_v2.modes.comfort.comfort_panel import ComfortPanel
-from HVAC_legacy.gui_v2.modes.heatloss.heatloss_panel import HeatLossPanel
-from HVAC_legacy.gui_v2.modes.hydronics.hydronics_panel import HydronicsPanel
-from HVAC_legacy.gui_v2.modes.fenestration.fenestration_panel import FenestrationPanel
-from HVAC_legacy.gui_v2.modes.about.about_panel import AboutPanel
-from HVAC_legacy.gui_v2.modes.heatloss.construction_panel import ConstructionPanel
+from HVAC.gui_v2.modes.comfort.comfort_panel import ComfortPanel
+from HVAC.gui_v2.modes.heatloss.heatloss_panel import HeatLossPanel
+from HVAC.gui_v2.modes.hydronics.hydronics_panel import HydronicsPanel
+from HVAC.gui_v2.modes.fenestration.fenestration_panel import FenestrationPanel
+from HVAC.gui_v2.modes.about.about_panel import AboutPanel
+from HVAC.gui_v2.modes.heatloss.construction_panel import ConstructionPanel
 
-from HVAC_legacy.project.project_state import ProjectState
-from HVAC_legacy.project_v3.project_factory_v3 import ProjectFactoryV3
+from HVAC.project.project_state import ProjectState
+from HVAC.project_v3.project_factory_v3 import ProjectFactoryV3
 
-from HVAC_legacy.heatloss_v3.heatloss_runner_v3 import HeatLossRunnerV3
-from HVAC_legacy.project_v3.run.hydronics_estimate_runner_v3 import HydronicsEstimateRunnerV3
+from HVAC.heatloss_v3.heatloss_runner_v3 import HeatLossRunnerV3
+from HVAC.project_v3.run.hydronics_estimate_runner_v3 import HydronicsEstimateRunnerV3
 
-from HVAC_legacy.education.resolver import resolve_education
-from HVAC_legacy.constructions.dto.construction_uvalue_result_dto import (
+from HVAC.education.resolver import resolve_education
+from HVAC.constructions.dto.construction_uvalue_result_dto import (
     ConstructionUValueResultDTO,
 )
-from HVAC_legacy.constructions.construction_preset import SurfaceClass
+from HVAC.constructions.construction_preset import SurfaceClass
 
 
 # ======================================================================
@@ -367,7 +367,7 @@ class MainWindowV2(QMainWindow):
         self._hydronics_panel.refresh_from_project_state()
         self._assert_project_state_invariant("after hydronics run")
 
-        from HVAC_legacy.project_v3.run.hydronics_qt_sanity_engine import (
+        from HVAC.project_v3.run.hydronics_qt_sanity_engine import (
         run_hydronics_qt_sanity,
     )
         qt = run_hydronics_qt_sanity(project)

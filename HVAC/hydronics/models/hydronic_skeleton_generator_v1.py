@@ -36,7 +36,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Iterable, List, Tuple
 
-from HVAC_legacy.hydronics.models.hydronic_skeleton_v1 import (
+from HVAC.hydronics.models.hydronic_skeleton_v1 import (
     HydronicSkeletonV1,
     BoilerNodeV1,
     TerminalNodeV1,

@@ -24,8 +24,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import List, Optional
 
-from HVAC_legacy.hydronics.pipes.dto.pipe_segment_v1 import PipeSegmentV1
-from HVAC_legacy.hydronics.pipes.dto.sized_pipe_segment_v1 import SizedPipeSegmentV1
+from HVAC.hydronics.pipes.dto.pipe_segment_v1 import PipeSegmentV1
+from HVAC.hydronics.pipes.dto.sized_pipe_segment_v1 import SizedPipeSegmentV1
 
 
 # ----------------------------------------------------------------------

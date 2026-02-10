@@ -1,7 +1,7 @@
-from HVAC_legacy.heatloss.adapters.simple_heatloss_service_v1 import (
+from HVAC.heatloss.adapters.simple_heatloss_service_v1 import (
     SimpleHeatLossServiceV1,
 )
-from HVAC_legacy.heatloss.dto.room_heatloss_row_dto import RoomHeatLossRowDTO
+from HVAC.heatloss.dto.room_heatloss_row_dto import RoomHeatLossRowDTO
 
 
 qt = SimpleHeatLossServiceV1.calculate_qt(input_dto)

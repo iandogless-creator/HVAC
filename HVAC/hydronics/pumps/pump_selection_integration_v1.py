@@ -19,9 +19,9 @@ from __future__ import annotations
 
 from typing import Iterable, Optional
 
-from HVAC_legacy.hydronics.pipes.dp.pressure_drop_path_v1 import PressureDropPathV1
-from HVAC_legacy.hydronics.pumps.pump_duty_resolver_v1 import resolve_pump_duty_v1
-from HVAC_legacy.hydronics.pumps.pump_sizing_engine import (
+from HVAC.hydronics.pipes.dp.pressure_drop_path_v1 import PressureDropPathV1
+from HVAC.hydronics.pumps.pump_duty_resolver_v1 import resolve_pump_duty_v1
+from HVAC.hydronics.pumps.pump_sizing_engine import (
     size_pump_from_flow_and_dp,
     PumpSizingConfig,
     PumpSizingResult,

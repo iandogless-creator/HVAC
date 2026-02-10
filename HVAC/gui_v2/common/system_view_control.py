@@ -14,7 +14,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QPushButton,
 )
-from HVAC_legacy.gui_v2.common.ui_state_badge import apply_badge_state
+from HVAC.gui_v2.common.ui_state_badge import apply_badge_state
 
 
 # ----------------------------------------------------------------------

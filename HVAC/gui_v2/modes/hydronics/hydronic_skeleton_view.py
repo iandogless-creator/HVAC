@@ -20,7 +20,7 @@ from PySide6.QtWidgets import (
     QGroupBox,
 )
 
-from HVAC_legacy.hydronics.models.hydronic_skeleton_v1 import HydronicSkeletonV1
+from HVAC.hydronics.models.hydronic_skeleton_v1 import HydronicSkeletonV1
 
 
 class HydronicSkeletonView(QWidget):

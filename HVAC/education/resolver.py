@@ -23,9 +23,9 @@ from __future__ import annotations
 
 from typing import Tuple
 
-from HVAC_legacy.education.hydronics.concepts import HYDRONICS_CONCEPTS
-from HVAC_legacy.education.heatloss.concepts import HEATLOSS_CONCEPTS
-from HVAC_legacy.education.fenestration.concepts import FENESTRATION_CONCEPTS
+from HVAC.education.hydronics.concepts import HYDRONICS_CONCEPTS
+from HVAC.education.heatloss.concepts import HEATLOSS_CONCEPTS
+from HVAC.education.fenestration.concepts import FENESTRATION_CONCEPTS
 
 
 # ----------------------------------------------------------------------

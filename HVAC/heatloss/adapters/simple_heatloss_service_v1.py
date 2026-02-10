@@ -8,7 +8,7 @@ This is *deliberately simple* and explicit.
 No geometry, no fabric, no side effects.
 """
 
-from HVAC_legacy.heatloss.dto.simple_heatloss_input_dto import SimpleHeatLossInputDTO
+from HVAC.heatloss.dto.simple_heatloss_input_dto import SimpleHeatLossInputDTO
 
 
 class SimpleHeatLossServiceV1:

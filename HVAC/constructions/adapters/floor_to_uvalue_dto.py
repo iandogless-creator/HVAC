@@ -4,10 +4,10 @@
 
 from __future__ import annotations
 
-from HVAC_legacy.constructions.dto.construction_uvalue_result_dto import (
+from HVAC.constructions.dto.construction_uvalue_result_dto import (
     ConstructionUValueResultDTO,
 )
-from HVAC_legacy.constructions.construction_preset import SurfaceClass
+from HVAC.constructions.construction_preset import SurfaceClass
 
 
 def build_floor_uvalue_dto(

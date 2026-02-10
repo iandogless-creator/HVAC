@@ -36,7 +36,7 @@ from PySide6.QtWidgets import (
     QGroupBox,
 )
 
-from HVAC_legacy.heatloss.dto.heatloss_results_dto import HeatLossResultDTO
+from HVAC.heatloss.dto.heatloss_results_dto import HeatLossResultDTO
 
 
 # ============================================================================

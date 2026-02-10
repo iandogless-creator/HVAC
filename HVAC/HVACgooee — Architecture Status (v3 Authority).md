@@ -106,7 +106,8 @@ They are consumed via adapters only.
 Execution order is owned by **runners / controllers**.
 
 Runners:
-- build input DTOs from ProjectModelV3
+- build input DTOs from HVAC.project.
+ModelV3
 - invoke frozen engines
 - receive result DTOs
 - write results back to ProjectModelV3

@@ -15,7 +15,7 @@ from typing import Dict, Literal, Optional
 import sqlite3
 from pathlib import Path
 
-from HVAC_legacy.hydronics.hydronics_controller import FittingDefinition
+from HVAC.hydronics.hydronics_controller import FittingDefinition
 
 Complexity = Literal["BASIC", "ADVANCED", "PRO"]
 

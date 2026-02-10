@@ -21,16 +21,16 @@ from __future__ import annotations
 
 from typing import Any, Dict, List
 
-from HVAC_legacy.constructions.construction_preset import ConstructionPreset, SurfaceClass
-from HVAC_legacy.constructions.construction_preset_registry import ConstructionPresetRegistry
-from HVAC_legacy.constructions.presets_v2 import PRESETS_V2
+from HVAC.constructions.construction_preset import ConstructionPreset, SurfaceClass
+from HVAC.constructions.construction_preset_registry import ConstructionPresetRegistry
+from HVAC.constructions.presets_v2 import PRESETS_V2
 
-from HVAC_legacy.constructions.dto.construction_uvalue_result_dto import (
+from HVAC.constructions.dto.construction_uvalue_result_dto import (
     ConstructionUValueResultDTO,
 )
 
-from HVAC_legacy.constructions.engines.pitched_roof_calculator import PitchedRoof, RoofLayer
-from HVAC_legacy.constructions.engines.window_calculation_engine import WindowConstruction
+from HVAC.constructions.engines.pitched_roof_calculator import PitchedRoof, RoofLayer
+from HVAC.constructions.engines.window_calculation_engine import WindowConstruction
 
 from .adapters.roof_to_uvalue_dto import build_pitched_roof_uvalue_dto
 from .adapters.flat_roof_to_uvalue_dto import build_flat_roof_uvalue_dto
