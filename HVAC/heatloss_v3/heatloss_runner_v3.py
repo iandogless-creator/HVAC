@@ -20,6 +20,9 @@ RULES (LOCKED)
 """
 
 from __future__ import annotations
+from typing import Dict
+
+OverridesT = Dict[str, Dict[str, Dict[str, float]]]
 
 from HVAC.project.project_state import ProjectState
 from HVAC.constructions.construction_preset import SurfaceClass
@@ -27,6 +30,32 @@ from HVAC.constructions.dto.construction_uvalue_result_dto import (
     ConstructionUValueResultDTO,
 )
 
+# ------------------------------------------------------------------
+# Worksheet override resolution (Phase G-A)
+# ------------------------------------------------------------------
+
+def _override(
+    overrides: OverridesT,
+    *,
+    room_id: str,
+    element_id: str,
+    field: str,
+    derived: float,
+) -> float:
+    """
+    Resolve effective value using worksheet overrides.
+
+    Precedence:
+        override → derived
+
+    Notes:
+    • Read-only
+    • Safe if overrides are missing
+    """
+    try:
+        return overrides[room_id][element_id][field]
+    except KeyError:
+        return derived
 
 class HeatLossRunnerV3:
     """
@@ -90,22 +119,49 @@ class HeatLossRunnerV3:
         total_qt_w = 0.0
 
         # ------------------------------------------------------------
-        # Per-space aggregation (MINIMAL v1)
+        # Per-space aggregation (Phase G-A)
         # ------------------------------------------------------------
+        overrides = project_state.heatloss.overrides
+
         for space in project.spaces:
-            delta_t = space.design_temp_C - external_temp  # Ti - To
+            room_id = space.id
+            derived_delta_t = space.design_temp_C - external_temp
 
             for surface in space.surfaces:
-                u = HeatLossRunnerV3._u_value_for_surface(
+                element_id = surface.id
+
+                u_derived = HeatLossRunnerV3._u_value_for_surface(
                     surface.surface_class,
                     project_state,
                 )
-                if u is None:
+                if u_derived is None:
                     continue
 
-                total_qt_w += u * surface.area_m2 * delta_t
+                area = _override(
+                    overrides,
+                    room_id=room_id,
+                    element_id=element_id,
+                    field="area_m2",
+                    derived=surface.area_m2,
+                )
 
-        return total_qt_w
+                delta_t = _override(
+                    overrides,
+                    room_id=room_id,
+                    element_id=element_id,
+                    field="delta_t_k",
+                    derived=derived_delta_t,
+                )
+
+                u_value = _override(
+                    overrides,
+                    room_id=room_id,
+                    element_id=element_id,
+                    field="u_value",
+                    derived=u_derived,
+                )
+
+                total_qt_w += area * u_value * delta_t
 
     # ------------------------------------------------------------------
     # Construction DTO resolution
@@ -128,3 +184,22 @@ class HeatLossRunnerV3:
             return None
 
         return dto.u_value
+
+    def _override(
+            overrides: dict,
+            *,
+            room_id: str,
+            element_id: str,
+            field: str,
+            derived: float,
+    ) -> float:
+        """
+        Resolve effective value using worksheet overrides.
+
+        Precedence:
+        override → derived
+        """
+        try:
+            return overrides[room_id][element_id][field]
+        except KeyError:
+            return derived

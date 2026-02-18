@@ -1,192 +1,166 @@
 # ======================================================================
-# HVACgooee — Project State
-# Phase: D.2 — Authoritative State & Commit Semantics
-# Status: ACTIVE
+# HVAC/project/project_state.py
 # ======================================================================
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Dict, Optional
-
-# NOTE:
-# RoomStateV1 is referenced as a forward type only.
-# Import here only if already stable and lightweight.
-from HVAC.project.room_state_v1 import RoomStateV1
-from HVAC.project_v3.models.capability_intent import CapabilityIntent
-
-# ----------------------------------------------------------------------
-# Heat-Loss State (v1)
-# ----------------------------------------------------------------------
-
-@dataclass(slots=True)
-class HeatLossStateV1:
-    """
-    Authoritative committed heat-loss results (v1).
-
-    Owned by ProjectState.
-    Mutated only by controllers.
-    Read by adapters and diagnostics.
-
-    No calculations occur here.
-    """
-
-    # Per-room committed results
-    room_results: Dict[str, float] = field(default_factory=dict)
-
-    # Optional project aggregate
-    project_qt_w: Optional[float] = None
-
-    # Aggregate validity
-    project_valid: bool = False
-    # Element-level worksheet overrides (intent-only, pre-run)
-    # room_id -> element_id -> field -> value
-    overrides: Dict[str, Dict[str, Dict[str, Optional[float]]]] = field(
-        default_factory=dict
-    )
-
-    # --------------------------------------------------
-    # Commit API (Phase D.2)
-    # --------------------------------------------------
-
-    def commit_room_result(self, *, room_id: str, qt_w: float) -> None:
-        """
-        Commit heat-loss result for a single room.
-
-        Effects:
-        • Overwrites this room's result
-        • Marks project aggregate as stale
-        """
-        self.room_results[room_id] = qt_w
-        self.project_valid = False
-
-    def commit_project_results(
-        self,
-        *,
-        room_results: Dict[str, float],
-        project_qt_w: Optional[float] = None,
-    ) -> None:
-        """
-        Commit authoritative project-wide heat-loss results.
-
-        Effects:
-        • Replaces all room results
-        • Commits project aggregate (if supplied)
-        • Clears project stale state
-        """
-        self.room_results = dict(room_results)
-        self.project_qt_w = project_qt_w
-        self.project_valid = project_qt_w is not None
-
-    def mark_project_stale(self) -> None:
-        """Explicitly mark project aggregate as invalid."""
-        self.project_valid = False
-
-    # --------------------------------------------------
-    # Read-only helpers
-    # --------------------------------------------------
-
-    def get_room_result(self, room_id: str) -> Optional[float]:
-        return self.room_results.get(room_id)
-
-    def get_project_result(self) -> Optional[float]:
-        return self.project_qt_w
-
-    def is_project_stale(self) -> bool:
-        return not self.project_valid
-
-    def set_override(
-            self,
-            *,
-            room_id: str,
-            element_id: str,
-            field: str,
-            value: Optional[float],
-    ) -> None:
-        """
-        Set or clear a worksheet override value.
-
-        Parameters
-        ----------
-        room_id:
-            Owning room identifier.
-        element_id:
-            Element identifier within the room.
-        field:
-            One of: "area_m2", "delta_t_k", "u_value".
-        value:
-            Override value, or None to clear.
-
-        Semantics
-        ---------
-        • Creates override containers lazily
-        • Setting value=None clears the field
-        • Removes empty element entries automatically
-        • Marks project heat-loss results stale
-        """
-
-        if field not in {"area_m2", "delta_t_k", "u_value"}:
-            raise ValueError(f"Unsupported heat-loss override field: {field}")
-
-        key = (room_id, element_id)
-        elem_map = self.overrides.get(key)
-
-        if value is None:
-            if not elem_map:
-                return
-
-            elem_map.pop(field, None)
-
-            # Prune empty element override
-            if not elem_map:
-                self.overrides.pop(key, None)
-        else:
-            if elem_map is None:
-                elem_map = {}
-                self.overrides[key] = elem_map
-
-            elem_map[field] = float(value)
-
-        # Any override change invalidates committed results
-        self.mark_project_stale()
-
-
-# ----------------------------------------------------------------------
-# Environment State (v1)
-# ----------------------------------------------------------------------
-
-@dataclass(slots=True)
-class EnvironmentStateV1:
-    """
-    Authoritative environment inputs (v1).
-
-    Owned by ProjectState.
-    Mutated by factories / controllers.
-    Read by GUI adapters.
-
-    No calculations occur here.
-    """
-
-    outside_temperature_c: Optional[float] = None
-    method: Optional[str] = None
-
-# ----------------------------------------------------------------------
-# ProjectState (authoritative root)
-# ----------------------------------------------------------------------
+from typing import Dict, Any, Optional
+from HVAC.project_v3.dto.project_surface_defaults_dto import (
+    ProjectSurfaceDefaultsDTO,
+)
+from HVAC.project_v3.dto.surface_intent_dto import SurfaceIntentDTO
+from HVAC.project_v3.dto.room_geometry_dto import RoomGeometryDTO
 
 @dataclass
 class ProjectState:
+    """
+    Authoritative in-memory representation of an HVACgooee project.
+
+    Rules
+    -----
+    • Owns deserialization
+    • Accepts partial / incomplete projects
+    • Performs NO calculations
+    • Performs NO validation beyond structural sanity
+    """
+
+    # ------------------------------------------------------------------
+    # Core identity (REQUIRED)
+    # ------------------------------------------------------------------
     project_id: str
     name: str
 
-    # Rooms (authoritative intent)
-    rooms: Dict[str, RoomStateV1] = field(default_factory=dict)
-    active_room_id: Optional[str] = None
+    # ------------------------------------------------------------------
+    # Optional metadata
+    # ------------------------------------------------------------------
+    reference: Optional[str] = None
+    revision: Optional[str] = None
 
-    # Environment (authoritative intent)
-    environment: EnvironmentStateV1 = field(default_factory=EnvironmentStateV1)
+    # ------------------------------------------------------------------
+    # Intent containers (may be empty)
+    # ------------------------------------------------------------------
+    environment: Dict[str, Any] = field(default_factory=dict)
+    rooms: Dict[str, Any] = field(default_factory=dict)
+    constructions: Dict[str, Any] = field(default_factory=dict)
+    emitters: Dict[str, Any] = field(default_factory=dict)
+    hydronics: Dict[str, Any] = field(default_factory=dict)
 
-    # Heat-loss (authoritative results)
-    heatloss: HeatLossStateV1 = field(default_factory=HeatLossStateV1)
+    # ------------------------------------------------------------------
+    # v3 Intent (geometry + surface defaults)
+    # ------------------------------------------------------------------
+    surface_defaults: ProjectSurfaceDefaultsDTO = field(
+        default_factory=ProjectSurfaceDefaultsDTO
+    )
 
-    # existing fields continue unchanged
+    # ------------------------------------------------------------------
+    # Results (authoritative, populated only after run)
+    # ------------------------------------------------------------------
+    heatloss_results: Optional[Dict[str, Any]] = None
+    hydronics_results: Optional[Dict[str, Any]] = None
+
+    # ------------------------------------------------------------------
+    # Lifecycle flags
+    # ------------------------------------------------------------------
+    heatloss_status: str = "not_run"
+    hydronics_status: str = "not_run"
+
+    # ==================================================================
+    # Deserialization (CANONICAL ENTRY POINT)
+    # ==================================================================
+    @classmethod
+    def from_dict(cls, payload: Dict[str, Any]) -> ProjectState:
+        """
+        Construct ProjectState from a persisted project dictionary.
+
+        This method:
+        • Accepts partial projects
+        • Normalises missing sections
+        • Performs NO calculations
+        • Performs NO run-readiness validation
+        """
+
+        if "project" not in payload:
+            raise ValueError("Invalid project: missing 'project' section")
+
+        project_meta = payload["project"]
+
+        try:
+            project_id = project_meta["id"]
+            name = project_meta["name"]
+        except KeyError as exc:
+            raise ValueError(
+                "Invalid project: 'project.id' and 'project.name' are required"
+            ) from exc
+
+        return cls(
+            project_id=project_id,
+            name=name,
+            reference=project_meta.get("reference"),
+            revision=project_meta.get("revision"),
+
+            environment=payload.get("environment", {}),
+            rooms=payload.get("rooms", {}),
+            constructions=payload.get("constructions", {}),
+            emitters=payload.get("emitters", {}),
+            hydronics=payload.get("hydronics", {}),
+
+            heatloss_results=payload.get("heatloss_results"),
+            hydronics_results=payload.get("hydronics_results"),
+
+            heatloss_status=payload.get("heatloss_status", "not_run"),
+            hydronics_status=payload.get("hydronics_status", "not_run"),
+        )
+
+    # ------------------------------------------------------------------
+    # Room creation helpers (v3 intent)
+    # ------------------------------------------------------------------
+    def _instantiate_surfaces_from_defaults(self) -> Dict[str, SurfaceIntentDTO]:
+        """
+        Create surface intents using project-level defaults.
+        Geometry is empty; intent only.
+        """
+        d = self.surface_defaults
+
+        def surf(element: str, cid: Optional[str]) -> SurfaceIntentDTO:
+            return SurfaceIntentDTO(
+                element_class=element,
+                construction_id=cid,
+            )
+
+        return {
+            "external_wall": surf("external_wall", d.external_wall),
+            "internal_wall": surf("internal_wall", d.internal_wall),
+            "floor": surf("floor", d.floor),
+            "ceiling": surf("ceiling", d.ceiling),
+            "roof": surf("roof", d.roof),
+            "window": surf("window", d.window),
+            "door": surf("door", d.door),
+        }
+
+    # ------------------------------------------------------------------
+    # Room creation (v3 intent)
+    # ------------------------------------------------------------------
+    def create_room_v3(self, room_id: str) -> None:
+        """
+        Create a new room with default surface intent.
+
+        Rules:
+        • Intent assembly only
+        • No validation
+        • No calculations
+        • Safe to call multiple times with different IDs
+        """
+
+        if room_id in self.rooms:
+            raise ValueError(f"Room '{room_id}' already exists")
+
+        # Instantiate default surface intents
+        surfaces = self._instantiate_surfaces_from_defaults()
+
+        # Minimal room intent container
+        self.rooms[room_id] = {
+            "surfaces": surfaces,
+        }
+
+

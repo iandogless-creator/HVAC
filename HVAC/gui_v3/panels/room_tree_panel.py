@@ -71,19 +71,19 @@ class RoomTreePanel(QWidget):
     # ------------------------------------------------------------------
     # Adapter-facing API (Phase E-A)
     # ------------------------------------------------------------------
-    def set_rooms(self, rooms: list[tuple[object, str]]) -> None:
+    def set_rooms(self, rooms: list[str]) -> None:
         """
-        Populate the tree with rooms.
+        Populate the room tree.
 
         Parameters
         ----------
         rooms:
-            List of (room_id, room_name)
+            List of room IDs (room ID is the display label).
         """
         self._tree.clear()
 
-        for room_id, name in rooms:
-            item = QTreeWidgetItem([name])
+        for room_id in rooms:
+            item = QTreeWidgetItem([room_id])
             item.setData(0, Qt.UserRole, room_id)
             self._tree.addTopLevelItem(item)
 

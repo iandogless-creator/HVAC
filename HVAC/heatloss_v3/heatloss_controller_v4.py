@@ -1,95 +1,109 @@
 # ======================================================================
-# HVACgooee — Heat-Loss Controller (v4)
-# Phase: D.2 — Explicit Execution Scope
-# Status: ACTIVE
+# HVAC/heatloss_v3/heatloss_controller_v4.py
+# ======================================================================
+# HVACgooee — HeatLossControllerV4
+# Phase: I / J — Authoritative Execution
+# Status: CANONICAL
 # ======================================================================
 
 from __future__ import annotations
 
-from HVAC.heatloss_v3.heatloss_runner_v3 import HeatLossRunnerV3
-from HVAC.project.project_state import ProjectState
+from typing import Dict
+
+from HVAC.gui_v3.context.gui_project_context import GuiProjectContext
 
 
 class HeatLossControllerV4:
     """
-    Orchestrates authoritative heat-loss execution.
+    Authoritative heat-loss execution (minimal Phase I/J).
 
-    Responsibilities:
-    • Decide execution scope (room vs project)
-    • Invoke runner(s)
-    • Commit results into ProjectState
+    Responsibilities
+    ----------------
+    • Resolve current ProjectState from GuiProjectContext
+    • Compute steady-state fabric losses
+    • Commit results to ps.heatloss.room_results
 
-    Does NOT:
-    • Perform calculations
-    • Infer readiness
-    • Interact with GUI
+    Explicitly NOT responsible for:
+    • GUI state
+    • Readiness heuristics
+    • Overrides persistence
+    • Presentation formatting
     """
 
-    def __init__(self, *, project_state: ProjectState) -> None:
-        self._ps = project_state
+    # ------------------------------------------------------------------
+    # Construction
+    # ------------------------------------------------------------------
+    def __init__(self, *, gui_context: GuiProjectContext) -> None:
+        self._context = gui_context
 
     # ------------------------------------------------------------------
-    # Room-level execution
-    # ------------------------------------------------------------------
-    def run_room(self, *, room_id: str) -> None:
-        """
-        Execute heat-loss for exactly one room.
-
-        Commits:
-        • Result for this room only
-
-        Effects:
-        • Marks project aggregate as stale
-        """
-
-        room = self._ps.rooms.get(room_id)
-        if room is None:
-            raise KeyError(f"Unknown room_id: {room_id}")
-
-        # Collect inputs (existing logic assumed)
-        inputs = HeatLossRunnerV3.build_inputs_for_room(
-            room=room,
-            project_state=self._ps,
-        )
-
-        # Execute physics (pure)
-        result = HeatLossRunnerV3.run_room(inputs)
-
-        # Commit authoritative result
-        self._ps.heatloss.commit_room_result(
-            room_id=room_id,
-            result=result,
-        )
-
-        # Explicitly invalidate any project aggregate
-        self._ps.heatloss.mark_project_stale()
-
-    # ------------------------------------------------------------------
-    # Project-level execution
+    # Public API
     # ------------------------------------------------------------------
     def run_project(self) -> None:
-        """
-        Execute heat-loss for the entire project.
+        ps = self._context.project_state
+        if ps is None:
+            return
 
-        Commits:
-        • All room results atomically
-        • Optional project aggregate
-        """
+        results = {
+            "room_results": {},
+            "total_loss_w": 0.0,
+        }
 
-        room_results = {}
+        Te = ps.environment.external_design_temperature
 
-        for room_id, room in self._ps.rooms.items():
-            inputs = HeatLossRunnerV3.build_inputs_for_room(
-                room=room,
-                project_state=self._ps,
-            )
+        for room_id, room in ps.rooms.items():
+            Ti = room.get("internal_design_temperature")
+            if Ti is None:
+                continue
 
-            room_results[room_id] = HeatLossRunnerV3.run_room(inputs)
+            dt_ext = Ti - Te
 
-        # Optional: aggregate handled elsewhere or omitted
-        project_result = None
+            L = room.get("length_m")
+            W = room.get("width_m")
+            H = room.get("height_m")
+            ACH = room.get("air_change_rate")
 
-        self._ps.heatloss.commit_project_results(
-            room_results=room_results,
-            project_result=project_result,
-        )
+            if None in (L, W, H, ACH):
+                continue
+
+            volume = L * W * H
+
+            room_qf = 0.0
+            row_results = []
+
+            for surface_id, s in room.get("surfaces", {}).items():
+                area = s.area_m2
+                U = s.u_value_w_m2k
+                if area is None or U is None:
+                    continue
+
+                if s.kind == "ext":
+                    dt = dt_ext
+                else:
+                    dt = s.delta_t_override_k or 0.0
+
+                qf = area * U * dt
+                room_qf += qf
+
+                row_results.append({
+                    "surface_id": surface_id,
+                    "area": area,
+                    "delta_t": dt,
+                    "u_value": U,
+                    "loss_w": qf,
+                })
+
+            Qv = 0.33 * ACH * volume * dt_ext
+            Qt = room_qf + Qv
+
+            results["room_results"][room_id] = {
+                "rows": row_results,
+                "sum_qf": room_qf,
+                "qv": Qv,
+                "qt": Qt,
+                "volume": volume,
+            }
+
+            results["total_loss_w"] += Qt
+
+        ps.heatloss_results = results

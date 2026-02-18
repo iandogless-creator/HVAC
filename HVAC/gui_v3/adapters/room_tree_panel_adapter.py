@@ -17,11 +17,10 @@ class RoomTreePanelAdapter:
     RoomTreePanelAdapter — GUI v3
 
     Phase E-A responsibilities:
-    • Read room list from HVAC.project.
-State (read-only)
+    • Read room list from ProjectState (read-only)
     • Populate RoomTreePanel
     • Reflect active room selection
-    • Propagate user room selection back to context
+    • Propagate user selection to GUI context
 
     No calculations.
     No inference.
@@ -40,10 +39,13 @@ State (read-only)
         self._panel = panel
         self._context = context
 
+        # GUI → context
         self._panel.room_selected.connect(self._on_room_selected)
 
-        # Safe initial sync
-        self.refresh()
+        # context → GUI
+        self._context.subscribe_room_selection_changed(
+            self._on_context_room_changed
+        )
 
     # ------------------------------------------------------------------
     # Public lifecycle
@@ -57,7 +59,7 @@ State (read-only)
         • None-safe
         • No side effects
         """
-        ps = self._resolve_project_state()
+        ps = self._context.project_state
         if ps is None:
             self._panel.set_rooms([])
             self._panel.set_active_room(None)
@@ -66,57 +68,36 @@ State (read-only)
         rooms = self._build_room_list(ps)
         self._panel.set_rooms(rooms)
 
-        active_room_id = getattr(ps, "active_room_id", None)
-        self._panel.set_active_room(active_room_id)
+        # Reflect current GUI focus
+        self._panel.set_active_room(self._context.current_room_id)
 
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
-    def _build_room_list(self, ps) -> list[tuple[object, str]]:
+    def _build_room_list(self, ps) -> list[str]:
         """
-        Build (room_id, room_name) tuples.
+        Build flat list of room IDs.
 
         Phase E-A:
         • Flat list
-        • Order preserved
+        • Room ID is the label
         """
-        rooms = []
+        if not hasattr(ps, "rooms") or not ps.rooms:
+            return []
 
-        for room in getattr(ps, "rooms", []) or []:
-            room_id = getattr(room, "id", None)
-            name = getattr(room, "name", None) or "Unnamed room"
-
-            if room_id is not None:
-                rooms.append((room_id, name))
-
-        return rooms
-
-    def _resolve_project_state(self):
-        """
-        Accept either:
-        • context.project_state → ProjectState
-        • context.project_state → ProjectV3 (container)
-        """
-        ps = getattr(self._context, "project_state", None)
-        if ps is None:
-            return None
-
-        inner = getattr(ps, "project_state", None)
-        return inner if inner is not None else ps
+        return list(ps.rooms.keys())
 
     # ------------------------------------------------------------------
     # Signal handlers
     # ------------------------------------------------------------------
-    def _on_room_selected(self, room_id: object) -> None:
+    def _on_room_selected(self, room_id: str | None) -> None:
         """
-        User selected a room in the tree.
-
-        This is *intent propagation*, not authority.
+        User clicked a room in the Rooms panel.
         """
-        ps = getattr(self._context, "project_state", None)
-        if ps is None:
-            return
+        self._context.set_current_room(room_id)
 
-        # Conservative: only set if attribute exists
-        if hasattr(ps, "active_room_id"):
-            ps.active_room_id = room_id
+    def _on_context_room_changed(self, room_id: str | None) -> None:
+        """
+        Room selection changed elsewhere (bootstrap, programmatic).
+        """
+        self._panel.set_active_room(room_id)

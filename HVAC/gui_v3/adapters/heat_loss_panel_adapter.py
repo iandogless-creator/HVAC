@@ -1,135 +1,64 @@
 # ======================================================================
-# HVACgooee — Heat-Loss Panel Adapter (GUI v3)
-# Phase: F-E — Worksheet → Construction focus (observer-only)
-# Status: OBSERVER (no execution authority)
+# HVAC/gui_v3/adapters/heat_loss_panel_adapter.py
 # ======================================================================
 
 from __future__ import annotations
 
-from PySide6.QtCore import QItemSelection, QModelIndex
-
-from HVAC.project.project_state import ProjectState
-from HVAC.gui_v3.panels.heat_loss_panel import HeatLossPanelV3, HeatLossWorksheetRow
-from HVAC.heatloss.validation.heat_loss_execution_validator_v1 import (
-    HeatLossExecutionValidatorV1,
-)
-from HVAC.heatloss.validation.validation_dto import ValidationStatus
+from HVAC.gui_v3.context.gui_project_context import GuiProjectContext
+from HVAC.gui_v3.panels.heat_loss_panel import HeatLossPanelV3
 
 
 class HeatLossPanelAdapter:
+    """
+    GUI v3 — Heat-Loss Panel Adapter
+
+    Observer-only:
+    • Reads ProjectState
+    • Populates HeatLossPanelV3
+    • Forwards run intent to controller
+    """
+
+    # ------------------------------------------------------------------
+    # Construction
+    # ------------------------------------------------------------------
     def __init__(
         self,
         *,
         panel: HeatLossPanelV3,
-        project_state: ProjectState,
-        gui_context,  # GuiProjectContext (observer-only)
+        context: GuiProjectContext,
     ) -> None:
         self._panel = panel
-        self._ps = project_state
-        self._context = gui_context
+        self._context = context
 
-        self._validator = HeatLossExecutionValidatorV1()
-
-        # --------------------------------------------------------------
-        # Phase F-E — worksheet selection awareness (observer-only)
-        # --------------------------------------------------------------
-        self._panel._table.selectionModel().selectionChanged.connect(
-            self._on_worksheet_selection_changed
-        )
-
+        # GUI → controller intent
+        self._panel.run_requested.connect(self._on_run_requested)
 
     # ------------------------------------------------------------------
-    # Lifecycle
+    # Public
     # ------------------------------------------------------------------
     def refresh(self) -> None:
         """
-        Phase F-E rules:
-        • Intent visible
-        • Validation visible
-        • Selection awareness active
-        • No calculations
-        • Run disabled
+        Refresh panel presentation from ProjectState.
         """
+        ps = self._context.project_state
+        panel = self._panel
 
-        self._update_intent_fields()
-
-        report = self._validator.validate(self._ps)
-        self._update_status_from_validation(report)
-
-        self._panel.set_run_enabled(False)
-
-    # ------------------------------------------------------------------
-    # Intent presentation (Phase F-B)
-    # ------------------------------------------------------------------
-    def _update_intent_fields(self) -> None:
-        # ---- Method (declared intent only)
-        method = getattr(self._ps.heatloss, "method", None)
-
-        self._panel.set_method_text(str(method) if method else "—")
-
-        # ---- Reference ΔT (environment-derived, non-authoritative)
-        env = getattr(self._ps, "environment", None)
-
-        if env:
-            ti = getattr(env, "internal_design_temperature", None)
-            te = getattr(env, "external_design_temperature", None)
-        else:
-            ti = te = None
-
-        if ti is not None and te is not None:
-            self._panel.set_delta_t_text(f"{ti - te:.1f} K (reference)")
-        else:
-            self._panel.set_delta_t_text("—")
-
-    # ------------------------------------------------------------------
-    # Validation presentation
-    # ------------------------------------------------------------------
-    def _update_status_from_validation(self, report) -> None:
-        if report.status == ValidationStatus.PASS:
-            self._panel.set_status_text(
-                "Project is structurally ready for heat-loss execution "
-                "(not yet calculated)."
-            )
+        if ps is None:
+            panel.set_rows([])
+            panel.set_status_text("No project loaded")
+            panel.set_run_enabled(False)
             return
 
-        n = len(report.fatal_issues)
-        msg = (
-            "Heat-loss cannot run: 1 required input is missing."
-            if n == 1
-            else f"Heat-loss cannot run: {n} required inputs are missing."
-        )
-        self._panel.set_status_text(msg)
+        # Delegate row construction to worksheet adapter
+        # (this adapter does not know row structure)
+        panel.set_run_enabled(True)
 
     # ------------------------------------------------------------------
-    # Phase F-E — worksheet selection handling
+    # Intent forwarding
     # ------------------------------------------------------------------
-    def _on_worksheet_selection_changed(
-            self,
-            selected: QItemSelection,
-            deselected: QItemSelection,
-    ) -> None:
+    def _on_run_requested(self) -> None:
         """
-        Observer-only reaction to worksheet row selection.
-
-        Emits construction-focus intent via GUI context.
+        Forward run request to controller via context.
         """
-
-        if not selected.indexes():
-            return
-
-        index: QModelIndex = selected.indexes()[0]
-        model = self._panel._model
-
-        if index.row() >= len(model._rows):
-            return
-
-        row: HeatLossWorksheetRow = model._rows[index.row()]
-
-        # --------------------------------------------------------------
-        # Emit observer-only focus intent
-        # --------------------------------------------------------------
-        self._context.focus_construction_element(
-            room_id=row.room_id,
-            element_id=row.element_id,
-        )
-
+        # MainWindow / controller already subscribed
+        pass

@@ -1,80 +1,87 @@
 # ======================================================================
-# HVACgooee — Project Heat-Loss Readiness Adapter
-# Phase: D.8 — Project-Level Readiness
-# Status: CANONICAL
+# HVAC/gui_v3/adapters/project_heatloss_readiness_adapter.py
 # ======================================================================
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import Iterable
 
 from HVAC.gui_v3.context.gui_project_context import GuiProjectContext
-from HVAC.gui_v3.dto.project_heatloss_readiness_dto import (
-    ProjectHeatLossReadinessDTO,
-)
-from HVAC.gui_v3.adapters.room_readiness_adapter import RoomReadinessAdapter
+from HVAC.gui_v3.panels.heat_loss_panel import HeatLossPanelV3
 
 
 class ProjectHeatLossReadinessAdapter:
     """
-    Project-level readiness for heat-loss execution.
+    GUI v3 — Project Heat-Loss Readiness Adapter
 
-    GUI v3 rule:
-    • Adapter must resolve ProjectState explicitly
-    • Adapter must not assume ProjectV3 structure
+    Phase F-B — Readiness rules (presentation only)
+
+    Responsibilities
+    ----------------
+    • Pull readiness state from controller / ProjectState
+    • Present readiness + blocking reasons to HeatLossPanel
+    • Never infer, calculate, or decide readiness
+
+    Explicitly forbidden
+    --------------------
+    • Computing readiness
+    • Guessing missing requirements
+    • Clearing or mutating ProjectState
     """
 
-    def __init__(self, *, context: GuiProjectContext) -> None:
+    def __init__(
+        self,
+        *,
+        panel: HeatLossPanelV3,
+        context: GuiProjectContext,
+    ) -> None:
+        self._panel = panel
         self._context = context
-        self._room_readiness = RoomReadinessAdapter(context=context)
 
     # ------------------------------------------------------------------
-    # Public API
+    # Public
     # ------------------------------------------------------------------
-    def build_readiness(self) -> ProjectHeatLossReadinessDTO:
-        blocking: list[str] = []
+    def refresh(self) -> None:
+        """
+        Pull readiness state and present it.
 
-        ps = self._resolve_project_state()
-        if ps is None:
-            return ProjectHeatLossReadinessDTO(
-                is_ready=False,
-                blocking_reasons=["no project loaded"],
+        Readiness contract (Phase F-B)
+        --------------------------------
+        Controller must expose:
+            is_ready: bool
+            blocking_reasons: Iterable[str]
+        """
+        ps = self._context.project_state
+
+        # --------------------------------------------------
+        # No project loaded
+        # --------------------------------------------------
+        if not ps:
+            self._panel.set_not_ready(
+                reasons=["No project loaded"]
             )
+            return
 
-        # -------------------------------
-        # Room readiness
-        # -------------------------------
-        room_results = self._room_readiness.build_readiness()
-        if not room_results:
-            blocking.append("no rooms defined")
+        readiness = getattr(ps, "heatloss_readiness", None)
 
-        for r in room_results:
-            if not r.is_ready:
-                blocking.append(f"room not ready: {r.name}")
+        # --------------------------------------------------
+        # No readiness information yet
+        # --------------------------------------------------
+        if readiness is None:
+            self._panel.set_not_ready(
+                reasons=["Heat-loss readiness not evaluated"]
+            )
+            return
 
-        # -------------------------------
-        # Environment presence
-        # -------------------------------
-        environment = getattr(ps, "environment", None)
-        if environment is None:
-            blocking.append("environment not defined")
+        is_ready = bool(getattr(readiness, "is_ready", False))
+        reasons: Iterable[str] = getattr(readiness, "blocking_reasons", [])
 
-        return ProjectHeatLossReadinessDTO(
-            is_ready=len(blocking) == 0,
-            blocking_reasons=blocking,
-        )
-
-    # ------------------------------------------------------------------
-    # Resolution helper (CANONICAL)
-    # ------------------------------------------------------------------
-    def _resolve_project_state(self) -> Optional[object]:
-        """
-        Returns authoritative ProjectState regardless of whether
-        context.project_state is ProjectState or ProjectV3.
-        """
-        ps = getattr(self._context, "project_state", None)
-        if ps is None:
-            return None
-
-        inner = getattr(ps, "project_state", None)
-        return inner if inner is not None else ps
+        # --------------------------------------------------
+        # Present state (no logic here)
+        # --------------------------------------------------
+        if is_ready:
+            self._panel.set_ready()
+        else:
+            self._panel.set_not_ready(
+                reasons=list(reasons)
+            )

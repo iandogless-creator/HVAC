@@ -156,6 +156,31 @@ def validate_project(project: Dict[str, Any]) -> bool:
 
     return False
 
+def validate_project_lenient(project: Dict[str, Any]) -> bool:
+    """
+    Lenient validation for early GUI phases.
+
+    Allows fabric-only projects:
+    - Requires 'project' and 'rooms'
+    - Skips emitters / hydronics enforcement
+    """
+
+    errors: List[str] = []
+
+    if "project" not in project:
+        errors.append("Missing section: 'project'")
+
+    if "rooms" not in project:
+        errors.append("Missing section: 'rooms'")
+
+    if errors:
+        print("Project validation errors (lenient):")
+        for e in errors:
+            print(" ✗", e)
+        return False
+
+    return True
+
 
 # ---------------------------------------------------------------------------
 # Demo
@@ -182,3 +207,5 @@ def _demo():
 
 if __name__ == "__main__":
     _demo()
+
+
