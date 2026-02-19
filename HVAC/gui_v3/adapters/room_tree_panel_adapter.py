@@ -43,7 +43,8 @@ class RoomTreePanelAdapter:
         self._panel.room_selected.connect(self._on_room_selected)
 
         # context → GUI
-        self._context.subscribe_room_selection_changed(
+        # context → GUI
+        self._context.current_room_changed.connect(
             self._on_context_room_changed
         )
 

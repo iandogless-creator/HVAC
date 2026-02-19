@@ -14,6 +14,7 @@ from __future__ import annotations
 from pathlib import Path
 import json
 from typing import Callable, Optional, Literal
+from PySide6.QtCore import QObject, Signal
 
 from HVAC.gui_v3.context.gui_settings import GuiSettings
 from HVAC.project.project_state import ProjectState
@@ -21,21 +22,21 @@ from HVAC.project.project_state import ProjectState
 HLPEditScope = Literal["geometry", "assumptions", "construction"]
 
 
-class GuiProjectContext:
+class GuiProjectContext(QObject):
     """
-    GUI-owned handle to authoritative ProjectState.
+    GUI v3 — Project Context
 
-    GUI rules:
-    - Does NOT define ProjectState
-    - Does NOT mutate ProjectState
-    - Does NOT calculate
+    GUI-only state:
+    - current room focus
+    - HLPE session flags
     """
 
-    # ------------------------------------------------------------------
-    # Construction
-    # ------------------------------------------------------------------
-    def __init__(self, *, project_state: ProjectState) -> None:
-        self._project_state = project_state
+    current_room_changed = Signal(object)
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._current_room_id: str | None = None
+
 
         # GUI settings (installation scoped)
         settings_dir = Path.home() / ".hvacgooee" / "gui"
@@ -109,17 +110,12 @@ class GuiProjectContext:
     # ------------------------------------------------------------------
     # Room focus (GUI-only)
     # ------------------------------------------------------------------
-    def set_current_room(self, room_id: Optional[str]) -> None:
-        if room_id == self.current_room_id:
+    def set_current_room(self, room_id: str | None) -> None:
+        if self._current_room_id == room_id:
             return
 
-        self.current_room_id = room_id
-
-        # Room change invalidates HLPE (keep simple for v1)
-        self.close_hlpe()
-
-        for cb in list(self._room_selection_listeners):
-            cb(room_id)
+        self._current_room_id = room_id
+        self.current_room_changed.emit(room_id)
 
     def subscribe_room_selection_changed(
         self,
@@ -195,3 +191,7 @@ class GuiProjectContext:
             heat_loss_valid=False,
             heat_loss_revision=0,
         )
+
+    def set_current_room(self, room_id: str | None) -> None:
+        if self._current_room_id == room_id:
+            return

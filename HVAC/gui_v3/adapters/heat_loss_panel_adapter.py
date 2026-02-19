@@ -62,3 +62,22 @@ class HeatLossPanelAdapter:
         """
         # MainWindow / controller already subscribed
         pass
+
+    def refresh_room_context(self) -> None:
+        ctx = self._gui_context
+        panel = self._panel
+
+        room_id = ctx.current_room_id
+        if room_id is None:
+            panel.set_room_context(None, None)
+            return
+
+        room = ctx.project_state.rooms.get(room_id)
+        if room is None:
+            panel.set_room_context(None, None)
+            return
+
+        panel.set_room_context(
+            room_name=room.display_name,
+            room_id=room.public_id,
+        )

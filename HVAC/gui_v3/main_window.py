@@ -33,6 +33,8 @@ from HVAC.gui_v3.panels.heat_loss_panel import HeatLossPanelV3
 from HVAC.gui_v3.panels.heat_loss_edit_overlay_panel import HeatLossEditOverlayPanel
 from HVAC.gui_v3.panels.education_panel import EducationPanel
 from HVAC.gui_v3.panels.hydronics_schematic_panel import HydronicsSchematicPanel
+from HVAC.gui_v3.panels.ach_mini_panel import ACHMiniPanel
+from HVAC.gui_v3.panels.geometry_mini_panel import GeometryMiniPanel
 
 # ----------------------------------------------------------------------
 # Adapters (read-only)
@@ -51,6 +53,7 @@ from HVAC.gui_v3.adapters.ach_mini_panel_adapter import ACHMiniPanelAdapter
 from HVAC.gui_v3.adapters.project_heatloss_readiness_adapter import (
     ProjectHeatLossReadinessAdapter,
 )
+
 
 # ----------------------------------------------------------------------
 # Controllers
@@ -117,6 +120,16 @@ class MainWindowV3(QMainWindow):
     # UI construction
     # ------------------------------------------------------------------
     def _build_ui(self) -> None:
+        # ------------------------------------------------------------------
+        # Panels
+        # ------------------------------------------------------------------
+
+        self._heat_loss_panel = HeatLossPanelV3(self)
+
+        self._geometry_mini_panel = GeometryMiniPanel(self)
+        self._ach_mini_panel = ACHMiniPanel(self)
+
+
         # ==============================================================
         # Project
         # ==============================================================
@@ -193,12 +206,12 @@ class MainWindowV3(QMainWindow):
         )
 
         self._geometry_mini_panel_adapter = GeometryMiniPanelAdapter(
-            panel=self._heat_loss_panel._geometry_panel,
+            panel=self._geometry_mini_panel,
             context=self._context,
         )
 
         self._ach_mini_panel_adapter = ACHMiniPanelAdapter(
-            panel=self._heat_loss_panel._ach_panel,
+            panel=self._ach_mini_panel,
             context=self._context,
         )
 

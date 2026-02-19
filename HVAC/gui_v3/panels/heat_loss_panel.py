@@ -7,17 +7,16 @@ from __future__ import annotations
 from typing import Optional
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtWidgets import QWidget
 from PySide6.QtWidgets import (
     QWidget,
     QVBoxLayout,
     QTableWidget,
+    QLabel,
 )
 from HVAC.gui_v3.panels.geometry_mini_panel import GeometryMiniPanel
 from HVAC.gui_v3.panels.ach_mini_panel import ACHMiniPanel
 from PySide6.QtWidgets import QTableWidgetItem
-
-
+from PySide6.QtCore import Qt
 # (keep your existing imports as they are above this line)
 
 
@@ -59,23 +58,21 @@ class HeatLossPanelV3(QWidget):
     # UI construction
     # ------------------------------------------------------------------
     def _build_ui(self) -> None:
-        """
-        Build Heat-Loss panel UI.
-        """
         layout = QVBoxLayout(self)
+        layout.setSpacing(8)
+        layout.setContentsMargins(12, 12, 12, 12)
 
-        # --------------------------------------------------------------
-        # Geometry / ACH mini panels (panel owns widgets, adapter binds)
-        # --------------------------------------------------------------
-        self._geometry_panel = GeometryMiniPanel(self)
-        self._ach_panel = ACHMiniPanel(self)
+        # ------------------------------------------------------------------
+        # Room context header (Phase I-A)
+        # ------------------------------------------------------------------
+        self._room_header = RoomContextHeader(self)
+        layout.addWidget(self._room_header)
 
-        layout.addWidget(self._geometry_panel)
-        layout.addWidget(self._ach_panel)
+        layout.addSpacing(8)  # visual separation from worksheet
 
-        # --------------------------------------------------------------
-        # Worksheet table (THIS MUST SET self._worksheet_table)
-        # --------------------------------------------------------------
+        # ------------------------------------------------------------------
+        # Worksheet table
+        # ------------------------------------------------------------------
         self._worksheet_table = QTableWidget(self)
         self._worksheet_table.setColumnCount(5)
         self._worksheet_table.setHorizontalHeaderLabels(
@@ -83,7 +80,6 @@ class HeatLossPanelV3(QWidget):
         )
 
         layout.addWidget(self._worksheet_table)
-
         layout.addStretch()
 
     # ------------------------------------------------------------------
@@ -166,3 +162,55 @@ class HeatLossPanelV3(QWidget):
         """
         if hasattr(self, "_run_button") and self._run_button is not None:
             self._run_button.setEnabled(enabled)
+
+
+class RoomContextHeader(QLabel):
+    """
+    Phase I-A — Room Context Header
+
+    Read-only contextual label.
+    Displays the currently active room name and ID.
+    No interaction. No authority.
+    """
+
+    def __init__(self, parent=None) -> None:
+        super().__init__(parent)
+
+        # Typography & layout
+        self.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        self.setWordWrap(False)
+
+        # Subtle emphasis without banner behaviour
+        self.setStyleSheet("""
+            QLabel {
+                font-size: 13px;
+                font-weight: 600;
+                color: #222;
+            }
+        """)
+
+        # Safe default (no room selected)
+        self.setText("Heat Loss — No room selected")
+
+    # ------------------------------------------------------------------
+    # Public API (adapter calls this)
+    # ------------------------------------------------------------------
+
+    # ------------------------------------------------------------------
+    # Room context (adapter-driven)
+    # ------------------------------------------------------------------
+
+    def set_room_context(
+            self,
+            room_name: str | None,
+            room_id: str | None,
+    ) -> None:
+        """
+        Update displayed room context.
+
+        Phase H:
+        - Read-only
+        - Adapter-driven
+        - No ProjectState access
+        """
+        self._room_header.set_room_context(room_name, room_id)

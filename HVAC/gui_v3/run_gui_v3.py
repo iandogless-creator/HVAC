@@ -64,9 +64,8 @@ def main() -> None:
 
     project_state = make_dev_bootstrap_project_state()
 
-    context = GuiProjectContext(
-        project_state=project_state
-    )
+    context = GuiProjectContext()
+    context.set_project_state(project_state)
 
     # Deterministic selection
     context.set_current_room("room-001")
