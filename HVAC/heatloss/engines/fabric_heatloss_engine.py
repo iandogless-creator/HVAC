@@ -1,49 +1,69 @@
+# ======================================================================
+# HVAC/heatloss/engines/fabric_heatloss_engine.py
+# ======================================================================
 """
 fabric_heatloss_engine.py
 -------------------------
 
 Fabric heat-loss engine for HVACgooee.
 
-Implements steady-state heat-loss through building elements using:
+Phase II-A / II-C (LOCKED SCOPE)
+--------------------------------
+Implements steady-state fabric transmission heat loss only:
 
-    Q = U * A * ΔT      [W]
+    Qf = U * A * ΔT      [W]
 
-Optionally, a dynamic multiplier based on Y-values (from y_value_engine)
-can be applied, but this module is primarily about the *fabric* term.
+Dynamic fabric effects (Y-values) are NOT used in this engine.
+They belong to a future dynamic phase and must not appear in the
+steady-state execution path.
 
 Ventilation / infiltration is handled separately in
 ventilation_heatloss_engine.py.
+
+Notes on compatibility
+----------------------
+This module still contains a small set of legacy/internal helper models
+(FabricSurface, compute_* helpers). They are NOT part of the controller
+contract. HeatLossControllerV4 must import only FabricHeatLossEngine.
+
+The controller-facing return is currently a dict (Phase II-A/II-C safe).
+Phase II-D may formalise a ResultDTO without changing the physics.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import List, Optional, Dict
+from typing import Any, Dict, List, Optional
+
+from HVAC.heatloss.dto.fabric_inputs import FabricHeatLossInputDTO
 
 
-@dataclass
+# ---------------------------------------------------------------------------
+# Legacy/internal helper model (NOT a controller contract)
+# ---------------------------------------------------------------------------
+
+@dataclass(slots=True)
 class FabricSurface:
     """
     Single building element contributing to fabric heat loss.
 
-    Examples:
-        - external wall
-        - window
-        - door
-        - roof
-        - floor
+    NOTE:
+    - This helper may exist for legacy/demo use, but MUST NOT be imported
+      by HeatLossControllerV4. Controller imports only FabricHeatLossEngine.
+    - Y_W_m2K is NOT used in steady-state fabric path.
     """
     id: str
     name: str
     U_W_m2K: float
     area_m2: float
-    # Optional enhancement: effective U including dynamic effects (Y)
+
+    # Future/dynamic only (kept for later, NOT used here)
     Y_W_m2K: Optional[float] = None
-    # Optional: orientation, type, etc.
+
     meta: Dict[str, str] = field(default_factory=dict)
 
 
-@dataclass
+@dataclass(slots=True)
 class FabricLossBreakdown:
     """
     Result container for fabric heat-loss.
@@ -55,91 +75,51 @@ class FabricLossBreakdown:
 
 
 # ---------------------------------------------------------------------------
-# Core functions
+# Steady-state helpers (engine-internal)
 # ---------------------------------------------------------------------------
 
 def compute_surface_loss(
-        surface: FabricSurface,
-        temp_inside_C: float,
-        temp_outside_C: float,
-        use_y_value: bool = False,
+    surface: FabricSurface,
+    temp_inside_C: float,
+    temp_outside_C: float,
 ) -> float:
     """
-    Compute heat-loss through a single surface.
-
-    By default uses steady-state U-value:
+    Steady-state surface heat loss:
 
         Q = U * A * (Ti - Te)
 
-    If use_y_value=True and Y is provided, we treat Y as an
-    *effective* transmittance for dynamic conditions:
-
-        Q_dyn = Y * A * (Ti - Te)
-
-    Parameters
-    ----------
-    surface : FabricSurface
-    temp_inside_C : float
-    temp_outside_C : float
-    use_y_value : bool
-        If True and surface.Y_W_m2K is not None, use Y instead of U.
-
-    Returns
-    -------
-    float : heat-loss in Watts
+    No Y-values. No modifiers. No heuristics.
     """
-
     dT = temp_inside_C - temp_outside_C
-
     if dT <= 0:
-        # No heat loss if outside is warmer or equal (in this simple model)
         return 0.0
-
-    if use_y_value and surface.Y_W_m2K is not None:
-        trans = surface.Y_W_m2K
-    else:
-        trans = surface.U_W_m2K
-
-    return trans * surface.area_m2 * dT
+    return surface.U_W_m2K * surface.area_m2 * dT
 
 
 def compute_fabric_loss(
-        surfaces: List[FabricSurface],
-        temp_inside_C: float,
-        temp_outside_C: float,
-        use_y_value: bool = False,
+    surfaces: List[FabricSurface],
+    temp_inside_C: float,
+    temp_outside_C: float,
 ) -> FabricLossBreakdown:
     """
-    Compute fabric heat-loss for a collection of surfaces (e.g. a room).
-
-    Parameters
-    ----------
-    surfaces : list[FabricSurface]
-    temp_inside_C : float
-    temp_outside_C : float
-    use_y_value : bool
-        If True, use Y-values where available.
-
-    Returns
-    -------
-    FabricLossBreakdown
-        Contains per-surface and total Watts.
+    Steady-state fabric heat loss for a list of surfaces.
     """
-
     breakdown_list: List[Dict[str, float]] = []
     total = 0.0
 
-    for s in surfaces:
-        q = compute_surface_loss(s, temp_inside_C, temp_outside_C, use_y_value)
-        total += q
+    dT = temp_inside_C - temp_outside_C
+    if dT <= 0:
+        return FabricLossBreakdown(surfaces=[], total_W=0.0)
 
+    for s in surfaces:
+        q = compute_surface_loss(s, temp_inside_C, temp_outside_C)
+        total += q
         breakdown_list.append(
             {
                 "id": s.id,
                 "U_W_m2K": s.U_W_m2K,
-                "Y_W_m2K": s.Y_W_m2K if s.Y_W_m2K is not None else 0.0,
                 "area_m2": s.area_m2,
-                "dT_K": temp_inside_C - temp_outside_C,
+                "dT_K": dT,
                 "Q_W": q,
             }
         )
@@ -147,35 +127,19 @@ def compute_fabric_loss(
     return FabricLossBreakdown(surfaces=breakdown_list, total_W=total)
 
 
-# ---------------------------------------------------------------------------
-# Convenience: simple room wrapper
-# ---------------------------------------------------------------------------
-
 def compute_room_fabric_loss(
-        room_id: str,
-        room_surfaces: List[FabricSurface],
-        design_temp_inside_C: float,
-        design_temp_outside_C: float,
-        use_y_value: bool = False,
+    room_id: str,
+    room_surfaces: List[FabricSurface],
+    design_temp_inside_C: float,
+    design_temp_outside_C: float,
 ) -> Dict[str, float]:
     """
-    High-level helper for room-based fabric heat-loss.
-
-    Returns a minimal dict suitable for attaching to a Room object
-    or feeding into a report generator.
-
-    Example output:
-        {
-            "room_id": "kitchen",
-            "fabric_loss_W": 1200.0
-        }
+    Legacy convenience wrapper (still steady-state clean).
     """
-
     breakdown = compute_fabric_loss(
         room_surfaces,
         temp_inside_C=design_temp_inside_C,
         temp_outside_C=design_temp_outside_C,
-        use_y_value=use_y_value,
     )
 
     return {
@@ -185,32 +149,85 @@ def compute_room_fabric_loss(
 
 
 # ---------------------------------------------------------------------------
-# Demo
+# Canonical engine entry point (controller-importable)
 # ---------------------------------------------------------------------------
 
-def _demo():
-    # Example: simple room with one wall and one window
-    wall = FabricSurface(
-        id="wall_ext",
-        name="External Wall",
-        U_W_m2K=0.25,
-        area_m2=12.0,
-    )
-    window = FabricSurface(
-        id="win1",
-        name="Window",
-        U_W_m2K=1.4,
-        area_m2=2.0,
-    )
+class FabricHeatLossEngine:
+    """
+    Fabric transmission heat-loss engine (PURE, LOCKED)
 
-    surfaces = [wall, window]
+    Contract (locked by Phase II-A/II-C):
+    • DTO in, dict out (temporary shape)
+    • Pure, stateless
+    • No ProjectState access
+    • No GUI imports
+    • No inference / no defaults
+    • Physics: Qf = U × A × ΔT; totals are ΣQf only
+    """
 
-    result = compute_fabric_loss(surfaces, temp_inside_C=21.0, temp_outside_C=-3.0)
+    @staticmethod
+    def run(input_dto: FabricHeatLossInputDTO) -> Dict[str, Any]:
+        if input_dto is None:
+            raise RuntimeError("FabricHeatLossEngine.run: input_dto is None")
 
-    print("Total fabric loss:", round(result.total_W), "W")
-    for s in result.surfaces:
-        print(s)
+        if not input_dto.surfaces:
+            raise RuntimeError("FabricHeatLossEngine.run: no surfaces supplied")
 
+        rows: List[Dict[str, Any]] = []
+        total_W: float = 0.0
+        total_by_room_W: Dict[str, float] = {}
 
-if __name__ == "__main__":
-    _demo()
+        for s in input_dto.surfaces:
+            if s.area_m2 <= 0:
+                raise RuntimeError(
+                    f"Invalid area for surface '{s.surface_id}': {s.area_m2}"
+                )
+            if s.u_value_W_m2K <= 0:
+                raise RuntimeError(
+                    f"Invalid U-value for surface '{s.surface_id}': {s.u_value_W_m2K}"
+                )
+            if s.delta_t_K <= 0:
+                raise RuntimeError(
+                    f"Invalid ΔT for surface '{s.surface_id}': {s.delta_t_K}"
+                )
+
+            # Phase II-A/II-C locked physics
+            q_W = float(s.area_m2) * float(s.u_value_W_m2K) * float(s.delta_t_K)
+
+            # Rows: keep backward compatible keys, plus explicit Qf aliases.
+            rows.append(
+                {
+                    "surface_id": s.surface_id,
+                    "room_id": s.room_id,
+                    "surface_class": s.surface_class,
+                    "area_m2": float(s.area_m2),
+                    "u_value_W_m2K": float(s.u_value_W_m2K),
+                    "delta_t_K": float(s.delta_t_K),
+
+                    # Back-compat (existing consumers)
+                    "q_W": q_W,
+                    "total_term": "U*A*dT",
+
+                    # Canonical naming going forward (safe additive)
+                    "qf_W": q_W,
+                }
+            )
+
+            total_W += q_W
+            total_by_room_W[s.room_id] = total_by_room_W.get(s.room_id, 0.0) + q_W
+
+        # Return: keep existing keys, plus additive canonical aliases.
+        return {
+            "project_id": input_dto.project_id,
+            "internal_design_temp_C": float(input_dto.internal_design_temp_C),
+            "external_design_temp_C": float(input_dto.external_design_temp_C),
+
+            # Back-compat
+            "rows": rows,
+            "total_fabric_W": total_W,
+            "total_by_room_W": total_by_room_W,
+
+            # Canonical aliases (additive)
+            "total_qf_W": total_W,
+            "qf_by_room_W": total_by_room_W,
+        }

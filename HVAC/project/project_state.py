@@ -5,162 +5,195 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Dict, Any, Optional
-from HVAC.project_v3.dto.project_surface_defaults_dto import (
-    ProjectSurfaceDefaultsDTO,
-)
-from HVAC.project_v3.dto.surface_intent_dto import SurfaceIntentDTO
-from HVAC.project_v3.dto.room_geometry_dto import RoomGeometryDTO
+from typing import Dict, Optional, Iterable, Any
 
-@dataclass
+from HVAC.core.environment_state import EnvironmentStateV1
+from HVAC.core.room_state import RoomStateV1
+from HVAC.project_v3.dto.heatloss_readiness import HeatLossReadiness
+from HVAC.heatloss.fabric.resolved_fabric_surface import ResolvedFabricSurface
+
+@dataclass(slots=True)
 class ProjectState:
     """
-    Authoritative in-memory representation of an HVACgooee project.
+    Authoritative project container.
 
-    Rules
-    -----
-    • Owns deserialization
-    • Accepts partial / incomplete projects
+    Responsibilities (LOCKED)
+    -------------------------
+    • Owns authoritative project intent
+    • Owns heat-loss results lifecycle
+    • Tracks heat-loss validity explicitly
     • Performs NO calculations
-    • Performs NO validation beyond structural sanity
+    • Performs NO GUI logic
     """
 
     # ------------------------------------------------------------------
-    # Core identity (REQUIRED)
+    # Core identity
     # ------------------------------------------------------------------
     project_id: str
     name: str
 
     # ------------------------------------------------------------------
-    # Optional metadata
+    # Authoritative intent
     # ------------------------------------------------------------------
-    reference: Optional[str] = None
-    revision: Optional[str] = None
+    rooms: Dict[str, RoomStateV1] = field(default_factory=dict)
+
+    # Environment is injected by loader / GUI (not owned here)
+    environment: Optional[EnvironmentStateV1] = None
 
     # ------------------------------------------------------------------
-    # Intent containers (may be empty)
+    # Heat-loss results lifecycle (Phase I-A → II-D)
     # ------------------------------------------------------------------
-    environment: Dict[str, Any] = field(default_factory=dict)
-    rooms: Dict[str, Any] = field(default_factory=dict)
-    constructions: Dict[str, Any] = field(default_factory=dict)
-    emitters: Dict[str, Any] = field(default_factory=dict)
-    hydronics: Dict[str, Any] = field(default_factory=dict)
+    # Canonical container: leave flexible until ResultDTO is introduced.
+    # Expected shape (current):
+    #   {"fabric": <engine-result-dict>}
+    heatloss_results: Optional[dict] = None
+
+    # Explicit validity flag (authoritative)
+    heatloss_valid: bool = False
 
     # ------------------------------------------------------------------
-    # v3 Intent (geometry + surface defaults)
+    # Phase I-B — Explicit invalidation (CANONICAL)
     # ------------------------------------------------------------------
-    surface_defaults: ProjectSurfaceDefaultsDTO = field(
-        default_factory=ProjectSurfaceDefaultsDTO
-    )
-
-    # ------------------------------------------------------------------
-    # Results (authoritative, populated only after run)
-    # ------------------------------------------------------------------
-    heatloss_results: Optional[Dict[str, Any]] = None
-    hydronics_results: Optional[Dict[str, Any]] = None
-
-    # ------------------------------------------------------------------
-    # Lifecycle flags
-    # ------------------------------------------------------------------
-    heatloss_status: str = "not_run"
-    hydronics_status: str = "not_run"
-
-    # ==================================================================
-    # Deserialization (CANONICAL ENTRY POINT)
-    # ==================================================================
-    @classmethod
-    def from_dict(cls, payload: Dict[str, Any]) -> ProjectState:
+    def mark_heatloss_dirty(self) -> None:
         """
-        Construct ProjectState from a persisted project dictionary.
+        Explicitly invalidate heat-loss results.
 
-        This method:
-        • Accepts partial projects
-        • Normalises missing sections
-        • Performs NO calculations
-        • Performs NO run-readiness validation
+        • No calculation
+        • No GUI effects
+        • No side effects beyond flag mutation
         """
-
-        if "project" not in payload:
-            raise ValueError("Invalid project: missing 'project' section")
-
-        project_meta = payload["project"]
-
-        try:
-            project_id = project_meta["id"]
-            name = project_meta["name"]
-        except KeyError as exc:
-            raise ValueError(
-                "Invalid project: 'project.id' and 'project.name' are required"
-            ) from exc
-
-        return cls(
-            project_id=project_id,
-            name=name,
-            reference=project_meta.get("reference"),
-            revision=project_meta.get("revision"),
-
-            environment=payload.get("environment", {}),
-            rooms=payload.get("rooms", {}),
-            constructions=payload.get("constructions", {}),
-            emitters=payload.get("emitters", {}),
-            hydronics=payload.get("hydronics", {}),
-
-            heatloss_results=payload.get("heatloss_results"),
-            hydronics_results=payload.get("hydronics_results"),
-
-            heatloss_status=payload.get("heatloss_status", "not_run"),
-            hydronics_status=payload.get("hydronics_status", "not_run"),
-        )
+        self.heatloss_valid = False
 
     # ------------------------------------------------------------------
-    # Room creation helpers (v3 intent)
+    # Phase II-D — Explicit validity marking (CANONICAL)
     # ------------------------------------------------------------------
-    def _instantiate_surfaces_from_defaults(self) -> Dict[str, SurfaceIntentDTO]:
-        """
-        Create surface intents using project-level defaults.
-        Geometry is empty; intent only.
-        """
-        d = self.surface_defaults
+    def mark_heatloss_valid(self) -> None:
+        if not self.heatloss_results:
+            raise RuntimeError("No heat-loss results present")
 
-        def surf(element: str, cid: Optional[str]) -> SurfaceIntentDTO:
-            return SurfaceIntentDTO(
-                element_class=element,
-                construction_id=cid,
+        required_keys = {"fabric", "ventilation", "room_totals"}
+
+        missing = required_keys - set(self.heatloss_results.keys())
+        if missing:
+            raise RuntimeError(
+                f"Heat-loss container incomplete. Missing keys: {sorted(missing)}"
             )
 
-        return {
-            "external_wall": surf("external_wall", d.external_wall),
-            "internal_wall": surf("internal_wall", d.internal_wall),
-            "floor": surf("floor", d.floor),
-            "ceiling": surf("ceiling", d.ceiling),
-            "roof": surf("roof", d.roof),
-            "window": surf("window", d.window),
-            "door": surf("door", d.door),
-        }
+        self.heatloss_valid = True
 
-    # ------------------------------------------------------------------
-    # Room creation (v3 intent)
-    # ------------------------------------------------------------------
-    def create_room_v3(self, room_id: str) -> None:
+    # ==================================================================
+    # Phase I-C — Readiness evaluation (CANONICAL)
+    # ==================================================================
+    def evaluate_heatloss_readiness(self) -> HeatLossReadiness:
         """
-        Create a new room with default surface intent.
+        Explicit heat-loss execution readiness evaluation.
 
         Rules:
-        • Intent assembly only
-        • No validation
-        • No calculations
-        • Safe to call multiple times with different IDs
+        • No side effects (no mutation)
+        • No calculation
+        • Always callable
         """
+        reasons: list[str] = []
 
-        if room_id in self.rooms:
-            raise ValueError(f"Room '{room_id}' already exists")
+        # --------------------------------------------------
+        # Environment
+        # --------------------------------------------------
+        env = self.environment
+        if env is None:
+            reasons.append("Environment not defined")
+        elif getattr(env, "external_design_temperature", None) is None:
+            reasons.append("External design temperature not set")
 
-        # Instantiate default surface intents
-        surfaces = self._instantiate_surfaces_from_defaults()
+        # --------------------------------------------------
+        # Rooms & declared space intent
+        # --------------------------------------------------
+        if not self.rooms:
+            reasons.append("No rooms defined")
+        else:
+            for room_id, room in self.rooms.items():
+                space = getattr(room, "space", None)
+                if space is None:
+                    reasons.append(f"Room '{room_id}' has no space")
+                    continue
 
-        # Minimal room intent container
-        self.rooms[room_id] = {
-            "surfaces": surfaces,
-        }
+                if float(getattr(space, "floor_area_m2", 0.0) or 0.0) <= 0.0:
+                    reasons.append(f"Room '{room_id}' has invalid floor area")
 
+                if float(getattr(space, "height_m", 0.0) or 0.0) <= 0.0:
+                    reasons.append(f"Room '{room_id}' has invalid height")
 
+        # --------------------------------------------------
+        # Fabric surfaces — U-value readiness (Phase II-A)
+        # --------------------------------------------------
+        for resolved in self.iter_fabric_surfaces():
+            # ResolvedFabricSurface convention:
+            #   resolved.surface  -> has name/surface_id
+            #   resolved.u_value_W_m2K -> float|None
+            u = getattr(resolved, "u_value_W_m2K", None)
+            if u is None or float(u) <= 0.0:
+                surface_obj = getattr(resolved, "surface", None)
+                sid = (
+                    getattr(surface_obj, "name", None)
+                    or getattr(surface_obj, "surface_id", None)
+                    or "unknown surface"
+                )
+                reasons.append(f"Surface '{sid}' has no valid U-value")
+
+        return HeatLossReadiness(
+            is_ready=(len(reasons) == 0),
+            blocking_reasons=reasons,
+        )
+
+    # ==================================================================
+    # Phase II-A — Fabric intent access (READ-ONLY)
+    # ==================================================================
+    def iter_fabric_surfaces(self) -> Iterable[ResolvedFabricSurface]:
+        ...
+        """
+        Iterate over all fabric surfaces that participate in heat-loss.
+
+        Canonical rules:
+        • Read-only
+        • No calculation
+        • No validation
+        • No GUI knowledge
+        • Order-stable (room insertion order, then surface list order)
+        """
+        for _room_id, room in self.rooms.items():
+            # Room may exist before surfaces are declared
+            surfaces = getattr(room, "fabric_surfaces", None)
+            if not surfaces:
+                continue
+
+            for resolved in surfaces:
+                if resolved is None:
+                    continue
+
+                # Optional future hook:
+                # if not getattr(resolved, "participates_in_heatloss", True):
+                #     continue
+
+                yield resolved
+
+    # ------------------------------------------------------------------
+    # Phase II-A/II-D — Fabric heat-loss results commit (authoritative)
+    # ------------------------------------------------------------------
+    def set_fabric_heatloss_result(self, result: dict) -> None:
+        """
+        Commit fabric heat-loss results (engine output).
+
+        Rules:
+        • Authoritative storage only
+        • No calculation
+        • No validation beyond None check
+        • No GUI logic
+        • Does NOT mark valid (separate call)
+        """
+        if result is None:
+            raise RuntimeError("set_fabric_heatloss_result: result is None")
+
+        # Replace fabric payload atomically (dict container is temporary)
+        self.heatloss_results = {"fabric": result}
+
+        # New results are not considered valid until explicitly marked.
+        self.heatloss_valid = False

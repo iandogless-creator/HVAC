@@ -27,7 +27,7 @@ RULES
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional, List
+from typing import List
 
 from HVAC.spaces.surface_engine_v1 import Surface
 
@@ -57,33 +57,38 @@ class LinearThermalBridge:
 @dataclass(frozen=True, slots=True)
 class ResolvedFabricSurface:
     """
-    Fully resolved fabric surface ready for heat-loss aggregation.
+    Fully resolved fabric surface (read-only).
 
-    This object is the ONLY fabric input allowed into room qf.
+    Notes
+    -----
+    • `surface` carries geometry + identity (surface_id, name, class, area, etc.)
+    • `room_id` is duplicated here as authoritative linkage for aggregation
     """
-
-    # --------------------------------------------------------------
-    # Geometry (authoritative)
-    # --------------------------------------------------------------
     surface: Surface
 
-    # --------------------------------------------------------------
-    # Fabric transmission
-    # --------------------------------------------------------------
+    # Authoritative linkage
+    room_id: str
+
+    # Resolved thermal properties
     u_value_W_m2K: float
+    y_value_W_m2K: float
 
-    # --------------------------------------------------------------
-    # Dynamic / intermittency effect (optional)
-    # --------------------------------------------------------------
-    y_value_W_m2K: float = 0.0
+    # Provenance / linkage
+    construction_id: str
+    notes: str = ""
 
-    # --------------------------------------------------------------
-    # Linear thermal bridges (optional)
-    # --------------------------------------------------------------
-    linear_bridges: Optional[List[LinearThermalBridge]] = None
+    @property
+    def display_name(self) -> str:
+        """
+        UI-safe display label for this surface.
 
-    # --------------------------------------------------------------
-    # Metadata (non-functional)
-    # --------------------------------------------------------------
-    construction_id: Optional[str] = None
-    notes: Optional[str] = None
+        Rules:
+        • Never raises
+        • Never touches ProjectState
+        • Uses only local surface identity fields
+        """
+        return (
+            getattr(self.surface, "name", None)
+            or getattr(self.surface, "surface_id", None)
+            or "unknown surface"
+        )
