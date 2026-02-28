@@ -49,6 +49,19 @@ HVACgooee uses explicit architectural bootstraps to lock intent.
   First fully working end-to-end authoritative pipeline
   See: `BOOTSTRAP_EURIKA.md`
 
+## Architecture & Authority
+
+HVACgooee uses explicit architectural freezes to prevent accidental
+coupling between GUI, state, and physics.
+
+The canonical authority rules, execution contracts, and frozen boundaries
+are defined here:
+
+➡️ **ARCHITECTURE_FREEZES.md**
+
+All contributors are expected to respect these freezes.
+
+
 ## Design Philosophy
 
 HVACgooee is intentionally **fine-grained and modular**.

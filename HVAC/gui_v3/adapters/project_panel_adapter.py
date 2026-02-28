@@ -1,12 +1,10 @@
 # ======================================================================
 # HVACgooee — Project Panel Adapter (GUI v3)
-# Phase: E-C — Lifecycle Status Wiring
-# Status: CANONICAL
 # ======================================================================
 
 from __future__ import annotations
 
-from HVAC.project.project_state import ProjectState
+from typing import Optional
 
 from HVAC.gui_v3.panels.project_panel import (
     ProjectPanel,
@@ -16,70 +14,49 @@ from HVAC.gui_v3.panels.project_panel import (
 
 class ProjectPanelAdapter:
     """
-    One-way adapter:
-    ProjectState → ProjectSummaryViewModel → ProjectPanel
+    Observer adapter for ProjectPanel.
 
-    Responsibilities
-    ----------------
-    • Read authoritative ProjectState
-    • Translate lifecycle flags into display text
-    • Push a read-only ViewModel into ProjectPanel
+    Responsibilities:
+    • Read ProjectState
+    • Build ProjectSummaryViewModel
+    • Push it into ProjectPanel
 
-    Constraints (LOCKED)
-    --------------------
-    • No calculations
-    • No inference
-    • No mutation
-    • No defaults invented
-    • No GUI-side state
+    No authority.
+    No persistence.
+    No calculation.
     """
 
-    # ------------------------------------------------------------------
-    # Construction
-    # ------------------------------------------------------------------
-    def __init__(
-        self,
-        *,
-        panel: ProjectPanel,
-        project_state: ProjectState,
-    ) -> None:
+    def __init__(self, panel: ProjectPanel, project_state) -> None:
         self._panel = panel
-        self._ps = project_state
+        self._project_state = project_state
 
     # ------------------------------------------------------------------
-    # Public lifecycle
+    # Observer refresh
     # ------------------------------------------------------------------
     def refresh(self) -> None:
-        """
-        Refresh Project panel from HVAC.project.
-State.
+        if self._project_state is None:
+            self._panel.apply_view_model(None)
+            return
 
-        Phase E rules:
-        • Read-only
-        • Deterministic
-        • Presentation only
-        """
-        vm = self._build_view_model()
+        vm = ProjectSummaryViewModel(
+            project_name=getattr(self._project_state, "name", None),
+            project_reference=getattr(self._project_state, "reference", None),
+            project_revision=getattr(self._project_state, "revision", None),
+            heatloss_status=self._heatloss_status(),
+            hydronics_status=self._hydronics_status(),
+        )
+
         self._panel.apply_view_model(vm)
 
     # ------------------------------------------------------------------
-    # ViewModel assembly
+    # Internal helpers (presentation only)
     # ------------------------------------------------------------------
-    def _build_view_model(self) -> ProjectSummaryViewModel:
-        ps = self._ps
+    def _heatloss_status(self) -> Optional[str]:
+        if not hasattr(self._project_state, "heat_loss_valid"):
+            return "not run"
+        return "valid" if self._project_state.heat_loss_valid else "not run"
 
-        heatloss_status = (
-            "run" if getattr(ps, "heatloss_has_run", False) else "not run"
-        )
-
-        hydronics_status = (
-            "run" if getattr(ps, "hydronics_has_run", False) else "not run"
-        )
-
-        return ProjectSummaryViewModel(
-            project_name=getattr(ps, "project_name", None),
-            project_reference=getattr(ps, "project_reference", None),
-            project_revision=getattr(ps, "project_revision", None),
-            heatloss_status=heatloss_status,
-            hydronics_status=hydronics_status,
-        )
+    def _hydronics_status(self) -> Optional[str]:
+        if not hasattr(self._project_state, "hydronics_valid"):
+            return "not run"
+        return "valid" if self._project_state.hydronics_valid else "not run"

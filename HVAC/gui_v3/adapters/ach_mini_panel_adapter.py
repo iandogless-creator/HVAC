@@ -45,7 +45,7 @@ class ACHMiniPanelAdapter:
         self._panel.ach_changed.connect(self._on_ach_changed)
 
         # context → GUI (room selection)
-        self._context.subscribe_room_selection_changed(
+        self._context.current_room_changed.connect(
             self._on_room_changed
         )
 
@@ -125,3 +125,16 @@ class ACHMiniPanelAdapter:
         # Invalidate heat-loss if supported
         if hasattr(ps, "mark_heatloss_dirty"):
             ps.mark_heatloss_dirty()
+
+    # HVAC/gui_v3/adapters/ach_mini_panel_adapter.py
+
+    def commit_air_change_rate(self, ach: float) -> None:
+        ps = self._context.project_state
+        room = self._context.current_room
+        if ps is None or room is None:
+            return
+
+        room.air_change_rate = ach
+
+        # Phase I-B
+        ps.mark_heatloss_dirty()

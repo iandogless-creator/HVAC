@@ -33,8 +33,8 @@ class RoomTreePanelAdapter:
     def __init__(
         self,
         *,
-        panel: RoomTreePanel,
-        context: GuiProjectContext,
+        panel= RoomTreePanel,
+        context= GuiProjectContext,
     ) -> None:
         self._panel = panel
         self._context = context

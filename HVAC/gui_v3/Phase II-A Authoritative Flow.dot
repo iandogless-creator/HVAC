@@ -1,0 +1,117 @@
+digraph "HVACgooee_Phase_II-A_Authoritative_Flow" {
+  rankdir=TB;
+  fontsize=12;
+  labelloc="t";
+  label="HVACgooee — Phase II-A Authoritative Flow\nHeat-Loss Worksheet → Construction → U-Values (Surface-Centric Navigation + U-Value Readiness)\nStatus: FROZEN";
+
+  node [shape=box, fontsize=11];
+
+  // -------------------------------------------------------------------
+  // Authority zones (conceptual clusters)
+  // -------------------------------------------------------------------
+  subgraph cluster_gui {
+    label="GUI (Observer + Intent Emitters)";
+    fontsize=12;
+
+    HLP [label="HeatLossPanelV3 (HLP)\n• Displays worksheet rows\n• Tracks selected surface (GUI-only)\n• Emits navigation intent\nSignals:\n- open_construction_requested(surface_id|None)\n- open_uvalues_requested(surface_id|None)"];
+
+    HLA [label="Heat-Loss Worksheet Adapter\n• Maps row_index → surface_id\n• Emits selection intent\n(does NOT inspect ProjectState)"];
+
+    CP [label="ConstructionPanel\n• Accepts selected surface_id\n• Shows placeholder state\nSignal:\n- u_values_requested(surface_id|None)"];
+
+    UVP [label="U-Values Panel (UVP)\n• Accepts focused surface_id\n• Displays/authors thermal properties\n(does NOT navigate or evaluate readiness)"];
+
+    GPC [label="GuiProjectContext\nGUI-only focus propagation\nMethod:\n- set_uvp_focus(surface_id)"];
+  }
+
+  subgraph cluster_nav {
+    label="Navigation Authority (LOCKED)";
+    fontsize=12;
+
+    MW [label="MainWindowV3 (Navigation Hub)\nONLY component that opens/raises docks\nHandlers:\n- _on_construction_focus_requested(surface_id)\n- _on_uvp_focus_requested(surface_id)"];
+  }
+
+  subgraph cluster_state {
+    label="Project Authority (LOCKED)";
+    fontsize=12;
+
+    PS [label="ProjectState\nOwns:\n• fabric intent\n• resolved surfaces\n• u-values presence/validity\n• readiness evaluation\nMethod:\n- evaluate_heatloss_readiness()"];
+
+    IFS [label="iter_fabric_surfaces() (CANONICAL)\nContract:\n• yields participating surfaces only\n• order-stable\n• non-recursive\n• no readiness calls\n• no GUI calls"];
+  }
+
+  // -------------------------------------------------------------------
+  // Surface identity: single unit of navigation
+  // -------------------------------------------------------------------
+  SID [shape=oval, label="surface_id\n(SINGLE canonical identity)"];
+
+  // -------------------------------------------------------------------
+  // Worksheet selection & focus propagation
+  // -------------------------------------------------------------------
+  HLP -> HLA [label="row click / selection gesture"];
+  HLA -> SID [label="row_index → surface_id"];
+  SID -> HLP [label="GUI tracks selected surface_id"];
+
+  // -------------------------------------------------------------------
+  // Navigation intents (panels emit; MW navigates)
+  // -------------------------------------------------------------------
+  HLP -> MW [label="open_construction_requested(surface_id|None)"];
+  HLP -> MW [label="open_uvalues_requested(surface_id|None)"];
+  CP  -> MW [label="u_values_requested(surface_id|None)"];
+
+  // -------------------------------------------------------------------
+  // MW navigation actions (raise dock + set focus)
+  // -------------------------------------------------------------------
+  MW -> CP  [label="raise Construction dock\nset surface selection"];
+  MW -> GPC [label="_on_uvp_focus_requested(surface_id)\ncall set_uvp_focus(surface_id)"];
+  GPC -> UVP [label="UVP subscribes to focus\n(surface_id)"];
+  MW -> UVP [label="raise UVP dock\n(focus via context)"];
+
+  // -------------------------------------------------------------------
+  // Readiness evaluation (single source) + U-value rule
+  // -------------------------------------------------------------------
+  HLP -> PS  [style=dashed, label="(via adapter/presenter)\nread readiness state ONLY"];
+  PS  -> IFS [label="evaluate_heatloss_readiness()\niterates via iterator"];
+  IFS -> PS  [label="for each surface:\nrequire u_value present/valid\nelse block execution"];
+
+  // -------------------------------------------------------------------
+  // GUI readiness effect & fix action (one path)
+  // -------------------------------------------------------------------
+  PS -> HLP [style=dashed, label="readiness result:\n• disable Run\n• show blocking reason\n• show Fix U-Values…"];
+  HLP -> MW [label="Fix U-Values…\n(emits open_uvalues_requested(surface_id))"];
+}
+Quick ASCII View (same graph, simplified)
+HeatLossPanelV3 (HLP)
+  └─ row click → Worksheet Adapter maps row_index → surface_id
+                 └─ HLP tracks selected surface_id (GUI-only)
+
+HLP emits intents only:
+  open_construction_requested(surface_id) ────────────────┐
+  open_uvalues_requested(surface_id) ────────────────┐    │
+ConstructionPanel emits:
+  u_values_requested(surface_id) ─────────────────────┼────┘
+                                                      ▼
+                                           MainWindowV3 (ONLY navigator)
+                                            ├─ raise Construction dock; set surface selection
+                                            └─ raise UVP dock; context.set_uvp_focus(surface_id)
+                                                           ▼
+                                                   U-Values Panel (UVP)
+
+Readiness (ONLY ProjectState):
+  ProjectState.evaluate_heatloss_readiness()
+    └─ iter_fabric_surfaces()  (canonical contract)
+        └─ if any surface missing/invalid u_value → block execution
+
+GUI effect:
+  disable Run + show reason + show "Fix U-Values…" → routes through same open_uvalues intent
+What this diagram “locks” (so nobody cheats later)
+
+Panels only emit intent, never navigate.
+
+MainWindowV3 is the only navigator.
+
+surface_id is the only identity.
+
+Readiness is ProjectState only, based on iter_fabric_surfaces().
+
+“Fix U-Values…” uses the same path as normal “Open U-Values…”

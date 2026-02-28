@@ -4,55 +4,68 @@
 # Status: CANONICAL
 # ======================================================================
 
+# ======================================================================
+# HVACgooee — Environment Panel Adapter (GUI v3)
+# ======================================================================
+
 from __future__ import annotations
 
-from HVAC.project.project_state import ProjectState
 from HVAC.gui_v3.panels.environment_panel import EnvironmentPanel
 
 
 class EnvironmentPanelAdapter:
     """
-    Environment panel adapter (read-only).
+    Observer adapter for EnvironmentPanel.
 
-    Phase F-A responsibilities:
-    • Expose external design temperature
-    • Expose calculation reference context
-    • NO calculations
-    • NO mutation
+    Responsibilities:
+    • Read ProjectState
+    • Present environment data
+    • No authority, no mutation
     """
 
-    def __init__(
-        self,
-        *,
-        panel: EnvironmentPanel,
-        project_state: ProjectState,
-    ) -> None:
+    def __init__(self, panel: EnvironmentPanel, project_state) -> None:
         self._panel = panel
-        self._ps = project_state
+        self._project_state = project_state
 
     # ------------------------------------------------------------------
-    # Public API
+    # Observer refresh
     # ------------------------------------------------------------------
     def refresh(self) -> None:
+        ps = self._project_state
+        if ps is None:
+            return
+
+        # External design temperature
+        te = getattr(ps, "external_design_temperature", None)
+        if hasattr(self._panel, "set_external_temperature"):
+            self._panel.set_external_temperature(te)
+
+        # Reference ΔT
+        dt = getattr(ps, "reference_delta_t", None)
+        if hasattr(self._panel, "set_reference_delta_t"):
+            self._panel.set_reference_delta_t(dt)
+
+        # Method / metadata (optional)
+        method = getattr(ps, "heatloss_method", None)
+        if hasattr(self._panel, "set_method"):
+            self._panel.set_method(method)
+
+    def _on_external_design_temp_changed(self, te_c: float) -> None:
         """
-        Refresh Environment panel from authoritative ProjectState.
-
-        Phase F-A:
-        • Read-only
-        • No assumptions about internal storage
+        Forward user-entered external design temperature (Te)
+        into the heat-loss run intent context.
         """
+        self._gui_context.heatloss_run_context.external_design_temp_C = te_c
 
-        env = None
+    # HVAC/gui_v3/adapters/environment_panel_adapter.py
 
-        # Canonical Project v3 access pattern
-        if self._ps and hasattr(self._ps, "project_inputs"):
-            env = getattr(self._ps.project_inputs, "environment", None)
+    def set_external_design_temperature(self, value: float) -> None:
+        ps = self._context.project_state
+        if ps is None or ps.environment is None:
+            return
 
-        outside_c = (
-            env.external_design_temperature_c
-            if env and getattr(env, "external_design_temperature_c", None) is not None
-            else None
-        )
+        ps.environment.external_design_temperature = value
 
-        self._panel.set_external_temperature(outside_c)
+        # Phase I-B
+        ps.mark_heatloss_dirty()
 

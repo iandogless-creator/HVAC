@@ -33,6 +33,7 @@ class HeatLossPanelAdapter:
         # GUI → controller intent
         self._panel.run_requested.connect(self._on_run_requested)
 
+
     # ------------------------------------------------------------------
     # Public
     # ------------------------------------------------------------------
@@ -53,6 +54,10 @@ class HeatLossPanelAdapter:
         # (this adapter does not know row structure)
         panel.set_run_enabled(True)
 
+        # HLPA owns Ti
+        self._panel.internal_design_temp_changed.connect(
+        self._on_internal_design_temp_changed
+    )
     # ------------------------------------------------------------------
     # Intent forwarding
     # ------------------------------------------------------------------
@@ -62,6 +67,9 @@ class HeatLossPanelAdapter:
         """
         # MainWindow / controller already subscribed
         pass
+
+    def _on_internal_design_temp_changed(self, ti_c: float) -> None:
+        self._context.heatloss_run_context.internal_design_temp_C = ti_c
 
     def refresh_room_context(self) -> None:
         ctx = self._gui_context
@@ -81,3 +89,6 @@ class HeatLossPanelAdapter:
             room_name=room.display_name,
             room_id=room.public_id,
         )
+
+        def _on_internal_design_temp_changed(self, ti_C: float) -> None:
+            self._context.heatloss_run_context.internal_design_temp_C = ti_C

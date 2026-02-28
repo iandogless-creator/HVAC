@@ -118,3 +118,23 @@ class UVPPanel(QWidget):
                 QSizePolicy.Expanding,
             )
         )
+
+    def select_surface(self, surface_id: str) -> None:
+        # Phase B: no mutation, no calc — just store and reflect in labels later
+        self._selected_surface_id = surface_id
+
+    def focus_surface(self, surface_id: str | None) -> None:
+        if surface_id is None:
+            self._clear_selection()
+            return
+
+        self._show_surface(surface_id)
+
+    def _show_surface(self, surface_id: str) -> None:
+        # Phase B/C: display only
+        self._element_label.setText(f"Element: {surface_id}")
+
+    def _on_uvp_focus_requested(self, surface_id: str | None) -> None:
+        self._dock_uvp.show()
+        self._dock_uvp.raise_()
+        self._context.set_uvp_focus(surface_id)

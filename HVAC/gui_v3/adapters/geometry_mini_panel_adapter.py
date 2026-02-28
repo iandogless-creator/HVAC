@@ -48,3 +48,17 @@ class GeometryMiniPanelAdapter:
             geometry=payload,
         )
 
+    # HVAC/gui_v3/adapters/geometry_mini_panel_adapter.py
+
+    def commit_geometry(self, length_m: float, width_m: float, height_m: float) -> None:
+        ps = self._context.project_state
+        room = self._context.current_room
+        if ps is None or room is None:
+            return
+
+        room.geometry.length_m = length_m
+        room.geometry.width_m = width_m
+        room.geometry.height_m = height_m
+
+        # Phase I-B
+        ps.mark_heatloss_dirty()
