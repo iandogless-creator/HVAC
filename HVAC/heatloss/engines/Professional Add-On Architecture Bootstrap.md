@@ -4,7 +4,9 @@ Bootstrap ID: ADDON-PROFESSIONAL-CAPABILITIES
 Date: Monday 6 February 2026, 18:12 pm
 Status: ACTIVE — intent lock
 ======================================================================
+
 Purpose
+-------
 
 This bootstrap defines the architectural intent for professional add-on
 packages in HVACgooee.
@@ -25,6 +27,7 @@ This document defines what add-ons are, what they are not, and where
 they integrate.
 
 Core Principle (LOCKED)
+-----------------------
 
 Add-ons provide capability, not permission.
 
@@ -36,8 +39,29 @@ Add-ons never change workflow semantics
 
 Add-ons never replace or cripple the core
 
+
+Engine Existence vs Engine Exposure (LOCKED)
+--------------------------------------------
+
+Engines may exist in the codebase without being exposed in the GUI.
+
+Engine exposure (what the user can select / see) is a product decision,
+not an architectural decision.
+
+The absence of a GUI selector does not imply absence of capability.
+
+This enables progressive rollout:
+
+- v1 may expose Simple only, while Novice/Technical remain core-capable
+- later versions may surface additional core engines without refactors
+- add-ons may extend capability without changing the GUI authority rules
+
+
 Relationship to Core
+--------------------
+
 HVACgooee Core (Always Present)
+------------------------------
 
 GPLv3
 
@@ -67,8 +91,12 @@ usable
 
 defensible for learning and practice
 
+
 Professional Add-On Package (Primary)
+------------------------------------
+
 Package Concept
+---------------
 
 hvacgooee-professional
 
@@ -84,8 +112,12 @@ reduced professional risk
 
 This package is optional and never required to use HVACgooee.
 
+
 Capabilities Provided (Indicative, Not Exhaustive)
+-------------------------------------------------
+
 Heat-Loss (Advanced)
+--------------------
 
 ψ-value handling
 
@@ -101,7 +133,9 @@ extended result breakdowns
 
 audit-friendly reporting hooks
 
+
 Reporting & Compliance
+----------------------
 
 traceable calculation breakdowns
 
@@ -111,7 +145,9 @@ reproducible outputs
 
 future regulatory adapters
 
+
 Extended Physics (Future)
+-------------------------
 
 dynamic response
 
@@ -119,7 +155,36 @@ time-dependent loads
 
 advanced boundary conditions
 
+
+Advanced Add-On Constraints (LOCKED)
+------------------------------------
+
+The professional add-on MUST NOT:
+
+- Replace core engines or redefine “truth”
+- Override or silently post-process core outputs without traceability
+- Introduce conflicting physics models that invalidate the core baseline
+- Gate access to correctness (only depth / additional capability)
+
+The add-on provides additional capability, not permission to be correct.
+
+
+Auditability Guarantee (LOCKED)
+-------------------------------
+
+Advanced outputs must remain traceable to core-engine quantities.
+
+Where the add-on introduces deeper physics (e.g. dynamic effects),
+equivalent static/simplified core values remain inspectable.
+
+Reports must be reproducible:
+- same inputs + same capabilities = same outputs
+- no hidden heuristics
+- no silent inference beyond declared assumptions
+
+
 Other Potential Add-Ons (Explicitly Allowed)
+--------------------------------------------
 
 This bootstrap does not limit add-ons to heat-loss.
 
@@ -145,8 +210,12 @@ declares its own capabilities
 
 integrates via controllers, not GUI panels
 
+
 Integration Rules (LOCKED)
+--------------------------
+
 1️⃣ ProjectState Is the Switchpoint
+----------------------------------
 
 ProjectState declares capability intent
 
@@ -161,7 +230,9 @@ project_state.capabilities.heatloss = "advanced"
 
 No engine selection occurs in the GUI.
 
+
 2️⃣ Controllers Select Engines
+------------------------------
 
 Controllers detect available add-ons
 
@@ -171,7 +242,9 @@ Controllers remain deterministic
 
 GUI remains observer-only
 
+
 3️⃣ GUI Remains Neutral
+-----------------------
 
 GUI v3:
 
@@ -189,7 +262,9 @@ execution is gracefully disabled
 
 neutral messaging only
 
+
 Licensing Intent (LOCKED)
+-------------------------
 
 Core remains GPLv3
 
@@ -205,7 +280,32 @@ No runtime licence checks in core modules
 
 Licensing enforcement, if any, lives outside the core.
 
+
+Licensing Boundary (LOCKED)
+---------------------------
+
+The core must remain buildable and runnable without add-ons.
+
+Add-ons may link against the core but must not embed, re-license,
+or modify GPL core modules in ways that create hidden coupling.
+
+Any licensing enforcement belongs outside the core and must not alter
+core workflow semantics.
+
+
+Indicative Exposure Roadmap (Non-Binding)
+-----------------------------------------
+
+This is NOT a promise of dates. It is a sequencing intent only.
+
+- v1: Simple engine exposed (default)
+- v1.x: Novice engine UI exposure (core)
+- v2: Technical engine UI exposure (core)
+- post-v1: Advanced engine delivered via professional add-on
+
+
 Non-Goals (Explicit)
+--------------------
 
 This bootstrap does NOT:
 
@@ -221,7 +321,9 @@ alter ProjectState schema
 
 Those require separate bootstraps.
 
+
 Architectural Ethos (Re-affirmed)
+---------------------------------
 
 HVACgooee prioritises:
 
@@ -238,7 +340,9 @@ ethical sustainability
 Professional users pay for depth and responsibility,
 not for access to basic functionality.
 
+
 Freeze Statement (Pending)
+--------------------------
 
 This bootstrap will be frozen once:
 
@@ -250,7 +354,7 @@ Simple engine v1 is locked
 
 All future add-on work must reference this document.
 
+
 NOTE:
 Engine capability selection is intentionally deferred beyond v1.
 Architecture allows for multiple entry engines in future versions.
-

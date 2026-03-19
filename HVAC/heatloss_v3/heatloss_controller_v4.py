@@ -11,10 +11,7 @@ if TYPE_CHECKING:
     from HVAC.project.project_state import ProjectState
 
 from HVAC.heatloss.engines.fabric_heatloss_engine import FabricHeatLossEngine
-from HVAC.heatloss.dto.fabric_inputs import (
-    FabricHeatLossInputDTO,
-    FabricSurfaceInputDTO,
-)
+from HVAC.heatloss.dto.fabric_inputs import FabricSurfaceInputDTO
 
 
 class HeatLossControllerV4:
@@ -35,9 +32,6 @@ class HeatLossControllerV4:
     • If invoked, execution permission is assumed
     """
 
-    # ------------------------------------------------------------------
-    # Public entry
-    # ------------------------------------------------------------------
     # ------------------------------------------------------------------
     # Public entry
     # ------------------------------------------------------------------
@@ -109,10 +103,10 @@ class HeatLossControllerV4:
     ) -> dict:
 
         env = project.environment
-        if env is None or env.external_design_temperature is None:
+        if env is None or env.external_design_temp_C is None:
             raise RuntimeError("External design temperature not set")
 
-        te_C = env.external_design_temperature
+        te_C = env.external_design_temp_C
         delta_t = ti_C - te_C
 
         qv_by_room: dict[str, float] = {}
@@ -168,32 +162,51 @@ class HeatLossControllerV4:
     # ------------------------------------------------------------------
     @staticmethod
     def _build_fabric_input(
-        *,
-        project: ProjectState,
-        ti_C: float,
-    ) -> FabricHeatLossInputDTO:
+            *,
+            project: ProjectState,
+            ti_C: float,
+    ) -> list[FabricSurfaceInputDTO]:
         env = project.environment
-        if env is None or env.external_design_temperature is None:
+        if env is None or env.external_design_temp_C is None:
             raise RuntimeError("External design temperature not set")
 
         if ti_C is None:
             raise RuntimeError("Internal design temperature not supplied")
 
-        te_C = env.external_design_temperature
-        delta_t = ti_C - te_C
+        te_C = env.external_design_temp_C
+        delta_t = HeatLossControllerV4._resolve_surface_delta_t(
+            project=project,
+            surface=surface,
+            ti_C=ti_C,
+            te_C=te_C,
+        )
         if delta_t <= 0:
             raise RuntimeError(
                 f"Invalid ΔT (Ti={ti_C}, Te={te_C}) — must be > 0"
             )
 
-        resolved_surfaces = list(project.iter_fabric_surfaces())
+        resolved_surfaces = list(generate_fabric_from_boundaries(project))
+
         if not resolved_surfaces:
             raise RuntimeError("No fabric surfaces declared")
 
         surface_inputs: list[FabricSurfaceInputDTO] = []
 
         for s in resolved_surfaces:
+
             surface = s.surface
+
+            delta_t = HeatLossControllerV4._resolve_surface_delta_t(
+                project=project,
+                surface=surface,
+                ti_C=ti_C,
+                te_C=te_C,
+            )
+
+            if delta_t <= 0:
+                raise RuntimeError(
+                    f"Invalid ΔT (Ti={ti_C}, Te={te_C}) — must be > 0"
+                )
 
             surface_inputs.append(
                 FabricSurfaceInputDTO(
@@ -209,10 +222,4 @@ class HeatLossControllerV4:
                     delta_t_K=delta_t,
                 )
             )
-
-        return FabricHeatLossInputDTO(
-            surfaces=surface_inputs,
-            internal_design_temp_C=ti_C,
-            external_design_temp_C=te_C,
-            project_id=project.project_id,
-        )
+        return surface_inputs

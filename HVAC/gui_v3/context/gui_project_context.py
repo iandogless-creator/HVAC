@@ -5,15 +5,18 @@
 """
 HVACgooee — GUI Project Context
 
-Phase: D.2 / I-J / K-A — Authority Boundary
+Phase: D.2 / I-J / K-A / III — Authority Boundary
 Status: CANONICAL
 
 Purpose
 -------
 GUI-only coordination state:
+
 • Current room focus
 • Heat-Loss run intent (HLPA)
 • HLPE session state
+• Filesystem binding (project_dir)
+• Workspace root
 
 Authority rules
 ---------------
@@ -21,19 +24,18 @@ Authority rules
 • Does NOT compute
 • Reads ProjectState only
 • Emits GUI intent via signals
+• Does NOT load/save directly (persistence layer handles that)
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-import json
-from typing import Optional, Literal, Callable
-
+from typing import Optional, Literal, Callable, List
 from PySide6.QtCore import QObject, Signal
-
 from HVAC.gui_v3.context.gui_settings import GuiSettings
 from HVAC.project.project_state import ProjectState
+
 
 # ----------------------------------------------------------------------
 # Types
@@ -43,7 +45,7 @@ HLPEditScope = Literal["geometry", "assumptions", "construction"]
 
 
 # ----------------------------------------------------------------------
-# GUI-only run intent (HLPA-owned)
+# GUI-only run intent
 # ----------------------------------------------------------------------
 
 @dataclass(slots=True)
@@ -51,7 +53,7 @@ class HeatLossRunContext:
     """
     GUI-owned heat-loss run intent.
 
-    Phase II-A rules:
+    Rules:
     • GUI sets
     • Controller consumes
     • ProjectState never sees this
@@ -71,21 +73,28 @@ class GuiProjectContext(QObject):
     # ------------------------------------------------------------------
     # Signals
     # ------------------------------------------------------------------
+
     current_room_changed = Signal(object)   # room_id | None
     hlpe_active_changed = Signal(bool)
-    # --------------------------------------------------------------
-    # UVP focus (GUI-only intent)
-    # --------------------------------------------------------------
-    _uvp_surface_id: str | None = None
-    _uvp_subscribers: list[callable] = []
+    environment_changed = Signal()
+    room_state_changed = Signal(str)  # room_id
+
     # ------------------------------------------------------------------
     # Construction
     # ------------------------------------------------------------------
+
     def __init__(self, *, project_state: ProjectState) -> None:
         super().__init__()
 
         # ---------------- Authoritative project ----------------
         self._project_state: ProjectState = project_state
+
+        # Filesystem binding (GUI concern only)
+        self.project_dir: Path | None = None
+
+        # Workspace root (default open/save location)
+        self.workspace_root: Path = Path.cwd() / "HVACProjects"
+        self.workspace_root.mkdir(exist_ok=True)
 
         # ---------------- GUI-only focus ----------------
         self._current_room_id: Optional[str] = None
@@ -104,12 +113,17 @@ class GuiProjectContext(QObject):
         settings_dir.mkdir(parents=True, exist_ok=True)
         self._gui_settings = GuiSettings(settings_dir=settings_dir)
 
+        # ---------------- UVP focus ----------------
+        self._uvp_surface_id: Optional[str] = None
+        self._uvp_subscribers: List[Callable[[Optional[str]], None]] = []
+
         # ---------------- Observers ----------------
-        self._room_selection_listeners: list[Callable[[Optional[str]], None]] = []
+        self._room_selection_listeners: List[Callable[[Optional[str]], None]] = []
 
     # ==================================================================
     # Read-only access
     # ==================================================================
+
     @property
     def project_state(self) -> ProjectState:
         return self._project_state
@@ -125,48 +139,45 @@ class GuiProjectContext(QObject):
     # ==================================================================
     # Project switching (authoritative swap)
     # ==================================================================
-    def set_project_state(self, project_state: ProjectState) -> None:
+
+    def set_project_state(
+        self,
+        project_state: ProjectState,
+        *,
+        project_dir: Path | None = None,
+    ) -> None:
+        """
+        Swap authoritative project.
+        GUI state resets.
+        """
         self._project_state = project_state
+        self.project_dir = project_dir
+
         self.set_current_room(None)
         self.close_hlpe()
 
-    # --------------------------------------------------------------
+    # ==================================================================
     # UVP focus (GUI-only intent)
-    # --------------------------------------------------------------
-    def set_uvp_focus(self, surface_id: str | None) -> None:
+    # ==================================================================
+
+    def set_uvp_focus(self, surface_id: Optional[str]) -> None:
         self._uvp_surface_id = surface_id
-        for cb in self._uvp_subscribers:
+        for cb in list(self._uvp_subscribers):
             cb(surface_id)
 
-    def get_uvp_focus(self) -> str | None:
+    def get_uvp_focus(self) -> Optional[str]:
         return self._uvp_surface_id
 
-    def subscribe_uvp_focus(self, callback) -> None:
+    def subscribe_uvp_focus(
+        self,
+        callback: Callable[[Optional[str]], None],
+    ) -> None:
         self._uvp_subscribers.append(callback)
-
-    def request_uvp_focus(self, surface_id: str | None = None) -> None:
-        """
-        GUI intent: request U-Values panel focus.
-
-        May be surface-specific or generic.
-        """
-        self.set_uvp_focus(surface_id)
-
-
-
-    # ==================================================================
-    # Project loading (Phase K-A)
-    # ==================================================================
-    def load_project(self, path: Path) -> None:
-        with path.open("r", encoding="utf-8") as f:
-            payload = json.load(f)
-
-        project_state = ProjectState.from_dict(payload)
-        self.set_project_state(project_state)
 
     # ==================================================================
     # Room focus (GUI-only)
     # ==================================================================
+
     def set_current_room(self, room_id: Optional[str]) -> None:
         if self._current_room_id == room_id:
             return
@@ -186,6 +197,7 @@ class GuiProjectContext(QObject):
     # ==================================================================
     # HLPE session control (GUI-only)
     # ==================================================================
+
     @property
     def hlpe_active(self) -> bool:
         return self._hlpe_active

@@ -26,7 +26,7 @@ class HeatLossExecutionValidatorV1:
         issues: List[ValidationIssue] = []
 
         # ---- Environment ------------------------------------------------
-        if not self._has_external_design_temperature(project_state):
+        if not self._has_external_design_temp(project_state):
             issues.append(
                 ValidationIssue(
                     code="ENV_EXT_TEMP_MISSING",
@@ -61,8 +61,8 @@ class HeatLossExecutionValidatorV1:
     # ------------------------------------------------------------------
     # Private helpers
     # ------------------------------------------------------------------
-    def _has_external_design_temperature(self, ps: Any) -> bool:
+    def _has_external_design_temp(self, ps: Any) -> bool:
         env = getattr(ps, "environment", None)
         if env is None:
             return False
-        return getattr(env, "external_design_temperature_c", None) is not None
+        return getattr(env, "external_design_temp_C", None) is not None

@@ -4,31 +4,41 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import Signal
+from PySide6.QtCore import Signal, QTimer
 from PySide6.QtWidgets import (
     QWidget,
     QVBoxLayout,
     QLabel,
     QDoubleSpinBox,
     QHBoxLayout,
+    QFormLayout,
+    QLineEdit
 )
 
 
 class GeometryMiniPanel(QWidget):
-    """
-    GUI v3 — Geometry Mini Panel
-
-    Phase I-B:
-    • Pure intent editor
-    • No ProjectState access
-    • No calculations
-    """
 
     geometry_changed = Signal(dict)
 
-    def __init__(self, parent: QWidget | None = None) -> None:
+    def __init__(self, parent=None):
         super().__init__(parent)
-        self._build_ui()
+
+        layout = QFormLayout(self)
+
+        self._edit_length = QLineEdit()
+        self._edit_width = QLineEdit()
+        self._edit_height = QLineEdit()
+        self._edit_ext = QLineEdit()
+        self._edit_ti = QLineEdit()
+
+        layout.addRow("Length (m)", self._edit_length)
+        layout.addRow("Width (m)", self._edit_width)
+        layout.addRow("Height (m)", self._edit_height)
+        layout.addRow("External wall length (m)", self._edit_ext)
+        layout.addRow("Ti (°C)", self._edit_ti)
+        self._commit_timer = QTimer(self)
+        self._commit_timer.setSingleShot(True)
+        self._commit_timer.timeout.connect(self._maybe_commit)
 
     def _build_ui(self) -> None:
         root = QVBoxLayout(self)
@@ -57,13 +67,12 @@ class GeometryMiniPanel(QWidget):
         root.addSpacing(6)
         root.addLayout(self._row("Internal design temp (°C):", self._spin_ti))
 
-        for w in (
-            self._spin_length,
-            self._spin_width,
-            self._spin_height,
-            self._spin_ti,
-        ):
-            w.valueChanged.connect(self._emit_geometry)
+        self._edit_length.editingFinished.connect(self._schedule_commit)
+        self._edit_width.editingFinished.connect(self._schedule_commit)
+        self._edit_height.editingFinished.connect(self._schedule_commit)
+        self._edit_ext.editingFinished.connect(self._schedule_commit)
+        self._edit_ti.editingFinished.connect(self._schedule_commit)
+
 
     def _emit_geometry(self) -> None:
         self.geometry_changed.emit({
@@ -101,3 +110,65 @@ class GeometryMiniPanel(QWidget):
         self._spin_ti.setValue(0.0)
         self._lbl_floor_area.setText("—")
         self._lbl_volume.setText("—")
+
+    # ------------------------------------------------------------------
+    # Commit API (called by MainWindow / adapters)
+    # ------------------------------------------------------------------
+    def commit_if_valid(self) -> None:
+        self._maybe_commit()
+
+    def _schedule_commit(self):
+        # restart timer every time
+        self._commit_timer.start(150)
+
+    # ------------------------------------------------------------------
+    # Internal commit logic
+    # ------------------------------------------------------------------
+    def _maybe_commit(self) -> None:
+
+        values = self._collect_values()
+
+        # Only commit when FULL geometry is valid
+        if not self._is_valid(values):
+            self._set_dirty(True)
+            return
+
+        # Prevent duplicate commits
+        if getattr(self, "_last_commit", None) == values:
+            return
+
+        self._last_commit = values
+
+        self._set_dirty(False)
+
+        print("GMP commit fired")
+
+        self.geometry_committed.emit(values)
+
+    # ------------------------------------------------------------------
+    # Helpers
+    # ------------------------------------------------------------------
+    def _collect_values(self) -> dict:
+
+        return {
+            "length_m": self._length_input.value(),
+            "width_m": self._width_input.value(),
+            "height_m": self._height_input.value(),
+            "external_wall_length_m": self._external_wall_length_input.value(),
+            "internal_temp_C": self._ti_input.value(),
+        }
+
+    def _is_valid(self, v: dict) -> bool:
+
+        return (
+                v["length_m"] > 0 and
+                v["width_m"] > 0 and
+                v["height_m"] > 0 and
+                v["external_wall_length_m"] >= 0
+        )
+
+    def _set_dirty(self, dirty: bool):
+        if dirty:
+            self.setStyleSheet("border: 2px solid orange;")
+        else:
+            self.setStyleSheet("")

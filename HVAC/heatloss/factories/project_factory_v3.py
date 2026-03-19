@@ -24,6 +24,7 @@ from enum import Enum
 from typing import Dict, Optional, Protocol, Any, List, Tuple
 
 from HVAC.core.resolution_registry import ResolutionRegistry
+from HVAC.core.room_state import RoomStateV1
 
 # ============================================================
 # Design Level (Project-wide single source of truth)

@@ -1,0 +1,87 @@
+{
+  "schema_version": 3,
+  "project_id": "DEV-MULTI-001",
+  "name": "IV-A Multi Room Test",
+
+  "environment": {
+    "external_design_temp_C": -3.0
+  },
+
+  "rooms": {
+    "room_A": {
+      "name": "Room A",
+      "internal_design_temp_C": 21.0,
+      "geometry": {
+        "polygon": [[0,0],[4,0],[4,3],[0,3]],
+        "height_m": 2.4
+      }
+    },
+    "room_B": {
+      "name": "Room B",
+      "internal_design_temp_C": 21.0,
+      "geometry": {
+        "polygon": [[4,0],[8,0],[8,3],[4,3]],
+        "height_m": 2.4
+      }
+    }
+  },
+
+  "boundary_segments": {
+    "A_e1": {
+      "owner_room_id": "room_A",
+      "geometry_ref": "edge_1",
+      "length_m": 4.0,
+      "boundary_kind": "EXTERNAL",
+      "adjacent_room_id": null
+    },
+    "A_e2": {
+      "owner_room_id": "room_A",
+      "geometry_ref": "edge_2",
+      "length_m": 3.0,
+      "boundary_kind": "INTER_ROOM",
+      "adjacent_room_id": "room_B"
+    },
+    "A_e3": {
+      "owner_room_id": "room_A",
+      "geometry_ref": "edge_3",
+      "length_m": 4.0,
+      "boundary_kind": "EXTERNAL",
+      "adjacent_room_id": null
+    },
+    "A_e4": {
+      "owner_room_id": "room_A",
+      "geometry_ref": "edge_4",
+      "length_m": 3.0,
+      "boundary_kind": "EXTERNAL",
+      "adjacent_room_id": null
+    },
+    "B_e1": {
+      "owner_room_id": "room_B",
+      "geometry_ref": "edge_1",
+      "length_m": 4.0,
+      "boundary_kind": "EXTERNAL",
+      "adjacent_room_id": null
+    },
+    "B_e2": {
+      "owner_room_id": "room_B",
+      "geometry_ref": "edge_2",
+      "length_m": 3.0,
+      "boundary_kind": "INTER_ROOM",
+      "adjacent_room_id": "room_A"
+    },
+    "B_e3": {
+      "owner_room_id": "room_B",
+      "geometry_ref": "edge_3",
+      "length_m": 4.0,
+      "boundary_kind": "EXTERNAL",
+      "adjacent_room_id": null
+    },
+    "B_e4": {
+      "owner_room_id": "room_B",
+      "geometry_ref": "edge_4",
+      "length_m": 3.0,
+      "boundary_kind": "EXTERNAL",
+      "adjacent_room_id": null
+    }
+  }
+}

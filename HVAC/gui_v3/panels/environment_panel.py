@@ -1,109 +1,154 @@
 # ======================================================================
-# HVACgooee — Environment Panel (GUI v3)
-# Phase: GUI v3 — Observer
-# Sub-Phase: Phase B (Static Layout)
-# Status: FROZEN
+# HVAC/gui_v3/panels/environment_panel.py
 # ======================================================================
 
 from __future__ import annotations
 
+from typing import Optional
+
+from PySide6.QtCore import Signal, Qt
 from PySide6.QtWidgets import (
     QWidget,
     QVBoxLayout,
-    QHBoxLayout,   # ← ADD THIS
     QLabel,
-    QSpacerItem,
-    QSizePolicy,
+    QDoubleSpinBox,
+    QFormLayout,
+    QFrame,
 )
+
+# ======================================================================
+# EnvironmentPanel
+# ======================================================================
+
 
 class EnvironmentPanel(QWidget):
     """
-    GUI v3 — Environment Panel (Observer)
+    GUI v3 — Environment Panel
 
-    Phase B:
-    • Static layout only
-    • Displays project-level boundary conditions
-    • No room data
-    • No setters
-    • No authority
+    Authority
+    ---------
+    • Emits intent only
+    • Does NOT mutate ProjectState
+    • Displays and edits environmental defaults
+
+    Contract
+    --------
+    • Te (external design temp)
+    • Default internal temperature (Ti default)
+    • Default room height
+    • Default ACH
     """
 
+    # ------------------------------------------------------------------
+    # Signals (intent only)
+    # ------------------------------------------------------------------
+    external_temp_changed = Signal(float)
+    default_internal_temp_changed = Signal(float)
+    default_height_changed = Signal(float)
+    default_ach_changed = Signal(float)
+
+    # ------------------------------------------------------------------
+    # Construction
+    # ------------------------------------------------------------------
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._build_ui()
-        self.setMinimumWidth(260)
 
     # ------------------------------------------------------------------
     # UI
     # ------------------------------------------------------------------
-
     def _build_ui(self) -> None:
         root = QVBoxLayout(self)
-        root.setSpacing(12)
-        root.setContentsMargins(16, 16, 16, 16)
+        root.setContentsMargins(8, 8, 8, 8)
+        root.setSpacing(8)
 
-        # ------------------------------
-        # Environment
-        # ------------------------------
-        header_env = QLabel("Environment")
-        header_env.setStyleSheet("font-size: 13px; font-weight: 600;")
-        root.addWidget(header_env)
+        header = QLabel("Environment")
+        header.setStyleSheet("font-size: 13px; font-weight: 600;")
+        root.addWidget(header)
 
-        self._row_external = self._row("External design temperature:", "—")
-        self._external_temp_value = self._row_external._value_label
-        root.addWidget(self._row_external)
+        # --------------------------------------------------
+        # Widgets first (so we can safely add them to forms)
+        # --------------------------------------------------
 
-        root.addWidget(self._row_external)
+        # External design temperature (Te)
+        self._te_input = QDoubleSpinBox(self)
+        self._te_input.setRange(-50.0, 50.0)
+        self._te_input.setDecimals(1)
+        self._te_input.setSingleStep(0.5)
+        self._te_input.setMinimumWidth(110)
+        self._te_input.valueChanged.connect(self.external_temp_changed.emit)
 
-        root.addItem(QSpacerItem(1, 16, QSizePolicy.Minimum, QSizePolicy.Fixed))
+        # Default internal temperature (Ti default)
+        self._ti_input = QDoubleSpinBox(self)
+        self._ti_input.setRange(0.0, 40.0)
+        self._ti_input.setDecimals(1)
+        self._ti_input.setSingleStep(0.5)
+        self._ti_input.setMinimumWidth(110)
+        self._ti_input.valueChanged.connect(self.default_internal_temp_changed.emit)
 
-        # ------------------------------
-        # Calculation
-        # ------------------------------
-        header_calc = QLabel("Calculation")
-        header_calc.setStyleSheet("font-size: 13px; font-weight: 600;")
-        root.addWidget(header_calc)
+        # Default room height
+        self._height_input = QDoubleSpinBox(self)
+        self._height_input.setRange(0.0, 10.0)
+        self._height_input.setDecimals(2)
+        self._height_input.setSingleStep(0.1)
+        self._height_input.setMinimumWidth(110)
+        self._height_input.valueChanged.connect(self.default_height_changed.emit)
 
-        self._row_dt = self._row("ΔT (reference):", "—")
-        self._row_method = self._row("Method:", "—")
+        # Default ACH
+        self._ach_input = QDoubleSpinBox(self)
+        self._ach_input.setRange(0.0, 20.0)
+        self._ach_input.setDecimals(2)
+        self._ach_input.setSingleStep(0.1)
+        self._ach_input.setMinimumWidth(110)
+        self._ach_input.valueChanged.connect(self.default_ach_changed.emit)
 
-        root.addWidget(self._row_dt)
-        root.addWidget(self._row_method)
+        # --------------------------------------------------
+        # Top form (Te only)
+        # --------------------------------------------------
+        form_te = QFormLayout()
+        form_te.setLabelAlignment(Qt.AlignLeft)
+        form_te.addRow("External design temperature (°C)", self._te_input)
+        root.addLayout(form_te)
+
+        # --------------------------------------------------
+        # Separator line
+        # --------------------------------------------------
+        sep = QFrame(self)
+        sep.setFrameShape(QFrame.HLine)
+        sep.setFrameShadow(QFrame.Sunken)
+        root.addWidget(sep)
+
+        # --------------------------------------------------
+        # Defaults form (Ti/Height/ACH)
+        # --------------------------------------------------
+        form_defaults = QFormLayout()
+        form_defaults.setLabelAlignment(Qt.AlignLeft)
+        form_defaults.addRow("Default internal temperature (°C)", self._ti_input)
+        form_defaults.addRow("Default room height (m)", self._height_input)
+        form_defaults.addRow("Default ACH", self._ach_input)
+        root.addLayout(form_defaults)
 
         root.addStretch(1)
 
     # ------------------------------------------------------------------
-    # Helpers (layout only)
+    # Adapter-facing setters (observer only)
     # ------------------------------------------------------------------
+    def set_external_temp(self, value: Optional[float]) -> None:
+        self._te_input.blockSignals(True)
+        self._te_input.setValue(value if value is not None else 0.0)
+        self._te_input.blockSignals(False)
 
-    def _row(self, label_text: str, value_text: str) -> QWidget:
-        row = QWidget(self)
-        layout = QHBoxLayout(row)
-        layout.setContentsMargins(0, 0, 0, 0)
+    def set_default_internal_temp(self, value: Optional[float]) -> None:
+        self._ti_input.blockSignals(True)
+        self._ti_input.setValue(value if value is not None else 0.0)
+        self._ti_input.blockSignals(False)
 
-        label = QLabel(label_text)
-        value = QLabel(value_text)
+    def set_default_height(self, value: Optional[float]) -> None:
+        self._height_input.blockSignals(True)
+        self._height_input.setValue(value if value is not None else 0.0)
+        self._height_input.blockSignals(False)
 
-        layout.addWidget(label)
-        layout.addWidget(value)
-        layout.addStretch(1)
-
-        # Allow caller to bind value later
-        row._value_label = value  # intentional, internal use only
-
-        return row
-
-    # ------------------------------------------------------------------
-    # Presentation setters (GUI v3)
-    # ------------------------------------------------------------------
-    def set_external_temperature(self, outside_c: float | None) -> None:
-        """
-        Display external design temperature.
-
-        Presentation only.
-        No authority.
-        """
-        if outside_c is None:
-            self._external_temp_value.setText("—")
-        else:
-            self._external_temp_value.setText(f"{outside_c:.1f} °C")
+    def set_default_ach(self, value: Optional[float]) -> None:
+        self._ach_input.blockSignals(True)
+        self._ach_input.setValue(value if value is not None else 0.0)
+        self._ach_input.blockSignals(False)

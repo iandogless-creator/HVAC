@@ -21,7 +21,7 @@ from HVAC.gui_v3.context.gui_project_context import GuiProjectContext
 from HVAC.gui_v3.panels.heat_loss_panel import HeatLossPanelV3
 from HVAC.gui_v3.dto.heat_loss_worksheet_row_dto import HeatLossWorksheetRowDTO
 from HVAC.gui_v3.dev.heat_loss_dev_rows import build_dev_rows
-
+from HVAC.heatloss.fabric.topology_fabric_bridge import generate_fabric_from_boundaries
 
 class HeatLossWorksheetAdapter:
     """
@@ -110,7 +110,7 @@ class HeatLossWorksheetAdapter:
                     )
                 )
 
-            self._panel.set_rows(rows)
+            self._panel.set_rows(self._dto_to_panel_rows(rows))
 
             # ---- Room aggregates (NO CALCULATION HERE) ----
             sum_qf_room: float | None = None
@@ -166,26 +166,50 @@ class HeatLossWorksheetAdapter:
 
         rows: List[HeatLossWorksheetRowDTO] = []
 
-        for element in getattr(room, "elements", []):
+        surfaces = generate_fabric_from_boundaries(ps, room) or []
+
+        for s in surfaces:
+
+            surface = s.surface
+
+            if surface.room_id != room_id:
+                continue
+
             rows.append(
                 HeatLossWorksheetRowDTO(
                     room_id=room_id,
-                    element_id=element.element_id,
-                    element_name=element.name,
-                    area_m2=element.area_m2,
-                    delta_t_k=element.delta_t_k,
-                    u_value_w_m2k=element.u_value_w_m2k,
+                    element_id=surface.surface_id,
+                    element_name=str(surface.surface_class),
+                    area_m2=surface.area_m2,
+                    delta_t_k=s.delta_t_K,
+                    u_value_w_m2k=s.u_value_W_m2K,
                     qf_w=None,
                 )
             )
 
-        self._panel.set_rows(rows)
+        self._panel.set_rows(self._dto_to_panel_rows(rows))
         self._panel.set_room_results(sum_qf=None, qv=None, qt=None)
 
         self._row_surface_ids.clear()
         for row_index, row in enumerate(rows):
             if row.element_id:
                 self._row_surface_ids[row_index] = row.element_id
+
+    def _dto_to_panel_rows(self, rows):
+
+        panel_rows = []
+
+        for r in rows:
+            panel_rows.append({
+                "surface_id": r.element_id,
+                "element": r.element_name,
+                "A": r.area_m2,
+                "U": r.u_value_w_m2k,
+                "dT": r.delta_t_k,
+                "Qf": r.qf_w,
+            })
+
+        return panel_rows
 
     # ------------------------------------------------------------------
     # Row lookup (for navigation)

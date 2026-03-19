@@ -1,3 +1,7 @@
+# ======================================================================
+# HVAC/spaces/surface_engine_v1.py
+# ======================================================================
+
 """
 surface_engine_v1.py
 --------------------
@@ -31,12 +35,11 @@ Outputs
     surfaces: List[Surface]
 
 Each Surface includes:
-    - name
-    - type
-    - area_m2
-    - length_m
-    - height_m
-    - orientation_deg (for vertical surfaces, 0–360°)
+    - surface_id (stable identity, derived deterministically in v1)
+    - name (human-facing label; guaranteed)
+    - surface_type (v1 classification)
+    - area_m2, length_m, height_m
+    - orientation_deg (vertical only)
 
 This module is *pure geometry + metadata*.
 It does not perform any heat-loss calculation.
@@ -49,7 +52,7 @@ from enum import Enum, auto
 from math import atan2, degrees, hypot
 from typing import List, Tuple
 
-from HVAC.spaces.space_types import Space
+from HVAC.project.space_model import Space
 
 
 # ---------------------------------------------------------------------------
@@ -65,13 +68,19 @@ class SurfaceType(Enum):
     UNKNOWN = auto()
 
 
-@dataclass
+@dataclass(slots=True)
 class Surface:
     """
     Geometric surface derived from a space.
 
-    This does NOT yet contain U-values or construction data.
-    It is purely geometric + classification metadata.
+    Identity (LOCKED DIRECTION)
+    ---------------------------
+    • surface_id : stable identity token (machine-stable)
+    • name       : human-facing label (guaranteed; defaults to surface_id)
+
+    In v1, surface_id is derived deterministically from space name + role + index.
+    Later versions may swap this to UUID or persisted IDs, but the presence of
+    surface_id remains invariant.
 
     For vertical surfaces:
         - length_m × height_m = area_m2
@@ -80,8 +89,8 @@ class Surface:
     For floor/roof surfaces:
         - area_m2 is the floor area
         - length_m and height_m can be used as descriptive placeholders
-          (e.g. length_m = characteristic dimension, height_m = 0.0)
     """
+    surface_id: str
     name: str
     surface_type: SurfaceType
 
@@ -90,10 +99,27 @@ class Surface:
     height_m: float
 
     orientation_deg: float | None = None  # vertical surfaces only
-    # Future fields (v2+):
-    #   construction_id: str | None
-    #   u_value_W_m2K: float | None
-    #   adjacency: str | None
+
+    # Optional linkage (v1 can leave None; later layers may populate)
+    room_id: str | None = None
+
+    def __post_init__(self) -> None:
+        # Guarantee name always exists
+        if not self.name:
+            self.name = self.surface_id
+
+    # ------------------------------------------------------------------
+    # Compatibility aliases (NO BEHAVIOUR CHANGE)
+    # ------------------------------------------------------------------
+    @property
+    def surface_class(self) -> SurfaceType:
+        """
+        Alias for downstream code expecting `.surface_class`.
+
+        HVACgooee Phase II-A/II-C uses 'surface_class' in some DTOs.
+        In v1 this is identical to surface_type.
+        """
+        return self.surface_type
 
 
 # ---------------------------------------------------------------------------
@@ -117,13 +143,10 @@ def _edge_orientation_deg(p0: Tuple[float, float],
     dx = x1 - x0
     dy = y1 - y0
 
-    # Edge vector angle
     edge_angle_rad = atan2(dy, dx)
-    # Outward normal: rotate edge by -90° (clockwise)
     normal_angle_rad = edge_angle_rad - (3.141592653589793 / 2.0)
     angle_deg = degrees(normal_angle_rad)
 
-    # Normalize to [0, 360)
     while angle_deg < 0.0:
         angle_deg += 360.0
     while angle_deg >= 360.0:
@@ -144,15 +167,6 @@ def generate_surfaces_for_space(space: Space) -> List[Surface]:
         - Each polygon edge → vertical EXTERNAL_WALL surface
         - One GROUND_FLOOR surface (area = floor area)
         - One CEILING_ROOF surface (area = floor area)
-
-    Parameters
-    ----------
-    space : Space
-        The Space dataclass instance from HVAC.spaces.space_types
-
-    Returns
-    -------
-    List[Surface]
     """
     polygon = space.polygon
     n = len(polygon)
@@ -165,53 +179,64 @@ def generate_surfaces_for_space(space: Space) -> List[Surface]:
         p0 = polygon[i]
         p1 = polygon[(i + 1) % n]
 
-        # Edge length
         length = hypot(p1[0] - p0[0], p1[1] - p0[1])
         if length <= 0.0:
-            # Degenerate edge, skip
             continue
 
         height = space.height_m
         area = length * height
         orientation = _edge_orientation_deg(p0, p1)
 
-        surf_name = f"{space.name}_wall_{i}"
+        # Deterministic identity + label
+        surface_id = f"{space.name}.wall.{i}"
+        name = f"{space.name}_wall_{i}"
 
-        surf = Surface(
-            name=surf_name,
-            surface_type=SurfaceType.EXTERNAL_WALL,
-            area_m2=area,
-            length_m=length,
-            height_m=height,
-            orientation_deg=orientation,
+        surfaces.append(
+            Surface(
+                surface_id=surface_id,
+                name=name,
+                surface_type=SurfaceType.EXTERNAL_WALL,
+                area_m2=area,
+                length_m=length,
+                height_m=height,
+                orientation_deg=orientation,
+                room_id=getattr(space, "room_id", None),  # optional if present
+            )
         )
-        surfaces.append(surf)
 
     # -------------------------
     # Floor surface
     # -------------------------
     floor_area = space.floor_area_m2()
-    floor_surface = Surface(
-        name=f"{space.name}_floor",
-        surface_type=SurfaceType.GROUND_FLOOR,
-        area_m2=floor_area,
-        length_m=floor_area ** 0.5,  # characteristic dimension only
-        height_m=0.0,
-        orientation_deg=None,
+    floor_surface_id = f"{space.name}.floor"
+    surfaces.append(
+        Surface(
+            surface_id=floor_surface_id,
+            name=f"{space.name}_floor",
+            surface_type=SurfaceType.GROUND_FLOOR,
+            area_m2=floor_area,
+            length_m=floor_area ** 0.5,
+            height_m=0.0,
+            orientation_deg=None,
+            room_id=getattr(space, "room_id", None),
+        )
     )
-    surfaces.append(floor_surface)
 
     # -------------------------
     # Ceiling/Roof surface
     # -------------------------
-    roof_surface = Surface(
-        name=f"{space.name}_roof",
-        surface_type=SurfaceType.CEILING_ROOF,
-        area_m2=floor_area,
-        length_m=floor_area ** 0.5,
-        height_m=0.0,
-        orientation_deg=None,
+    roof_surface_id = f"{space.name}.roof"
+    surfaces.append(
+        Surface(
+            surface_id=roof_surface_id,
+            name=f"{space.name}_roof",
+            surface_type=SurfaceType.CEILING_ROOF,
+            area_m2=floor_area,
+            length_m=floor_area ** 0.5,
+            height_m=0.0,
+            orientation_deg=None,
+            room_id=getattr(space, "room_id", None),
+        )
     )
-    surfaces.append(roof_surface)
 
     return surfaces

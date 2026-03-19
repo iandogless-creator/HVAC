@@ -1,48 +1,44 @@
+# ======================================================================
+# HVAC/heatloss/dto/heatloss_results_dto.py
+# ======================================================================
+
 from __future__ import annotations
-
 from dataclasses import dataclass
-from typing import Optional, List
+from typing import Tuple
 
 
-# ------------------------------------------------------------------
-# Boundary (fabric element) DTO
-# ------------------------------------------------------------------
+# ----------------------------------------------------------------------
+# Per-room authoritative result
+# ----------------------------------------------------------------------
 
-@dataclass(slots=True)
-class BoundaryLossDTO:
+@dataclass(frozen=True, slots=True)
+class RoomHeatLossResultDTO:
     """
-    GUI-facing representation of a single fabric boundary heat loss.
+    Authoritative steady-state room heat-loss result.
 
-    NOTE:
-    - No physics terms (ΔT, boundary temp, etc.)
-    - Values are already calculated upstream
-    """
-    element_type: str                 # e.g. "Wall", "Window"
-    area_m2: float
-    u_value: float
-    u_source: str                     # "Construction", "Manual (TEMP)", etc.
-    construction_id: Optional[str]    # None in TEMP wiring
-    heat_loss_w: float                # Qt for this boundary
-
-
-# ------------------------------------------------------------------
-# Room-level heat loss result DTO
-# ------------------------------------------------------------------
-
-@dataclass(slots=True)
-class HeatLossResultDTO:
-    """
-    GUI-facing heat-loss result for ONE room.
+    Pure physics output.
+    No GUI concerns.
+    No overrides.
     """
 
-    room_name: str
-    internal_temp_c: float
-    room_volume_m3: Optional[float]
+    room_id: str
+    q_fabric_W: float
+    q_ventilation_W: float
+    q_total_W: float
 
-    ventilation_method: str
-    ventilation_heat_loss_w: float
 
-    boundaries: List[BoundaryLossDTO]
+# ----------------------------------------------------------------------
+# Project-level authoritative result
+# ----------------------------------------------------------------------
 
-    total_fabric_heat_loss_w: float
-    total_heat_loss_w: float
+@dataclass(frozen=True, slots=True)
+class ProjectHeatLossResultDTO:
+    """
+    Canonical project heat-loss result container.
+
+    This is the ONLY structure committed to ProjectState.
+    """
+
+    project_id: str
+    rooms: Tuple[RoomHeatLossResultDTO, ...]
+    project_total_W: float

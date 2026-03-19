@@ -1,0 +1,131 @@
+HVACgooee — Conversation Bootstrap
+
+Timestamp: Tuesday 10 March 2026 (UK)
+
+Current Phase
+
+GUI v3 / Heat-Loss system integration
+Topology → Fabric → Worksheet pipeline working
+
+Core Architecture (locked)
+Authority model
+
+Environment Panel
+
+Authoritative: Te only
+
+Geometry Mini Panel
+
+Length
+
+Width
+
+Height
+
+External wall length
+
+Ti (room internal design temperature)
+
+ACH Mini Panel
+
+ACH override
+
+Heat-Loss Panel (HLP)
+
+Read-only
+
+Worksheet display
+
+Room summary
+
+Run heat-loss
+
+Data ownership
+EnvironmentState
+ └ Te
+
+RoomState
+ ├ geometry
+ ├ Ti override
+ └ ACH override
+
+No environment defaults for:
+
+Ti
+
+height
+
+ACH
+
+Rooms own those.
+
+Current pipeline (working)
+Geometry
+   ↓
+Boundary segments
+   ↓
+Topology fabric bridge
+   ↓
+room.fabric_elements
+   ↓
+HeatLossPanelAdapter
+   ↓
+Worksheet rows
+
+Console confirms:
+
+Projected surfaces: 5
+HL Worksheet rows: 5
+
+So geometry → fabric → worksheet is operational.
+
+Panel responsibilities
+Environment Panel
+Te
+Geometry Mini Panel
+Length
+Width
+Height
+External wall length
+Ti
+ACH Mini Panel
+ACH
+Heat-Loss Panel
+Room summary (read-only)
+Worksheet
+ΣQf
+Qv
+Qt
+Run
+Next tasks
+
+Remove editable Ti from HLP
+
+Ensure GMP auto-refresh when Te changes
+
+Resolve ΔT automatically for external surfaces
+
+ΔT = Ti − Te
+
+Keep HLP worksheet read-only
+
+Wire ACH Mini Panel override
+
+Engineering rule
+
+For Phase IV:
+
+External surfaces → ΔT = Ti − Te
+Internal surfaces → later (wizard)
+System status
+
+✔ Geometry Mini Panel working
+✔ Fabric projection working
+✔ Worksheet population working
+✔ Architecture boundaries clarified
+
+Remaining work is mainly UI wiring + engine integration.
+
+When you start the next conversation, paste that bootstrap and we can immediately continue with:
+
+Step 1: making the Heat-Loss Panel fully read-only and moving Ti control entirely to the Geometry Mini Panel.
