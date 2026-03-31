@@ -10,6 +10,10 @@ from enum import Enum
 from typing import Tuple
 
 
+# ----------------------------------------------------------------------
+# Enums
+# ----------------------------------------------------------------------
+
 class ValidationStatus(str, Enum):
     PASS = "PASS"
     FAIL = "FAIL"
@@ -19,6 +23,10 @@ class ValidationSeverity(str, Enum):
     FATAL = "FATAL"
     WARNING = "WARNING"
 
+
+# ----------------------------------------------------------------------
+# DTOs
+# ----------------------------------------------------------------------
 
 @dataclass(frozen=True, slots=True)
 class ValidationIssue:

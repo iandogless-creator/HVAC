@@ -78,7 +78,8 @@ class GuiProjectContext(QObject):
     hlpe_active_changed = Signal(bool)
     environment_changed = Signal()
     room_state_changed = Signal(str)  # room_id
-
+    edit_requested = Signal(str, str)  # kind, surface_id
+    adjacency_edit_requested = Signal(str)  # surface_id
     # ------------------------------------------------------------------
     # Construction
     # ------------------------------------------------------------------
@@ -156,6 +157,17 @@ class GuiProjectContext(QObject):
         self.set_current_room(None)
         self.close_hlpe()
 
+    def request_adjacency_edit(self, surface_id: str) -> None:
+        """
+        GUI intent: user wants to edit adjacency for a surface.
+
+        • Does NOT mutate ProjectState
+        • Routed to MainWindow (overlay authority)
+        """
+        if not self.current_room_id:
+            return
+
+        self.adjacency_edit_requested.emit(surface_id)
     # ==================================================================
     # UVP focus (GUI-only intent)
     # ==================================================================
@@ -227,3 +239,9 @@ class GuiProjectContext(QObject):
         self.hlpe_target_room_id = None
         self.hlpe_target_surface_id = None
         self.hlpe_active_changed.emit(False)
+
+    def request_edit(self, kind: str, surface_id: str) -> None:
+        if not self.current_room_id:
+            return
+
+        self.edit_requested.emit(kind, surface_id)

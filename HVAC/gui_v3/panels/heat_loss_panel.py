@@ -7,7 +7,7 @@ from __future__ import annotations
 from typing import Optional, Iterable
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QFont
+from PySide6.QtGui import QFont, QColor
 from PySide6.QtWidgets import (
     QWidget,
     QVBoxLayout,
@@ -15,12 +15,23 @@ from PySide6.QtWidgets import (
     QTableWidgetItem,
     QPushButton,
     QLabel,
-    QDoubleSpinBox,
     QHeaderView,
-    QCheckBox,
     QFrame,
     QGridLayout,
 )
+
+
+# ======================================================================
+# ClickableLabel
+# ======================================================================
+
+class ClickableLabel(QLabel):
+    clicked = Signal()
+
+    def mousePressEvent(self, event) -> None:
+        self.clicked.emit()
+        super().mousePressEvent(event)
+
 
 # ======================================================================
 # HeatLossPanelV3
@@ -32,24 +43,24 @@ class HeatLossPanelV3(QWidget):
 
     Authority
     ---------
-    • Owns Ti user input
-    • Displays worksheet rows
-    • Emits intent only
-    • Does NOT touch ProjectState
+    • Pure projection / display panel
+    • Emits user intent only
+    • Does NOT mutate ProjectState
+    • Does NOT calculate physics
     """
 
     # ------------------------------------------------------------------
     # Signals (adapter contracts)
     # ------------------------------------------------------------------
     run_requested = Signal()
-    internal_design_temp_changed = Signal(float)
-    surface_focus_requested = Signal(object)  # surface_id | None
-    open_uvalues_requested = Signal(object)  # surface_id | None
-    ach_changed = Signal(float)
-    ignore_readiness_changed = Signal(bool)  # NEW
+    surface_focus_requested = Signal(object)          # surface_id | None
+    open_uvalues_requested = Signal(object)          # surface_id | None
+    ignore_readiness_changed = Signal(bool)
+    cell_selected = Signal(int)                      # row index
     geometry_edit_requested = Signal()
     ach_edit_requested = Signal()
-
+    worksheet_cell_edit_requested = Signal(int, int)
+    adjacency_edit_requested = Signal(str)  # surface_id
 
     # ------------------------------------------------------------------
     # Construction
@@ -57,19 +68,11 @@ class HeatLossPanelV3(QWidget):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
 
-        self._room_id: Optional[str] = None
+        self._current_room_id: Optional[str] = None
         self._worksheet_table: Optional[QTableWidget] = None
-
+        self._row_meta = []
         self._build_ui()
-
-        if self._worksheet_table is not None:
-            self._worksheet_table.cellClicked.connect(
-                self._on_worksheet_cell_clicked
-            )
-
-        self._ach_input.valueChanged.connect(
-        self.ach_changed.emit
-        )
+        self._wire_signals()
 
     # ------------------------------------------------------------------
     # UI
@@ -82,28 +85,35 @@ class HeatLossPanelV3(QWidget):
         # --------------------------------------------------
         # Header
         # --------------------------------------------------
-
         self._header = QLabel("Heat Loss — No room selected")
-        self._header.setStyleSheet("font-size: 13px; font-weight: 600;")
         root.addWidget(self._header)
+        self._status_label = QLabel("")
 
-        # --------------------------------------------------
-        # Hook anchors (Geometry / ACH mini panels)
-        # --------------------------------------------------
+        self._ti_label = QLabel("Ti: — °C")
+        self._ti_label.setStyleSheet("color: #555;")  # subtle grey like geometry
+        root.addWidget(self._ti_label)
+        root.addWidget(self._status_label)
 
-        def _build_hook() -> QWidget:
-            w = QWidget(self)
-            layout = QVBoxLayout(w)
-            layout.setContentsMargins(0, 0, 0, 0)
-            layout.setSpacing(0)
-            w.setStyleSheet("border:1px dashed #444; border-radius:4px;")
-            return w
+        # --------------------------------------------------------------
+        # Geometry summary
+        # --------------------------------------------------------------
+        self._geometry_frame = QFrame(self)
+        self._geometry_frame.setFrameShape(QFrame.StyledPanel)
 
-        # --------------------------------------------------
-        # --------------------------------------------------
-        # Heat-loss worksheet
-        # --------------------------------------------------
+        geometry_layout = QGridLayout(self._geometry_frame)
+        geometry_layout.setContentsMargins(8, 6, 8, 6)
 
+        self._geometry_label = ClickableLabel("Geometry: —")
+        self._geometry_label.setStyleSheet(
+            "background: rgba(80,120,180,0.12); padding: 4px;"
+        )
+
+        geometry_layout.addWidget(self._geometry_label, 0, 0)
+        root.addWidget(self._geometry_frame)
+
+        # --------------------------------------------------------------
+        # Canonical worksheet
+        # --------------------------------------------------------------
         self._table = QTableWidget(self)
         self._worksheet_table = self._table
 
@@ -120,117 +130,223 @@ class HeatLossPanelV3(QWidget):
 
         self._table.setRowCount(0)
         self._table.setMinimumHeight(160)
-
         self._table.setEditTriggers(QTableWidget.NoEditTriggers)
         self._table.setSelectionBehavior(QTableWidget.SelectRows)
         self._table.setSelectionMode(QTableWidget.SingleSelection)
+        self._table.verticalHeader().setVisible(False)
 
         header = self._table.horizontalHeader()
         header.setDefaultAlignment(Qt.AlignCenter)
-
         header.setSectionResizeMode(0, QHeaderView.Stretch)
+
         for col in (1, 2, 3, 4):
             header.setSectionResizeMode(col, QHeaderView.ResizeToContents)
 
-        header.sectionResized.connect(
-            lambda *_: self._align_totals_with_qf()
-        )
-
         root.addWidget(self._table)
 
-        # --------------------------------------------------
+        # --------------------------------------------------------------
         # Results frame
-        # --------------------------------------------------
-
+        # --------------------------------------------------------------
         self._results_frame = QFrame(self)
         self._results_frame.setFrameShape(QFrame.StyledPanel)
 
         results_layout = QGridLayout(self._results_frame)
         results_layout.setContentsMargins(12, 8, 12, 8)
         results_layout.setHorizontalSpacing(12)
+        results_layout.setVerticalSpacing(6)
 
-        # Labels
         self._label_sum_qf = QLabel("ΣQf")
+        self._label_ach = QLabel("ACH")
         self._label_qv = QLabel("Qv")
         self._label_qt = QLabel("Qt")
-        self._label_ach = QLabel("ACH")
 
-        for lbl in (self._label_sum_qf, self._label_qv, self._label_qt):
-            lbl.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
-
-        # Values
         self._value_sum_qf = QLabel("—")
+        self._value_ach = ClickableLabel("—")
         self._value_qv = QLabel("—")
         self._value_qt = QLabel("—")
 
-        for lbl in (self._value_sum_qf, self._value_qv, self._value_qt):
+        for lbl in (
+            self._label_sum_qf,
+            self._label_ach,
+            self._label_qv,
+            self._label_qt,
+            self._value_sum_qf,
+            self._value_ach,
+            self._value_qv,
+            self._value_qt,
+        ):
             lbl.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
 
-        # ACH input
-        self._ach_input = QDoubleSpinBox(self)
-        self._ach_input.setRange(0.0, 20.0)
-        self._ach_input.setDecimals(2)
-        self._ach_input.setSingleStep(0.1)
-        self._ach_input.setFixedWidth(80)
+        results_layout.addWidget(self._label_sum_qf, 0, 0)
+        results_layout.addWidget(self._value_sum_qf, 0, 1)
 
-        # Layout rows
-        results_layout.addWidget(self._label_sum_qf, 0, 2)
-        results_layout.addWidget(self._value_sum_qf, 0, 3)
+        results_layout.addWidget(self._label_ach, 1, 0)
+        results_layout.addWidget(self._value_ach, 1, 1)
 
-        results_layout.addWidget(self._ach_input, 1, 0)
-        results_layout.addWidget(self._label_ach, 1, 1)
-        results_layout.addWidget(self._label_qv, 1, 2)
-        results_layout.addWidget(self._value_qv, 1, 3)
+        results_layout.addWidget(self._label_qv, 2, 0)
+        results_layout.addWidget(self._value_qv, 2, 1)
 
-        results_layout.addWidget(self._label_qt, 2, 2)
-        results_layout.addWidget(self._value_qt, 2, 3)
+        results_layout.addWidget(self._label_qt, 3, 0)
+        results_layout.addWidget(self._value_qt, 3, 1)
 
-        results_layout.setColumnStretch(3, 1)
+        results_layout.setColumnStretch(1, 1)
 
         root.addWidget(self._results_frame)
 
-        # --------------------------------------------------
+        # --------------------------------------------------------------
         # Run button
-        # --------------------------------------------------
-
+        # --------------------------------------------------------------
         self._run_button = QPushButton("Run Heat-Loss")
-        self._run_button.clicked.connect(self.run_requested.emit)
         root.addWidget(self._run_button)
 
-        # --------------------------------------------------
+        # --------------------------------------------------------------
         # Fix U-values link
-        # --------------------------------------------------
-
+        # --------------------------------------------------------------
         self._fix_uvalues_link = QLabel("")
         self._fix_uvalues_link.setOpenExternalLinks(False)
         self._fix_uvalues_link.setTextInteractionFlags(Qt.TextBrowserInteraction)
-        self._fix_uvalues_link.linkActivated.connect(
-            lambda _href: self.open_uvalues_requested.emit(None)
-        )
         self._fix_uvalues_link.hide()
-
         root.addWidget(self._fix_uvalues_link)
 
-        # --------------------------------------------------
-        # Readiness label
-        # --------------------------------------------------
-
+        # --------------------------------------------------------------
+        # Readiness / warning labels
+        # --------------------------------------------------------------
         self._readiness_label = QLabel("")
         root.addWidget(self._readiness_label)
 
-        # --------------------------------------------------
-        # Final alignment
-        # --------------------------------------------------
+        self._unsafe_warning_label = QLabel("")
+        self._unsafe_warning_label.setStyleSheet("color: #c62828;")
+        self._unsafe_warning_label.hide()
+        root.addWidget(self._unsafe_warning_label)
 
-        self._align_totals_with_qf()
         root.addStretch(1)
 
-    def mouseDoubleClickEvent(self, event):
-        # Overlay editing not enabled yet
+    # ------------------------------------------------------------------
+    # Signal wiring
+    # ------------------------------------------------------------------
+    def _wire_signals(self) -> None:
+        self._run_button.clicked.connect(self.run_requested.emit)
+        self._geometry_label.clicked.connect(self.geometry_edit_requested.emit)
+        self._value_ach.clicked.connect(self.ach_edit_requested.emit)
+
+        if self._worksheet_table is not None:
+            self._worksheet_table.cellClicked.connect(
+                self._on_worksheet_cell_clicked
+            )
+            self._worksheet_table.cellClicked.connect(self._on_cell_clicked)
+
+        self._fix_uvalues_link.linkActivated.connect(
+            lambda _href: self.open_uvalues_requested.emit(None)
+        )
+
+    # ------------------------------------------------------------------
+    # Compatibility / no-op hooks
+    # ------------------------------------------------------------------
+    def mouseDoubleClickEvent(self, event) -> None:
         return
 
-    def set_readiness(self, readiness) -> None:
+    def _on_cell_clicked(self, row: int, col: int) -> None:
+        self.cell_selected.emit(row)
 
+        # Adjacency edit intent only from Element column
+        if col != 0:
+            return
+
+        if row < 0 or row >= len(self._row_meta):
+            return
+
+        row_meta = self._row_meta[row] if hasattr(self, "_row_meta") else None
+        if row_meta is None:
+            return
+
+        table = self._worksheet_table
+        if table is None:
+            return
+
+        element_item = table.item(row, 0)
+        if element_item is None:
+            return
+
+        surface_id = element_item.data(Qt.UserRole)
+        if not surface_id:
+            return
+
+        # Emit only for rows explicitly marked adjacency-editable
+        if getattr(row_meta, "adjacency_editable", False):
+            self.adjacency_edit_requested.emit(str(surface_id))
+
+    def set_header_context(self, context: dict | None) -> None:
+        return
+
+    def set_internal_temperature(self, ti: float | None) -> None:
+        if ti is None:
+            self._ti_label.setText("Ti: — °C")
+        else:
+            self._ti_label.setText(f"Ti: {ti:.1f} °C")
+
+    def set_default_internal_temp(self, value: float) -> None:
+        return
+
+    # ------------------------------------------------------------------
+    # Room / header
+    # ------------------------------------------------------------------
+    def set_room(self, room_id: str | None) -> None:
+        self._current_room_id = room_id
+
+        if room_id:
+            self._header.setText(f"Heat Loss — {room_id}")
+        else:
+            self._header.setText("Heat Loss — No room selected")
+
+    def set_room_header(self, room_name: str, room_id: str) -> None:
+        self._current_room_id = room_id
+        self._header.setText(f"Heat Loss — {room_name}")
+
+    def clear(self) -> None:
+        self._current_room_id = None
+        self._header.setText("Heat Loss — No room selected")
+        self._status_label.setText("")
+        self._geometry_label.setText("Geometry: —")
+        self._table.clearContents()
+        self._table.setRowCount(0)
+        self._value_sum_qf.setText("—")
+        self._value_ach.setText("—")
+        self._value_qv.setText("—")
+        self._value_qt.setText("—")
+        self._readiness_label.setText("")
+        self._unsafe_warning_label.hide()
+        self._fix_uvalues_link.hide()
+
+    # ------------------------------------------------------------------
+    # Geometry projection
+    # ------------------------------------------------------------------
+    def set_geometry_summary(
+        self,
+        *,
+        length_m: Optional[float],
+        width_m: Optional[float],
+        height_m: Optional[float],
+    ) -> None:
+        if None in (length_m, width_m, height_m):
+            self._geometry_label.setText("Geometry: —")
+            return
+
+        self._geometry_label.setText(
+            f"Geometry: {length_m:.2f} × {width_m:.2f} × {height_m:.2f} m"
+        )
+
+    # ------------------------------------------------------------------
+    # Status / readiness
+    # ------------------------------------------------------------------
+    def set_heatloss_status(self, *, is_valid: bool) -> None:
+        if is_valid:
+            self._status_label.setText("Status: VALID")
+            self._status_label.setStyleSheet("color: #2e7d32; font-size: 11px;")
+        else:
+            self._status_label.setText("Status: DIRTY (recalculate)")
+            self._status_label.setStyleSheet("color: #c62828; font-size: 11px;")
+
+    def set_readiness(self, readiness) -> None:
         if readiness.is_ready:
             text = "Ready"
             ok = True
@@ -241,204 +357,6 @@ class HeatLossPanelV3(QWidget):
         self._set_readiness(text, ok)
         self._run_button.setEnabled(ok)
 
-    def set_internal_temperature(self, value, source):
-
-        self._ti_spinbox.setValue(float(value) if value is not None else 0.0)
-
-        if source == "environment":
-            self._apply_inherited_style(self._ti_spinbox)
-        else:
-            self._clear_style(self._ti_spinbox)
-
-    def _apply_inherited_style(widget):
-
-        font = widget.font()
-        font.setItalic(True)
-        font.setPointSize(font.pointSize() - 1)
-
-        widget.setFont(font)
-        widget.setStyleSheet("color:#666;")
-
-    def _clear_style(self, widget):
-
-        font = widget.font()
-        font.setItalic(False)
-
-        widget.setFont(font)
-        widget.setStyleSheet("")
-
-
-    def set_room(self, room_id: str | None) -> None:
-        self._current_room_id = room_id
-
-        if room_id:
-            self._header.setText(f"Heat Loss — {room_id}")
-        else:
-            self._header.setText("Heat Loss — No room selected")
-
-    # ------------------------------------------------------------------
-    # Adapter compatibility (legacy no-op)
-    # ------------------------------------------------------------------
-    def set_header_context(self, context: dict | None) -> None:
-        """
-        Adapter compatibility shim.
-
-        Header context was removed from HLP in GUI v3,
-        but adapters still call this method.
-
-        Intentionally a no-op.
-        """
-        return
-
-    # ------------------------------------------------------------------
-    # Worksheet population (adapter contract)
-    # ------------------------------------------------------------------
-    def set_rows(self, rows: Iterable) -> None:
-
-        table = self._table
-        rows = list(rows)
-
-        # ---- Disable redraw (prevents flicker) ----
-        table.setUpdatesEnabled(False)
-        table.setSortingEnabled(False)
-        table.clearContents()
-        table.setRowCount(len(rows))
-
-        for r, row in enumerate(rows):
-            surface_id = row.get("surface_id")
-
-            item = QTableWidgetItem(str(row.get("element", "")))
-            item.setData(Qt.UserRole, surface_id)
-            item.setTextAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-            table.setItem(r, 0, item)
-
-            area = row.get("A")
-            table.setItem(
-                r, 1,
-                self._num_item(f"{area:.2f}" if isinstance(area, (int, float)) else "—")
-            )
-
-            u = row.get("U")
-            table.setItem(
-                r, 2,
-                self._num_item(f"{u:.3f}" if isinstance(u, (int, float)) else "—")
-            )
-
-            dt = row.get("dT")
-            table.setItem(
-                r, 3,
-                self._num_item(f"{dt:.1f}" if isinstance(dt, (int, float)) else "—")
-            )
-
-            qf = row.get("Qf")
-            table.setItem(
-                r, 4,
-                self._num_item(f"{qf:.1f}" if isinstance(qf, (int, float)) else "—")
-            )
-        # --- Auto-size table height to visible rows ------------------
-
-        header_h = self._table.horizontalHeader().height()
-        rows_h = sum(self._table.rowHeight(i) for i in range(self._table.rowCount()))
-
-        frame = self._table.frameWidth() * 2
-
-        self._table.setMinimumHeight(header_h + rows_h + frame)
-        self._table.setMaximumHeight(header_h + rows_h + frame)
-        self._table.resizeColumnsToContents()
-        # ---- Re-enable redraw ----
-        table.setUpdatesEnabled(True)
-        table.setSortingEnabled(True)
-
-    # ------------------------------------------------------------------
-    # Worksheet interaction
-    # ------------------------------------------------------------------
-
-    def _on_worksheet_cell_clicked(self, row: int, column: int) -> None:
-        table = self._worksheet_table
-        if table is None:
-            return
-
-        element_item = table.item(row, 0)
-        if element_item is None:
-            return
-
-        surface_id = element_item.data(Qt.UserRole)
-        self.surface_focus_requested.emit(surface_id)
-
-    # --------------------------------------------------
-    # Room-Level Result Display
-    # --------------------------------------------------
-    def set_default_internal_temp(self, value: float) -> None:
-        self._ti_input.blockSignals(True)
-        self._ti_input.setValue(value)
-        self._ti_input.blockSignals(False)
-
-    def set_room_results(
-            self,
-            *,
-            sum_qf: float | None,
-            qv: float | None,
-            qt: float | None,
-    ) -> None:
-        """
-        Display room-level aggregate results.
-
-        Rules:
-        • sum_qf must come from Fabric engine
-        • qv must come from Ventilation engine
-        • qt must be explicit aggregation (not auto-computed here)
-        • GUI does NOT compute physics
-        """
-
-        def _fmt(value: float | None) -> str:
-            if isinstance(value, (int, float)):
-                return f"{value:,.1f} W"
-            return "—"
-
-        self._value_sum_qf.setText(_fmt(sum_qf))
-        self._value_qv.setText(_fmt(qv))
-        self._value_qt.setText(_fmt(qt))
-
-    # ------------------------------------------------------------------
-    # Run control (adapter contract)
-    # ------------------------------------------------------------------
-    def set_run_enabled(self, enabled: bool) -> None:
-        self._run_button.setEnabled(enabled)
-
-        if not hasattr(self, "_ignore_readiness_checkbox"):
-            return
-
-        if self._ignore_readiness_checkbox.isChecked():
-            self._run_button.setEnabled(True)
-            self._unsafe_warning_label.setText(
-                "⚠ Running with incomplete geometry — results may be invalid"
-            )
-            self._unsafe_warning_label.show()
-        else:
-            self._run_button.setEnabled(enabled)
-            self._unsafe_warning_label.hide()
-
-    # ------------------------------------------------------------------
-    # Refresh from ProjectState (called by adapter/controller)
-    # ------------------------------------------------------------------
-    def update_room_totals_from_project(self, project_state) -> None:
-
-        if self._current_room_id is None:
-            self.set_room_results(sum_qf=None, qv=None, qt=None)
-            return
-
-        qf, qv, qt = project_state.get_room_heatloss_totals(
-            self._current_room_id
-        )
-
-        self.set_room_results(
-            sum_qf=qf,
-            qv=qv,
-            qt=qt,
-        )
-    # ------------------------------------------------------------------
-    # Readiness presentation
-    # ------------------------------------------------------------------
     def set_ready(self) -> None:
         self._set_readiness("Ready", ok=True)
 
@@ -454,21 +372,254 @@ class HeatLossPanelV3(QWidget):
             "color: #c62828; font-weight: 600;"
         )
 
-    def _align_totals_with_qf(self):
+    # ------------------------------------------------------------------
+    # Row meta access (for adapter / overlays)
+    # ------------------------------------------------------------------
+    def meta_for_row(self, row_index: int):
+        if not hasattr(self, "_row_metas"):
+            return None
 
-        if not hasattr(self, "_table"):
+        if 0 <= row_index < len(self._row_metas):
+            return self._row_metas[row_index]
+
+        return None
+
+    # ------------------------------------------------------------------
+    # Worksheet population
+    # ------------------------------------------------------------------
+    def set_rows(self, rows: Iterable, metas) -> None:
+        table = self._table
+
+        rows = list(rows)
+        metas = list(metas or [])
+
+        # --------------------------------------------------
+        # Store metadata
+        # --------------------------------------------------
+        if len(metas) != len(rows):
+            self._row_meta = []
+        else:
+            self._row_meta = metas
+
+        table.setUpdatesEnabled(False)
+        table.setSortingEnabled(False)
+        table.clearContents()
+        table.setRowCount(len(rows))
+        table.clearSelection()
+
+        # --------------------------------------------------
+        # Populate rows
+        # --------------------------------------------------
+        for r, row in enumerate(rows):
+
+            # support both dict + DTO (future-proof)
+            get = row.get if isinstance(row, dict) else lambda k, d=None: getattr(row, k, d)
+
+            surface_id = get("surface_id")
+
+            # --------------------------------------------------
+            # Element text
+            # --------------------------------------------------
+            element_text = str(get("element", ""))
+
+            adjacent_label = get("adjacent_label")
+            if adjacent_label:
+                element_text = f"{element_text} → {adjacent_label}"
+
+            # --------------------------------------------------
+            # Hierarchy (parent/child)
+            # --------------------------------------------------
+            parent_id = getattr(row, "parent_surface_id", None)
+            is_child = parent_id is not None
+
+            if is_child:
+                element_text = "    " + element_text  # indentation
+
+            item = QTableWidgetItem(element_text)
+            item.setData(Qt.UserRole, surface_id)
+            item.setTextAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+            item.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
+
+            # --------------------------------------------------
+            # Meta styling
+            # --------------------------------------------------
+            row_meta = self._row_meta[r] if r < len(self._row_meta) else None
+
+            if row_meta is not None and getattr(row_meta, "adjacency_editable", False):
+                item.setForeground(QColor("#1565c0"))
+                item.setToolTip("Click to assign adjacent room")
+
+            if is_child:
+                item.setForeground(QColor("#555555"))  # softer child rows
+
+            table.setItem(r, 0, item)
+
+            # --------------------------------------------------
+            # Numeric columns
+            # --------------------------------------------------
+            area = get("A") or get("area_m2")
+            table.setItem(
+                r,
+                1,
+                self._num_item(f"{area:.2f}" if isinstance(area, (int, float)) else "—"),
+            )
+
+            u = get("U") or get("u_value_W_m2K")
+            table.setItem(
+                r,
+                2,
+                self._num_item(f"{u:.3f}" if isinstance(u, (int, float)) else "—"),
+            )
+
+            dt = get("dT") or get("delta_t_K")
+            table.setItem(
+                r,
+                3,
+                self._num_item(f"{dt:.1f}" if isinstance(dt, (int, float)) else "—"),
+            )
+
+            qf = get("Qf") or get("qf_W")
+            table.setItem(
+                r,
+                4,
+                self._num_item(f"{qf:.1f}" if isinstance(qf, (int, float)) else "—"),
+            )
+
+            # --------------------------------------------------
+            # Row state colouring
+            # --------------------------------------------------
+            state = get("state")
+            if state:
+                self._apply_row_state(r, state)
+
+        # --------------------------------------------------
+        # Compact table height (nice UX)
+        # --------------------------------------------------
+        header_h = table.horizontalHeader().height()
+        rows_h = sum(table.rowHeight(i) for i in range(table.rowCount()))
+        frame = table.frameWidth() * 2
+
+        target_h = header_h + rows_h + frame
+        table.setMinimumHeight(target_h)
+        table.setMaximumHeight(target_h)
+
+        table.resizeColumnsToContents()
+
+        table.setUpdatesEnabled(True)
+        table.setSortingEnabled(False)
+    def _apply_row_state(self, row: int, state: str) -> None:
+        if state == "GREEN":
             return
 
-        header = self._table.horizontalHeader()
+        if state == "ORANGE":
+            color = QColor(255, 243, 205)
+        elif state == "RED":
+            color = QColor(248, 215, 218)
+        else:
+            return
 
-        qf_col = 4  # Element | A | U | ΔT | Qf
+        for col in range(self._table.columnCount()):
+            item = self._table.item(row, col)
+            if item:
+                item.setBackground(color)
 
-        x = header.sectionPosition(qf_col) + header.sectionSize(qf_col) // 2
+    # ------------------------------------------------------------------
+    # Worksheet interaction
+    # ------------------------------------------------------------------
+    def _on_worksheet_cell_clicked(self, row: int, column: int) -> None:
+        table = self._worksheet_table
+        if table is None:
+            return
 
-        self._results_frame.move(
-            x - self._results_frame.width() // 2,
-            self._results_frame.y()
+        if not hasattr(self, "_row_meta") or row >= len(self._row_meta):
+            return
+
+        row_meta = self._row_meta[row]
+        cell_meta = row_meta.columns.get(column) if row_meta else None
+
+        if cell_meta and cell_meta.editable:
+            self.worksheet_cell_edit_requested.emit(row, column)
+
+        element_item = table.item(row, 0)
+        if element_item is None:
+            return
+
+        surface_id = element_item.data(Qt.UserRole)
+        self.surface_focus_requested.emit(surface_id)
+
+    # ------------------------------------------------------------------
+    # Room-level result display
+    # ------------------------------------------------------------------
+    def set_room_results(
+        self,
+        *,
+        sum_qf: float | None,
+        ach: float | None = None,
+        qv: float | None,
+        qt: float | None,
+    ) -> None:
+        def _fmt_w(value: float | None) -> str:
+            if isinstance(value, (int, float)):
+                return f"{value:,.1f} W"
+            return "—"
+
+        def _fmt_plain(value: float | None) -> str:
+            if isinstance(value, (int, float)):
+                return f"{value:.2f}"
+            return "—"
+
+        self._value_sum_qf.setText(_fmt_w(sum_qf))
+        self._value_ach.setText(_fmt_plain(ach))
+        self._value_qv.setText(_fmt_w(qv))
+        self._value_qt.setText(_fmt_w(qt))
+
+    def set_results(
+        self,
+        *,
+        ach: Optional[float],
+        qv_W: Optional[float],
+        qt_W: Optional[float],
+        sum_qf_W: Optional[float] = None,
+    ) -> None:
+        self.set_room_results(
+            sum_qf=sum_qf_W,
+            ach=ach,
+            qv=qv_W,
+            qt=qt_W,
         )
+
+    def update_room_totals_from_project(self, project_state) -> None:
+        if self._current_room_id is None:
+            self.set_room_results(sum_qf=None, ach=None, qv=None, qt=None)
+            return
+
+        qf, qv, qt = project_state.get_room_heatloss_totals(
+            self._current_room_id
+        )
+
+        self.set_room_results(
+            sum_qf=qf,
+            ach=None,
+            qv=qv,
+            qt=qt,
+        )
+
+    # ------------------------------------------------------------------
+    # Run control
+    # ------------------------------------------------------------------
+    def set_run_enabled(self, enabled: bool) -> None:
+        self._run_button.setEnabled(enabled)
+        self._unsafe_warning_label.hide()
+
+    # ------------------------------------------------------------------
+    # U-values action
+    # ------------------------------------------------------------------
+    def show_fix_uvalues_action(self, show: bool) -> None:
+        if show:
+            self._fix_uvalues_link.setText('<a href="#">Fix U-Values…</a>')
+            self._fix_uvalues_link.show()
+        else:
+            self._fix_uvalues_link.hide()
 
     # ------------------------------------------------------------------
     # Helpers
@@ -477,17 +628,10 @@ class HeatLossPanelV3(QWidget):
     def _num_item(text: str) -> QTableWidgetItem:
         item = QTableWidgetItem(text)
         item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        item.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
 
         font = QFont()
         font.setStyleHint(QFont.Monospace)
         item.setFont(font)
 
         return item
-
-    def show_fix_uvalues_action(self, show: bool) -> None:
-        if show:
-            self._fix_uvalues_link.setText('<a href="#">Fix U-Values…</a>')
-            self._fix_uvalues_link.show()
-        else:
-            self._fix_uvalues_link.hide()
-

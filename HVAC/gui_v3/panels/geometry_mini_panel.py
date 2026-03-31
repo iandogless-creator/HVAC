@@ -4,84 +4,197 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import Signal, QTimer
+from typing import Optional, Dict
+
+from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
     QWidget,
     QVBoxLayout,
     QLabel,
     QDoubleSpinBox,
     QHBoxLayout,
-    QFormLayout,
-    QLineEdit
 )
 
 
+# ======================================================================
+# GeometryMiniPanel
+# ======================================================================
+
 class GeometryMiniPanel(QWidget):
+    """
+    Geometry editor (overlay panel)
 
-    geometry_changed = Signal(dict)
+    Authority
+    ---------
+    • Edits geometry only (length, width, height)
+    • Emits committed values only
+    • Does NOT mutate ProjectState directly
+    • Does NOT perform calculations
+    • Does NOT display results (Qf, etc.)
 
+    Lifecycle
+    ---------
+    • Created by OverlayController
+    • Primed by adapter
+    • Emits commit → adapter writes → refresh
+    """
+
+    # ------------------------------------------------------------------
+    # Signals
+    # ------------------------------------------------------------------
+    geometry_committed = Signal(dict)
+    ti_changed = Signal(float)
+    # ------------------------------------------------------------------
+    # Construction
+    # ------------------------------------------------------------------
     def __init__(self, parent=None):
         super().__init__(parent)
 
-        layout = QFormLayout(self)
+        self._last_values: Optional[Dict] = None
 
-        self._edit_length = QLineEdit()
-        self._edit_width = QLineEdit()
-        self._edit_height = QLineEdit()
-        self._edit_ext = QLineEdit()
-        self._edit_ti = QLineEdit()
+        self._build_ui()
+        self._wire_signals()
 
-        layout.addRow("Length (m)", self._edit_length)
-        layout.addRow("Width (m)", self._edit_width)
-        layout.addRow("Height (m)", self._edit_height)
-        layout.addRow("External wall length (m)", self._edit_ext)
-        layout.addRow("Ti (°C)", self._edit_ti)
-        self._commit_timer = QTimer(self)
-        self._commit_timer.setSingleShot(True)
-        self._commit_timer.timeout.connect(self._maybe_commit)
-
+    # ------------------------------------------------------------------
+    # UI
+    # ------------------------------------------------------------------
     def _build_ui(self) -> None:
         root = QVBoxLayout(self)
+        root.setContentsMargins(8, 8, 8, 8)
         root.setSpacing(6)
 
-        header = QLabel("Geometry (internal)")
-        header.setStyleSheet("font-weight: 600;")
-        root.addWidget(header)
+        # Header
+        self._header = QLabel("Geometry")
+        self._header.setStyleSheet("font-weight: 600;")
+        root.addWidget(self._header)
 
+        # Inputs
         self._spin_length = self._m_spin()
         self._spin_width = self._m_spin()
         self._spin_height = self._m_spin()
-        self._spin_ti = self._temp_spin()
-
-        self._lbl_floor_area = QLabel("— m²")
-        self._lbl_volume = QLabel("— m³")
 
         root.addLayout(self._row("Length (m):", self._spin_length))
         root.addLayout(self._row("Width (m):", self._spin_width))
         root.addLayout(self._row("Height (m):", self._spin_height))
 
+        self._ti = QDoubleSpinBox()
+        self._ti.setRange(5.0, 35.0)
+        self._ti.setDecimals(1)
+        self._ti.setSuffix(" °C")
+        self._ti.editingFinished.connect(
+            lambda: self.ti_changed.emit(self._ti.value())
+        )
+        # Derived display (read-only, visual only)
+        self._lbl_floor = QLabel("— m²")
+        self._lbl_volume = QLabel("— m³")
+
         root.addSpacing(4)
-        root.addLayout(self._row("Floor area:", self._lbl_floor_area))
+        root.addLayout(self._row("Floor area:", self._lbl_floor))
         root.addLayout(self._row("Volume:", self._lbl_volume))
 
-        root.addSpacing(6)
-        root.addLayout(self._row("Internal design temp (°C):", self._spin_ti))
+    # ------------------------------------------------------------------
+    # Wiring
+    # ------------------------------------------------------------------
+    def _wire_signals(self) -> None:
+        for spin in (self._spin_length, self._spin_width, self._spin_height):
+            spin.editingFinished.connect(self._on_edit_finished)
+            spin.valueChanged.connect(self._update_derived_labels)
 
-        self._edit_length.editingFinished.connect(self._schedule_commit)
-        self._edit_width.editingFinished.connect(self._schedule_commit)
-        self._edit_height.editingFinished.connect(self._schedule_commit)
-        self._edit_ext.editingFinished.connect(self._schedule_commit)
-        self._edit_ti.editingFinished.connect(self._schedule_commit)
+    # ------------------------------------------------------------------
+    # Public API (adapter calls)
+    # ------------------------------------------------------------------
+    def set_room_header(self, room_name: str) -> None:
+        self._header.setText(f"Geometry — {room_name}")
 
+    def set_values(
+        self,
+        *,
+        length_m: Optional[float],
+        width_m: Optional[float],
+        height_m: Optional[float],
+    ) -> None:
+        self._set_spin(self._spin_length, length_m)
+        self._set_spin(self._spin_width, width_m)
+        self._set_spin(self._spin_height, height_m)
 
-    def _emit_geometry(self) -> None:
-        self.geometry_changed.emit({
-            "length_m": self._spin_length.value(),
-            "width_m": self._spin_width.value(),
-            "height_m": self._spin_height.value(),
-            "ti_c": self._spin_ti.value(),
-        })
+        self._update_derived_labels()
 
+        self._last_values = self._collect_values()
+
+    def clear(self) -> None:
+        self.set_values(
+            length_m=0.0,
+            width_m=0.0,
+            height_m=0.0,
+        )
+        self._lbl_floor.setText("— m²")
+        self._lbl_volume.setText("— m³")
+        self._last_values = None
+
+    # ------------------------------------------------------------------
+    # Commit logic
+    # ------------------------------------------------------------------
+    def _on_edit_finished(self) -> None:
+        values = self._collect_values()
+
+        if not self._is_valid(values):
+            self._set_dirty(True)
+            return
+
+        if values == self._last_values:
+            return
+
+        self._last_values = values
+        self._set_dirty(False)
+
+        self.geometry_committed.emit(values)
+
+    # ------------------------------------------------------------------
+    # Helpers
+    # ------------------------------------------------------------------
+    def _collect_values(self) -> Dict[str, float]:
+        return {
+            "length_m": float(self._spin_length.value()),
+            "width_m": float(self._spin_width.value()),
+            "height_m": float(self._spin_height.value()),
+        }
+
+    def _is_valid(self, v: Dict[str, float]) -> bool:
+        return (
+            v["length_m"] > 0
+            and v["width_m"] > 0
+            and v["height_m"] > 0
+        )
+
+    def _update_derived_labels(self) -> None:
+        l = self._spin_length.value()
+        w = self._spin_width.value()
+        h = self._spin_height.value()
+
+        if l > 0 and w > 0:
+            self._lbl_floor.setText(f"{l * w:.2f} m²")
+        else:
+            self._lbl_floor.setText("— m²")
+
+        if l > 0 and w > 0 and h > 0:
+            self._lbl_volume.setText(f"{l * w * h:.2f} m³")
+        else:
+            self._lbl_volume.setText("— m³")
+
+    def _set_spin(self, spin: QDoubleSpinBox, value: Optional[float]) -> None:
+        spin.blockSignals(True)
+        spin.setValue(float(value) if value is not None else 0.0)
+        spin.blockSignals(False)
+
+    def _set_dirty(self, dirty: bool) -> None:
+        if dirty:
+            self.setStyleSheet("border: 2px solid orange;")
+        else:
+            self.setStyleSheet("")
+
+    # ------------------------------------------------------------------
+    # UI helpers
+    # ------------------------------------------------------------------
     def _row(self, label: str, widget: QWidget) -> QHBoxLayout:
         row = QHBoxLayout()
         row.addWidget(QLabel(label))
@@ -90,85 +203,10 @@ class GeometryMiniPanel(QWidget):
         return row
 
     def _m_spin(self) -> QDoubleSpinBox:
-        s = QDoubleSpinBox()
+        s = QDoubleSpinBox(self)
         s.setRange(0.0, 1000.0)
         s.setDecimals(2)
+        s.setSingleStep(0.10)
         s.setSuffix(" m")
+        s.setFixedWidth(90)
         return s
-
-    def _temp_spin(self) -> QDoubleSpinBox:
-        s = QDoubleSpinBox()
-        s.setRange(-50.0, 50.0)
-        s.setDecimals(1)
-        s.setSuffix(" °C")
-        return s
-
-    def clear(self) -> None:
-        self._spin_length.setValue(0.0)
-        self._spin_width.setValue(0.0)
-        self._spin_height.setValue(0.0)
-        self._spin_ti.setValue(0.0)
-        self._lbl_floor_area.setText("—")
-        self._lbl_volume.setText("—")
-
-    # ------------------------------------------------------------------
-    # Commit API (called by MainWindow / adapters)
-    # ------------------------------------------------------------------
-    def commit_if_valid(self) -> None:
-        self._maybe_commit()
-
-    def _schedule_commit(self):
-        # restart timer every time
-        self._commit_timer.start(150)
-
-    # ------------------------------------------------------------------
-    # Internal commit logic
-    # ------------------------------------------------------------------
-    def _maybe_commit(self) -> None:
-
-        values = self._collect_values()
-
-        # Only commit when FULL geometry is valid
-        if not self._is_valid(values):
-            self._set_dirty(True)
-            return
-
-        # Prevent duplicate commits
-        if getattr(self, "_last_commit", None) == values:
-            return
-
-        self._last_commit = values
-
-        self._set_dirty(False)
-
-        print("GMP commit fired")
-
-        self.geometry_committed.emit(values)
-
-    # ------------------------------------------------------------------
-    # Helpers
-    # ------------------------------------------------------------------
-    def _collect_values(self) -> dict:
-
-        return {
-            "length_m": self._length_input.value(),
-            "width_m": self._width_input.value(),
-            "height_m": self._height_input.value(),
-            "external_wall_length_m": self._external_wall_length_input.value(),
-            "internal_temp_C": self._ti_input.value(),
-        }
-
-    def _is_valid(self, v: dict) -> bool:
-
-        return (
-                v["length_m"] > 0 and
-                v["width_m"] > 0 and
-                v["height_m"] > 0 and
-                v["external_wall_length_m"] >= 0
-        )
-
-    def _set_dirty(self, dirty: bool):
-        if dirty:
-            self.setStyleSheet("border: 2px solid orange;")
-        else:
-            self.setStyleSheet("")

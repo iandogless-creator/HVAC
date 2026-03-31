@@ -40,9 +40,10 @@ def resolve_effective_ach(project, room):
     env = project.environment
 
     return _resolve(
-        getattr(room, "ach", None),
+        getattr(room, "ach_override", None),   # ✅ FIX
         getattr(env, "default_ach", None) if env else None,
     )
+
 
 # ----------------------------------------------------------------------
 # Internal design temperature resolution

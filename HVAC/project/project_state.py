@@ -13,6 +13,7 @@ from HVAC.project_v3.dto.heatloss_readiness import HeatLossReadiness
 from HVAC.topology.boundary_segment_v1 import BoundarySegmentV1
 from HVAC.heatloss.fabric.fabric_from_segments_v1 import FabricFromSegmentsV1
 
+
 # ======================================================================
 # ProjectState
 # ======================================================================
@@ -27,11 +28,16 @@ class ProjectState:
     # ------------------------------------------------------------------
     rooms: Dict[str, RoomStateV1] = field(default_factory=dict)
     environment: Optional[EnvironmentStateV1] = None
-    boundary_segments: Dict[str, list[BoundarySegmentV1]] = field(default_factory=dict)
+    boundary_segments: Dict[str, BoundarySegmentV1] = field(default_factory=dict)
+
+    # ------------------------------------------------------------------
+    # Phase IV-D — Openings (sub-surfaces)
+    # surface_id -> list[OpeningV1]
+    # ------------------------------------------------------------------
+    openings_by_surface: Dict[str, list[Any]] = field(default_factory=dict)
 
     # ------------------------------------------------------------------
     # v1 Construction library (minimal, stable)
-    # construction_id -> u_value_W_m2K
     # ------------------------------------------------------------------
     construction_library: Dict[str, float] = field(default_factory=dict)
 
@@ -59,7 +65,7 @@ class ProjectState:
         if not self.heatloss_results:
             raise RuntimeError("No heat-loss results present")
 
-        required = {"result", "fabric", "ventilation"}
+        required = {"fabric", "ventilation", "room_totals"}
         missing = required - set(self.heatloss_results.keys())
         if missing:
             raise RuntimeError(
@@ -90,15 +96,19 @@ class ProjectState:
             )
 
             for room_id, room in self.rooms.items():
+
                 # --------------------------------------------------
-                # Geometry / space
+                # Geometry
                 # --------------------------------------------------
-                space = room.space
-                if space is None:
-                    reasons.append(f"Room '{room_id}' has no space")
+                g = getattr(room, "geometry", None)
+                if g is None:
+                    reasons.append(f"Room '{room_id}' has no geometry")
                     continue
 
-                area = space.floor_area_m2()
+                area = getattr(g, "floor_area_m2", None)
+                if callable(area):
+                    area = area()
+
                 if area is None or float(area) <= 0.0:
                     reasons.append(f"Room '{room_id}' has invalid floor area")
 
@@ -111,7 +121,7 @@ class ProjectState:
                     reasons.append(f"Room '{room_id}' has no valid ACH")
 
                 # --------------------------------------------------
-                # Fabric via topology -> segments -> rows
+                # Fabric via topology
                 # --------------------------------------------------
                 fabric_rows = FabricFromSegmentsV1.build_rows_for_room(self, room)
 
@@ -169,6 +179,13 @@ class ProjectState:
                 seg_id: seg.to_dict()
                 for seg_id, seg in self.boundary_segments.items()
             },
+            "openings": {
+                sid: [
+                    o.to_dict() if hasattr(o, "to_dict") else vars(o)
+                    for o in openings
+                ]
+                for sid, openings in self.openings_by_surface.items()
+            },
             "construction_library": {
                 cid: float(u) for cid, u in (self.construction_library or {}).items()
             },
@@ -206,6 +223,15 @@ class ProjectState:
             for seg_id, seg_data in (data.get("boundary_segments", {}) or {}).items()
         }
 
+        # --------------------------------------------------
+        # Openings
+        # --------------------------------------------------
+        openings = data.get("openings", {}) or {}
+        instance.openings_by_surface = {
+            sid: list(open_list)
+            for sid, open_list in openings.items()
+        }
+
         lib = data.get("construction_library", {}) or {}
         instance.construction_library = {str(k): float(v) for k, v in lib.items()}
 
@@ -225,17 +251,70 @@ class ProjectState:
 
         return instance
 
-    # inside ProjectState
+    # ==================================================================
+    # Openings helpers (Phase IV-D)
+    # ==================================================================
+    def get_openings_for_surface(self, surface_id: str) -> list[Any]:
+        return list(self.openings_by_surface.get(surface_id, []))
 
-    # ------------------------------------------------------------------
-    # Boundary Segments (Topology — Phase IV)
-    # ------------------------------------------------------------------
+    def set_openings_for_surface(
+        self,
+        surface_id: str,
+        openings: list[Any],
+    ) -> None:
+        self.openings_by_surface[surface_id] = list(openings)
 
-    def get_boundary_segments_for_room(
-            self,
-            room_id: str,
-    ) -> list[BoundarySegmentV1]:
+    def add_opening_to_surface(
+        self,
+        surface_id: str,
+        opening: Any,
+    ) -> None:
+        self.openings_by_surface.setdefault(surface_id, []).append(opening)
+
+    def remove_opening(self, opening_id: str) -> None:
+        for surface_id, openings in self.openings_by_surface.items():
+            self.openings_by_surface[surface_id] = [
+                o for o in openings if getattr(o, "opening_id", None) != opening_id
+            ]
+
+    # ==================================================================
+    # Topology helpers
+    # ==================================================================
+    def get_boundary_segments_for_room(self, room_id: str) -> list[BoundarySegmentV1]:
         return list(self.iter_boundary_segments_for_room(room_id))
+
+    def iter_boundary_segments_for_room(self, room_id: str):
+        for seg in self.boundary_segments.values():
+            if seg.owner_room_id == room_id:
+                yield seg
+
+    def set_boundary_segments_for_room(
+        self,
+        room_id: str,
+        segments: list[BoundarySegmentV1],
+    ) -> None:
+        to_delete = [
+            seg_id
+            for seg_id, seg in self.boundary_segments.items()
+            if seg.owner_room_id == room_id
+        ]
+
+        for seg_id in to_delete:
+            del self.boundary_segments[seg_id]
+
+        for seg in segments:
+            if seg.owner_room_id != room_id:
+                raise ValueError(
+                    f"Segment owner mismatch: expected {room_id}, got {seg.owner_room_id}"
+                )
+
+            self.boundary_segments[seg.segment_id] = seg
+
+    def has_boundary_segments_for_room(self, room_id: str) -> bool:
+        return any(
+            seg.owner_room_id == room_id
+            for seg in self.boundary_segments.values()
+        )
 
     # ==================================================================
     # Authoritative totals reader
@@ -259,45 +338,3 @@ class ProjectState:
                 )
 
         return None, None, None
-
-    # ==================================================================
-    # Topology / adjacency (Phase IV-A)
-    # ==================================================================
-    def iter_boundary_segments_for_room(self, room_id: str):
-        for seg in self.boundary_segments.values():
-            if seg.owner_room_id == room_id:
-                yield seg
-
-    def set_boundary_segments_for_room(
-            self,
-            room_id: str,
-            segments: list[BoundarySegmentV1],
-    ) -> None:
-        # --------------------------------------------------
-        # Remove existing segments for this room
-        # --------------------------------------------------
-        to_delete = [
-            seg_id
-            for seg_id, seg in self.boundary_segments.items()
-            if seg.owner_room_id == room_id
-        ]
-
-        for seg_id in to_delete:
-            del self.boundary_segments[seg_id]
-
-        # --------------------------------------------------
-        # Insert new segments (with validation)
-        # --------------------------------------------------
-        for seg in segments:
-            if seg.owner_room_id != room_id:
-                raise ValueError(
-                    f"Segment owner mismatch: expected {room_id}, got {seg.owner_room_id}"
-                )
-
-            self.boundary_segments[seg.segment_id] = seg
-
-    def has_boundary_segments_for_room(self, room_id: str) -> bool:
-        return any(
-            seg.owner_room_id == room_id
-            for seg in self.boundary_segments.values()
-        )

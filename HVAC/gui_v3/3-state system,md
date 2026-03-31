@@ -1,0 +1,39 @@
+🎯 The 3-state system (lock this)
+🟢 GREEN — Valid (Executable)
+Topology complete
+All invariants satisfied
+✔ Run enabled
+✔ Deterministic results
+✔ No warnings
+🟠 ORANGE — Incomplete (Authoring)
+Engineering intent not finished
+
+Typical cases:
+
+INTER_ROOM with no adjacent room yet
+Missing reciprocal segment
+Geometry entered but no segments yet
+❌ Run disabled
+⚠ Guidance shown
+✔ UI remains calm (no “error” tone)
+🔴 RED — Invalid (Broken)
+Model violates physical / logical rules
+
+Examples:
+
+Self-adjacency
+Invalid room reference
+Negative length
+EXTERNAL with adjacent_room_id
+❌ Run blocked
+❌ Explicit errors shown
+🚨 Requires correction
+🧠 The key principle (this is gold)
+GREEN  = executable
+ORANGE = incomplete intent
+RED    = invalid model
+
+GREEN   → Run button ENABLED + green
+ORANGE  → disabled (grey)
+RED     → disabled (grey)
+NO TOPOLOGY → disabled (grey)

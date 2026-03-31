@@ -33,12 +33,13 @@ class RoomGeometryV1:
     # ------------------------------------------------------------------
     # Helpers (non-authoritative, safe)
     # ------------------------------------------------------------------
-
+    @property
     def floor_area_m2(self) -> Optional[float]:
         if self.length_m is not None and self.width_m is not None:
             return self.length_m * self.width_m
         return None
 
+    @property
     def volume_m3(self) -> Optional[float]:
         if (
             self.length_m is not None
@@ -48,11 +49,13 @@ class RoomGeometryV1:
             return self.length_m * self.width_m * self.height_m
         return None
 
+    @property
     def perimeter_m(self) -> Optional[float]:
         if self.length_m is not None and self.width_m is not None:
             return 2.0 * (self.length_m + self.width_m)
         return None
 
+    @property
     def effective_external_wall_length_m(self) -> Optional[float]:
         """
         Non-authoritative fallback:
@@ -62,7 +65,7 @@ class RoomGeometryV1:
         if self.external_wall_length_m is not None:
             return self.external_wall_length_m
 
-        return self.perimeter_m()
+        return self.perimeter_m
 
     # ------------------------------------------------------------------
     # Serialization

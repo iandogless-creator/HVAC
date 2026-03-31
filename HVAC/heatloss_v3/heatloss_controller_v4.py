@@ -1,10 +1,11 @@
 # ======================================================================
 # HVACgooee — Heat-Loss Controller (V4)
-# Phase II-A / II-B
+# Phase II-A / II-B / II-C
 # PURE ORCHESTRATOR (CANONICAL)
 # ======================================================================
 
 from __future__ import annotations
+
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -12,40 +13,27 @@ if TYPE_CHECKING:
 
 from HVAC.heatloss.engines.fabric_heatloss_engine import FabricHeatLossEngine
 from HVAC.heatloss.dto.fabric_inputs import FabricSurfaceInputDTO
+from HVAC.heatloss.fabric.fabric_from_segments_v1 import FabricFromSegmentsV1
 
 
 class HeatLossControllerV4:
-    """
-    V4 Heat-Loss Orchestrator (Phase II-B.1 Locked)
 
-    Authority
-    ---------
-    • No state
-    • No GUI logic
-    • No readiness evaluation
-    • No persistence logic beyond result hand-off
+    def __init__(self, *, project_state: ProjectState) -> None:
+        self._ps = project_state
 
-    Phase II-B Contract
-    -------------------
-    • Readiness MUST already be validated by caller
-    • This controller MUST NOT call evaluate_heatloss_readiness()
-    • If invoked, execution permission is assumed
-    """
-
-    # ------------------------------------------------------------------
-    # Public entry
-    # ------------------------------------------------------------------
     def run(
             self,
             *,
-            project: ProjectState,
             internal_design_temp_C: float,
             ach: float,
     ) -> None:
+        project = self._ps
+
+        # existing logic unchanged
         """
         Execute heat-loss calculation (Fabric + Ventilation + Qt).
 
-        Precondition (LOCKED):
+        Precondition:
             Readiness already validated by caller.
         """
 
@@ -58,21 +46,19 @@ class HeatLossControllerV4:
         )
 
         fabric_result = FabricHeatLossEngine.run(fabric_input)
-
-        # Replace fabric result (authoritative)
         project.set_fabric_heatloss_result(fabric_result)
 
         # --------------------------------------------------------------
-        # Phase II-B — Ventilation (Room-Level)
+        # Phase II-B — Ventilation
         # --------------------------------------------------------------
         ventilation_result = self._build_ventilation_result(
             project=project,
             ti_C=internal_design_temp_C,
             ach=ach,
         )
-
+        project.set_ventilation_heatloss_result(ventilation_result)
         # --------------------------------------------------------------
-        # Phase II-C — Qt Aggregation
+        # Phase II-C — Qt aggregation
         # --------------------------------------------------------------
         qt_result = self._build_qt_result(
             fabric_result=fabric_result,
@@ -80,7 +66,7 @@ class HeatLossControllerV4:
         )
 
         # --------------------------------------------------------------
-        # Authoritative Container Commit (atomic shape)
+        # Authoritative container commit
         # --------------------------------------------------------------
         container = {
             "fabric": fabric_result,
@@ -92,79 +78,13 @@ class HeatLossControllerV4:
         project.mark_heatloss_valid()
 
     # ------------------------------------------------------------------
-    # Phase II-B — Ventilation result assembly
-    # ------------------------------------------------------------------
-    @staticmethod
-    def _build_ventilation_result(
-            *,
-            project: ProjectState,
-            ti_C: float,
-            ach: float,
-    ) -> dict:
-
-        env = project.environment
-        if env is None or env.external_design_temp_C is None:
-            raise RuntimeError("External design temperature not set")
-
-        te_C = env.external_design_temp_C
-        delta_t = ti_C - te_C
-
-        qv_by_room: dict[str, float] = {}
-
-        for room_id, room in project.rooms.items():
-            space = getattr(room, "space", None)
-            if space is None:
-                continue
-
-            volume = (
-                    float(getattr(space, "floor_area_m2", 0.0))
-                    * float(getattr(space, "height_m", 0.0))
-            )
-
-            qv = 0.33 * ach * volume * delta_t
-            qv_by_room[room_id] = qv
-
-        return {
-            "qv_by_room_W": qv_by_room,
-            "total_qv_W": sum(qv_by_room.values()),
-        }
-
-    # ------------------------------------------------------------------
-    # Phase II-C — Qt aggregation (Room-Level)
-    # ------------------------------------------------------------------
-    @staticmethod
-    def _build_qt_result(
-            *,
-            fabric_result: dict,
-            ventilation_result: dict,
-    ) -> dict:
-
-        qf_by_room = fabric_result.get("qf_by_room_W", {})
-        qv_by_room = ventilation_result.get("qv_by_room_W", {})
-
-        qt_by_room: dict[str, float] = {}
-
-        all_rooms = set(qf_by_room.keys()) | set(qv_by_room.keys())
-
-        for room_id in all_rooms:
-            qt_by_room[room_id] = (
-                    float(qf_by_room.get(room_id, 0.0))
-                    + float(qv_by_room.get(room_id, 0.0))
-            )
-
-        return {
-            "qt_by_room_W": qt_by_room,
-            "total_qt_W": sum(qt_by_room.values()),
-        }
-
-    # ------------------------------------------------------------------
-    # Phase II-A — Fabric input assembly (STRUCTURAL ONLY)
+    # Phase II-A — Fabric input assembly
     # ------------------------------------------------------------------
     @staticmethod
     def _build_fabric_input(
-            *,
-            project: ProjectState,
-            ti_C: float,
+        *,
+        project: ProjectState,
+        ti_C: float,
     ) -> list[FabricSurfaceInputDTO]:
         env = project.environment
         if env is None or env.external_design_temp_C is None:
@@ -173,19 +93,10 @@ class HeatLossControllerV4:
         if ti_C is None:
             raise RuntimeError("Internal design temperature not supplied")
 
-        te_C = env.external_design_temp_C
-        delta_t = HeatLossControllerV4._resolve_surface_delta_t(
-            project=project,
-            surface=surface,
-            ti_C=ti_C,
-            te_C=te_C,
-        )
-        if delta_t <= 0:
-            raise RuntimeError(
-                f"Invalid ΔT (Ti={ti_C}, Te={te_C}) — must be > 0"
-            )
+        te_C = float(env.external_design_temp_C)
 
-        resolved_surfaces = list(generate_fabric_from_boundaries(project))
+        # Canonical source: topology-derived fabric rows
+        resolved_surfaces = list(FabricFromSegmentsV1.apply_to_project(project))
 
         if not resolved_surfaces:
             raise RuntimeError("No fabric surfaces declared")
@@ -193,12 +104,8 @@ class HeatLossControllerV4:
         surface_inputs: list[FabricSurfaceInputDTO] = []
 
         for s in resolved_surfaces:
-
-            surface = s.surface
-
             delta_t = HeatLossControllerV4._resolve_surface_delta_t(
-                project=project,
-                surface=surface,
+                surface=s,
                 ti_C=ti_C,
                 te_C=te_C,
             )
@@ -210,16 +117,107 @@ class HeatLossControllerV4:
 
             surface_inputs.append(
                 FabricSurfaceInputDTO(
-                    surface_id=surface.surface_id,
-                    room_id=surface.room_id,
-                    surface_class=(
-                        surface.surface_class.value
-                        if hasattr(surface.surface_class, "value")
-                        else str(surface.surface_class)
-                    ),
-                    area_m2=surface.area_m2,
-                    u_value_W_m2K=s.u_value_W_m2K,
-                    delta_t_K=delta_t,
+                    surface_id=str(s.surface_id),
+                    room_id=str(s.room_id),
+                    surface_class=str(getattr(s, "surface_class", "unknown")),
+                    area_m2=float(s.area_m2),
+                    u_value_W_m2K=float(s.u_value_W_m2K),
+                    delta_t_K=float(delta_t),
                 )
             )
+
         return surface_inputs
+
+    # ------------------------------------------------------------------
+    # Phase II-B — Ventilation result assembly
+    # ------------------------------------------------------------------
+    @staticmethod
+    def _build_ventilation_result(
+        *,
+        project: ProjectState,
+        ti_C: float,
+        ach: float,
+    ) -> dict:
+        env = project.environment
+        if env is None or env.external_design_temp_C is None:
+            raise RuntimeError("External design temperature not set")
+
+        te_C = float(env.external_design_temp_C)
+        delta_t = float(ti_C) - te_C
+
+        qv_by_room: dict[str, float] = {}
+
+        for room_id, room in project.rooms.items():
+            g = getattr(room, "geometry", None)
+            if g is None:
+                continue
+
+            area = getattr(g, "floor_area_m2", None)
+            if callable(area):
+                area = area()
+
+            height = getattr(g, "height_m", None)
+            if height is None:
+                height = getattr(g, "height_override_m", None)
+
+            if area is None or height is None:
+                continue
+
+            volume = float(area) * float(height)
+            qv = 0.33 * float(ach) * volume * delta_t
+            qv_by_room[str(room_id)] = qv
+
+        return {
+            "qv_by_room_W": qv_by_room,
+            "total_qv_W": sum(qv_by_room.values()),
+        }
+
+    # ------------------------------------------------------------------
+    # Phase II-C — Qt aggregation
+    # ------------------------------------------------------------------
+    @staticmethod
+    def _build_qt_result(
+        *,
+        fabric_result: dict,
+        ventilation_result: dict,
+    ) -> dict:
+        qf_by_room = fabric_result.get("qf_by_room_W", {})
+        qv_by_room = ventilation_result.get("qv_by_room_W", {})
+
+        qt_by_room: dict[str, float] = {}
+        all_rooms = set(qf_by_room.keys()) | set(qv_by_room.keys())
+
+        for room_id in all_rooms:
+            qt_by_room[room_id] = (
+                float(qf_by_room.get(room_id, 0.0))
+                + float(qv_by_room.get(room_id, 0.0))
+            )
+
+        return {
+            "qt_by_room_W": qt_by_room,
+            "total_qt_W": sum(qt_by_room.values()),
+        }
+
+    # ------------------------------------------------------------------
+    # Surface ΔT resolution
+    # ------------------------------------------------------------------
+    @staticmethod
+    def _resolve_surface_delta_t(
+        *,
+        surface,
+        ti_C: float,
+        te_C: float,
+    ) -> float:
+        boundary_kind = str(getattr(surface, "boundary_kind", "EXTERNAL")).upper()
+
+        if boundary_kind == "EXTERNAL":
+            return float(ti_C) - float(te_C)
+
+        if boundary_kind == "ADIABATIC":
+            return 0.0
+
+        if boundary_kind == "INTER_ROOM":
+            # Phase IV dev rule: unresolved inter-room treated as zero ΔT
+            return 0.0
+
+        return float(ti_C) - float(te_C)

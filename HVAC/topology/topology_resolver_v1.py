@@ -21,34 +21,29 @@ class TopologyResolverV1:
 
     Responsibilities
     ----------------
-    • Convert rectangular RoomGeometryV1 into boundary segments
+    • Build boundary segments from geometry (DEV)
     • Populate ProjectState.boundary_segments (authoritative)
-    • No adjacency logic yet (all EXTERNAL)
-    • No symmetry enforcement
-    • No inference beyond geometry
+    • Provide read access to segments per room
 
-    Authority
-    ---------
-    • Pure transformation (no side-effects outside ProjectState)
-    • Geometry → segments only
+    Notes
+    -----
+    • No adjacency logic yet
+    • No validation yet
+    • Flat segment storage (segment_id keyed)
     """
 
     # ------------------------------------------------------------------
-    # Public API
+    # Build full project topology (DEV)
     # ------------------------------------------------------------------
 
     @staticmethod
     def resolve_project(project: ProjectState) -> None:
-        """
-        Resolve topology for all rooms.
-        """
-
         for room in project.rooms.values():
             segments = TopologyResolverV1._build_segments_for_room(room)
             project.set_boundary_segments_for_room(room.room_id, segments)
 
     # ------------------------------------------------------------------
-    # Core builder
+    # Geometry → segments (DEV rectangular)
     # ------------------------------------------------------------------
 
     @staticmethod
@@ -66,10 +61,6 @@ class TopologyResolverV1:
         L = float(g.length_m)
         W = float(g.width_m)
 
-        # --------------------------------------------------
-        # External wall override logic (Phase IV-A)
-        # --------------------------------------------------
-
         perimeter = 2.0 * (L + W)
 
         ext_total = (
@@ -78,13 +69,7 @@ class TopologyResolverV1:
             else perimeter
         )
 
-        # Clamp for safety (no invalid states)
         ext_total = max(0.0, min(ext_total, perimeter))
-
-        # --------------------------------------------------
-        # Distribute external length across 4 sides
-        # (simple proportional split)
-        # --------------------------------------------------
 
         lengths = [L, W, L, W]
         total_length = sum(lengths)
@@ -116,29 +101,23 @@ class TopologyResolverV1:
         return segments
 
     # ------------------------------------------------------------------
-    # Public API
+    # Read access (canonical)
     # ------------------------------------------------------------------
+
     @staticmethod
-    def resolve_room_boundaries(project_state, room) -> List[BoundarySegmentV1]:
-            """
-            Returns boundary segments for a room.
+    def resolve_room_boundaries(
+        project_state: ProjectState,
+        room: RoomStateV1,
+    ) -> List[BoundarySegmentV1]:
+        """
+        Returns boundary segments for a room.
+        """
 
-            Assumes:
-            • DEV bootstrap has populated ProjectState
-            """
+        if project_state is None or room is None:
+            return []
 
-            if project_state is None or room is None:
-                return []
-
-            segments = project_state.get_boundary_segments_for_room(room.room_id)
-
-            if not segments:
-                return []
-
-            return list(segments)
-
-    # inside ProjectState
-
-    def get_boundary_segments_for_room(self, room_id: str):
-        return self.boundary_segments.get(room_id, [])
-
+        return [
+            seg
+            for seg in project_state.boundary_segments.values()
+            if seg.owner_room_id == room.room_id
+        ]

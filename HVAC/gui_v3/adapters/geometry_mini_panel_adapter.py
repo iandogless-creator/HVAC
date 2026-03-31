@@ -4,217 +4,162 @@
 
 from __future__ import annotations
 
-from HVAC.heatloss.fabric.simple_fabric_generator import (
-    generate_simple_fabric_elements,
-)
+from typing import Optional, Any
+
+from HVAC.gui_v3.context.gui_project_context import GuiProjectContext
+from HVAC.gui_v3.panels.geometry_mini_panel import GeometryMiniPanel
+
 from HVAC.topology.topology_resolver_v1 import TopologyResolverV1
+from HVAC.heatloss.fabric.fabric_from_segments_v1 import FabricFromSegmentsV1
 
 class GeometryMiniPanelAdapter:
     """
-    Geometry Mini Panel Adapter (Phase IV-A)
+    Geometry Mini Panel Adapter (GUI v3 — Overlay Model)
 
     Responsibilities
     ----------------
-    • Synchronise panel fields with RoomGeometryV1 (rectangular)
-    • Commit user edits into ProjectState
-    • Trigger SIMPLE fabric generation when geometry becomes valid
-    • Mark heat-loss state dirty
+    • Prime GeometryMiniPanel from ProjectState
+    • Prime GeometryMiniPanel from ProjectState
+    • Receive committed geometry values
+    • Apply geometry to ProjectState (authoritative)
+    • Trigger topology resolution
+    • Mark heat-loss dirty
+    • Trigger global refresh
 
     Authority
     ---------
-    • Does NOT construct UI
+    • Reads and writes ProjectState
+    • Does NOT construct polygons
     • Does NOT perform heat-loss calculations
-    • Owns NO geometry logic (only transfers intent)
     """
 
     # ------------------------------------------------------------------
     # Construction
     # ------------------------------------------------------------------
-
-    def __init__(self, panel, context):
+    def __init__(
+        self,
+        *,
+        panel: GeometryMiniPanel,
+        context: GuiProjectContext,
+        refresh_all_callback,
+    ) -> None:
 
         self._panel = panel
         self._context = context
+        self._refresh_all = refresh_all_callback
 
-        # --------------------------------------------------
-        # Panel edit signals → commit geometry
-        # --------------------------------------------------
+        # Panel → commit
+        self._panel.geometry_committed.connect(self._on_geometry_committed)
+        self._panel.ti_changed.connect(self._on_ti_changed)
+        # Context → refresh
+        self._context.current_room_changed.connect(self._on_room_changed)
 
-        panel._edit_length.editingFinished.connect(self._commit)
-        panel._edit_width.editingFinished.connect(self._commit)
-        panel._edit_height.editingFinished.connect(self._commit)
-        panel._edit_ext.editingFinished.connect(self._commit)
-        panel._edit_ti.editingFinished.connect(self._commit)
-
-        # --------------------------------------------------
-        # Room selection → refresh panel
-        # --------------------------------------------------
-
-        panel.geometry_changed.connect(self._on_geometry_changed)
-        self._context.room_state_changed.connect(self.refresh)
-        self._context.current_room_changed.connect(lambda _: self.refresh())
-
-        self.refresh()
+        self._prime_from_context()
 
     # ------------------------------------------------------------------
-    # Refresh panel from ProjectState
+    # Context → Panel
     # ------------------------------------------------------------------
-
-    def refresh(self) -> None:
-
-        ps = self._context.project_state
-        room = getattr(self._context, "current_room", None)
-
-        if ps is None or room is None:
+    def _on_ti_changed(self, value: float):
+        room = self._context.current_room
+        if room is None:
             return
 
-        g = room.geometry
-        env = ps.environment
+        room.internal_temp_override_C = value
 
-        # --------------------------------------------------
-        # Length / Width (authoritative geometry)
-        # --------------------------------------------------
+        self._context.project_state.mark_heatloss_dirty()
+        self._context.emit_room_changed()
 
-        self._panel._edit_length.setText(
-            "" if g.length_m is None else str(g.length_m)
-        )
+    def _on_room_changed(self, _room_id: Optional[str]) -> None:
+        self._prime_from_context()
 
-        self._panel._edit_width.setText(
-            "" if g.width_m is None else str(g.width_m)
-        )
-
-        # --------------------------------------------------
-        # External wall length (user intent)
-        # --------------------------------------------------
-
-        self._panel._edit_ext.setText(
-            "" if g.external_wall_length_m is None else str(g.external_wall_length_m)
-        )
-
-        # --------------------------------------------------
-        # Height (room override → environment default)
-        # --------------------------------------------------
-
-        height = (
-            g.height_m
-            if g.height_m is not None
-            else (env.default_room_height_m if env else None)
-        )
-
-        self._panel._edit_height.setText(
-            "" if height is None else str(height)
-        )
-
-        # --------------------------------------------------
-        # Internal temperature (room override → environment default)
-        # --------------------------------------------------
-
-        ti = (
-            room.internal_temp_override_C
-            if room.internal_temp_override_C is not None
-            else (env.default_internal_temp_C if env else None)
-        )
-
-        self._panel._edit_ti.setText(
-            "" if ti is None else str(ti)
-        )
-
-    # ------------------------------------------------------------------
-    # Commit panel edits to ProjectState
-    # ------------------------------------------------------------------
-
-    def _commit(self) -> None:
-
-        print("GMP commit fired")
-
+    def _prime_from_context(self) -> None:
         ps = self._context.project_state
         room_id = self._context.current_room_id
 
-        if ps is None or room_id is None:
+        if ps is None or not room_id:
+            self._panel.clear()
+            return
+
+        room = ps.rooms.get(room_id)
+        if room is None:
+            self._panel.clear()
+            return
+
+        # Header
+        if hasattr(self._panel, "set_room_header"):
+            self._panel.set_room_header(getattr(room, "name", ""))
+
+        g = getattr(room, "geometry", None)
+
+        if g is None:
+            self._panel.set_values(None, None, None)
+            return
+
+        self._panel.set_values(
+            length_m=g.length_m,
+            width_m=g.width_m,
+            height_m=g.height_m,
+        )
+
+    # ------------------------------------------------------------------
+    # Panel → ProjectState
+    # ------------------------------------------------------------------
+    def _on_geometry_committed(self, values: dict) -> None:
+        ps = self._context.project_state
+        room_id = self._context.current_room_id
+
+        if ps is None or not room_id:
             return
 
         room = ps.rooms.get(room_id)
         if room is None:
             return
 
-        g = room.geometry
-
-        def num(edit):
-            try:
-                return float(edit.text())
-            except Exception:
-                return None
+        g = getattr(room, "geometry", None)
+        if g is None:
+            return
 
         # --------------------------------------------------
-        # Read panel values
+        # 1. Authoritative geometry write
         # --------------------------------------------------
+        try:
+            L = float(values.get("length_m"))
+            W = float(values.get("width_m"))
+            H = float(values.get("height_m"))
+        except (TypeError, ValueError):
+            return
 
-        g.length_m = num(self._panel._edit_length)
-        g.width_m = num(self._panel._edit_width)
-        g.height_m = num(self._panel._edit_height)
-        g.external_wall_length_m = num(self._panel._edit_ext)
+        g.length_m = L
+        g.width_m = W
+        g.height_m = H
+
+        # --------------------------------------------------
+        # 2. Topology resolution
+        # --------------------------------------------------
         TopologyResolverV1.resolve_project(ps)
-        room.internal_temp_override_C = num(self._panel._edit_ti)
 
         # --------------------------------------------------
-        # SIMPLE auto-fabric generation (rectangular trigger)
+        # 3. Fabric rebuild (CORRECT)
         # --------------------------------------------------
-
-        if (
-            g.length_m is not None
-            and g.width_m is not None
-            and g.height_m is not None
-            and not room.fabric_elements
-        ):
-            generate_simple_fabric_elements(room)
+        for r in ps.rooms.values():
+            rows = FabricFromSegmentsV1.build_rows_for_room(ps, r)
+            r.fabric_elements = rows
 
         # --------------------------------------------------
-        # Mark heat-loss state dirty
+        # DEBUG (AFTER pipeline — this is critical)
         # --------------------------------------------------
+        room_segments = ps.get_boundary_segments_for_room(room_id)
+        print("Segments:", len(room_segments))
 
-        ps.mark_heatloss_dirty()
-
+        fabric = getattr(room, "fabric_elements", [])
+        print("Fabric:", len(fabric))
         # --------------------------------------------------
-        # Trigger UI refresh
+        # 4. Mark heat-loss dirty
         # --------------------------------------------------
-
-        self._context.room_state_changed.emit(room.room_id)
-
-    # ------------------------------------------------------------------
-    # External geometry change hook (future-safe)
-    # ------------------------------------------------------------------
-
-    def _on_geometry_changed(self, data):
-
-        ps = self._context.project_state
-        room_id = self._context.current_room_id
-
-        if ps is None or room_id is None:
-            return
-
-        room = ps.rooms.get(room_id)
-        if room is None:
-            return
-
-        g = room.geometry
+        if hasattr(ps, "mark_heatloss_dirty"):
+            ps.mark_heatloss_dirty()
 
         # --------------------------------------------------
-        # Apply incoming geometry (rectangular only)
+        # 5. Global refresh
         # --------------------------------------------------
-
-        g.length_m = data.get("length_m")
-        g.width_m = data.get("width_m")
-        g.height_m = data.get("height_m")
-
-        room.internal_temp_override_C = data.get("ti_C")
-
-        # --------------------------------------------------
-        # Regenerate simple fabric (explicit reset)
-        # --------------------------------------------------
-
-        room.fabric_elements.clear()
-        generate_simple_fabric_elements(room)
-
-        ps.mark_heatloss_dirty()
-
-        self._context.room_state_changed.emit(room.room_id)
+        self._refresh_all()

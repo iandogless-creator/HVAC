@@ -21,8 +21,7 @@ from HVAC.gui_v3.main_window import MainWindowV3
 from HVAC.project.project_state import ProjectState
 from HVAC.core.environment_state import EnvironmentStateV1
 from HVAC.core.room_state import RoomStateV1, RoomGeometryV1
-from HVAC.core.fabric_element import FabricElementV1
-
+from HVAC.topology.topology_resolver_v1 import TopologyResolverV1
 
 # ----------------------------------------------------------------------
 # DEV Bootstrap Project
@@ -61,13 +60,12 @@ def make_dev_bootstrap_project_state() -> ProjectState:
     # --------------------------------------------------
 
     room_id = "room-001"
-    print(RoomGeometryV1)
-    print(RoomGeometryV1.__module__)
+
     geometry = RoomGeometryV1(
         length_m=4.0,
         width_m=3.0,
         height_m=2.4,
-        external_wall_length_m=14.0,  # 2*(4+3)
+        external_wall_length_m=14.0,
     )
 
     room = RoomStateV1(
@@ -77,28 +75,22 @@ def make_dev_bootstrap_project_state() -> ProjectState:
     )
 
     # --------------------------------------------------
-    # Fabric modelling intent
+    # Fabric (canonical: EMPTY — will be built from topology)
     # --------------------------------------------------
 
-    room.fabric_elements = [
-        FabricElementV1(
-            element_class="external_wall",
-            area_m2=12.0,
-            construction_id="DEV-WALL",
-        ),
-        FabricElementV1(
-            element_class="window",
-            area_m2=3.0,
-            construction_id="DEV-WINDOW",
-        ),
-        FabricElementV1(
-            element_class="roof",
-            area_m2=10.0,
-            construction_id="DEV-ROOF",
-        ),
-    ]
+    room.fabric_elements = []  # 🔒 DO NOT seed legacy FabricElementV1
 
     project.rooms[room_id] = room
+
+    # --------------------------------------------------
+    # 🔑 Build topology immediately (CRITICAL)
+    # --------------------------------------------------
+    TopologyResolverV1.resolve_project(project)
+    print("[BOOT] Segments:", project.boundary_segments)
+    # --------------------------------------------------
+    # Fabric remains derived (DO NOT persist here)
+    # --------------------------------------------------
+    room.fabric_elements = []
 
     project.mark_heatloss_dirty()
 

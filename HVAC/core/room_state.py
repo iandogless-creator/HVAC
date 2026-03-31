@@ -59,20 +59,40 @@ class RoomStateV1:
     @classmethod
     def from_dict(cls, room_id: str, data: dict) -> "RoomStateV1":
 
-        geom_data = data.get("geometry")
-        elems_data = data.get("fabric_elements") or []
-
         instance = cls(
-            room_id=str(room_id),
-            name=str(data.get("name", room_id)),
-            geometry=RoomGeometryV1.from_dict(geom_data),
+            room_id=room_id,
+            name=data.get("name", room_id),
             internal_temp_override_C=data.get("internal_temp_override_C"),
             ach_override=data.get("ach_override"),
         )
 
-        instance.fabric_elements = [
-            FabricElementV1.from_dict(ed) for ed in elems_data
-        ]
+        # --------------------------------------------------
+        # Geometry
+        # --------------------------------------------------
+        geom_data = data.get("geometry")
+
+        if geom_data:
+            polygon = geom_data.get("polygon")
+
+            length_m = geom_data.get("length_m")
+            width_m = geom_data.get("width_m")
+
+            # derive from polygon (rectangular v1)
+            if polygon and len(polygon) >= 4:
+                try:
+                    xs = [p[0] for p in polygon]
+                    ys = [p[1] for p in polygon]
+
+                    length_m = max(xs) - min(xs)
+                    width_m = max(ys) - min(ys)
+                except Exception:
+                    pass
+
+            instance.geometry = RoomGeometryV1(
+                length_m=length_m,
+                width_m=width_m,
+                height_m=geom_data.get("height_m"),
+            )
 
         return instance
 

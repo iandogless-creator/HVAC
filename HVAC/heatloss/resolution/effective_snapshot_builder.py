@@ -35,23 +35,25 @@ def build_effective_room_snapshot(
     internal_design_temp_C: float,
 ) -> EffectiveRoomSnapshotDTO:
 
-    height_m = resolve_effective_height_m(project, room)
+    height_m, _ = resolve_effective_height_m(project, room)
     if height_m is None or float(height_m) <= 0.0:
         raise RuntimeError(
             f"Room '{room.room_id}' has no effective height"
         )
 
-    ach = resolve_effective_ach(project, room)
+    ach, _ = resolve_effective_ach(project, room)
     if ach is None or float(ach) <= 0.0:
         raise RuntimeError(
             f"Room '{room.room_id}' has no effective ACH"
         )
 
-    area = float(getattr(room.space, "floor_area_m2", 0.0))
-    if area <= 0.0:
-        raise RuntimeError(
-            f"Room '{room.room_id}' has invalid floor area"
-        )
+    area_attr = getattr(room.space, "floor_area_m2", None)
+
+    area = (
+        float(area_attr())
+        if callable(area_attr)
+        else float(area_attr or 0.0)
+    )
 
     volume = area * float(height_m)
 

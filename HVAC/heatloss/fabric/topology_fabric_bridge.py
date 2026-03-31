@@ -4,91 +4,50 @@
 
 from __future__ import annotations
 
-from HVAC.core.fabric_element import FabricElementV1
 
+# ======================================================================
+# generate_fabric_from_boundaries (LEGACY — DISABLED)
+# ======================================================================
 
 def generate_fabric_from_boundaries(project_state, room):
     """
-    Temporary Phase-IV bridge.
+    ⚠️ LEGACY TOPOLOGY → FABRIC BRIDGE — DISABLED
 
-    Converts boundary segments into FabricElementV1 rows
-    so the Heat-Loss worksheet can populate.
+    This function previously converted boundary segments into
+    FabricElementV1 objects and wrote them directly into
+    `room.fabric_elements`.
 
-    Rules (DEV)
-    -----------
-    • EXTERNAL boundaries → external_wall
-    • INTER_ROOM boundaries ignored (ΔT = 0)
-    • Floor + roof derived from polygon area
+    It is now fully replaced by:
+
+        TopologyResolverV1
+            → FabricFromSegmentsV1.build_rows_for_room()
+
+    Architecture (LOCKED)
+    ---------------------
+    • Topology is authoritative for boundaries
+    • Fabric rows are derived via FabricFromSegmentsV1
+    • room.fabric_elements MUST contain FabricSurfaceRowV1 only
+    • This function MUST NOT mutate ProjectState
+
+    Status
+    ------
+    Retained for reference during transition only.
     """
 
-    g = room.geometry
-
-    if not hasattr(project_state, "boundary_segments"):
-        return
-
-    height = getattr(g, "height_override_m", None)
-
-    if height is None:
-        height = getattr(g, "height_m", None)
-
-    if height is None:
-        return
-
-    room.fabric_elements.clear()
-
-    # --------------------------------------------------
-    # External walls
-    # --------------------------------------------------
-
-    for seg in project_state.boundary_segments.values():
-
-        if seg.owner_room_id != room.room_id:
-            continue
-
-        if seg.boundary_kind != "EXTERNAL":
-            continue
-
-        area = seg.length_m * height
-
-        room.fabric_elements.append(
-            FabricElementV1(
-                element_class="external_wall",
-                area_m2=area,
-                construction_id="DEV-WALL",   # ← DEV placeholder
-            )
-        )
-
-    # --------------------------------------------------
-    # Floor + roof from polygon
-    # --------------------------------------------------
-
-    poly = getattr(g, "polygon", None)
-
-    if poly and len(poly) >= 3:
-        area = _polygon_area(poly)
-
-        room.fabric_elements.append(
-            FabricElementV1(
-                element_class="floor",
-                area_m2=area,
-                construction_id="DEV-ROOF",
-            )
-        )
-
-        room.fabric_elements.append(
-            FabricElementV1(
-                element_class="roof",
-                area_m2=area,
-                construction_id="DEV-ROOF",
-            )
-        )
+    # ------------------------------------------------------------------
+    # HARD DISABLE (no mutation, no generation)
+    # ------------------------------------------------------------------
+    return
 
 
 # ----------------------------------------------------------------------
-# Simple polygon area
+# _polygon_area (LEGACY — retained for reference only)
 # ----------------------------------------------------------------------
 
 def _polygon_area(poly):
+    """
+    ⚠️ LEGACY helper — no longer used in active pipeline.
+    """
 
     area = 0.0
     n = len(poly)
