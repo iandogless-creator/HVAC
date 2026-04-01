@@ -50,24 +50,30 @@ class GeometryMiniPanelAdapter:
 
         # Panel → commit
         self._panel.geometry_committed.connect(self._on_geometry_committed)
-        self._panel.ti_changed.connect(self._on_ti_changed)
         # Context → refresh
         self._context.current_room_changed.connect(self._on_room_changed)
-
+        self._panel.internal_temp_changed.connect(self._on_internal_temp_changed)
         self._prime_from_context()
 
     # ------------------------------------------------------------------
     # Context → Panel
     # ------------------------------------------------------------------
-    def _on_ti_changed(self, value: float):
-        room = self._context.current_room
+    def _on_internal_temp_changed(self, value: float) -> None:
+        ps = self._context.project_state
+        room_id = self._context.current_room_id
+
+        if ps is None or not room_id:
+            return
+
+        room = ps.rooms.get(room_id)
         if room is None:
             return
 
         room.internal_temp_override_C = value
 
-        self._context.project_state.mark_heatloss_dirty()
-        self._context.emit_room_changed()
+        if hasattr(ps, "mark_heatloss_dirty"):
+            ps.mark_heatloss_dirty()
+        self._context.current_room_changed.emit(room_id)
 
     def _on_room_changed(self, _room_id: Optional[str]) -> None:
         self._prime_from_context()

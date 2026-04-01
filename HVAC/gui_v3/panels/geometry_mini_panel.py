@@ -43,7 +43,7 @@ class GeometryMiniPanel(QWidget):
     # Signals
     # ------------------------------------------------------------------
     geometry_committed = Signal(dict)
-    ti_changed = Signal(float)
+    internal_temp_changed = Signal(float)
     # ------------------------------------------------------------------
     # Construction
     # ------------------------------------------------------------------
@@ -69,6 +69,7 @@ class GeometryMiniPanel(QWidget):
         root.addWidget(self._header)
 
         # Inputs
+        # Inputs (geometry)
         self._spin_length = self._m_spin()
         self._spin_width = self._m_spin()
         self._spin_height = self._m_spin()
@@ -77,13 +78,13 @@ class GeometryMiniPanel(QWidget):
         root.addLayout(self._row("Width (m):", self._spin_width))
         root.addLayout(self._row("Height (m):", self._spin_height))
 
-        self._ti = QDoubleSpinBox()
-        self._ti.setRange(5.0, 35.0)
-        self._ti.setDecimals(1)
-        self._ti.setSuffix(" °C")
-        self._ti.editingFinished.connect(
-            lambda: self.ti_changed.emit(self._ti.value())
-        )
+        # Internal temperature (Ti)
+        self._ti_spin = QDoubleSpinBox(self)
+        self._ti_spin.setRange(5.0, 35.0)
+        self._ti_spin.setDecimals(1)
+        self._ti_spin.setSuffix(" °C")
+
+        root.addLayout(self._row("Internal temp (°C):", self._ti_spin))
         # Derived display (read-only, visual only)
         self._lbl_floor = QLabel("— m²")
         self._lbl_volume = QLabel("— m³")
@@ -96,6 +97,9 @@ class GeometryMiniPanel(QWidget):
     # Wiring
     # ------------------------------------------------------------------
     def _wire_signals(self) -> None:
+        self._ti_spin.editingFinished.connect(
+            lambda: self.internal_temp_changed.emit(self._ti_spin.value())
+        )
         for spin in (self._spin_length, self._spin_width, self._spin_height):
             spin.editingFinished.connect(self._on_edit_finished)
             spin.valueChanged.connect(self._update_derived_labels)

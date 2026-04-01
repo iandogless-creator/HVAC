@@ -62,13 +62,6 @@ def make_dev_bootstrap_project_state() -> ProjectState:
         height_m=2.4,
         external_wall_length_m=14.0,  # full perimeter
     )
-
-    # --------------------------------------------------
-    # Fabric (canonical: EMPTY — derived only)
-    # --------------------------------------------------
-
-    room.fabric_elements = []  # 🔒 DO NOT seed FabricElementV1
-
     # --------------------------------------------------
     # Attach room
     # --------------------------------------------------

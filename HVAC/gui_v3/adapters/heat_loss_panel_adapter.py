@@ -112,6 +112,14 @@ class HeatLossPanelAdapter:
         from HVAC.core.value_resolution import resolve_effective_internal_temp_C
 
         ti, _ = resolve_effective_internal_temp_C(ps, room)
+
+        te = None
+        if ps.environment:
+            te = getattr(ps.environment, "external_design_temp_C", None)
+
+        dt = None
+        if ti is not None and te is not None:
+            dt = ti - te
         panel.set_internal_temperature(ti)  # 👈 push to UI
         # Header
         room_name = getattr(room, "name", room_id)
@@ -141,18 +149,64 @@ class HeatLossPanelAdapter:
         validation = TopologyValidatorV1.validate_room_adjacency(ps, room_id)
         lookup = {v.surface_id: v for v in validation}
 
+        # ------------------------------------------------------------------
         # Rows
+        # ------------------------------------------------------------------
+
         rows, metas = self._build_rows_with_meta(ps, room, lookup)
         rows = self._overlay_results_if_available(ps, rows)
 
+        # ------------------------------------------------------------------
+        # Apply live ΔT to rows (FINAL authority)
+        # ------------------------------------------------------------------
+
+        if dt is not None:
+            for r in rows:
+                if r.get("element") in ("external_wall", "floor", "roof"):
+                    r["dT"] = dt
+
         panel.set_rows(rows, metas)
 
-        # Totals
+        # ------------------------------------------------------------------
+        # Totals (authoritative OR live fallback)
+        # ------------------------------------------------------------------
+
         sum_qf = None
         qv = None
         qt = None
 
-        if bool(getattr(ps, "heatloss_valid", False)):
+        hl_valid = bool(getattr(ps, "heatloss_valid", False))
+
+        if hl_valid:
+            hl = getattr(ps, "heatloss_results", None)
+
+            if isinstance(hl, dict):
+                fabric = hl.get("fabric", {})
+                ventilation = hl.get("ventilation", {})
+                room_totals = hl.get("room_totals", {})
+
+                sum_qf = fabric.get("qf_by_room_W", {}).get(room_id)
+                qv = ventilation.get("qv_by_room_W", {}).get(room_id)
+                qt = room_totals.get("qt_by_room_W", {}).get(room_id)
+
+        # ------------------------------------------------------------------
+        # LIVE FALLBACK (no controller run)
+        # ------------------------------------------------------------------
+
+        if sum_qf is None:
+            sum_qf = self._sum_qf_from_rows(rows)
+
+        if qv is None:
+            dt = None
+            if ti is not None and ps.environment:
+                te = getattr(ps.environment, "external_design_temp_C", None)
+                if te is not None:
+                    dt = ti - te
+
+            qv = self._compute_qv_live(room, ach, dt)
+
+        if qt is None:
+            qt = (sum_qf or 0.0) + (qv or 0.0)
             hl = getattr(ps, "heatloss_results", None)
 
             if isinstance(hl, dict):
@@ -173,6 +227,45 @@ class HeatLossPanelAdapter:
 
         panel.set_run_enabled(True)
 
+    # ------------------------------------------------------------------
+    # LIVE FALLBACK — Qf aggregation + Qv + Qt
+    # ------------------------------------------------------------------
+
+    def _compute_row_qf(self, row: dict) -> float | None:
+        A = row.get("A")
+        U = row.get("U")
+        dT = row.get("dT")
+
+        if A is None or U is None or dT is None:
+            return None
+
+        return A * U * dT
+
+    def _sum_qf_from_rows(self, rows: list[dict]) -> float:
+        total = 0.0
+
+        for r in rows:
+            qf = r.get("Qf")
+
+            if qf is None:
+                qf = self._compute_row_qf(r)
+
+            if qf is not None:
+                total += qf
+
+        return total
+
+    def _compute_qv_live(self, room, ach: float, dt: float) -> float:
+        if not room.geometry or ach is None or dt is None:
+            return 0.0
+
+        vol = (
+                room.geometry.length_m
+                * room.geometry.width_m
+                * room.geometry.height_m
+        )
+
+        return 0.33 * ach * vol * dt
     # ------------------------------------------------------------------
     # Row builder
     # ------------------------------------------------------------------
@@ -198,7 +291,7 @@ class HeatLossPanelAdapter:
                     "element": src.element,
                     "A": src.area_m2,
                     "U": src.u_value_W_m2K,
-                    "dT": src.delta_t_K,
+                    "dT": None,
                     "Qf": src.qf_W,
                     "construction_id": src.construction_id,
                     "_segment": getattr(src, "boundary_segment", None),
@@ -316,6 +409,19 @@ class HeatLossPanelAdapter:
 
         return rows
 
+    # ------------------------------------------------------------------
+    # ΣQf aggregator (display-only)
+    # ------------------------------------------------------------------
+
+    def _sum_qf(self, rows: list[dict]) -> float:
+        total = 0.0
+
+        for r in rows:
+            qf = r.get("Qf")
+            if qf is not None:
+                total += qf
+
+        return total
     # ------------------------------------------------------------------
     # Signals
     # ------------------------------------------------------------------

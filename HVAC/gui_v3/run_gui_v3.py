@@ -78,8 +78,6 @@ def make_dev_bootstrap_project_state() -> ProjectState:
     # Fabric (canonical: EMPTY — will be built from topology)
     # --------------------------------------------------
 
-    room.fabric_elements = []  # 🔒 DO NOT seed legacy FabricElementV1
-
     project.rooms[room_id] = room
 
     # --------------------------------------------------
@@ -90,8 +88,6 @@ def make_dev_bootstrap_project_state() -> ProjectState:
     # --------------------------------------------------
     # Fabric remains derived (DO NOT persist here)
     # --------------------------------------------------
-    room.fabric_elements = []
-
     project.mark_heatloss_dirty()
 
     return project
