@@ -47,6 +47,7 @@ class HeatLossControllerV4:
     """
 
     def __init__(self, *, project_state: ProjectState) -> None:
+        print(">>> CONTROLLER FILE LOADED:", __file__)
         self._project = project_state
         self._validator = SurfaceEditValidator()
         self._overlay = None
@@ -82,7 +83,6 @@ class HeatLossControllerV4:
         # --------------------------------------------------
         self._main_window.refresh_all_adapters()
 
-
     def run(self, *, internal_design_temp_C: float) -> None:
 
         # --------------------------------------------------
@@ -109,9 +109,28 @@ class HeatLossControllerV4:
         )
 
         # --------------------------------------------------
+        # 🔥 BUILD SURFACES (FIX)
+        # --------------------------------------------------
+        from HVAC.heatloss.fabric.fabric_from_segments_v1 import FabricFromSegmentsV1
+
+        surfaces = []
+
+        for room in self._project.rooms.values():
+            rows = FabricFromSegmentsV1.build_rows_for_room(self._project, room)
+
+            for r in rows:
+                if (
+                        r.area_m2 is not None
+                        and r.u_value_W_m2K is not None
+                        and r.delta_t_K is not None
+                        and r.area_m2 > 0.0
+                ):
+                    surfaces.append(r)
+
+        # --------------------------------------------------
         # Engines
         # --------------------------------------------------
-        fabric_result = FabricHeatLossEngine.run(snapshot)
+        fabric_result = FabricHeatLossEngine.run(surfaces)
 
         ventilation_result = VentilationHeatLossEngine.run(
             room_snapshots=snapshot.rooms,
@@ -155,11 +174,11 @@ class HeatLossControllerV4:
         # Atomic commit
         # --------------------------------------------------
         self._project.heatloss_results = {
-            "result": result_dto,            # authoritative
-            "fabric": fabric_result,         # engine detail
+            "result": result_dto,
+            "fabric": fabric_result,
             "ventilation": ventilation_result,
         }
-
+        self._context.room_state_changed.emit(self._context.current_room_id)
         self._project.mark_heatloss_valid()
 
     def _apply_mutation(self, ctx, values) -> None:

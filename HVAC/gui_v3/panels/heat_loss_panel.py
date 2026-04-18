@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
     QGridLayout,
 )
 
+DT_COLUMN = 3
 
 # ======================================================================
 # ClickableLabel
@@ -70,7 +71,7 @@ class HeatLossPanelV3(QWidget):
 
         self._current_room_id: Optional[str] = None
         self._worksheet_table: Optional[QTableWidget] = None
-        self._row_meta = []
+        self._row_metas: list[WorksheetRowMeta] = []
         self._build_ui()
         self._wire_signals()
 
@@ -116,7 +117,7 @@ class HeatLossPanelV3(QWidget):
         # --------------------------------------------------------------
         self._table = QTableWidget(self)
         self._worksheet_table = self._table
-
+        self._table.cellClicked.connect(self._on_cell_clicked)
         self._table.setColumnCount(5)
         self._table.setHorizontalHeaderLabels(
             [
@@ -245,35 +246,39 @@ class HeatLossPanelV3(QWidget):
     def mouseDoubleClickEvent(self, event) -> None:
         return
 
-    def _on_cell_clicked(self, row: int, col: int) -> None:
-        self.cell_selected.emit(row)
+    def set_row_meta_lookup(self, lookup: dict) -> None:
+        self._row_meta_by_surface = lookup
 
-        # Adjacency edit intent only from Element column
-        if col != 0:
+    def _on_cell_clicked(self, row: int, column: int) -> None:
+        print(f"[HLP CLICK] row={row} col={column}")
+
+        item = self._table.item(row, 0)
+        print(f"[HLP CLICK] item={item}")
+
+        if item is None:
             return
 
-        if row < 0 or row >= len(self._row_meta):
+        surface_id = item.data(Qt.UserRole)
+        print(f"[HLP CLICK] surface_id={surface_id}")
+
+        row_meta = getattr(self, "_row_meta_by_surface", {}).get(surface_id)
+        print(f"[HLP CLICK] row_meta={row_meta}")
+
+        if column != DT_COLUMN:
+            print("[HLP CLICK] not DT column")
             return
 
-        row_meta = self._row_meta[row] if hasattr(self, "_row_meta") else None
-        if row_meta is None:
+        if not row_meta:
+            print("[HLP CLICK] no row_meta")
             return
 
-        table = self._worksheet_table
-        if table is None:
+        if not row_meta.adjacency_editable:
+            print("[HLP CLICK] row not adjacency editable")
             return
 
-        element_item = table.item(row, 0)
-        if element_item is None:
-            return
+        print(f"[HLP CLICK] EMIT adjacency_edit_requested {surface_id}")
+        self.adjacency_edit_requested.emit(surface_id)
 
-        surface_id = element_item.data(Qt.UserRole)
-        if not surface_id:
-            return
-
-        # Emit only for rows explicitly marked adjacency-editable
-        if getattr(row_meta, "adjacency_editable", False):
-            self.adjacency_edit_requested.emit(str(surface_id))
 
     def set_header_context(self, context: dict | None) -> None:
         return
@@ -401,6 +406,12 @@ class HeatLossPanelV3(QWidget):
         else:
             self._row_meta = metas
 
+        self._row_meta_by_surface = {
+            m.surface_id: m
+            for m in self._row_meta
+            if getattr(m, "surface_id", None)
+        }
+
         table.setUpdatesEnabled(False)
         table.setSortingEnabled(False)
         table.clearContents()
@@ -433,7 +444,7 @@ class HeatLossPanelV3(QWidget):
             is_child = parent_id is not None
 
             if is_child:
-                element_text = "    " + element_text  # indentation
+                element_text = "    " + element_text
 
             item = QTableWidgetItem(element_text)
             item.setData(Qt.UserRole, surface_id)
@@ -450,40 +461,45 @@ class HeatLossPanelV3(QWidget):
                 item.setToolTip("Click to assign adjacent room")
 
             if is_child:
-                item.setForeground(QColor("#555555"))  # softer child rows
+                item.setForeground(QColor("#555555"))
 
             table.setItem(r, 0, item)
 
             # --------------------------------------------------
             # Numeric columns
             # --------------------------------------------------
+
+            # Area
             area = get("A") or get("area_m2")
-            table.setItem(
-                r,
-                1,
-                self._num_item(f"{area:.2f}" if isinstance(area, (int, float)) else "—"),
+            item_area = self._num_item(
+                f"{area:.2f}" if isinstance(area, (int, float)) else "—"
             )
+            table.setItem(r, 1, item_area)
 
+            # U-value
             u = get("U") or get("u_value_W_m2K")
-            table.setItem(
-                r,
-                2,
-                self._num_item(f"{u:.3f}" if isinstance(u, (int, float)) else "—"),
+            item_u = self._num_item(
+                f"{u:.3f}" if isinstance(u, (int, float)) else "—"
             )
+            table.setItem(r, 2, item_u)
 
+            # ΔT (with colour)
             dt = get("dT") or get("delta_t_K")
-            table.setItem(
-                r,
-                3,
-                self._num_item(f"{dt:.1f}" if isinstance(dt, (int, float)) else "—"),
+            item_dt = self._num_item(
+                f"{dt:.1f}" if isinstance(dt, (int, float)) else "—"
             )
+            if isinstance(dt, (int, float)):
+                self._apply_value_colour(item_dt, float(dt))
+            table.setItem(r, 3, item_dt)
 
+            # Qf (with colour)
             qf = get("Qf") or get("qf_W")
-            table.setItem(
-                r,
-                4,
-                self._num_item(f"{qf:.1f}" if isinstance(qf, (int, float)) else "—"),
+            item_qf = self._num_item(
+                f"{qf:.1f}" if isinstance(qf, (int, float)) else "—"
             )
+            if isinstance(qf, (int, float)):
+                self._apply_value_colour(item_qf, float(qf))
+            table.setItem(r, 4, item_qf)
 
             # --------------------------------------------------
             # Row state colouring
@@ -507,10 +523,23 @@ class HeatLossPanelV3(QWidget):
 
         table.setUpdatesEnabled(True)
         table.setSortingEnabled(False)
+
+    from PySide6.QtGui import QColor
+
+    @staticmethod
+    def _apply_value_colour(item: QTableWidgetItem, value: float | None) -> None:
+        if value is None:
+            return
+
+        if value < 0:
+            item.setForeground(QColor(100, 160, 255))  # soft blue (gain)
+        elif value == 0:
+            item.setForeground(QColor(150, 150, 150))  # grey (adiabatic)
+        # positive → leave default (cleanest)
+
     def _apply_row_state(self, row: int, state: str) -> None:
         if state == "GREEN":
             return
-
         if state == "ORANGE":
             color = QColor(255, 243, 205)
         elif state == "RED":
@@ -535,17 +564,33 @@ class HeatLossPanelV3(QWidget):
             return
 
         row_meta = self._row_meta[row]
-        cell_meta = row_meta.columns.get(column) if row_meta else None
-
-        if cell_meta and cell_meta.editable:
-            self.worksheet_cell_edit_requested.emit(row, column)
 
         element_item = table.item(row, 0)
         if element_item is None:
             return
 
         surface_id = element_item.data(Qt.UserRole)
-        self.surface_focus_requested.emit(surface_id)
+
+        # --------------------------------------------------
+        # 🔥 Adjacency click on ΔT column
+        # --------------------------------------------------
+        if column == 3 and getattr(row_meta, "adjacency_editable", False):
+            if surface_id:
+                self.adjacency_edit_requested.emit(str(surface_id))
+            return
+
+        # --------------------------------------------------
+        # Editable cell (future use)
+        # --------------------------------------------------
+        cell_meta = row_meta.columns.get(column) if row_meta else None
+        if cell_meta and cell_meta.editable:
+            self.worksheet_cell_edit_requested.emit(row, column)
+
+        # --------------------------------------------------
+        # Fallback: focus
+        # --------------------------------------------------
+        if surface_id:
+            self.surface_focus_requested.emit(surface_id)
 
     # ------------------------------------------------------------------
     # Room-level result display
@@ -629,9 +674,4 @@ class HeatLossPanelV3(QWidget):
         item = QTableWidgetItem(text)
         item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
         item.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
-
-        font = QFont()
-        font.setStyleHint(QFont.Monospace)
-        item.setFont(font)
-
         return item

@@ -17,19 +17,14 @@ from HVAC.topology.boundary_segment_v1 import BoundarySegmentV1
 
 class TopologyResolverV1:
     """
-    Phase IV-A → IV-B bridge
+    DEV rectangular topology generator.
 
-    Responsibilities
-    ----------------
-    • Build boundary segments from geometry (DEV)
-    • Populate ProjectState.boundary_segments (authoritative)
-    • Provide read access to segments per room
-
-    Notes
-    -----
-    • No adjacency logic yet
-    • No validation yet
-    • Flat segment storage (segment_id keyed)
+    Status
+    ------
+    • Allowed only for initial topology creation in new_project()
+    • Must never be called on loaded projects
+    • Must never be called during geometry edits or refresh
+    • Does not preserve adjacency
     """
 
     # ------------------------------------------------------------------
@@ -38,6 +33,13 @@ class TopologyResolverV1:
 
     @staticmethod
     def resolve_project(project: ProjectState) -> None:
+
+        if project.boundary_segments:
+            print("🚫 Resolver skipped — topology already exists")
+            return
+
+        print("🔥 TopologyResolverV1.resolve_project CALLED 🔥")
+
         for room in project.rooms.values():
             segments = TopologyResolverV1._build_segments_for_room(room)
             project.set_boundary_segments_for_room(room.room_id, segments)

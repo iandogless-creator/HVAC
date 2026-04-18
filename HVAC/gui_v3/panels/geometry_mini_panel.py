@@ -16,27 +16,14 @@ from PySide6.QtWidgets import (
 )
 
 
-# ======================================================================
-# GeometryMiniPanel
-# ======================================================================
-
 class GeometryMiniPanel(QWidget):
     """
     Geometry editor (overlay panel)
 
-    Authority
-    ---------
-    • Edits geometry only (length, width, height)
-    • Emits committed values only
-    • Does NOT mutate ProjectState directly
-    • Does NOT perform calculations
-    • Does NOT display results (Qf, etc.)
-
-    Lifecycle
-    ---------
-    • Created by OverlayController
-    • Primed by adapter
-    • Emits commit → adapter writes → refresh
+    RULE (LOCKED)
+    -------------
+    • NO calculations in panel
+    • Derived values come from adapter only
     """
 
     # ------------------------------------------------------------------
@@ -44,8 +31,7 @@ class GeometryMiniPanel(QWidget):
     # ------------------------------------------------------------------
     geometry_committed = Signal(dict)
     internal_temp_changed = Signal(float)
-    # ------------------------------------------------------------------
-    # Construction
+
     # ------------------------------------------------------------------
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -63,13 +49,10 @@ class GeometryMiniPanel(QWidget):
         root.setContentsMargins(8, 8, 8, 8)
         root.setSpacing(6)
 
-        # Header
         self._header = QLabel("Geometry")
         self._header.setStyleSheet("font-weight: 600;")
         root.addWidget(self._header)
 
-        # Inputs
-        # Inputs (geometry)
         self._spin_length = self._m_spin()
         self._spin_width = self._m_spin()
         self._spin_height = self._m_spin()
@@ -78,14 +61,15 @@ class GeometryMiniPanel(QWidget):
         root.addLayout(self._row("Width (m):", self._spin_width))
         root.addLayout(self._row("Height (m):", self._spin_height))
 
-        # Internal temperature (Ti)
+        # Internal temp
         self._ti_spin = QDoubleSpinBox(self)
         self._ti_spin.setRange(5.0, 35.0)
         self._ti_spin.setDecimals(1)
         self._ti_spin.setSuffix(" °C")
 
         root.addLayout(self._row("Internal temp (°C):", self._ti_spin))
-        # Derived display (read-only, visual only)
+
+        # ✅ CORRECT labels
         self._lbl_floor = QLabel("— m²")
         self._lbl_volume = QLabel("— m³")
 
@@ -94,18 +78,29 @@ class GeometryMiniPanel(QWidget):
         root.addLayout(self._row("Volume:", self._lbl_volume))
 
     # ------------------------------------------------------------------
-    # Wiring
-    # ------------------------------------------------------------------
     def _wire_signals(self) -> None:
         self._ti_spin.editingFinished.connect(
             lambda: self.internal_temp_changed.emit(self._ti_spin.value())
         )
+
         for spin in (self._spin_length, self._spin_width, self._spin_height):
             spin.editingFinished.connect(self._on_edit_finished)
-            spin.valueChanged.connect(self._update_derived_labels)
+
+        # ❌ REMOVED: valueChanged → no live calculations
 
     # ------------------------------------------------------------------
-    # Public API (adapter calls)
+    # ✅ Adapter API (ONLY way to set derived values)
+    # ------------------------------------------------------------------
+    def set_floor_area(self, value: float | None) -> None:
+        text = f"{value:.2f} m²" if value is not None else "— m²"
+        self._lbl_floor.setText(text)
+
+    def set_volume(self, value: float | None) -> None:
+        text = f"{value:.2f} m³" if value is not None else "— m³"
+        self._lbl_volume.setText(text)
+
+    # ------------------------------------------------------------------
+    # Public API
     # ------------------------------------------------------------------
     def set_room_header(self, room_name: str) -> None:
         self._header.setText(f"Geometry — {room_name}")
@@ -121,8 +116,6 @@ class GeometryMiniPanel(QWidget):
         self._set_spin(self._spin_width, width_m)
         self._set_spin(self._spin_height, height_m)
 
-        self._update_derived_labels()
-
         self._last_values = self._collect_values()
 
     def clear(self) -> None:
@@ -131,8 +124,8 @@ class GeometryMiniPanel(QWidget):
             width_m=0.0,
             height_m=0.0,
         )
-        self._lbl_floor.setText("— m²")
-        self._lbl_volume.setText("— m³")
+        self.set_floor_area(None)
+        self.set_volume(None)
         self._last_values = None
 
     # ------------------------------------------------------------------
@@ -170,21 +163,6 @@ class GeometryMiniPanel(QWidget):
             and v["height_m"] > 0
         )
 
-    def _update_derived_labels(self) -> None:
-        l = self._spin_length.value()
-        w = self._spin_width.value()
-        h = self._spin_height.value()
-
-        if l > 0 and w > 0:
-            self._lbl_floor.setText(f"{l * w:.2f} m²")
-        else:
-            self._lbl_floor.setText("— m²")
-
-        if l > 0 and w > 0 and h > 0:
-            self._lbl_volume.setText(f"{l * w * h:.2f} m³")
-        else:
-            self._lbl_volume.setText("— m³")
-
     def _set_spin(self, spin: QDoubleSpinBox, value: Optional[float]) -> None:
         spin.blockSignals(True)
         spin.setValue(float(value) if value is not None else 0.0)
@@ -196,9 +174,6 @@ class GeometryMiniPanel(QWidget):
         else:
             self.setStyleSheet("")
 
-    # ------------------------------------------------------------------
-    # UI helpers
-    # ------------------------------------------------------------------
     def _row(self, label: str, widget: QWidget) -> QHBoxLayout:
         row = QHBoxLayout()
         row.addWidget(QLabel(label))

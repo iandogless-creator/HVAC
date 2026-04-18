@@ -122,3 +122,4 @@ class OverlayController:
         spin.setDecimals(3)
         spin.setSingleStep(0.10)
         return spin
+

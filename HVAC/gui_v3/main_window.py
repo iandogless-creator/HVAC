@@ -52,7 +52,7 @@ from HVAC.gui_v3.adapters.hlpe_overlay_adapter import HLPEOverlayAdapter
 from HVAC.gui_v3.adapters.hydronics_schematic_panel_adapter import (
     HydronicsSchematicPanelAdapter,
 )
-from HVAC.gui_v3.adapters.dev_settings_adapter import DevSettingsAdapter
+
 from HVAC.gui_v3.adapters.geometry_mini_panel_adapter import GeometryMiniPanelAdapter
 from HVAC.gui_v3.adapters.ach_mini_panel_adapter import ACHMiniPanelAdapter
 
@@ -85,10 +85,14 @@ class MainWindowV3(QMainWindow):
         super().__init__()
 
         self._context = context
-
+        self._overlay_editor_controller = OverlayEditorController(
+            main_window=self,
+            context=self._context,
+        )
         self._build_ui()
-        self._wire_adapters()
-
+        self._heat_loss_panel.adjacency_edit_requested.connect(
+            self._overlay_editor_controller.show_adjacency_editor
+        )
         self.setCentralWidget(QWidget(self))
         self.setWindowTitle("HVACgooee")
         self.setMinimumWidth(260)
@@ -151,7 +155,10 @@ class MainWindowV3(QMainWindow):
         self._geometry_mini_panel = GeometryMiniPanel(self)
         self._ach_mini_panel = ACHMiniPanel(self)
 
+
+
         # Overlay
+
         self._overlay_controller = OverlayEditorController(self, self._context)
         self._hlpe_panel = HLPEOverlayPanel(self)
         self._hlpe_overlay_adapter = HLPEOverlayAdapter(
@@ -216,12 +223,7 @@ class MainWindowV3(QMainWindow):
     # ------------------------------------------------------------------
     # Adapter wiring
     # ------------------------------------------------------------------
-    def _wire_adapters(self) -> None:
-        self._dev_adapter = DevSettingsAdapter(
-            panel=self._dev_panel,
-            context=self._context,
-            main_window=self,
-        )
+
 
     def _on_edit_requested(self, kind: str, surface_id: str) -> None:
         context = self._context
@@ -241,31 +243,7 @@ class MainWindowV3(QMainWindow):
             )
         )
 
-    def _open_adjacency_overlay(self, surface_id: str) -> None:
-        """
-        Entry point for adjacency editing.
 
-        Current phase:
-        • Just confirms wiring works
-        • Next phase: replace with real overlay panel
-        """
-
-        context = self._context
-        room_id = context.current_room_id
-
-        if not room_id:
-           return
-
-        print(f"[Adjacency] Edit requested for {surface_id} in room {room_id}")
-
-        # --------------------------------------------------
-        # TEMP (Phase IV-D)
-        # --------------------------------------------------
-        QMessageBox.information(
-            self,
-            "Adjacency Editor",
-            f"Edit adjacency for:\n{surface_id}\n(Room: {room_id})",
-        )
 
 
     def _create_default_room(self, project: ProjectState) -> str:
@@ -346,57 +324,50 @@ class MainWindowV3(QMainWindow):
     # ------------------------------------------------------------------
     # Project lifecycle
     # ------------------------------------------------------------------
-
     def new_project(self) -> None:
-
         project_state = ProjectFactoryV3.create_default()
 
         # --------------------------------------------------
-        # 1. Bind project to context FIRST
+        # Create default room
+        # --------------------------------------------------
+        room_id = self._create_default_room(project_state)
+
+        # --------------------------------------------------
+        # Build topology (canonical)
+        # --------------------------------------------------
+        from HVAC.topology.topology_resolver_v1 import TopologyResolverV1
+        from HVAC.topology.topology_symmetry_enforcer_v1 import TopologySymmetryEnforcerV1
+
+        TopologyResolverV1.resolve_project(project_state)
+        TopologySymmetryEnforcerV1.enforce(project_state)
+
+        # 🔒 Safety check
+        if not project_state.boundary_segments:
+            raise RuntimeError("Topology creation failed")
+
+        print(f"[TOPOLOGY] created: {len(project_state.boundary_segments)} segments")
+
+        # --------------------------------------------------
+        # Bind project (AFTER complete state)
         # --------------------------------------------------
         self._context.set_project_state(
             project_state,
             project_dir=None,
         )
 
-        def new_project(self) -> None:
-            project_state = ProjectFactoryV3.create_default()
+        # --------------------------------------------------
+        # Select room (signal-safe)
+        # --------------------------------------------------
+        self._context.set_current_room(room_id)
 
-            # --------------------------------------------------
-            # 1. Bind project
-            # --------------------------------------------------
-            self._context.set_project_state(
-                project_state,
-                project_dir=None,
-            )
-
-            # --------------------------------------------------
-            # 2. Create room
-            # --------------------------------------------------
-            room_id = self._create_default_room(project_state)
-
-            # --------------------------------------------------
-            # ✅ FORCE topology resolution immediately
-            # --------------------------------------------------
-            from HVAC.topology.topology_resolver_v1 import TopologyResolverV1
-
-            TopologyResolverV1.resolve_project(project_state)
-
-            # --------------------------------------------------
-            # Select room
-            # --------------------------------------------------
-            self._context.set_current_room_id(room_id)
-
-            # --------------------------------------------------
-            # Refresh UI
-            # --------------------------------------------------
-            self._refresh_all_adapters()
-
+        # --------------------------------------------------
+        # Refresh UI
+        # --------------------------------------------------
+        self._refresh_all_adapters()
 
     def _open_project(self) -> None:
 
         hvac_root = Path(__file__).resolve().parents[1]
-
         default_dir = hvac_root / "HVACprojects"
 
         directory = QFileDialog.getExistingDirectory(
@@ -409,10 +380,12 @@ class MainWindowV3(QMainWindow):
             return
 
         project_dir = Path(directory)
+        ps = load_project(project_dir)
 
-        project_state = load_project(project_dir)
-        print("[DEBUG] segments:", project_state.boundary_segments)
-        ps = project_state
+        # --------------------------------------------------
+        # 🔥 DROP LEGACY TOPOLOGY
+        # --------------------------------------------------
+        ps.boundary_segments = {}
 
         # --------------------------------------------------
         # Ensure construction library
@@ -437,26 +410,18 @@ class MainWindowV3(QMainWindow):
             env.default_ach = 0.5
 
         # --------------------------------------------------
-        # Topology mode
+        # Rebuild topology (canonical)
         # --------------------------------------------------
-        from HVAC.topology.topology_mode import get_topology_mode
+        from HVAC.topology.topology_resolver_v1 import TopologyResolverV1
+        from HVAC.topology.topology_symmetry_enforcer_v1 import TopologySymmetryEnforcerV1
 
-        mode = get_topology_mode()
+        TopologyResolverV1.resolve_project(ps)
+        TopologySymmetryEnforcerV1.enforce(ps)
 
-        if mode == "bootstrap":
-            from HVAC.topology.dev_two_room_adjacency_bootstrap import (
-                apply_two_room_adjacency_bootstrap,
-            )
-            print(f"[Topology Mode] {mode}")
-            apply_two_room_adjacency_bootstrap(ps)
-
-        elif mode == "resolver":
-            from HVAC.topology.topology_resolver_v1 import TopologyResolverV1
-            print(f"[resolver Mode] {mode}")
-            TopologyResolverV1.resolve_project(ps)
+        print(f"[TOPOLOGY] rebuilt: {len(ps.boundary_segments)} segments")
 
         # --------------------------------------------------
-        # Attach to context
+        # Bind project (AFTER rebuild)
         # --------------------------------------------------
         self._context.set_project_state(
             ps,
@@ -467,7 +432,6 @@ class MainWindowV3(QMainWindow):
         # Select first room
         # --------------------------------------------------
         rooms = list(ps.rooms.keys())
-
         if rooms:
             self._context.set_current_room(rooms[0])
 
@@ -513,11 +477,11 @@ class MainWindowV3(QMainWindow):
                 lambda _: self._refresh_all_adapters()
             )
 
-        # ✅ NEW — adjacency interaction
-        if hasattr(self._context, "adjacency_edit_requested"):
-            self._context.adjacency_edit_requested.connect(
-                self._open_adjacency_overlay
-            )
+
+    # ------------------------------------------------------------------
+    # Adjacency
+    # ------------------------------------------------------------------
+
 
     # ------------------------------------------------------------------
     # Navigation

@@ -21,6 +21,7 @@ class HeatLossControllerV4:
     def __init__(self, *, project_state: ProjectState) -> None:
         self._ps = project_state
 
+    @staticmethod
     def run(
             self,
             *,
@@ -36,7 +37,7 @@ class HeatLossControllerV4:
         Precondition:
             Readiness already validated by caller.
         """
-
+        print(">>> RUN METHOD HIT")
         # --------------------------------------------------------------
         # Phase II-A — Fabric
         # --------------------------------------------------------------

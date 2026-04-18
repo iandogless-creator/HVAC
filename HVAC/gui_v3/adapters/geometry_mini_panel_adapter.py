@@ -4,13 +4,19 @@
 
 from __future__ import annotations
 
-from typing import Optional, Any
+from typing import Optional
 
 from HVAC.gui_v3.context.gui_project_context import GuiProjectContext
 from HVAC.gui_v3.panels.geometry_mini_panel import GeometryMiniPanel
 
-from HVAC.topology.topology_resolver_v1 import TopologyResolverV1
 from HVAC.heatloss.fabric.fabric_from_segments_v1 import FabricFromSegmentsV1
+
+# ✅ NEW: canonical derived geometry
+from HVAC.core.derived_geometry import (
+    resolve_floor_area_m2,
+    resolve_volume_m3,
+)
+
 
 class GeometryMiniPanelAdapter:
     """
@@ -18,23 +24,18 @@ class GeometryMiniPanelAdapter:
 
     Responsibilities
     ----------------
-    • Prime GeometryMiniPanel from ProjectState
-    • Prime GeometryMiniPanel from ProjectState
-    • Receive committed geometry values
-    • Apply geometry to ProjectState (authoritative)
-    • Trigger topology resolution
+    • Prime panel from ProjectState
+    • Apply committed geometry
+    • Trigger fabric rebuild
     • Mark heat-loss dirty
     • Trigger global refresh
 
     Authority
     ---------
-    • Reads and writes ProjectState
-    • Does NOT construct polygons
-    • Does NOT perform heat-loss calculations
+    • Reads/writes ProjectState
+    • NO calculations (delegates to resolution layer)
     """
 
-    # ------------------------------------------------------------------
-    # Construction
     # ------------------------------------------------------------------
     def __init__(
         self,
@@ -50,9 +51,13 @@ class GeometryMiniPanelAdapter:
 
         # Panel → commit
         self._panel.geometry_committed.connect(self._on_geometry_committed)
+
         # Context → refresh
         self._context.current_room_changed.connect(self._on_room_changed)
+
+        # Internal temp
         self._panel.internal_temp_changed.connect(self._on_internal_temp_changed)
+
         self._prime_from_context()
 
     # ------------------------------------------------------------------
@@ -71,8 +76,13 @@ class GeometryMiniPanelAdapter:
 
         room.internal_temp_override_C = value
 
+        # ✅ FIXED: correct signal usage
+        self._context.room_state_changed.emit(room_id)
+        self._context.room_state_changed.emit(room_id)
+
         if hasattr(ps, "mark_heatloss_dirty"):
             ps.mark_heatloss_dirty()
+
         self._context.current_room_changed.emit(room_id)
 
     def _on_room_changed(self, _room_id: Optional[str]) -> None:
@@ -91,21 +101,48 @@ class GeometryMiniPanelAdapter:
             self._panel.clear()
             return
 
-        # Header
-        if hasattr(self._panel, "set_room_header"):
-            self._panel.set_room_header(getattr(room, "name", ""))
+        g = room.geometry
 
-        g = getattr(room, "geometry", None)
+        # --------------------------------------------------
+        # Geometry → panel
+        # --------------------------------------------------
+        if g:
+            self._panel._spin_length.blockSignals(True)
+            self._panel._spin_width.blockSignals(True)
+            self._panel._spin_height.blockSignals(True)
 
-        if g is None:
-            self._panel.set_values(None, None, None)
-            return
+            self._panel._spin_length.setValue(float(g.length_m or 0.0))
+            self._panel._spin_width.setValue(float(g.width_m or 0.0))
+            self._panel._spin_height.setValue(float(g.height_m or 0.0))
 
-        self._panel.set_values(
-            length_m=g.length_m,
-            width_m=g.width_m,
-            height_m=g.height_m,
-        )
+            self._panel._spin_length.blockSignals(False)
+            self._panel._spin_width.blockSignals(False)
+            self._panel._spin_height.blockSignals(False)
+
+        # --------------------------------------------------
+        # Internal temp resolution
+        # --------------------------------------------------
+        from HVAC.core.value_resolution import resolve_effective_internal_temp_C
+
+        ti, _ = resolve_effective_internal_temp_C(ps, room)
+
+        if ti is None:
+            env = ps.environment
+            ti = getattr(env, "default_internal_temp_C", 21.0) if env else 21.0
+
+        self._panel._ti_spin.blockSignals(True)
+        self._panel._ti_spin.setValue(float(ti))
+        self._panel._ti_spin.blockSignals(False)
+
+        # --------------------------------------------------
+        # ✅ DERIVED VALUES (CANONICAL — NO INLINE MATH)
+        # --------------------------------------------------
+        floor_area = resolve_floor_area_m2(room)
+        volume = resolve_volume_m3(room, ps)
+
+        # ✅ SAFE API ONLY (no private label access)
+        self._panel.set_floor_area(floor_area)
+        self._panel.set_volume(volume)
 
     # ------------------------------------------------------------------
     # Panel → ProjectState
@@ -126,46 +163,37 @@ class GeometryMiniPanelAdapter:
             return
 
         # --------------------------------------------------
-        # 1. Authoritative geometry write
+        # 1. Authoritative write
         # --------------------------------------------------
         try:
-            L = float(values.get("length_m"))
-            W = float(values.get("width_m"))
-            H = float(values.get("height_m"))
+            g.length_m = float(values.get("length_m"))
+            g.width_m = float(values.get("width_m"))
+            g.height_m = float(values.get("height_m"))
         except (TypeError, ValueError):
             return
 
-        g.length_m = L
-        g.width_m = W
-        g.height_m = H
-
         # --------------------------------------------------
-        # 2. Topology resolution
-        # --------------------------------------------------
-        TopologyResolverV1.resolve_project(ps)
-
-        # --------------------------------------------------
-        # 3. Fabric rebuild (CORRECT)
+        # 2. Fabric rebuild (derived pipeline)
         # --------------------------------------------------
         for r in ps.rooms.values():
-            rows = FabricFromSegmentsV1.build_rows_for_room(ps, r)
-            r.fabric_elements = rows
+            r.fabric_elements = FabricFromSegmentsV1.build_rows_for_room(ps, r)
 
         # --------------------------------------------------
-        # DEBUG (AFTER pipeline — this is critical)
+        # Debug
         # --------------------------------------------------
         room_segments = ps.get_boundary_segments_for_room(room_id)
         print("Segments:", len(room_segments))
 
         fabric = getattr(room, "fabric_elements", [])
         print("Fabric:", len(fabric))
+
         # --------------------------------------------------
-        # 4. Mark heat-loss dirty
+        # 3. Lifecycle
         # --------------------------------------------------
         if hasattr(ps, "mark_heatloss_dirty"):
             ps.mark_heatloss_dirty()
 
         # --------------------------------------------------
-        # 5. Global refresh
+        # 4. Refresh
         # --------------------------------------------------
         self._refresh_all()

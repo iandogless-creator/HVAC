@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Optional
+from HVAC.topology.boundary_segment_v1 import BoundarySegmentV1
 
 
 @dataclass(slots=True)
@@ -55,3 +56,4 @@ class FabricSurfaceRowV1:
     # Phase IV-D — hierarchy (UI only)
     # --------------------------------------------------
     parent_surface_id: Optional[str] = None
+    _segment: Optional[BoundarySegmentV1] = None

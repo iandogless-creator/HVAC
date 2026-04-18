@@ -43,8 +43,10 @@ def apply_two_room_adjacency_bootstrap(project) -> None:
     # ==================================================
     # ROOM 1
     # ==================================================
-    segments_r1 = [
-        # External long wall
+    segments_r1 = []
+
+    # External long wall
+    segments_r1.append(
         BoundarySegmentV1(
             segment_id=f"{r1.room_id}-wall-ext-1",
             owner_room_id=r1.room_id,
@@ -52,9 +54,11 @@ def apply_two_room_adjacency_bootstrap(project) -> None:
             length_m=float(L1),
             boundary_kind="EXTERNAL",
             adjacent_room_id=None,
-        ),
+        )
+    )
 
-        # Shared wall
+    # Shared wall
+    segments_r1.append(
         BoundarySegmentV1(
             segment_id=f"{r1.room_id}-wall-int-1",
             owner_room_id=r1.room_id,
@@ -62,9 +66,11 @@ def apply_two_room_adjacency_bootstrap(project) -> None:
             length_m=shared_len,
             boundary_kind="INTER_ROOM",
             adjacent_room_id=r2.room_id,
-        ),
+        )
+    )
 
-        # Opposite external wall
+    # Opposite external wall
+    segments_r1.append(
         BoundarySegmentV1(
             segment_id=f"{r1.room_id}-wall-ext-2",
             owner_room_id=r1.room_id,
@@ -72,23 +78,31 @@ def apply_two_room_adjacency_bootstrap(project) -> None:
             length_m=float(L1),
             boundary_kind="EXTERNAL",
             adjacent_room_id=None,
-        ),
+        )
+    )
 
-        # Remaining width (external remainder)
-        BoundarySegmentV1(
-            segment_id=f"{r1.room_id}-wall-ext-3",
-            owner_room_id=r1.room_id,
-            geometry_ref="edge-W1-rem",
-            length_m=float(W1 - shared_len),
-            boundary_kind="EXTERNAL",
-            adjacent_room_id=None,
-        ),
-    ]
+    # Remaining width (ONLY if > 0)
+    rem_len_r1 = float(W1 - shared_len)
+
+    if rem_len_r1 > 0.0:
+        segments_r1.append(
+            BoundarySegmentV1(
+                segment_id=f"{r1.room_id}-wall-ext-3",
+                owner_room_id=r1.room_id,
+                geometry_ref="edge-W1-rem",
+                length_m=rem_len_r1,
+                boundary_kind="EXTERNAL",
+                adjacent_room_id=None,
+            )
+        )
 
     # ==================================================
     # ROOM 2 (mirror)
     # ==================================================
-    segments_r2 = [
+    segments_r2 = []
+
+    # External long wall
+    segments_r2.append(
         BoundarySegmentV1(
             segment_id=f"{r2.room_id}-wall-ext-1",
             owner_room_id=r2.room_id,
@@ -96,8 +110,11 @@ def apply_two_room_adjacency_bootstrap(project) -> None:
             length_m=float(L2),
             boundary_kind="EXTERNAL",
             adjacent_room_id=None,
-        ),
+        )
+    )
 
+    # Shared wall
+    segments_r2.append(
         BoundarySegmentV1(
             segment_id=f"{r2.room_id}-wall-int-1",
             owner_room_id=r2.room_id,
@@ -105,8 +122,11 @@ def apply_two_room_adjacency_bootstrap(project) -> None:
             length_m=shared_len,
             boundary_kind="INTER_ROOM",
             adjacent_room_id=r1.room_id,
-        ),
+        )
+    )
 
+    # Opposite external wall
+    segments_r2.append(
         BoundarySegmentV1(
             segment_id=f"{r2.room_id}-wall-ext-2",
             owner_room_id=r2.room_id,
@@ -114,17 +134,23 @@ def apply_two_room_adjacency_bootstrap(project) -> None:
             length_m=float(L2),
             boundary_kind="EXTERNAL",
             adjacent_room_id=None,
-        ),
+        )
+    )
 
-        BoundarySegmentV1(
-            segment_id=f"{r2.room_id}-wall-ext-3",
-            owner_room_id=r2.room_id,
-            geometry_ref="edge-W2-rem",
-            length_m=float(W2 - shared_len),
-            boundary_kind="EXTERNAL",
-            adjacent_room_id=None,
-        ),
-    ]
+    # Remaining width (ONLY if > 0)
+    rem_len_r2 = float(W2 - shared_len)
+
+    if rem_len_r2 > 0.0:
+        segments_r2.append(
+            BoundarySegmentV1(
+                segment_id=f"{r2.room_id}-wall-ext-3",
+                owner_room_id=r2.room_id,
+                geometry_ref="edge-W2-rem",
+                length_m=rem_len_r2,
+                boundary_kind="EXTERNAL",
+                adjacent_room_id=None,
+            )
+        )
 
     # --------------------------------------------------
     # Apply

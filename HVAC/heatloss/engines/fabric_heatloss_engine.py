@@ -46,11 +46,9 @@ class FabricHeatLossEngine:
     # Execute
     # ------------------------------------------------------------------
 
-    def run(
-        self,
-        surfaces: Iterable[FabricSurfaceInputDTO],
-    ) -> list[dict]:
 
+    @staticmethod
+    def run(surfaces):
         results: List[dict] = []
 
         for s in surfaces:
