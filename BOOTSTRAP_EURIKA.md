@@ -1,171 +1,203 @@
+# HVACgooee — EURIKA Bootstrap
+
+**Status:** FROZEN
+**Scope:** First end-to-end authoritative HVAC pipeline
+
+---
+
+## Overview
+
+This bootstrap defines the first **fully coherent system state**.
+
+It proves that HVACgooee:
+
+* Separates intent from physics correctly
+* Executes deterministically
+* Commits results explicitly
+* Maintains strict authority boundaries
+
+From this point onward:
+
+> **New features are added above this layer, not inside it.**
+
+---
+
+## Canonical Pipeline (LOCKED)
+
+```id="pipeline1"
 project.json
 ↓
 ProjectFactoryV3
 ↓
 ProjectState (authoritative)
 ↓
-Construction resolution
+Construction Resolution
 ↓
 HeatLossRunnerV3
 ↓
 Qt (W)
+```
 
-
-Everything beyond this point must build *on top*, not reach *inside*.
-
----
-
-## What Is Proven (LOCKED)
-
-### 1. Project Assembly — v3 (LOCKED)
-
-- `ProjectFactoryV3` is the **sole authority** for:
-  - Project metadata
-  - Environment inputs
-  - Room geometry
-  - Templates
-  - Deterministic surface generation
-- Factories:
-  - Assemble **intent only**
-  - Perform **no physics**
-  - Perform **no validation inference**
-- All project objects are fully deterministic after load
-
-LOCKED.
+Everything beyond this point must **build on top**, not reach inside.
 
 ---
 
-### 2. Construction Resolution — v2 (LOCKED)
+## What Is Proven
 
-- Construction presets resolve to a minimal:
-  - `ConstructionUValueResultDTO`
-- Resolution is:
-  - SurfaceClass-keyed
-  - Registry-controlled
-  - Explicit
-- Results are:
-  - Committed once
-  - Stored in `ProjectState`
-  - Never recomputed implicitly
+### 1. Project Assembly — v3
 
-LOCKED.
+* `ProjectFactoryV3` is the sole authority for:
 
----
+  * project metadata
+  * environment inputs
+  * room geometry
+  * templates
+  * deterministic surface generation
 
-### 3. ProjectState Authority (LOCKED)
+Factories:
 
-- `ProjectState` is the **single source of truth**
-- Engines:
-  - Read from `ProjectState`
-  - Never mutate it
-- GUI:
-  - Observes only
-  - Never decides
-- Validity is:
-  - Explicit
-  - Never inferred
+* assemble **intent only**
+* perform **no physics**
+* perform **no validation inference**
 
-LOCKED.
+All project objects are deterministic after load.
 
 ---
 
-### 4. Heat-Loss Engine — v3 (LOCKED)
+### 2. Construction Resolution — v2
 
-- `HeatLossRunnerV3` is:
-  - Pure
-  - Deterministic
-  - Side-effect free
-- It consumes:
-  - `ProjectState.constructions`
-  - Space surfaces
-  - Explicit environment temperatures
-- It produces:
-  - A single authoritative Qt (W)
-- It does **not**:
-  - Mutate project state
-  - Set validity flags
-  - Import GUI
-  - Import hydronics
+* Construction presets resolve to:
 
-LOCKED.
+  * `ConstructionUValueResultDTO`
+
+Resolution is:
+
+* explicit
+* registry-controlled
+* surface-class keyed
+
+Results:
+
+* committed once
+* stored in `ProjectState`
+* never recomputed implicitly
 
 ---
 
-### 5. Orchestration Contract (LOCKED)
+### 3. ProjectState Authority
 
-- End-to-end execution is coordinated by headless runners
-- Orchestration:
-  - Sequences engines
-  - Commits results explicitly
-  - Never embeds physics
-- Engines remain unaware of orchestration
+* `ProjectState` is the single source of truth
 
-LOCKED.
+Engines:
 
----
+* read only
+* never mutate
 
-## What Is Explicitly *Not* Included
+GUI:
 
-The following are **deliberately excluded**, not missing:
+* observes only
+* never decides
 
-- Ventilation / infiltration losses
-- Dynamic fabric or Y-values
-- Comfort models (Tai / operative temperature)
-- Orientation, solar, shading
-- GUI authority
-- Hydronic sizing coupling
+Validity is:
 
-These are **future layers**, added above this freeze.
+* explicit
+* never inferred
 
 ---
 
-## Engineering Semantics (Declared)
+### 4. Heat-Loss Engine — v3
 
-- **Ti**
-  Canonical steady-state internal design temperature
-  (authoritative for v1 heat-loss)
+`HeatLossRunnerV3` is:
 
-- **Te / Teo**
-  External design temperature (steady-state)
+* pure
+* deterministic
+* side-effect free
 
-- **Tai / comfort models**
-  Deferred to later layers
-  (environment panel planned)
+It consumes:
 
-No semantic ambiguity exists at this freeze level.
+* constructions
+* surfaces
+* environment temperatures
+
+It produces:
+
+* a single authoritative result (Qt, W)
+
+It does **not**:
+
+* mutate state
+* set validity
+* import GUI
+* import hydronics
+
+---
+
+### 5. Orchestration Contract
+
+Execution is coordinated by headless orchestration:
+
+* sequences engines
+* commits results explicitly
+* contains no physics
+
+Engines remain unaware of orchestration.
+
+---
+
+## What Is Explicitly Not Included
+
+The following are **intentionally excluded**:
+
+* Ventilation / infiltration losses
+* Dynamic fabric (Y-values)
+* Comfort models (Tai, operative temperature)
+* Solar / orientation / shading
+* GUI authority
+* Hydronic coupling
+
+These are future layers built above this bootstrap.
+
+---
+
+## Engineering Semantics
+
+* **Ti** — internal design temperature (steady-state, authoritative)
+* **Te** — external design temperature
+* **Tai / comfort models** — deferred to later phases
+
+No ambiguity exists at this level.
 
 ---
 
 ## Why This Matters
 
-This bootstrap demonstrates that HVACgooee:
+This bootstrap demonstrates that the system:
 
-- Separates intent from physics correctly
-- Scales without architectural refactor
-- Preserves legacy CIBSE-era methods cleanly
-- Allows GUI development without engine compromise
-- Can support dynamic and comfort models safely later
+* is deterministic
+* is auditable
+* separates concerns correctly
+* scales without architectural refactor
+* preserves traditional methods without locking them in
 
-From this point onward:
+It establishes a stable base for:
 
-> **New features are additions, not rewrites.**
+* GUI development
+* additional physics layers
+* validation against real-world examples
 
 ---
 
-## Next Steps (UNLOCKED)
+## Extension Rule
 
-The following may proceed without breaking this bootstrap:
+From this point onward:
 
-- End-to-end reference projects
-- Validation packs (CIBSE-style examples)
-- GUI v3:
-  - Observer first
-  - Intent editor later
-- Ventilation & infiltration layers
-- Environment / comfort panel
-- Documentation and examples
+* No modification of locked behaviour
+* No widening of contracts
+* No implicit coupling
 
-Any modification to the locked sections above requires a **new bootstrap**.
+If a change requires breaking these rules:
+
+→ a new bootstrap must be created
 
 ---
 
@@ -173,35 +205,240 @@ Any modification to the locked sections above requires a **new bootstrap**.
 
 **EURIKA is frozen.**
 
-This document is an architectural anchor.
-It should be read before modifying core engines.
+This document is an architectural milestone and must be read before modifying core systems.
 
+---
 
-What I recommend you do next (very short)
+## Commit Reference (Recommended)
 
-Commit this file
-
+```bash id="commit1"
 git add BOOTSTRAP_EURIKA.md
-git commit -m "EURIKA bootstrap: end-to-end authoritative HVAC pipeline"
+git commit -m "EURIKA bootstrap: first end-to-end authoritative HVAC pipeline"
+git tag -a eurika-v1 -m "EURIKA freeze"
+```
 
+---
 
-Tag it
+*This is the point where the system becomes real.*
+# HVACgooee — EURIKA Bootstrap
 
-git tag -a eurika-v1 -m "EURIKA freeze: first end-to-end authoritative HVAC pipeline"
-git push origin eurika-v1
+**Status:** FROZEN
+**Scope:** First end-to-end authoritative HVAC pipeline
 
+---
 
-Leave main alone for now — this belongs exactly where it is.
+## Overview
 
-You’ve crossed a real engineering milestone here, Ian.
-Not many projects ever get to write a bootstrap like this — and mean it.
+This bootstrap defines the first **fully coherent system state**.
 
-If you want next, I can:
+It proves that HVACgooee:
 
-Draft the GitHub Release text
+* Separates intent from physics correctly
+* Executes deterministically
+* Commits results explicitly
+* Maintains strict authority boundaries
 
-Map the minimum validation test pack
+From this point onward:
 
-Or help define the GUI v3 observer contract
+> **New features are added above this layer, not inside it.**
 
-Just say the word.
+---
+
+## Canonical Pipeline (LOCKED)
+
+```id="pipeline1"
+project.json
+↓
+ProjectFactoryV3
+↓
+ProjectState (authoritative)
+↓
+Construction Resolution
+↓
+HeatLossRunnerV3
+↓
+Qt (W)
+```
+
+Everything beyond this point must **build on top**, not reach inside.
+
+---
+
+## What Is Proven
+
+### 1. Project Assembly — v3
+
+* `ProjectFactoryV3` is the sole authority for:
+
+  * project metadata
+  * environment inputs
+  * room geometry
+  * templates
+  * deterministic surface generation
+
+Factories:
+
+* assemble **intent only**
+* perform **no physics**
+* perform **no validation inference**
+
+All project objects are deterministic after load.
+
+---
+
+### 2. Construction Resolution — v2
+
+* Construction presets resolve to:
+
+  * `ConstructionUValueResultDTO`
+
+Resolution is:
+
+* explicit
+* registry-controlled
+* surface-class keyed
+
+Results:
+
+* committed once
+* stored in `ProjectState`
+* never recomputed implicitly
+
+---
+
+### 3. ProjectState Authority
+
+* `ProjectState` is the single source of truth
+
+Engines:
+
+* read only
+* never mutate
+
+GUI:
+
+* observes only
+* never decides
+
+Validity is:
+
+* explicit
+* never inferred
+
+---
+
+### 4. Heat-Loss Engine — v3
+
+`HeatLossRunnerV3` is:
+
+* pure
+* deterministic
+* side-effect free
+
+It consumes:
+
+* constructions
+* surfaces
+* environment temperatures
+
+It produces:
+
+* a single authoritative result (Qt, W)
+
+It does **not**:
+
+* mutate state
+* set validity
+* import GUI
+* import hydronics
+
+---
+
+### 5. Orchestration Contract
+
+Execution is coordinated by headless orchestration:
+
+* sequences engines
+* commits results explicitly
+* contains no physics
+
+Engines remain unaware of orchestration.
+
+---
+
+## What Is Explicitly Not Included
+
+The following are **intentionally excluded**:
+
+* Ventilation / infiltration losses
+* Dynamic fabric (Y-values)
+* Comfort models (Tai, operative temperature)
+* Solar / orientation / shading
+* GUI authority
+* Hydronic coupling
+
+These are future layers built above this bootstrap.
+
+---
+
+## Engineering Semantics
+
+* **Ti** — internal design temperature (steady-state, authoritative)
+* **Te** — external design temperature
+* **Tai / comfort models** — deferred to later phases
+
+No ambiguity exists at this level.
+
+---
+
+## Why This Matters
+
+This bootstrap demonstrates that the system:
+
+* is deterministic
+* is auditable
+* separates concerns correctly
+* scales without architectural refactor
+* preserves traditional methods without locking them in
+
+It establishes a stable base for:
+
+* GUI development
+* additional physics layers
+* validation against real-world examples
+
+---
+
+## Extension Rule
+
+From this point onward:
+
+* No modification of locked behaviour
+* No widening of contracts
+* No implicit coupling
+
+If a change requires breaking these rules:
+
+→ a new bootstrap must be created
+
+---
+
+## Status
+
+**EURIKA is frozen.**
+
+This document is an architectural milestone and must be read before modifying core systems.
+
+---
+
+## Commit Reference (Recommended)
+
+```bash id="commit1"
+git add BOOTSTRAP_EURIKA.md
+git commit -m "EURIKA bootstrap: first end-to-end authoritative HVAC pipeline"
+git tag -a eurika-v1 -m "EURIKA freeze"
+```
+
+---
+
+*This is the point where the system becomes real.*
