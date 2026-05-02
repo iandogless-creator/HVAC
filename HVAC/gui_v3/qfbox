@@ -1,0 +1,12 @@
+width = 0? or did you say unstable ?  at this point our openings wizard can be inserted ie each element/pair will need its own row although constr. P 1st?
+int/ext dr and int windows they do exiist ie into conservatory    there can be two identical or just a sumation of windows not nesc. row/unit although that must be possible anyway
+
+a clean openings wizard bootstrap that fits your exact architecture
+(no hacks, no rewrites, fits FabricFromSegments cleanly)
+Surface (segment)
+    ↓
+Openings (collection)
+    ↓
+Represented as:
+    • aggregated OR
+    • individual rows

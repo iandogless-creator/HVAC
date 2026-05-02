@@ -31,7 +31,6 @@ class ConstructionPanel(QWidget):
     """
 
     # Future: surface selection from worksheet / room context can feed this.
-    surface_selected = Signal(str)          # surface_id
     u_values_requested = Signal(object)     # surface_id | None
 
 
@@ -41,6 +40,7 @@ class ConstructionPanel(QWidget):
 
         # Placeholder state (Phase B only)
         self._has_selection = False
+        # Phase B: layers not implemented yet
         self._has_layers = False
         self._selected_surface_id: str | None = None
 
@@ -72,7 +72,7 @@ class ConstructionPanel(QWidget):
         # --------------------------------------------------------------
         definition_box = QGroupBox("Construction Definition")
         definition_layout = QVBoxLayout(definition_box)
-
+        self._usage_label = QLabel("Used by: 0 surfaces", self)
         self._definition_label = QLabel("Select an element to define its construction.")
         self._definition_label.setWordWrap(True)
         definition_layout.addWidget(self._definition_label)
@@ -141,7 +141,9 @@ class ConstructionPanel(QWidget):
     # ------------------------------------------------------------------
     def _refresh_placeholders(self) -> None:
         if not self._has_selection:
-            self._definition_label.setText("Select an element to define its construction.")
+            self._definition_label.setText(
+                f"Surface: {self._selected_surface_id}\nConstruction selected."
+            )
             self._layers_label.setText("No layers defined.\n(Available in Phase C+)")
             return
 
@@ -154,5 +156,3 @@ class ConstructionPanel(QWidget):
             return
 
 
-    def open_uvp_requested(self) -> None:
-        self.u_values_requested.emit(self._selected_surface_id)

@@ -58,7 +58,7 @@ class ConstructionWizard:
         if project_state is None:
             return
 
-        if construction_id not in project_state.construction_library:
+        if construction_id not in project_state.constructions:
             raise ValueError(f"Unknown construction_id: {construction_id}")
 
         # --------------------------------------------------
@@ -103,7 +103,7 @@ class ConstructionWizard:
         if project_state is None or room is None:
             return
 
-        if construction_id not in project_state.construction_library:
+        if construction_id not in project_state.constructions:
             raise ValueError(f"Unknown construction_id: {construction_id}")
 
         if not hasattr(project_state, "surface_construction_map"):
@@ -144,7 +144,7 @@ class ConstructionWizard:
         if project_state is None or room is None:
             return
 
-        if construction_id not in project_state.construction_library:
+        if construction_id not in project_state.constructions:
             raise ValueError(f"Unknown construction_id: {construction_id}")
 
         if not hasattr(project_state, "surface_construction_map"):
@@ -183,3 +183,27 @@ class ConstructionWizard:
             return None
 
         return mapping.get(surface_id)
+
+    # ------------------------------------------------------------------
+    # Static entry point (used by UI / MainWindow)
+    # ------------------------------------------------------------------
+    @staticmethod
+    def set_surface_construction(
+        project_state,
+        surface_id: str,
+        construction_id: str,
+    ) -> None:
+        """
+        Static convenience wrapper for assignment.
+
+        Keeps UI code simple and avoids needing instance creation.
+        """
+
+        wizard = ConstructionWizard()
+
+        wizard.assign_to_surface(
+            project_state=project_state,
+            room_id="",  # not used in current logic
+            surface_id=surface_id,
+            construction_id=construction_id,
+        )

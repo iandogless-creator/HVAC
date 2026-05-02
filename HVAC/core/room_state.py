@@ -42,18 +42,20 @@ class RoomStateV1:
 
     internal_temp_override_C: Optional[float] = None
     ach_override: Optional[float] = None
-
+    internal_temp_C: float | None = None
     # ------------------------------------------------------------------
     # Serialization
     # ------------------------------------------------------------------
 
     def to_dict(self) -> dict:
+
         return {
             "name": self.name,
             "geometry": self.geometry.to_dict(),
             "internal_temp_override_C": self.internal_temp_override_C,
             "ach_override": self.ach_override,
             "fabric_elements": [e.to_dict() for e in self.fabric_elements],
+            "surface_construction_map": dict(self.surface_construction_map),
         }
 
     @classmethod

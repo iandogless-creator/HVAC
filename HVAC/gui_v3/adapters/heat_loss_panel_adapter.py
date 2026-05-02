@@ -12,8 +12,16 @@ from HVAC.core.value_resolution import (
 )
 from HVAC.heatloss.fabric.row_builder_v1 import build_rows_with_meta
 from HVAC.heatloss.validation.surface_edit_validator import SurfaceEditValidator
+from PySide6.QtGui import QColor
+from PySide6.QtCore import Qt
 
-
+from HVAC.fabric.generate_fabric_from_topology import (
+    generate_fabric_from_topology,
+)
+from HVAC.gui_v3.common.worksheet_row_meta import (
+    WorksheetRowMeta,
+    WorksheetCellMeta,
+)
 # ======================================================================
 # HeatLossPanelAdapter
 # ======================================================================
@@ -46,7 +54,9 @@ class HeatLossPanelAdapter:
 
         self._context.room_state_changed.connect(self.refresh)
         self._context.current_room_changed.connect(self._on_current_room_changed)
-
+        self._context.construction_focus_changed.connect(
+            self._on_construction_focus
+        )
         self._panel.run_requested.connect(self._on_run_requested)
         self._panel.cell_selected.connect(self._on_cell_selected)
         self._panel.adjacency_edit_requested.connect(
@@ -135,13 +145,15 @@ class HeatLossPanelAdapter:
         ach, _ = resolve_effective_ach(ps, room)
 
         # --------------------------------------------------------------
-        # Rows (single shared builder)
+        # Rows — canonical topology → fabric projection
         # --------------------------------------------------------------
-        rows, metas = build_rows_with_meta(ps, room)
+        rows, metas = self._build_topology_rows_with_meta(ps, room)
+
         self._row_meta_by_surface = {
-            m.surface_id: m for m in metas
+            meta.surface_id: meta
+            for meta in metas
+            if getattr(meta, "surface_id", None)
         }
-        rows = list(rows)
 
         rows = self._overlay_results_if_available(ps, rows)
 
@@ -185,8 +197,11 @@ class HeatLossPanelAdapter:
             qv=qv,
             qt=qt,
         )
-
+        cid = getattr(self._context, "current_construction_id", None)
+        if cid:
+            self.highlight_rows_for_construction(cid)
         panel.set_run_enabled(True)
+
     # ------------------------------------------------------------------
     # Live fallback helpers
     # ------------------------------------------------------------------
@@ -272,9 +287,37 @@ class HeatLossPanelAdapter:
 
         return rows
 
+    def highlight_rows_for_construction(self, cid: str) -> None:
+        table = self._panel._table
+        ps = self._context.project_state
+        mapping = getattr(ps, "surface_construction_map", None) or {}
+
+        for row in range(table.rowCount()):
+            item = table.item(row, 0)
+            if not item:
+                continue
+
+            surface_id = item.data(Qt.UserRole)
+            assigned_cid = mapping.get(surface_id)
+
+            highlight = (assigned_cid == cid)
+
+            for col in range(table.columnCount()):
+                cell = table.item(row, col)
+                if cell:
+                    if highlight and col == 0:
+                        cell.setData(Qt.UserRole + 1, "true")
+                    else:
+                        cell.setData(Qt.UserRole + 1, "")
+
+        table.viewport().update()
     # ------------------------------------------------------------------
     # Signals
     # ------------------------------------------------------------------
+    def _on_construction_focus(self, cid: str) -> None:
+        self._context.current_construction_id = cid
+        self.highlight_rows_for_construction(cid)
+
     def _on_current_room_changed(self, _room_id) -> None:
         self.refresh()
 
@@ -349,6 +392,157 @@ class HeatLossPanelAdapter:
         )
 
         self._apply_run_result(success=True)
+
+    def _build_topology_rows_with_meta(self, ps, room) -> tuple[list[dict], list[WorksheetRowMeta]]:
+        """
+        Build GUI worksheet rows from canonical topology → fabric rows.
+
+        Projection only:
+        • no ProjectState mutation
+        • no controller execution
+        • no readiness decisions
+
+        Guarantees:
+        • every display row carries surface_id
+        • every display row has matching row meta
+        • adjacency-editable rows are marked from boundary_kind
+        """
+
+        fabric_rows = generate_fabric_from_topology(ps, room)
+
+        rows: list[dict] = []
+        metas: list[WorksheetRowMeta] = []
+
+        for src in fabric_rows:
+            surface_id = (
+                    getattr(src, "surface_id", None)
+                    or getattr(src, "element_id", None)
+                    or getattr(src, "segment_id", None)
+            )
+
+            if surface_id is None:
+                seg = getattr(src, "_segment", None)
+                surface_id = getattr(seg, "segment_id", None)
+
+            if surface_id is None:
+                # Defensive fallback: should not happen, but avoids dead UI rows.
+                surface_id = f"{room.room_id}-row-{len(rows)}"
+
+            boundary_kind = getattr(src, "boundary_kind", None)
+            adjacent_room_id = getattr(src, "adjacent_room_id", None)
+            construction_id = getattr(src, "construction_id", None)
+
+            adjacent_label = None
+            if boundary_kind == "INTER_ROOM" and adjacent_room_id:
+                adjacent_room = ps.rooms.get(adjacent_room_id)
+                adjacent_label = (
+                    adjacent_room.name
+                    if adjacent_room is not None and getattr(adjacent_room, "name", None)
+                    else adjacent_room_id
+                )
+
+            element = self._format_element(src)
+
+            rows.append({
+                "surface_id": str(surface_id),
+                "segment_id": str(surface_id),
+                "element_id": str(surface_id),
+
+                # HeatLossPanelV3.set_rows() expects lowercase "element".
+                "element": element,
+
+                "A": float(src.area_m2),
+                "U": float(src.u_value_W_m2K),
+                "dT": float(src.delta_t_K),
+                "Qf": self._compute_qf(src),
+
+                # Retained internally, not displayed as HLP column.
+                "construction_id": construction_id,
+                "boundary_kind": boundary_kind,
+                "adjacent_room_id": adjacent_room_id,
+                "adjacent_label": adjacent_label,
+                "dT_label": self._format_dt(src),
+            })
+
+            metas.append(
+                WorksheetRowMeta(
+                    surface_id=str(surface_id),
+                    element=element,
+                    adjacency_editable=(
+                            boundary_kind == "INTER_ROOM"
+                            and adjacent_room_id is not None
+                    ),
+                    columns={
+                        0: WorksheetCellMeta(
+                            field="element",
+                            editable=False,
+                            kind="readonly",
+                        ),
+                        1: WorksheetCellMeta(
+                            field="A",
+                            editable=False,
+                            kind="derived",
+                        ),
+                        2: WorksheetCellMeta(
+                            field="U",
+                            editable=False,
+                            kind="derived",
+                        ),
+                        3: WorksheetCellMeta(
+                            field="dT",
+                            editable=(
+                                    boundary_kind == "INTER_ROOM"
+                                    and adjacent_room_id is not None
+                            ),
+                            kind="derived",
+                        ),
+                        4: WorksheetCellMeta(
+                            field="Qf",
+                            editable=False,
+                            kind="derived",
+                        ),
+                    },
+                )
+            )
+
+        return rows, metas
+    def _compute_qf(self, src) -> float:
+        return float(src.area_m2 * src.u_value_W_m2K * src.delta_t_K)
+
+    def _format_element(self, src) -> str:
+        surface_class = getattr(src, "surface_class", "")
+        boundary_kind = getattr(src, "boundary_kind", None)
+
+        if surface_class == "wall":
+            if boundary_kind == "EXTERNAL":
+                return "External Wall"
+            return "Wall"
+
+        if surface_class == "internal_partition":
+            return "Wall"
+
+        if surface_class == "floor":
+            if boundary_kind == "EXTERNAL":
+                return "External Floor"
+            return "Floor"
+
+        if surface_class == "ceiling":
+            if boundary_kind == "EXTERNAL":
+                return "Roof / External Ceiling"
+            return "Ceiling"
+
+        return str(surface_class).replace("_", " ").title()
+
+    def _format_dt(self, src) -> str:
+        text = f"{float(src.delta_t_K):.1f}"
+
+        if src.boundary_kind == "INTER_ROOM" and src.adjacent_room_id:
+            return f"{text} → {src.adjacent_room_id}"
+
+        if src.boundary_kind == "EXTERNAL":
+            return f"{text} → ext"
+
+        return text
 
     # ------------------------------------------------------------------
     # Result

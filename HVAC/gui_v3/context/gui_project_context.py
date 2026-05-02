@@ -80,6 +80,9 @@ class GuiProjectContext(QObject):
     room_state_changed = Signal(str)  # room_id
     edit_requested = Signal(str, str)  # kind, surface_id
     adjacency_edit_requested = Signal(str)  # surface_id
+    construction_focus_changed = Signal(str)  # construction_id
+    project_changed = Signal()
+
     # ------------------------------------------------------------------
     # Construction
     # ------------------------------------------------------------------
@@ -137,25 +140,59 @@ class GuiProjectContext(QObject):
     def current_room_id(self) -> Optional[str]:
         return self._current_room_id
 
+    def notify_project_changed(self) -> None:
+        self.project_changed.emit()
+
+
     # ==================================================================
     # Project switching (authoritative swap)
     # ==================================================================
 
+    # HVAC/gui_v3/context/gui_project_context.py
+
     def set_project_state(
-        self,
-        project_state: ProjectState,
-        *,
-        project_dir: Path | None = None,
+            self,
+            project_state: ProjectState,
+            project_dir: Path | None = None,
     ) -> None:
         """
-        Swap authoritative project.
-        GUI state resets.
+        Authoritative ProjectState swap.
+
+        Rules
+        -----
+        • ProjectState owns engineering state
+        • Context owns GUI focus only
+        • project_dir is stored on ProjectState
+        • current_room_id is changed only via backing field or set_current_room()
         """
+
+        # --------------------------------------------------
+        # Swap authoritative state
+        # --------------------------------------------------
         self._project_state = project_state
+
+        # --------------------------------------------------
+        # Filesystem binding
+        # --------------------------------------------------
+        self._project_state.project_dir = project_dir
         self.project_dir = project_dir
 
-        self.set_current_room(None)
-        self.close_hlpe()
+        # --------------------------------------------------
+        # Reset GUI focus silently before broadcast
+        # --------------------------------------------------
+        self._current_room_id = None
+
+        # --------------------------------------------------
+        # Notify project-level observers
+        # --------------------------------------------------
+        self.project_changed.emit()
+
+        # --------------------------------------------------
+        # Deterministic room selection
+        # --------------------------------------------------
+        if self._project_state.rooms:
+            first_room_id = next(iter(self._project_state.rooms))
+            self.set_current_room(first_room_id)
 
     def request_adjacency_edit(self, surface_id: str) -> None:
         """
@@ -245,3 +282,31 @@ class GuiProjectContext(QObject):
             return
 
         self.edit_requested.emit(kind, surface_id)
+
+    def request_construction_u_value_change(self, cid: str, value: float):
+        ps = self.project_state
+        if not ps:
+            return
+
+        c = ps.constructions.get(cid)
+        if not c:
+            return
+
+        c.u_value_W_m2K = float(value)
+
+        ps.mark_heatloss_dirty()
+
+        self.project_changed.emit()
+
+    def request_assign_construction(self, surface_id: str, cid: str) -> None:
+        ps = self.project_state
+        if ps is None:
+            return
+
+        if cid not in ps.constructions:
+            raise ValueError(f"Invalid construction: {cid}")
+
+        ps.surface_construction_map[surface_id] = cid
+        ps.mark_heatloss_dirty()
+
+        self.notify_project_changed()

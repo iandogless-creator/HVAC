@@ -3,16 +3,16 @@
 # ======================================================================
 
 from __future__ import annotations
-
+from pathlib import Path
 from dataclasses import dataclass, field
 from typing import Any, Dict, Optional
-
 from HVAC.core.environment_state import EnvironmentStateV1
 from HVAC.core.room_state import RoomStateV1
 from HVAC.project_v3.dto.heatloss_readiness import HeatLossReadiness
 from HVAC.topology.boundary_segment_v1 import BoundarySegmentV1
 from HVAC.heatloss.fabric.fabric_from_segments_v1 import FabricFromSegmentsV1
-
+from HVAC.core.construction_v1 import ConstructionV1
+from HVAC.hydronics.emitter_v1 import EmitterV1
 
 # ======================================================================
 # ProjectState
@@ -23,12 +23,14 @@ class ProjectState:
     project_id: str
     name: str
 
-    # ------------------------------------------------------------------
-    # Intent
-    # ------------------------------------------------------------------
+    # 🔥 REQUIRED (do not omit)
+    project_dir: Optional[Path] = None
+
+    # existing fields...
     rooms: Dict[str, RoomStateV1] = field(default_factory=dict)
     environment: Optional[EnvironmentStateV1] = None
     boundary_segments: Dict[str, BoundarySegmentV1] = field(default_factory=dict)
+
 
     # ------------------------------------------------------------------
     # Phase IV-D — Openings (sub-surfaces)
@@ -39,7 +41,13 @@ class ProjectState:
     # ------------------------------------------------------------------
     # v1 Construction library (minimal, stable)
     # ------------------------------------------------------------------
-    construction_library: Dict[str, float] = field(default_factory=dict)
+    constructions: Dict[str, ConstructionV1] = field(default_factory=dict)
+
+    # ------------------------------------------------------------------
+    # Phase V-A — Surface-level construction assignment
+    # surface_id -> construction_id
+    # ------------------------------------------------------------------
+    surface_construction_map: Dict[str, str] = field(default_factory=dict)
 
     # ------------------------------------------------------------------
     # Lifecycle
@@ -49,7 +57,9 @@ class ProjectState:
 
     hydronics_results: Optional[dict[str, Any]] = None
     hydronics_valid: bool = False
+    # in project_state.py
 
+    emitters: Dict[str, EmitterV1] = field(default_factory=dict)
     # ------------------------------------------------------------------
     # Execution override (temporary)
     # ------------------------------------------------------------------
@@ -73,6 +83,7 @@ class ProjectState:
             )
 
         self.heatloss_valid = True
+
 
     # ==================================================================
     # Readiness
@@ -145,7 +156,15 @@ class ProjectState:
                         )
                         continue
 
-                    u = self.construction_library.get(str(cid))
+                    construction = self.constructions.get(str(cid))
+                    if construction is None:
+                        reasons.append(
+                            f"Construction '{cid}' not found "
+                            f"(room '{room_id}', element '{elem}')"
+                        )
+                        continue
+
+                    u = construction.u_value_W_m2K
                     if u is None or float(u) <= 0.0:
                         reasons.append(
                             f"Construction '{cid}' has no valid U-value "
@@ -170,7 +189,7 @@ class ProjectState:
     # ==================================================================
     def to_dict(self) -> dict:
         return {
-            "schema_version": 3,
+            "schema_version": 4,
             "project_id": self.project_id,
             "name": self.name,
             "environment": self.environment.to_dict() if self.environment else None,
@@ -179,6 +198,7 @@ class ProjectState:
                 seg_id: seg.to_dict()
                 for seg_id, seg in self.boundary_segments.items()
             },
+            "surface_construction_map": dict(self.surface_construction_map),
             "openings": {
                 sid: [
                     o.to_dict() if hasattr(o, "to_dict") else vars(o)
@@ -186,9 +206,14 @@ class ProjectState:
                 ]
                 for sid, openings in self.openings_by_surface.items()
             },
-            "construction_library": {
-                cid: float(u) for cid, u in (self.construction_library or {}).items()
-            },
+            "constructions": {
+    cid: {
+        "construction_id": c.construction_id,
+        "name": c.name,
+        "u_value_W_m2K": c.u_value_W_m2K,
+    }
+    for cid, c in (self.constructions or {}).items()
+},
             "heatloss": {
                 "valid": self.heatloss_valid,
                 "results": self.heatloss_results,
@@ -204,7 +229,7 @@ class ProjectState:
     # ==================================================================
     @classmethod
     def from_dict(cls, data: dict) -> "ProjectState":
-        if data.get("schema_version") != 3:
+        if data.get("schema_version") not in (3, 4):
             raise ValueError("Unsupported project schema version")
 
         instance = cls(
@@ -222,7 +247,10 @@ class ProjectState:
             seg_id: BoundarySegmentV1.from_dict(seg_data)
             for seg_id, seg_data in (data.get("boundary_segments", {}) or {}).items()
         }
-
+        instance.surface_construction_map = {
+            str(k): str(v)
+            for k, v in (data.get("surface_construction_map", {}) or {}).items()
+        }
         # --------------------------------------------------
         # Openings
         # --------------------------------------------------
@@ -231,9 +259,6 @@ class ProjectState:
             sid: list(open_list)
             for sid, open_list in openings.items()
         }
-
-        lib = data.get("construction_library", {}) or {}
-        instance.construction_library = {str(k): float(v) for k, v in lib.items()}
 
         hl = data.get("heatloss", {}) or {}
         instance.heatloss_valid = bool(hl.get("valid", False))
@@ -245,12 +270,46 @@ class ProjectState:
             except Exception:
                 instance.heatloss_valid = False
 
+        # --------------------------------------------------
+        # Hydronics (clean, no duplication, no hasattr)
+        # --------------------------------------------------
         hyd = data.get("hydronics", {}) or {}
         instance.hydronics_valid = bool(hyd.get("valid", False))
         instance.hydronics_results = hyd.get("results")
 
-        return instance
+        # --------------------------------------------------
+        # Surface → Construction mapping (IMPORTANT)
+        # --------------------------------------------------
+        instance.surface_construction_map = {
+            str(k): str(v)
+            for k, v in (data.get("surface_construction_map", {}) or {}).items()
+        }
 
+        # --------------------------------------------------
+        # Construction library
+        # --------------------------------------------------
+        raw_constructions = data.get("constructions", {}) or {}
+        if raw_constructions:
+            instance.constructions = {
+                str(cid): ConstructionV1(
+                    construction_id=str(cdata["construction_id"]),
+                    name=str(cdata["name"]),
+                    u_value_W_m2K=float(cdata["u_value_W_m2K"]),
+                )
+                for cid, cdata in raw_constructions.items()
+            }
+        else:
+            old_lib = data.get("construction_library", {}) or {}
+            instance.constructions = {
+                str(cid): ConstructionV1(
+                    construction_id=str(cid),
+                    name=str(cid),
+                    u_value_W_m2K=float(u),
+                )
+                for cid, u in old_lib.items()
+            }
+
+        return instance
     # ==================================================================
     # Openings helpers (Phase IV-D)
     # ==================================================================
@@ -338,3 +397,24 @@ class ProjectState:
                 )
 
         return None, None, None
+
+    def add_room(self, room_id: str, name: str) -> None:
+        from HVAC.core.room_state import RoomStateV1
+        from HVAC.core.room_geometry import RoomGeometryV1
+
+        self.rooms[room_id] = RoomStateV1(
+            room_id=room_id,
+            name=name,
+            geometry=RoomGeometryV1(
+                length_m=6.0,
+                width_m=4.0,
+                height_m=2.4,
+            ),
+        )
+
+        self.mark_heatloss_dirty()
+
+class EmitterV1:
+    emitter_id: str
+    room_id: str
+    design_output_W: float

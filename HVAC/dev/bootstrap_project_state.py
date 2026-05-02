@@ -7,19 +7,25 @@ from __future__ import annotations
 from HVAC.project.project_state import ProjectState
 from HVAC.core.environment_state import EnvironmentStateV1
 from HVAC.core.room_state import RoomStateV1, RoomGeometryV1
+from HVAC.core.construction_v1 import ConstructionV1
+from HVAC.topology.boundary_segment_v1 import BoundarySegmentV1
 
 
 # ======================================================================
-# DEV Bootstrap (Phase IV — TOPOLOGY-DRIVEN)
+# DEV Bootstrap (Phase V — Clean + Deterministic)
 # ======================================================================
 
 def make_dev_bootstrap_project_state() -> ProjectState:
+
+    # --------------------------------------------------
+    # Project
+    # --------------------------------------------------
 
     project = ProjectState(
         project_id="DEV-PROJ-001",
         name="HVACgooee DEV Project",
     )
-
+    project.project_dir = None  # or ps.project_dir depending on name
     # --------------------------------------------------
     # Environment
     # --------------------------------------------------
@@ -32,15 +38,12 @@ def make_dev_bootstrap_project_state() -> ProjectState:
     )
 
     # --------------------------------------------------
-    # Construction library (v1 stable)
+    # Constructions (canonical authority)
     # --------------------------------------------------
 
-    project.construction_library = {
-        "DEV-WALL": 0.28,
-        "DEV-ROOF": 0.18,
-        "DEV-FLOOR": 0.22,
-    }
-
+    from HVAC.dev.dev_constructions import ensure_dev_constructions
+    project.constructions = {}
+    ensure_dev_constructions(project)
     # --------------------------------------------------
     # Room
     # --------------------------------------------------
@@ -52,21 +55,46 @@ def make_dev_bootstrap_project_state() -> ProjectState:
         name="Kitchen (DEV)",
     )
 
-    # --------------------------------------------------
-    # Geometry (authoritative intent)
-    # --------------------------------------------------
-
     room.geometry = RoomGeometryV1(
         length_m=4.0,
         width_m=3.0,
         height_m=2.4,
-        external_wall_length_m=14.0,  # full perimeter
+        external_wall_length_m=14.0,
     )
-    # --------------------------------------------------
-    # Attach room
-    # --------------------------------------------------
 
     project.rooms[room_id] = room
+
+    # --------------------------------------------------
+    # Topology (minimal: floor + ceiling)
+    # --------------------------------------------------
+
+    project.boundary_segments = {
+        "room-001-floor": BoundarySegmentV1(
+            segment_id="room-001-floor",
+            owner_room_id=room_id,
+            geometry_ref="floor",      # 🔑 semantic (bridge expects this)
+            length_m=12.0,
+            boundary_kind="EXTERNAL",
+            adjacent_room_id=None,
+        ),
+        "room-001-ceil": BoundarySegmentV1(
+            segment_id="room-001-ceil",
+            owner_room_id=room_id,
+            geometry_ref="ceiling",   # 🔑 semantic
+            length_m=12.0,
+            boundary_kind="EXTERNAL",
+            adjacent_room_id=None,
+        ),
+    }
+
+    # --------------------------------------------------
+    # Surface → Construction mapping
+    # --------------------------------------------------
+
+    project.surface_construction_map = {
+        "room-001-floor": "DEV-FLOOR",
+        "room-001-ceil": "DEV-ROOF",
+    }
 
     # --------------------------------------------------
     # Lifecycle
@@ -75,11 +103,12 @@ def make_dev_bootstrap_project_state() -> ProjectState:
     project.mark_heatloss_dirty()
 
     # --------------------------------------------------
-    # DEV assertions (updated for new architecture)
+    # DEV assertions
     # --------------------------------------------------
 
     assert project.environment is not None
     assert project.rooms
-    assert project.construction_library
+    assert project.constructions
+    assert project.boundary_segments
 
     return project

@@ -1,0 +1,113 @@
+Here’s your clean continuation bootstrap from exactly this point — locking in the project_dir fix and stabilising the pipeline.
+
+======================================================================
+HVACgooee — Phase V-B Continuation Bootstrap
+Timestamp: Tuesday 29 April 2026, 13:22 pm (UK)
+Status: ACTIVE (authoritative)
+======================================================================
+🎯 Current Focus
+You are stabilising:
+• GUI v3 signal integrity
+• ProjectState lifecycle correctness
+• DEV bootstrap switching (combo box → handler → state swap)
+• Persistence compatibility (project_dir)
+
+🔴 Critical Fix (NOW LOCKED)
+ProjectState must own project_dir
+Because:
+• GUI context expects it
+• persistence layer uses it
+• DEV bootstraps assign it
+• slots=True forbids dynamic attributes
+
+✅ Canonical Change
+In: HVAC/project/project_state.py
+@dataclass(slots=True)class ProjectState:    project_id: str    name: str    # 🔥 REQUIRED FOR GUI + PERSISTENCE    project_dir: Optional[Any] = None
+
+❌ Remove Invalid Pattern (DO NOT USE AGAIN)
+Anywhere in code:
+ps.project_dir = None   # ❌ unsafe if not declared
+This is now legal ONLY because field exists
+
+🧱 Architectural Rule (NEW — LOCKED)
+
+All runtime-bound properties MUST be declared in ProjectState
+
+No exceptions.
+This includes:
+• project_dir
+• future: file_version, last_saved_at, etc
+
+🔁 DEV Pipeline (Now Correct)
+Flow is:
+DevSettingsPanel (combo)    ↓ emitsmode_changed(str)    ↓MainWindow._on_dev_mode_changed    ↓build_dev_project(mode)    ↓ProjectState (with project_dir)    ↓context.set_project_state(ps)    ↓project_changed signal    ↓adapters.refresh()
+
+🧪 Expected Behaviour After Fix
+When switching combo:
+✔ [PANEL FIRED] simple
+✔ [DEV] switching to: simple
+✔ [DEV] scenario loaded: simple
+✔ UI updates immediately
+✔ No crash
+✔ No AttributeError
+
+🔍 If Combo Still Appears “Dead”
+You now debug in this exact order:
+1. Panel fires?
+You already have:
+print(f"[PANEL FIRED] {mode}")
+
+2. MainWindow receives?
+print(f"[MAIN RECEIVED] {mode}")
+
+3. Handler runs?
+print("[HANDLER CALLED]")
+
+4. Context emits?
+Add temporarily:
+self._context.project_changed.connect(lambda: print("[CTX EMIT]"))
+
+5. Adapter refresh?
+print("[HLP REFRESH]")
+
+⚠️ Known Pitfall You Just Hit
+This was the root issue:
+AttributeError: 'ProjectState' object has no attribute 'project_dir'
+Which caused:
+👉 handler crash
+👉 signal chain broken
+👉 combo appears “dead”
+This is why it felt like UI failure — it was actually state construction failure.
+
+🧱 System Integrity Upgrade (Important)
+You have now crossed a boundary:
+
+HVACgooee is no longer tolerant of “loose state”
+
+From here onward:
+• ProjectState = strict schema
+• No dynamic attributes
+• No hidden runtime fields
+• Everything declared up front
+
+🧭 Next Step (Recommended)
+Now that DEV switching is stable:
+👉 Move to:
+Phase V-B — Construction Authority UI Completion
+Specifically:
+• Ensure every row resolves construction via construction_id
+• UVP panel reflects live state correctly
+• Assignments persist across DEV reloads
+
+🧩 Optional Next Bootstrap
+If you want, next I can give you:
+👉 “Construction Authority Lock Bootstrap”
+(freezes U-value system correctly before hydronics)
+
+✔ Summary
+You didn’t have a UI problem.
+You had a state contract violation:
+slots=True + missing field = silent system break
+Now fixed properly at the root.
+
+If anything still feels “dead” after this, it won’t be random anymore — it will be traceable in the signal chain, and we can isolate it cleanly.

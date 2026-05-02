@@ -20,7 +20,11 @@ from PySide6.QtWidgets import (
     QGridLayout,
 )
 
+ELEMENT_COLUMN = 0
+AREA_COLUMN = 1
+U_COLUMN = 2
 DT_COLUMN = 3
+QF_COLUMN = 4
 
 # ======================================================================
 # ClickableLabel
@@ -62,6 +66,8 @@ class HeatLossPanelV3(QWidget):
     ach_edit_requested = Signal()
     worksheet_cell_edit_requested = Signal(int, int)
     adjacency_edit_requested = Signal(str)  # surface_id
+    internal_design_temp_changed = Signal(float)
+    add_room_requested = Signal()
 
     # ------------------------------------------------------------------
     # Construction
@@ -71,7 +77,8 @@ class HeatLossPanelV3(QWidget):
 
         self._current_room_id: Optional[str] = None
         self._worksheet_table: Optional[QTableWidget] = None
-        self._row_metas: list[WorksheetRowMeta] = []
+        self._row_meta = []
+        self._row_meta_by_surface = {}
         self._build_ui()
         self._wire_signals()
 
@@ -117,7 +124,6 @@ class HeatLossPanelV3(QWidget):
         # --------------------------------------------------------------
         self._table = QTableWidget(self)
         self._worksheet_table = self._table
-        self._table.cellClicked.connect(self._on_cell_clicked)
         self._table.setColumnCount(5)
         self._table.setHorizontalHeaderLabels(
             [
@@ -135,7 +141,12 @@ class HeatLossPanelV3(QWidget):
         self._table.setSelectionBehavior(QTableWidget.SelectRows)
         self._table.setSelectionMode(QTableWidget.SingleSelection)
         self._table.verticalHeader().setVisible(False)
-
+        self._table.setStyleSheet("""
+        QTableWidget::item[hl="true"] {
+            border-left: 4px solid #2f6fd6;
+            padding-left: 3px;
+        }
+        """)
         header = self._table.horizontalHeader()
         header.setDefaultAlignment(Qt.AlignCenter)
         header.setSectionResizeMode(0, QHeaderView.Stretch)
@@ -144,7 +155,16 @@ class HeatLossPanelV3(QWidget):
             header.setSectionResizeMode(col, QHeaderView.ResizeToContents)
 
         root.addWidget(self._table)
-
+        self._table.setStyleSheet("""
+        QTableWidget::item:selected {
+            background: transparent;
+            color: inherit;
+        }
+        QTableWidget::item[hl="true"] {
+            border-left: 4px solid #2f6fd6;
+            padding-left: 3px;
+        }
+        """)
         # --------------------------------------------------------------
         # Results frame
         # --------------------------------------------------------------
@@ -200,6 +220,9 @@ class HeatLossPanelV3(QWidget):
         self._run_button = QPushButton("Run Heat-Loss")
         root.addWidget(self._run_button)
 
+        self._add_room_btn = QPushButton("Add Room")
+        root.addWidget(self._add_room_btn)
+
         # --------------------------------------------------------------
         # Fix U-values link
         # --------------------------------------------------------------
@@ -227,13 +250,12 @@ class HeatLossPanelV3(QWidget):
     # ------------------------------------------------------------------
     def _wire_signals(self) -> None:
         self._run_button.clicked.connect(self.run_requested.emit)
+        self._add_room_btn.clicked.connect(self.add_room_requested.emit)
+
         self._geometry_label.clicked.connect(self.geometry_edit_requested.emit)
         self._value_ach.clicked.connect(self.ach_edit_requested.emit)
 
         if self._worksheet_table is not None:
-            self._worksheet_table.cellClicked.connect(
-                self._on_worksheet_cell_clicked
-            )
             self._worksheet_table.cellClicked.connect(self._on_cell_clicked)
 
         self._fix_uvalues_link.linkActivated.connect(
@@ -252,32 +274,59 @@ class HeatLossPanelV3(QWidget):
     def _on_cell_clicked(self, row: int, column: int) -> None:
         print(f"[HLP CLICK] row={row} col={column}")
 
-        item = self._table.item(row, 0)
-        print(f"[HLP CLICK] item={item}")
-
-        if item is None:
+        if not hasattr(self, "_row_meta"):
             return
 
-        surface_id = item.data(Qt.UserRole)
-        print(f"[HLP CLICK] surface_id={surface_id}")
+        row_meta = self._row_meta[row] if 0 <= row < len(self._row_meta) else None
 
-        row_meta = getattr(self, "_row_meta_by_surface", {}).get(surface_id)
+        element_item = self._table.item(row, ELEMENT_COLUMN)
+        if element_item is None:
+            return
+
+        surface_id = element_item.data(Qt.UserRole)
+
+        if not surface_id and row_meta is not None:
+            surface_id = getattr(row_meta, "surface_id", None)
+
+        print(f"[HLP CLICK] surface_id={surface_id}")
         print(f"[HLP CLICK] row_meta={row_meta}")
 
-        if column != DT_COLUMN:
-            print("[HLP CLICK] not DT column")
+        # --------------------------------------------------
+        # Adjacency edit: ΔT column only
+        # --------------------------------------------------
+        if column == DT_COLUMN:
+            if row_meta is None:
+                print("[HLP CLICK] no row_meta")
+                return
+
+            if not getattr(row_meta, "adjacency_editable", False):
+                print("[HLP CLICK] row not adjacency editable")
+                return
+
+            if not surface_id:
+                print("[HLP CLICK] no surface_id")
+                return
+
+            print(f"[HLP CLICK] EMIT adjacency_edit_requested {surface_id}")
+            self.adjacency_edit_requested.emit(str(surface_id))
             return
 
-        if not row_meta:
-            print("[HLP CLICK] no row_meta")
+        # --------------------------------------------------
+        # Future editable cells
+        # --------------------------------------------------
+        cell_meta = None
+        if row_meta is not None and hasattr(row_meta, "columns"):
+            cell_meta = row_meta.columns.get(column)
+
+        if cell_meta and getattr(cell_meta, "editable", False):
+            self.worksheet_cell_edit_requested.emit(row, column)
             return
 
-        if not row_meta.adjacency_editable:
-            print("[HLP CLICK] row not adjacency editable")
-            return
-
-        print(f"[HLP CLICK] EMIT adjacency_edit_requested {surface_id}")
-        self.adjacency_edit_requested.emit(surface_id)
+        # --------------------------------------------------
+        # Default row focus
+        # --------------------------------------------------
+        if surface_id:
+            self.surface_focus_requested.emit(str(surface_id))
 
 
     def set_header_context(self, context: dict | None) -> None:
@@ -381,11 +430,11 @@ class HeatLossPanelV3(QWidget):
     # Row meta access (for adapter / overlays)
     # ------------------------------------------------------------------
     def meta_for_row(self, row_index: int):
-        if not hasattr(self, "_row_metas"):
+        if not hasattr(self, "_row_meta"):
             return None
 
-        if 0 <= row_index < len(self._row_metas):
-            return self._row_metas[row_index]
+        if 0 <= row_index < len(self._row_meta):
+            return self._row_meta[row_index]
 
         return None
 
@@ -401,10 +450,7 @@ class HeatLossPanelV3(QWidget):
         # --------------------------------------------------
         # Store metadata
         # --------------------------------------------------
-        if len(metas) != len(rows):
-            self._row_meta = []
-        else:
-            self._row_meta = metas
+        self._row_meta = metas if len(metas) == len(rows) else []
 
         self._row_meta_by_surface = {
             m.surface_id: m
@@ -422,94 +468,107 @@ class HeatLossPanelV3(QWidget):
         # Populate rows
         # --------------------------------------------------
         for r, row in enumerate(rows):
-
-            # support both dict + DTO (future-proof)
             get = row.get if isinstance(row, dict) else lambda k, d=None: getattr(row, k, d)
 
-            surface_id = get("surface_id")
+            row_meta = self._row_meta[r] if r < len(self._row_meta) else None
+
+            surface_id = (
+                    get("surface_id")
+                    or get("segment_id")
+                    or get("boundary_segment_id")
+                    or get("id")
+                    or get("surface_key")
+                    or getattr(row_meta, "surface_id", None)
+            )
 
             # --------------------------------------------------
-            # Element text
+            # Element label
             # --------------------------------------------------
-            element_text = str(get("element", ""))
+            element_text = (
+                    get("element")
+                    or get("element_type")
+                    or get("surface_type")
+                    or get("geometry_ref")
+                    or get("name")
+                    or ""
+            )
+
+            element_text = str(element_text).replace("_", " ").title()
 
             adjacent_label = get("adjacent_label")
             if adjacent_label:
                 element_text = f"{element_text} → {adjacent_label}"
 
-            # --------------------------------------------------
-            # Hierarchy (parent/child)
-            # --------------------------------------------------
-            parent_id = getattr(row, "parent_surface_id", None)
+            parent_id = get("parent_surface_id")
             is_child = parent_id is not None
 
             if is_child:
                 element_text = "    " + element_text
 
-            item = QTableWidgetItem(element_text)
-            item.setData(Qt.UserRole, surface_id)
-            item.setTextAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-            item.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
+            item_element = QTableWidgetItem(element_text)
+            item_element.setData(Qt.UserRole, surface_id)
+            item_element.setTextAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+            item_element.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
 
-            # --------------------------------------------------
-            # Meta styling
-            # --------------------------------------------------
-            row_meta = self._row_meta[r] if r < len(self._row_meta) else None
-
-            if row_meta is not None and getattr(row_meta, "adjacency_editable", False):
-                item.setForeground(QColor("#1565c0"))
-                item.setToolTip("Click to assign adjacent room")
+            if row_meta and getattr(row_meta, "adjacency_editable", False):
+                item_element.setForeground(QColor("#1565c0"))
+                item_element.setToolTip("Click ΔT to assign adjacent room")
 
             if is_child:
-                item.setForeground(QColor("#555555"))
+                item_element.setForeground(QColor("#555555"))
 
-            table.setItem(r, 0, item)
+            table.setItem(r, ELEMENT_COLUMN, item_element)
 
             # --------------------------------------------------
-            # Numeric columns
-            # --------------------------------------------------
-
             # Area
+            # --------------------------------------------------
             area = get("A") or get("area_m2")
             item_area = self._num_item(
                 f"{area:.2f}" if isinstance(area, (int, float)) else "—"
             )
-            table.setItem(r, 1, item_area)
+            item_area.setData(Qt.UserRole, surface_id)
+            table.setItem(r, AREA_COLUMN, item_area)
 
+            # --------------------------------------------------
             # U-value
+            # --------------------------------------------------
             u = get("U") or get("u_value_W_m2K")
             item_u = self._num_item(
                 f"{u:.3f}" if isinstance(u, (int, float)) else "—"
             )
-            table.setItem(r, 2, item_u)
+            item_u.setData(Qt.UserRole, surface_id)
+            table.setItem(r, U_COLUMN, item_u)
 
-            # ΔT (with colour)
+            # --------------------------------------------------
+            # ΔT
+            # --------------------------------------------------
             dt = get("dT") or get("delta_t_K")
             item_dt = self._num_item(
                 f"{dt:.1f}" if isinstance(dt, (int, float)) else "—"
             )
+            item_dt.setData(Qt.UserRole, surface_id)
+
             if isinstance(dt, (int, float)):
                 self._apply_value_colour(item_dt, float(dt))
-            table.setItem(r, 3, item_dt)
 
-            # Qf (with colour)
+            table.setItem(r, DT_COLUMN, item_dt)
+
+            # --------------------------------------------------
+            # Qf
+            # --------------------------------------------------
             qf = get("Qf") or get("qf_W")
             item_qf = self._num_item(
                 f"{qf:.1f}" if isinstance(qf, (int, float)) else "—"
             )
+            item_qf.setData(Qt.UserRole, surface_id)
+
             if isinstance(qf, (int, float)):
                 self._apply_value_colour(item_qf, float(qf))
-            table.setItem(r, 4, item_qf)
 
-            # --------------------------------------------------
-            # Row state colouring
-            # --------------------------------------------------
-            state = get("state")
-            if state:
-                self._apply_row_state(r, state)
+            table.setItem(r, QF_COLUMN, item_qf)
 
         # --------------------------------------------------
-        # Compact table height (nice UX)
+        # Resize
         # --------------------------------------------------
         header_h = table.horizontalHeader().height()
         rows_h = sum(table.rowHeight(i) for i in range(table.rowCount()))
@@ -524,7 +583,62 @@ class HeatLossPanelV3(QWidget):
         table.setUpdatesEnabled(True)
         table.setSortingEnabled(False)
 
-    from PySide6.QtGui import QColor
+    def _apply_row_state(self, row: int, state: str) -> None:
+        # KEEP logic later, but no colouring for now
+        return
+
+    def highlight_rows_for_construction(self, cid: str) -> None:
+        table = self._table
+
+        for r in range(table.rowCount()):
+            item = table.item(r, 0)
+            if not item:
+                continue
+
+            surface_id = item.data(Qt.UserRole)
+            if not surface_id:
+                continue
+
+            row_meta = self._row_meta_by_surface.get(surface_id)
+            if not row_meta:
+                continue
+
+            # 🔑 get construction_id from meta or adapter-injected data
+            row_cid = getattr(row_meta, "construction_id", None)
+
+            for c in range(table.columnCount()):
+                cell = table.item(r, c)
+                if not cell:
+                    continue
+
+                if row_cid == cid:
+                    # ✅ BORDER highlight (does NOT kill background)
+                    cell.setData(Qt.UserRole + 1, True)
+                else:
+                    cell.setData(Qt.UserRole + 1, False)
+
+        table.viewport().update()
+
+        def paintEvent(self, event):
+            super().paintEvent(event)
+
+            from PySide6.QtGui import QPainter, QPen
+            painter = QPainter(self._table.viewport())
+
+            pen = QPen()
+            pen.setWidth(2)
+            pen.setColor(QColor("#1565c0"))
+
+            for r in range(self._table.rowCount()):
+                for c in range(self._table.columnCount()):
+                    item = self._table.item(r, c)
+                    if not item:
+                        continue
+
+                    if item.data(Qt.UserRole + 1):
+                        rect = self._table.visualItemRect(item)
+                        painter.setPen(pen)
+                        painter.drawRect(rect.adjusted(1, 1, -1, -1))
 
     @staticmethod
     def _apply_value_colour(item: QTableWidgetItem, value: float | None) -> None:
@@ -537,20 +651,6 @@ class HeatLossPanelV3(QWidget):
             item.setForeground(QColor(150, 150, 150))  # grey (adiabatic)
         # positive → leave default (cleanest)
 
-    def _apply_row_state(self, row: int, state: str) -> None:
-        if state == "GREEN":
-            return
-        if state == "ORANGE":
-            color = QColor(255, 243, 205)
-        elif state == "RED":
-            color = QColor(248, 215, 218)
-        else:
-            return
-
-        for col in range(self._table.columnCount()):
-            item = self._table.item(row, col)
-            if item:
-                item.setBackground(color)
 
     # ------------------------------------------------------------------
     # Worksheet interaction
@@ -571,10 +671,13 @@ class HeatLossPanelV3(QWidget):
 
         surface_id = element_item.data(Qt.UserRole)
 
+        if not surface_id and row_meta is not None:
+            surface_id = getattr(row_meta, "surface_id", None)
+
         # --------------------------------------------------
         # 🔥 Adjacency click on ΔT column
         # --------------------------------------------------
-        if column == 3 and getattr(row_meta, "adjacency_editable", False):
+        if column == DT_COLUMN and getattr(row_meta, "adjacency_editable", False):
             if surface_id:
                 self.adjacency_edit_requested.emit(str(surface_id))
             return
