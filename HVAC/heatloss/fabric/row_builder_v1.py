@@ -4,9 +4,8 @@
 
 from __future__ import annotations
 
-from typing import Tuple, List, Dict
+from typing import Tuple, List
 
-from HVAC.heatloss.fabric.fabric_from_segments_v1 import FabricFromSegmentsV1
 from HVAC.topology.topology_validator_v1 import TopologyValidatorV1
 from HVAC.gui_v3.common.worksheet_row_meta import (
     WorksheetRowMeta,
@@ -19,26 +18,28 @@ def build_rows_with_meta(
     room,
 ) -> Tuple[List[dict], List[WorksheetRowMeta]]:
     """
-    Canonical row builder (Phase IV-B stable)
+    Canonical row builder (Phase IV-B / V-C stable)
 
     Authority
     ---------
     • Builds rows from topology + fabric
-    • Computes ΔT via resolver (inside FabricFromSegmentsV1)
-    • Attaches segment for UI use
-    • Produces WorksheetRowMeta (UI-safe)
+    • Uses generate_fabric_from_topology as the active fabric bridge
+    • Carries BoundarySegmentV1 through as _segment for UI projection
+    • Produces WorksheetRowMeta for HLP row identity/editability
 
-    Returns:
-        rows: list[dict]
-        metas: list[WorksheetRowMeta]
+    Notes
+    -----
+    Rows are plain dicts.
+    GUI adapters must read dict keys, not only object attributes.
     """
 
     rows: List[dict] = []
     metas: List[WorksheetRowMeta] = []
 
     # --------------------------------------------------
-    # Validation (topology-aware)
+    # Validation
     # --------------------------------------------------
+
     validation = TopologyValidatorV1.validate_room_adjacency(
         project,
         room.room_id,
@@ -46,17 +47,26 @@ def build_rows_with_meta(
     lookup = {v.surface_id: v for v in validation}
 
     # --------------------------------------------------
-    # Fabric rows (single source)
+    # Fabric rows
     # --------------------------------------------------
-    fabric_rows = FabricFromSegmentsV1.build_rows_for_room(
+
+    from HVAC.topology.dev_topology_fabric_bridge import generate_fabric_from_topology
+
+    fabric_rows = generate_fabric_from_topology(
         project,
         room,
     )
 
     for src in fabric_rows:
+        segment = getattr(src, "_segment", None)
+        boundary_kind = getattr(segment, "boundary_kind", None)
+        geometry_ref = getattr(segment, "geometry_ref", None)
+        adjacent_room_id = getattr(segment, "adjacent_room_id", None)
+
         # --------------------------------------------------
-        # Row
+        # Row projection
         # --------------------------------------------------
+
         row = {
             "surface_id": src.surface_id,
             "element": src.element,
@@ -64,17 +74,20 @@ def build_rows_with_meta(
             "U": src.u_value_W_m2K,
             "dT": src.delta_t_K,
             "Qf": src.qf_W,
-            "_segment": getattr(src, "_segment", None),  # critical for adjacency UI
+
+            # Critical topology projection fields
+            "_segment": segment,
+            "boundary_kind": boundary_kind,
+            "geometry_ref": geometry_ref,
+            "adjacent_room_id": adjacent_room_id,
         }
 
         rows.append(row)
-        segment = getattr(src, "_segment", None)
-        boundary_kind = getattr(segment, "boundary_kind", None)
-        adjacency_editable = boundary_kind in ("EXTERNAL", "INTER_ROOM")
 
         # --------------------------------------------------
         # Validation → state
         # --------------------------------------------------
+
         v = lookup.get(src.surface_id)
 
         if v is None:
@@ -90,17 +103,15 @@ def build_rows_with_meta(
             state = "GREEN"
             message = None
 
-        print(src.surface_id, getattr(src._segment, "boundary_kind", None))
         # --------------------------------------------------
-        # Meta (STRICT TYPE)
+        # Editability
         # --------------------------------------------------
-        # --------------------------------------------------
-        # Meta (STRICT TYPE)
-        # --------------------------------------------------
-        segment = getattr(src, "_segment", None)
-        boundary_kind = getattr(segment, "boundary_kind", None)
 
         adjacency_editable = boundary_kind in ("EXTERNAL", "INTER_ROOM")
+
+        # --------------------------------------------------
+        # Meta
+        # --------------------------------------------------
 
         metas.append(
             WorksheetRowMeta(
@@ -118,5 +129,5 @@ def build_rows_with_meta(
                 },
             )
         )
-    print(src.surface_id, getattr(src._segment, "boundary_kind", None))
+
     return rows, metas

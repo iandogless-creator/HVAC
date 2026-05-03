@@ -414,23 +414,37 @@ class HeatLossPanelAdapter:
         metas: list[WorksheetRowMeta] = []
 
         for src in fabric_rows:
+            seg = getattr(src, "_segment", None)
+
             surface_id = (
                     getattr(src, "surface_id", None)
                     or getattr(src, "element_id", None)
                     or getattr(src, "segment_id", None)
+                    or getattr(seg, "segment_id", None)
             )
 
             if surface_id is None:
-                seg = getattr(src, "_segment", None)
-                surface_id = getattr(seg, "segment_id", None)
-
-            if surface_id is None:
-                # Defensive fallback: should not happen, but avoids dead UI rows.
                 surface_id = f"{room.room_id}-row-{len(rows)}"
 
-            boundary_kind = getattr(src, "boundary_kind", None)
-            adjacent_room_id = getattr(src, "adjacent_room_id", None)
+            boundary_kind = (
+                    getattr(src, "boundary_kind", None)
+                    or getattr(seg, "boundary_kind", None)
+            )
+
+            adjacent_room_id = (
+                    getattr(src, "adjacent_room_id", None)
+                    or getattr(seg, "adjacent_room_id", None)
+            )
+
             construction_id = getattr(src, "construction_id", None)
+
+            geometry_ref = (
+                    getattr(src, "geometry_ref", None)
+                    or getattr(seg, "geometry_ref", None)
+                    or ""
+            )
+
+            surface_class = getattr(src, "surface_class", None)
 
             adjacent_label = None
             if boundary_kind == "INTER_ROOM" and adjacent_room_id:
@@ -441,7 +455,24 @@ class HeatLossPanelAdapter:
                     else adjacent_room_id
                 )
 
-            element = self._format_element(src)
+            # --------------------------------------------------
+            # Build a projection source for formatting.
+            # Do not let _format_element guess from partial src.
+            # --------------------------------------------------
+
+            format_src = {
+                "surface_id": str(surface_id),
+                "element_id": str(surface_id),
+                "element": getattr(src, "element", None),
+                "surface_class": surface_class,
+                "geometry_ref": geometry_ref,
+                "boundary_kind": boundary_kind,
+                "adjacent_room_id": adjacent_room_id,
+                "adjacent_label": adjacent_label,
+                "_segment": seg,
+            }
+
+            element = self._format_element(format_src)
 
             rows.append({
                 "surface_id": str(surface_id),
@@ -462,16 +493,23 @@ class HeatLossPanelAdapter:
                 "adjacent_room_id": adjacent_room_id,
                 "adjacent_label": adjacent_label,
                 "dT_label": self._format_dt(src),
+
+                # Projection/debug fields.
+                "_segment": seg,
+                "geometry_ref": geometry_ref,
+                "surface_class": surface_class,
             })
+
+            adjacency_editable = (
+                    boundary_kind == "INTER_ROOM"
+                    and adjacent_room_id is not None
+            )
 
             metas.append(
                 WorksheetRowMeta(
                     surface_id=str(surface_id),
                     element=element,
-                    adjacency_editable=(
-                            boundary_kind == "INTER_ROOM"
-                            and adjacent_room_id is not None
-                    ),
+                    adjacency_editable=adjacency_editable,
                     columns={
                         0: WorksheetCellMeta(
                             field="element",
@@ -490,10 +528,7 @@ class HeatLossPanelAdapter:
                         ),
                         3: WorksheetCellMeta(
                             field="dT",
-                            editable=(
-                                    boundary_kind == "INTER_ROOM"
-                                    and adjacent_room_id is not None
-                            ),
+                            editable=adjacency_editable,
                             kind="derived",
                         ),
                         4: WorksheetCellMeta(
@@ -506,32 +541,98 @@ class HeatLossPanelAdapter:
             )
 
         return rows, metas
+
     def _compute_qf(self, src) -> float:
         return float(src.area_m2 * src.u_value_W_m2K * src.delta_t_K)
 
     def _format_element(self, src) -> str:
-        surface_class = getattr(src, "surface_class", "")
-        boundary_kind = getattr(src, "boundary_kind", None)
+        def read(obj, key: str, default=None):
+            if isinstance(obj, dict):
+                return obj.get(key, default)
+            return getattr(obj, key, default)
 
-        if surface_class == "wall":
-            if boundary_kind == "EXTERNAL":
-                return "External Wall"
-            return "Wall"
+        seg = read(src, "_segment", None)
 
-        if surface_class == "internal_partition":
-            return "Wall"
+        element = str(read(src, "element", "") or "").lower()
+        surface_class = str(read(src, "surface_class", "") or "").lower()
 
-        if surface_class == "floor":
+        geometry_ref = str(
+            read(src, "geometry_ref", None)
+            or getattr(seg, "geometry_ref", "")
+            or ""
+        ).lower()
+
+        boundary_kind = str(
+            read(src, "boundary_kind", None)
+            or getattr(seg, "boundary_kind", "")
+            or ""
+        ).upper()
+
+        adjacent_room_id = (
+                read(src, "adjacent_room_id", None)
+                or getattr(seg, "adjacent_room_id", None)
+        )
+
+        print(
+            "[FORMAT]",
+            read(src, "surface_id", None) or read(src, "element_id", None),
+            "element=", element,
+            "surface_class=", surface_class,
+            "geometry_ref=", geometry_ref,
+            "boundary_kind=", boundary_kind,
+            "adj=", adjacent_room_id,
+        )
+
+        # --------------------------------------------------
+        # Geometry-first classification
+        # --------------------------------------------------
+        # Vertical adjacency must remain Floor/Ceiling.
+        # It must not be displayed as Wall just because it is INTER_ROOM.
+        # --------------------------------------------------
+
+        if geometry_ref == "floor":
             if boundary_kind == "EXTERNAL":
                 return "External Floor"
             return "Floor"
 
-        if surface_class == "ceiling":
+        if geometry_ref == "ceiling":
             if boundary_kind == "EXTERNAL":
                 return "Roof / External Ceiling"
             return "Ceiling"
 
-        return str(surface_class).replace("_", " ").title()
+        if geometry_ref == "roof":
+            if boundary_kind == "EXTERNAL":
+                return "Roof / External Ceiling"
+            return "Ceiling"
+
+        if geometry_ref == "wall" or "edge" in geometry_ref:
+            if boundary_kind == "EXTERNAL":
+                return "External Wall"
+            return "Wall"
+
+        # --------------------------------------------------
+        # Fallbacks
+        # --------------------------------------------------
+
+        if element == "floor" or surface_class == "floor":
+            if boundary_kind == "EXTERNAL" or not boundary_kind:
+                return "External Floor"
+            return "Floor"
+
+        if element in ("roof", "ceiling") or surface_class in ("roof", "ceiling"):
+            if boundary_kind == "EXTERNAL" or not boundary_kind:
+                return "Roof / External Ceiling"
+            return "Ceiling"
+
+        if element in ("external_wall", "wall") or surface_class in ("wall", "external_wall"):
+            if boundary_kind == "EXTERNAL" or not boundary_kind:
+                return "External Wall"
+            return "Wall"
+
+        if element == "internal_partition" or surface_class == "internal_partition":
+            return "Wall"
+
+        return str(element or surface_class).replace("_", " ").title()
 
     def _format_dt(self, src) -> str:
         text = f"{float(src.delta_t_K):.1f}"
