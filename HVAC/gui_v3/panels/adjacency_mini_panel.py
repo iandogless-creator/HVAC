@@ -226,15 +226,12 @@ class AdjacencyMiniPanelV1(QWidget):
         if not room_id:
             return
 
-        print(f"[UI ASSIGN] {self._source_segment_id} -> {room_id}")
-
         self.adjacency_committed.emit(room_id)
 
     # ------------------------------------------------------------------
     def _on_apply(self) -> None:
         room_id = self._combo.currentData()
         if room_id:
-            print(f"[AdjPanel] commit → {room_id}")
             self.adjacency_committed.emit(room_id)
 
     def _on_clear(self) -> None:
@@ -254,7 +251,6 @@ class AdjacencyMiniPanelV1(QWidget):
             room_options: list[str],
     ) -> None:
 
-        print(f"[AdjPanel] segment={segment_id} current_adj={current_adjacent_room_id} options={room_options}")
 
         self._source_segment_id = segment_id
 

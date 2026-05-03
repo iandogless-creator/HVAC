@@ -110,13 +110,6 @@ class HeatLossPanelAdapter:
 
         gross_perimeter_m = external_perimeter_m + inter_room_perimeter_m
 
-        # (DEV: visibility only — safe to remove later)
-        print(
-            f"[PERIM] gross={gross_perimeter_m:.2f} "
-            f"ext={external_perimeter_m:.2f} "
-            f"int={inter_room_perimeter_m:.2f}"
-        )
-
         ti, _ = resolve_effective_internal_temp_C(ps, room)
 
         te = None
@@ -571,16 +564,6 @@ class HeatLossPanelAdapter:
         adjacent_room_id = (
                 read(src, "adjacent_room_id", None)
                 or getattr(seg, "adjacent_room_id", None)
-        )
-
-        print(
-            "[FORMAT]",
-            read(src, "surface_id", None) or read(src, "element_id", None),
-            "element=", element,
-            "surface_class=", surface_class,
-            "geometry_ref=", geometry_ref,
-            "boundary_kind=", boundary_kind,
-            "adj=", adjacent_room_id,
         )
 
         # --------------------------------------------------
