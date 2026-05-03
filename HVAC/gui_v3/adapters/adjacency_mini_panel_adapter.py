@@ -35,8 +35,6 @@ class AdjacencyMiniPanelAdapter(QObject):
             room_options.append(room_id)
             room_option_labels[room_id] = room_name
 
-        print("[CTX]", room_options)
-
         return {
             "segment_id": segment_id,
             "current_adjacent_room_id": seg.adjacent_room_id,

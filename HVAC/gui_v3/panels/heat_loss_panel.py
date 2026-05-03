@@ -272,7 +272,6 @@ class HeatLossPanelV3(QWidget):
         self._row_meta_by_surface = lookup
 
     def _on_cell_clicked(self, row: int, column: int) -> None:
-        print(f"[HLP CLICK] row={row} col={column}")
 
         if not hasattr(self, "_row_meta"):
             return
@@ -287,29 +286,6 @@ class HeatLossPanelV3(QWidget):
 
         if not surface_id and row_meta is not None:
             surface_id = getattr(row_meta, "surface_id", None)
-
-        print(f"[HLP CLICK] surface_id={surface_id}")
-        print(f"[HLP CLICK] row_meta={row_meta}")
-
-        # --------------------------------------------------
-        # Adjacency edit: ΔT column only
-        # --------------------------------------------------
-        if column == DT_COLUMN:
-            if row_meta is None:
-                print("[HLP CLICK] no row_meta")
-                return
-
-            if not getattr(row_meta, "adjacency_editable", False):
-                print("[HLP CLICK] row not adjacency editable")
-                return
-
-            if not surface_id:
-                print("[HLP CLICK] no surface_id")
-                return
-
-            print(f"[HLP CLICK] EMIT adjacency_edit_requested {surface_id}")
-            self.adjacency_edit_requested.emit(str(surface_id))
-            return
 
         # --------------------------------------------------
         # Future editable cells

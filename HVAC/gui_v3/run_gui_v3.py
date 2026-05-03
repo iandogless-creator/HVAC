@@ -78,8 +78,6 @@ def make_dev_bootstrap_project_state() -> ProjectState:
 
     # Topology
     TopologyResolverV1.resolve_project(project)
-    print("[BOOT] Segments:", project.boundary_segments)
-
     # Lifecycle
     project.mark_heatloss_dirty()
 

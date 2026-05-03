@@ -27,8 +27,6 @@ class DevSettingsPanel(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
 
-        print(f"[DEV PANEL INIT] id={id(self)} parent={parent}")
-
         self.setEnabled(True)
         self.setAttribute(Qt.WA_TransparentForMouseEvents, False)
 
@@ -66,19 +64,12 @@ class DevSettingsPanel(QWidget):
         )
         self._reload_button.clicked.connect(self._emit_current_mode)
 
-        print(f"[DEV PANEL ENABLED] {self.isEnabled()}")
-        print(f"[DEV PANEL ENABLED TO WINDOW] {self.isEnabledTo(self.window())}")
-        print(f"[DEV COMBO COUNT] {self._combo.count()}")
-        print(f"[DEV COMBO ENABLED] {self._combo.isEnabled()}")
-        print(f"[DEV BUTTON ENABLED] {self._reload_button.isEnabled()}")
 
     def _on_mode_changed(self, mode: str) -> None:
-        print(f"[PANEL TEXT CHANGED] {mode} | id={id(self)}")
         self.mode_changed.emit(mode)
 
     def _emit_current_mode(self) -> None:
         mode = self._combo.currentText()
-        print(f"[PANEL BUTTON FIRED] {mode} | id={id(self)}")
         self.mode_changed.emit(mode)
 
     def current_mode(self) -> str:

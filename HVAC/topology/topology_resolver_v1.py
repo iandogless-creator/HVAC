@@ -38,8 +38,6 @@ class TopologyResolverV1:
             print("🚫 Resolver skipped — topology already exists")
             return
 
-        print("🔥 TopologyResolverV1.resolve_project CALLED 🔥")
-
         for room in project.rooms.values():
             segments = TopologyResolverV1._build_segments_for_room(room)
             project.set_boundary_segments_for_room(room.room_id, segments)

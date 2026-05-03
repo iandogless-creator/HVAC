@@ -10,8 +10,6 @@ from typing import Any
 from HVAC.topology.adjacency_delta_t_resolver import AdjacencyDeltaTResolver
 
 
-print("🔥 USING DEV TOPOLOGY FABRIC BRIDGE 🔥")
-
 
 DEFAULT_EXTERNAL_CONSTRUCTION_ID = "DEV-EXT-WALL"
 DEFAULT_INTERNAL_CONSTRUCTION_ID = "DEV-INT-WALL"
