@@ -52,8 +52,22 @@ class DevFabricRow:
 # ======================================================================
 
 def _resolve_internal_temp(project: ProjectState, room: RoomStateV1) -> float:
-    if hasattr(room, "internal_temp_C") and room.internal_temp_C is not None:
-        return float(room.internal_temp_C)
+    """
+    Resolve the effective room internal design temperature.
+
+    Priority:
+    1. room.internal_temp_override_C  — GUI/editor override path
+    2. room.internal_temp_C           — DEV/bootstrap direct value
+    3. environment.default_internal_temp_C
+    """
+
+    override = getattr(room, "internal_temp_override_C", None)
+    if override is not None:
+        return float(override)
+
+    direct = getattr(room, "internal_temp_C", None)
+    if direct is not None:
+        return float(direct)
 
     return float(project.environment.default_internal_temp_C)
 
