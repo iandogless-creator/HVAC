@@ -18,9 +18,10 @@ ROOM_LENGTH_M = 4.0
 ROOM_WIDTH_M = 3.0
 ROOM_HEIGHT_M = 2.4
 
-# Wall segment length chosen to produce:
-# 4.0 m × 2.4 m = 9.60 m²
-WALL_LENGTH_M = ROOM_LENGTH_M
+# v1 rectangular wall lengths.
+# These are not CAD coordinates; they are heat-loss segment lengths.
+WALL_LONG_M = ROOM_LENGTH_M      # 4.0 m wall
+WALL_SHORT_M = ROOM_WIDTH_M      # 3.0 m wall
 
 
 # ----------------------------------------------------------------------
@@ -39,12 +40,11 @@ def seg(
     """
     DEV boundary segment helper.
 
-    Notes
+    Rules
     -----
-    • wall segments must carry length_m because wall area is derived as
-      segment.length_m × room height.
-    • floor/ceiling segments keep length_m=0.0 because their area is
-      derived from room length × width.
+    • wall segments carry length_m because wall area = length × height
+    • floor/ceiling segments keep length_m=0.0 because area = L × W
+    • adjacency is held by BoundarySegmentV1
     """
 
     return BoundarySegmentV1(
@@ -55,6 +55,48 @@ def seg(
         boundary_kind=kind,
         adjacent_room_id=adj,
     )
+
+
+def add_wall_set(
+    *,
+    add,
+    room_id: str,
+    prefix: str,
+    inter_side: str | None = None,
+    adjacent_room_id: str | None = None,
+) -> None:
+    """
+    Add a complete four-wall enclosure for a room.
+
+    v1 convention
+    -------------
+    north/south use ROOM_LENGTH_M
+    east/west use ROOM_WIDTH_M
+
+    One side may be INTER_ROOM.
+    All other walls are EXTERNAL.
+    """
+
+    wall_defs = {
+        "n": WALL_LONG_M,
+        "s": WALL_LONG_M,
+        "e": WALL_SHORT_M,
+        "w": WALL_SHORT_M,
+    }
+
+    for side, length_m in wall_defs.items():
+        is_internal = side == inter_side and adjacent_room_id is not None
+
+        add(
+            seg(
+                f"{prefix}-wall-{side}",
+                room_id,
+                "wall",
+                "INTER_ROOM" if is_internal else "EXTERNAL",
+                adjacent_room_id if is_internal else None,
+                length_m=length_m,
+            )
+        )
 
 
 # ----------------------------------------------------------------------
@@ -76,6 +118,8 @@ def build_vertical_stack_project_state() -> ProjectState:
 
     Topology intent
     ---------------
+    • every room has a complete enclosure
+    • non-adjacent walls are EXTERNAL
     • vertical adjacency uses floor/ceiling geometry
     • same-storey adjacency uses wall geometry
     • room_id remains canonical; names are display labels
@@ -123,6 +167,7 @@ def build_vertical_stack_project_state() -> ProjectState:
     r1 = make_room("room-001", "Boiler Room")
     r2 = make_room("room-002", "First Floor")
     r3 = make_room("room-003", "Second Floor")
+
     r4 = make_room("room-004", "Gnd Adj")
     r5 = make_room("room-005", "1st Adj")
     r6 = make_room("room-006", "2nd Adj")
@@ -139,21 +184,7 @@ def build_vertical_stack_project_state() -> ProjectState:
     # --------------------------------------------------
     # Temperature field
     # --------------------------------------------------
-    # Deliberately varied to prove ΔT resolution:
-    #
-    # Boiler Room → First Floor:
-    #   21 - 20 = +1 K
-    #
-    # First Floor → Boiler Room:
-    #   20 - 21 = -1 K
-    #
-    # First Floor → Second Floor:
-    #   20 - 23 = -3 K
-    #
-    # Same-storey adjacencies:
-    #   Boiler Room → Gnd Adj = 21 - 18 = +3 K
-    #   First Floor → 1st Adj = 20 - 22 = -2 K
-    #   Second Floor → 2nd Adj = 23 - 25 = -2 K
+    # Deliberately varied to prove ΔT resolution.
     # --------------------------------------------------
 
     ps.rooms["room-001"].internal_temp_C = 21.0
@@ -167,24 +198,42 @@ def build_vertical_stack_project_state() -> ProjectState:
     # --------------------------------------------------
     # Topology
     # --------------------------------------------------
-    # Vertical stack:
     #
-    # room-003 Second Floor
-    #   floor   → room-002
-    #   ceiling → external roof
+    # Main stack:
     #
-    # room-002 First Floor
-    #   floor   → room-001
-    #   ceiling → room-003
+    #   room-003 Second Floor
+    #       floor   → room-002
+    #       ceiling → external roof
+    #       west wall → room-006
     #
-    # room-001 Boiler Room
-    #   floor   → external
-    #   ceiling → room-002
+    #   room-002 First Floor
+    #       floor   → room-001
+    #       ceiling → room-003
+    #       west wall → room-005
     #
-    # Side adjacencies are same-storey wall adjacencies:
-    #   room-001 wall → room-004
-    #   room-002 wall → room-005
-    #   room-003 wall → room-006
+    #   room-001 Boiler Room
+    #       floor   → external
+    #       ceiling → room-002
+    #       west wall → room-004
+    #
+    # Side stack:
+    #
+    #   room-006 2nd Adj
+    #       floor   → room-005
+    #       ceiling → external roof
+    #       east wall → room-003
+    #
+    #   room-005 1st Adj
+    #       floor   → room-004
+    #       ceiling → room-006
+    #       east wall → room-002
+    #
+    #   room-004 Gnd Adj
+    #       floor   → external
+    #       ceiling → room-005
+    #       east wall → room-001
+    #
+    # All other walls are EXTERNAL.
     # --------------------------------------------------
 
     ps.boundary_segments = {}
@@ -198,8 +247,14 @@ def build_vertical_stack_project_state() -> ProjectState:
 
     add(seg("r1-floor", "room-001", "floor", "EXTERNAL", None))
     add(seg("r1-ceil", "room-001", "ceiling", "INTER_ROOM", "room-002"))
-    add(seg("r1-wall-e", "room-001", "wall", "INTER_ROOM", "room-004", length_m=WALL_LENGTH_M))
-    add(seg("r4-wall-w", "room-004", "wall", "INTER_ROOM", "room-001", length_m=WALL_LENGTH_M))
+
+    add_wall_set(
+        add=add,
+        room_id="room-001",
+        prefix="r1",
+        inter_side="w",
+        adjacent_room_id="room-004",
+    )
 
     # -----------------------------
     # room-002 — First Floor
@@ -207,8 +262,14 @@ def build_vertical_stack_project_state() -> ProjectState:
 
     add(seg("r2-floor", "room-002", "floor", "INTER_ROOM", "room-001"))
     add(seg("r2-ceil", "room-002", "ceiling", "INTER_ROOM", "room-003"))
-    add(seg("r2-wall-e", "room-002", "wall", "INTER_ROOM", "room-005", length_m=WALL_LENGTH_M))
-    add(seg("r5-wall-w", "room-005", "wall", "INTER_ROOM", "room-002", length_m=WALL_LENGTH_M))
+
+    add_wall_set(
+        add=add,
+        room_id="room-002",
+        prefix="r2",
+        inter_side="w",
+        adjacent_room_id="room-005",
+    )
 
     # -----------------------------
     # room-003 — Second Floor
@@ -216,8 +277,59 @@ def build_vertical_stack_project_state() -> ProjectState:
 
     add(seg("r3-floor", "room-003", "floor", "INTER_ROOM", "room-002"))
     add(seg("r3-ceil", "room-003", "ceiling", "EXTERNAL", None))
-    add(seg("r3-wall-e", "room-003", "wall", "INTER_ROOM", "room-006", length_m=WALL_LENGTH_M))
-    add(seg("r6-wall-w", "room-006", "wall", "INTER_ROOM", "room-003", length_m=WALL_LENGTH_M))
+
+    add_wall_set(
+        add=add,
+        room_id="room-003",
+        prefix="r3",
+        inter_side="w",
+        adjacent_room_id="room-006",
+    )
+
+    # -----------------------------
+    # room-004 — Gnd Adj
+    # -----------------------------
+
+    add(seg("r4-floor", "room-004", "floor", "EXTERNAL", None))
+    add(seg("r4-ceil", "room-004", "ceiling", "INTER_ROOM", "room-005"))
+
+    add_wall_set(
+        add=add,
+        room_id="room-004",
+        prefix="r4",
+        inter_side="e",
+        adjacent_room_id="room-001",
+    )
+
+    # -----------------------------
+    # room-005 — 1st Adj
+    # -----------------------------
+
+    add(seg("r5-floor", "room-005", "floor", "INTER_ROOM", "room-004"))
+    add(seg("r5-ceil", "room-005", "ceiling", "INTER_ROOM", "room-006"))
+
+    add_wall_set(
+        add=add,
+        room_id="room-005",
+        prefix="r5",
+        inter_side="e",
+        adjacent_room_id="room-002",
+    )
+
+    # -----------------------------
+    # room-006 — 2nd Adj
+    # -----------------------------
+
+    add(seg("r6-floor", "room-006", "floor", "INTER_ROOM", "room-005"))
+    add(seg("r6-ceil", "room-006", "ceiling", "EXTERNAL", None))
+
+    add_wall_set(
+        add=add,
+        room_id="room-006",
+        prefix="r6",
+        inter_side="e",
+        adjacent_room_id="room-003",
+    )
 
     # --------------------------------------------------
     # Lifecycle
