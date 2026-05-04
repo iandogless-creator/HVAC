@@ -122,6 +122,89 @@ class TopologyResolverV1:
             if seg.owner_room_id == room.room_id
         ]
 
+    @staticmethod
+    def _build_enclosure_segments_for_room(
+        room: RoomStateV1,
+    ) -> List[BoundarySegmentV1]:
+        """
+        Build full v1 room enclosure topology.
+
+        Order
+        -----
+        1. floor
+        2. wall-1
+        3. wall-2
+        4. wall-3
+        5. wall-4
+        6. ceiling
+
+        Defaults
+        --------
+        • All surfaces are EXTERNAL
+        • No adjacency is inferred
+        • Storey does not imply adjacency
+        """
+
+        g = room.geometry
+
+        if (
+            g is None
+            or g.length_m is None
+            or g.width_m is None
+        ):
+            return []
+
+        L = float(g.length_m)
+        W = float(g.width_m)
+
+        segments: List[BoundarySegmentV1] = []
+
+        # --------------------------------------------------
+        # Floor
+        # --------------------------------------------------
+        segments.append(
+            BoundarySegmentV1(
+                segment_id=f"{room.room_id}-floor",
+                owner_room_id=room.room_id,
+                geometry_ref="floor",
+                length_m=0.0,
+                boundary_kind="EXTERNAL",
+                adjacent_room_id=None,
+            )
+        )
+
+        # --------------------------------------------------
+        # Walls
+        # --------------------------------------------------
+        for i, side_len in enumerate([L, W, L, W], start=1):
+            segments.append(
+                BoundarySegmentV1(
+                    segment_id=f"{room.room_id}-seg-{i}",
+                    owner_room_id=room.room_id,
+                    geometry_ref=f"{room.room_id}-edge-{i}",
+                    length_m=float(side_len),
+                    boundary_kind="EXTERNAL",
+                    adjacent_room_id=None,
+                )
+            )
+
+        # --------------------------------------------------
+        # Ceiling / roof
+        # --------------------------------------------------
+        segments.append(
+            BoundarySegmentV1(
+                segment_id=f"{room.room_id}-ceiling",
+                owner_room_id=room.room_id,
+                geometry_ref="ceiling",
+                length_m=0.0,
+                boundary_kind="EXTERNAL",
+                adjacent_room_id=None,
+            )
+        )
+
+        return segments
+
+
     # ------------------------------------------------------------------
     # Ensure one room has topology (live Add Room path)
     # ------------------------------------------------------------------
@@ -157,5 +240,5 @@ class TopologyResolverV1:
         if existing:
             return
 
-        segments = TopologyResolverV1._build_segments_for_room(room)
+        segments = TopologyResolverV1._build_enclosure_segments_for_room(room)
         project.set_boundary_segments_for_room(room_id, segments)
