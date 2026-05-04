@@ -281,49 +281,80 @@ class HeatLossPanelAdapter:
         return rows
 
     def highlight_rows_for_construction(self, cid: str) -> None:
+        """
+        Soft-highlight all HLP rows using the focused construction.
+
+        Uses worksheet row meta as the projection contract.
+        Does not mutate ProjectState.
+        """
+
         table = self._panel._table
-        ps = self._context.project_state
-        mapping = getattr(ps, "surface_construction_map", None) or {}
 
         for row in range(table.rowCount()):
-            item = table.item(row, 0)
-            if not item:
-                continue
+            meta = self._panel.meta_for_row(row)
+            assigned_cid = getattr(meta, "construction_id", None) if meta else None
 
-            surface_id = item.data(Qt.UserRole)
-            assigned_cid = mapping.get(surface_id)
-
-            highlight = (assigned_cid == cid)
+            highlight = assigned_cid == cid
 
             for col in range(table.columnCount()):
                 cell = table.item(row, col)
-                if cell:
-                    if highlight and col == 0:
-                        cell.setData(Qt.UserRole + 1, "true")
-                    else:
-                        cell.setData(Qt.UserRole + 1, "")
+                if not cell:
+                    continue
+
+                if highlight and col == 0:
+                    cell.setData(Qt.UserRole + 1, "true")
+                else:
+                    cell.setData(Qt.UserRole + 1, "")
 
         table.viewport().update()
+
     # ------------------------------------------------------------------
     # Signals
     # ------------------------------------------------------------------
     def _on_construction_focus(self, cid: str) -> None:
-        self._context.current_construction_id = cid
         self.highlight_rows_for_construction(cid)
 
     def _on_current_room_changed(self, _room_id) -> None:
         self.refresh()
 
     def _on_cell_selected(self, row_index: int) -> None:
+        """
+        HLP row selection routing.
+
+        Rules
+        -----
+        • Keep existing surface focus behaviour
+        • Focus the selected row's construction
+        • Do NOT open adjacency here
+        • Do NOT alter selected-cell styling
+        """
+
         meta = self._panel.meta_for_row(row_index)
         if not meta:
             return
 
+        # --------------------------------------------------
+        # Surface focus — existing behaviour
+        # --------------------------------------------------
         surface_id = getattr(meta, "surface_id", None)
-        if not surface_id:
+        if surface_id:
+            self._context.request_edit("surface", surface_id)
+
+        # --------------------------------------------------
+        # Construction focus — Phase V-C4
+        # --------------------------------------------------
+        cid = getattr(meta, "construction_id", None)
+        if not cid:
             return
 
-        self._context.request_edit("surface", surface_id)
+        if hasattr(self._context, "set_current_construction_id"):
+            self._context.set_current_construction_id(cid)
+        else:
+            # Legacy fallback only
+            self._context.current_construction_id = cid
+            self._context.construction_focus_changed.emit(cid)
+
+        self.highlight_rows_for_construction(cid)
 
     def _on_adjacency_edit_requested(self, surface_id: str) -> None:
         """
