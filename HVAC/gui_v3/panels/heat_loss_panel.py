@@ -288,6 +288,18 @@ class HeatLossPanelV3(QWidget):
             surface_id = getattr(row_meta, "surface_id", None)
 
         # --------------------------------------------------
+        # ΔT column = boundary / adjacency editor
+        # --------------------------------------------------
+        if (
+                column == DT_COLUMN
+                and row_meta is not None
+                and getattr(row_meta, "adjacency_editable", False)
+        ):
+            if surface_id:
+                self.adjacency_edit_requested.emit(str(surface_id))
+            return
+
+        # --------------------------------------------------
         # Future editable cells
         # --------------------------------------------------
         cell_meta = None
@@ -303,6 +315,7 @@ class HeatLossPanelV3(QWidget):
         # --------------------------------------------------
         if surface_id:
             self.surface_focus_requested.emit(str(surface_id))
+            return
 
 
     def set_header_context(self, context: dict | None) -> None:
