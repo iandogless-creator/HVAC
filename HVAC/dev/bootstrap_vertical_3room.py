@@ -8,7 +8,7 @@ from HVAC.project.project_state import ProjectState
 from HVAC.core.environment_state import EnvironmentStateV1
 from HVAC.core.room_state import RoomStateV1, RoomGeometryV1
 from HVAC.topology.boundary_segment_v1 import BoundarySegmentV1
-
+from HVAC.core.room_geometry import RoomGeometryV1
 
 # ----------------------------------------------------------------------
 # Constants
@@ -155,12 +155,23 @@ def build_vertical_stack_project_state() -> ProjectState:
     # Rooms
     # --------------------------------------------------
 
-    def make_room(rid: str, name: str, storey_index: int, storey_label: str):
+    def make_room(
+            rid: str,
+            name: str,
+            storey_index: int,
+            storey_label: str,
+    ):
         room = RoomStateV1(
             room_id=rid,
             name=name,
             storey_index=storey_index,
             storey_label=storey_label,
+            geometry=RoomGeometryV1(
+                length_m=4.0,
+                width_m=3.0,
+                height_m=2.4,
+                external_wall_length_m=14.0,
+            ),
         )
         return room
 
