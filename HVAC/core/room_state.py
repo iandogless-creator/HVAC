@@ -33,7 +33,8 @@ class RoomStateV1:
     # ------------------------------------------------------------------
     room_id: str
     name: str
-
+    storey_index: int = 0
+    storey_label: str = "Ground Floor"
     # ------------------------------------------------------------------
     # Authoritative intent
     # ------------------------------------------------------------------
@@ -51,11 +52,12 @@ class RoomStateV1:
 
         return {
             "name": self.name,
+            "storey_index": self.storey_index,
+            "storey_label": self.storey_label,
             "geometry": self.geometry.to_dict(),
             "internal_temp_override_C": self.internal_temp_override_C,
             "ach_override": self.ach_override,
             "fabric_elements": [e.to_dict() for e in self.fabric_elements],
-            "surface_construction_map": dict(self.surface_construction_map),
         }
 
     @classmethod
@@ -64,6 +66,8 @@ class RoomStateV1:
         instance = cls(
             room_id=room_id,
             name=data.get("name", room_id),
+            storey_index=data.get("storey_index", 0),
+            storey_label=data.get("storey_label", "Ground Floor"),
             internal_temp_override_C=data.get("internal_temp_override_C"),
             ach_override=data.get("ach_override"),
         )

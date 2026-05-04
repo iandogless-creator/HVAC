@@ -155,22 +155,22 @@ def build_vertical_stack_project_state() -> ProjectState:
     # Rooms
     # --------------------------------------------------
 
-    def make_room(rid: str, name: str) -> RoomStateV1:
-        room = RoomStateV1(room_id=rid, name=name)
-        room.geometry = RoomGeometryV1(
-            length_m=ROOM_LENGTH_M,
-            width_m=ROOM_WIDTH_M,
-            height_m=ROOM_HEIGHT_M,
+    def make_room(rid: str, name: str, storey_index: int, storey_label: str):
+        room = RoomStateV1(
+            room_id=rid,
+            name=name,
+            storey_index=storey_index,
+            storey_label=storey_label,
         )
         return room
 
-    r1 = make_room("room-001", "Boiler Room")
-    r2 = make_room("room-002", "First Floor")
-    r3 = make_room("room-003", "Second Floor")
+    r1 = make_room("room-001", "Boiler Room", 0, "Ground Floor")
+    r2 = make_room("room-002", "First Floor", 1, "First Floor")
+    r3 = make_room("room-003", "Second Floor", 2, "Second Floor")
 
-    r4 = make_room("room-004", "Gnd Adj")
-    r5 = make_room("room-005", "1st Adj")
-    r6 = make_room("room-006", "2nd Adj")
+    r4 = make_room("room-004", "Gnd Adj", 0, "Ground Floor")
+    r5 = make_room("room-005", "1st Adj", 1, "First Floor")
+    r6 = make_room("room-006", "2nd Adj", 2, "Second Floor")
 
     ps.rooms = {
         r1.room_id: r1,

@@ -470,10 +470,14 @@ class MainWindowV3(QMainWindow):
             return
 
         # --------------------------------------------------
-        # Create new room ID
+        # Create stable new room ID
         # --------------------------------------------------
         idx = len(ps.rooms) + 1
-        room_id = f"room_{idx:03d}"
+        room_id = f"room-{idx:03d}"
+
+        while room_id in ps.rooms:
+            idx += 1
+            room_id = f"room-{idx:03d}"
 
         # --------------------------------------------------
         # Create room
@@ -484,21 +488,22 @@ class MainWindowV3(QMainWindow):
         ps.rooms[room_id] = RoomStateV1(
             room_id=room_id,
             name=f"Room {idx}",
+            storey_index=0,
+            storey_label="Ground Floor",
             geometry=RoomGeometryV1(
                 length_m=4.0,
                 width_m=3.0,
                 height_m=2.4,
+                external_wall_length_m=14.0,
             ),
         )
 
         # --------------------------------------------------
-        # 🔥 THIS IS WHERE YOUR LINES GO
+        # Ensure new room has default topology
         # --------------------------------------------------
         from HVAC.topology.topology_resolver_v1 import TopologyResolverV1
-        from HVAC.topology.topology_symmetry_enforcer_v1 import TopologySymmetryEnforcerV1
 
-        TopologyResolverV1.resolve_project(ps)
-        TopologySymmetryEnforcerV1.enforce(ps)
+        TopologyResolverV1.ensure_room_topology(ps, room_id)
 
         # --------------------------------------------------
         # Mark dirty
@@ -506,9 +511,9 @@ class MainWindowV3(QMainWindow):
         ps.mark_heatloss_dirty()
 
         # --------------------------------------------------
-        # Refresh UI
+        # Notify + select new room
         # --------------------------------------------------
-        self._context.set_project_state(ps)
+        self._context.notify_project_changed()
         self._context.set_current_room(room_id)
 
     # ------------------------------------------------------------------
