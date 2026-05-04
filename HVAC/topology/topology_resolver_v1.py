@@ -121,3 +121,41 @@ class TopologyResolverV1:
             for seg in project_state.boundary_segments.values()
             if seg.owner_room_id == room.room_id
         ]
+
+    # ------------------------------------------------------------------
+    # Ensure one room has topology (live Add Room path)
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def ensure_room_topology(
+            project: ProjectState,
+            room_id: str,
+    ) -> None:
+        """
+        Ensure a single room has basic rectangular topology.
+
+        Intended for live Add Room.
+
+        Rules
+        -----
+        • Does not rebuild project topology
+        • Does not alter other rooms
+        • Does not infer adjacency
+        • Only creates segments if this room has none
+        """
+
+        room = project.rooms.get(room_id)
+        if room is None:
+            return
+
+        existing = [
+            seg
+            for seg in project.boundary_segments.values()
+            if seg.owner_room_id == room_id
+        ]
+
+        if existing:
+            return
+
+        segments = TopologyResolverV1._build_segments_for_room(room)
+        project.set_boundary_segments_for_room(room_id, segments)

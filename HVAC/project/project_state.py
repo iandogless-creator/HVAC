@@ -247,10 +247,6 @@ class ProjectState:
             seg_id: BoundarySegmentV1.from_dict(seg_data)
             for seg_id, seg_data in (data.get("boundary_segments", {}) or {}).items()
         }
-        instance.surface_construction_map = {
-            str(k): str(v)
-            for k, v in (data.get("surface_construction_map", {}) or {}).items()
-        }
         # --------------------------------------------------
         # Openings
         # --------------------------------------------------
