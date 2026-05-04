@@ -61,7 +61,7 @@ class HeatLossPanelV3(QWidget):
     surface_focus_requested = Signal(object)          # surface_id | None
     open_uvalues_requested = Signal(object)          # surface_id | None
     ignore_readiness_changed = Signal(bool)
-    cell_selected = Signal(int)                      # row index
+    cell_selected = Signal(int, int)  # row, column
     geometry_edit_requested = Signal()
     ach_edit_requested = Signal()
     worksheet_cell_edit_requested = Signal(int, int)
@@ -286,6 +286,13 @@ class HeatLossPanelV3(QWidget):
 
         if not surface_id and row_meta is not None:
             surface_id = getattr(row_meta, "surface_id", None)
+        header = self._table.horizontalHeaderItem(column)
+        header_text = header.text() if header else "?"
+        print(f"[HLP] clicked row={row}, column={column}, header={header_text}")
+        # --------------------------------------------------
+        # General cell selection intent
+        # --------------------------------------------------
+        self.cell_selected.emit(row, column)
 
         # --------------------------------------------------
         # ΔT column = boundary / adjacency editor
@@ -298,25 +305,6 @@ class HeatLossPanelV3(QWidget):
             if surface_id:
                 self.adjacency_edit_requested.emit(str(surface_id))
             return
-
-        # --------------------------------------------------
-        # Future editable cells
-        # --------------------------------------------------
-        cell_meta = None
-        if row_meta is not None and hasattr(row_meta, "columns"):
-            cell_meta = row_meta.columns.get(column)
-
-        if cell_meta and getattr(cell_meta, "editable", False):
-            self.worksheet_cell_edit_requested.emit(row, column)
-            return
-
-        # --------------------------------------------------
-        # Default row focus
-        # --------------------------------------------------
-        if surface_id:
-            self.surface_focus_requested.emit(str(surface_id))
-            return
-
 
     def set_header_context(self, context: dict | None) -> None:
         return

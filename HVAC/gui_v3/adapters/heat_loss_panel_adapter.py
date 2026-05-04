@@ -5,7 +5,6 @@
 from __future__ import annotations
 
 from HVAC.gui_v3.context.gui_project_context import GuiProjectContext
-from HVAC.gui_v3.panels.heat_loss_panel import HeatLossPanelV3
 from HVAC.core.value_resolution import (
     resolve_effective_ach,
     resolve_effective_internal_temp_C,
@@ -22,6 +21,9 @@ from HVAC.gui_v3.common.worksheet_row_meta import (
     WorksheetRowMeta,
     WorksheetCellMeta,
 )
+from HVAC.gui_v3.panels.heat_loss_panel import HeatLossPanelV3, U_COLUMN
+
+
 # ======================================================================
 # HeatLossPanelAdapter
 # ======================================================================
@@ -317,40 +319,39 @@ class HeatLossPanelAdapter:
     def _on_current_room_changed(self, _room_id) -> None:
         self.refresh()
 
-    def _on_cell_selected(self, row_index: int) -> None:
+    def _on_cell_selected(self, row_index: int, column: int) -> None:
         """
-        HLP row selection routing.
+        HLP cell selection routing.
 
         Rules
         -----
-        • Keep existing surface focus behaviour
-        • Focus the selected row's construction
-        • Do NOT open adjacency here
-        • Do NOT alter selected-cell styling
+        • U column focuses the selected row's construction.
+        • ΔT adjacency routing belongs to the panel.
+        • No legacy surface-edit overlay is opened here.
+        • Selected-cell styling remains owned by the panel/table.
         """
+
+        print(f"[HLPA] received row={row_index}, column={column}, U_COLUMN={U_COLUMN}")
+
+        if column != U_COLUMN:
+            print(f"[HLPA] ignored non-U column: {column}")
+            return
 
         meta = self._panel.meta_for_row(row_index)
         if not meta:
+            print(f"[HLPA] no meta for row={row_index}")
             return
 
-        # --------------------------------------------------
-        # Surface focus — existing behaviour
-        # --------------------------------------------------
-        surface_id = getattr(meta, "surface_id", None)
-        if surface_id:
-            self._context.request_edit("surface", surface_id)
-
-        # --------------------------------------------------
-        # Construction focus — Phase V-C4
-        # --------------------------------------------------
         cid = getattr(meta, "construction_id", None)
         if not cid:
+            print(f"[HLPA] no construction_id for row={row_index}")
             return
+
+        print(f"[HLPA] construction focus: {cid}")
 
         if hasattr(self._context, "set_current_construction_id"):
             self._context.set_current_construction_id(cid)
         else:
-            # Legacy fallback only
             self._context.current_construction_id = cid
             self._context.construction_focus_changed.emit(cid)
 
@@ -524,15 +525,17 @@ class HeatLossPanelAdapter:
                 "surface_class": surface_class,
             })
 
-            adjacency_editable = (
-                    boundary_kind == "INTER_ROOM"
-                    and adjacent_room_id is not None
-            )
+            adjacency_editable = boundary_kind in ("EXTERNAL", "INTER_ROOM")
+            # --------------------------------------------------
+            # Construction focus (V-C)
+            # --------------------------------------------------
+
 
             metas.append(
                 WorksheetRowMeta(
                     surface_id=str(surface_id),
                     element=element,
+                    construction_id=construction_id,
                     adjacency_editable=adjacency_editable,
                     columns={
                         0: WorksheetCellMeta(

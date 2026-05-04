@@ -16,6 +16,7 @@ from typing import Optional, Dict
 class WorksheetCellMeta:
     """
     Metadata for a single editable/display cell.
+    Metadata for a single editable/display cell.
     """
 
     field: Optional[str]          # e.g. "A", "U"
@@ -35,6 +36,11 @@ class WorksheetRowMeta:
 
     surface_id: str
     element: str
+
+    # --------------------------------------------------
+    # Construction focus (V-C)
+    # --------------------------------------------------
+    construction_id: Optional[str] = None
 
     # --------------------------------------------------
     # Validation state (IV-C)
