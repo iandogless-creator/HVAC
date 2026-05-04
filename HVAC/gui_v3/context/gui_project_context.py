@@ -102,6 +102,7 @@ class GuiProjectContext(QObject):
 
         # ---------------- GUI-only focus ----------------
         self._current_room_id: Optional[str] = None
+        self._current_construction_id: Optional[str] = None
 
         # ---------------- Heat-loss run intent ----------------
         self.heatloss_run_context = HeatLossRunContext()
@@ -142,7 +143,6 @@ class GuiProjectContext(QObject):
 
     def notify_project_changed(self) -> None:
         self.project_changed.emit()
-
 
     # ==================================================================
     # Project switching (authoritative swap)
@@ -242,6 +242,59 @@ class GuiProjectContext(QObject):
         callback: Callable[[Optional[str]], None],
     ) -> None:
         self._room_selection_listeners.append(callback)
+
+    @property
+    def current_construction_id(self) -> Optional[str]:
+        return self._current_construction_id
+
+    def set_current_construction_id(
+            self,
+            construction_id: Optional[str],
+    ) -> None:
+        """
+        GUI intent: focus a construction.
+
+        Rules
+        -----
+        • Does NOT mutate ProjectState
+        • Does NOT calculate
+        • Emits construction_focus_changed for observers
+        """
+        if self._current_construction_id == construction_id:
+            return
+
+        self._current_construction_id = construction_id
+
+        if construction_id is not None:
+            self.construction_focus_changed.emit(construction_id)
+
+    def highlight_rows_for_construction(self, cid: str) -> None:
+        """
+        Soft-highlight all HLP rows using the focused construction.
+
+        Uses worksheet row meta as the projection contract.
+        Does not mutate ProjectState.
+        """
+
+        table = self._panel._table
+
+        for row in range(table.rowCount()):
+            meta = self._panel.meta_for_row(row)
+            assigned_cid = getattr(meta, "construction_id", None) if meta else None
+
+            highlight = assigned_cid == cid
+
+            for col in range(table.columnCount()):
+                cell = table.item(row, col)
+                if not cell:
+                    continue
+
+                if highlight and col == 0:
+                    cell.setData(Qt.UserRole + 1, "true")
+                else:
+                    cell.setData(Qt.UserRole + 1, "")
+
+        table.viewport().update()
 
     # ==================================================================
     # HLPE session control (GUI-only)
