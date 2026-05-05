@@ -7,7 +7,7 @@ from __future__ import annotations
 from typing import Optional, Iterable
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QFont, QColor
+from PySide6.QtGui import QFont, QColor, QPen
 from PySide6.QtWidgets import (
     QWidget,
     QVBoxLayout,
@@ -18,6 +18,8 @@ from PySide6.QtWidgets import (
     QHeaderView,
     QFrame,
     QGridLayout,
+    QStyledItemDelegate,
+    QStyle,
 )
 
 ELEMENT_COLUMN = 0
@@ -25,6 +27,11 @@ AREA_COLUMN = 1
 U_COLUMN = 2
 DT_COLUMN = 3
 QF_COLUMN = 4
+
+# ======================================================================
+# CurrentCellBorderDelegate
+# ======================================================================
+
 
 # ======================================================================
 # ClickableLabel
@@ -37,6 +44,33 @@ class ClickableLabel(QLabel):
         self.clicked.emit()
         super().mousePressEvent(event)
 
+# ======================================================================
+# CurrentCellBorderDelegate
+# ======================================================================
+
+class CurrentCellBorderDelegate(QStyledItemDelegate):
+    """
+    Paints a border around the current/clicked cell.
+
+    This preserves:
+    • row selection
+    • construction-focus row highlighting
+    • black text on orange selection
+    """
+
+    def paint(self, painter, option, index) -> None:
+        super().paint(painter, option, index)
+
+        if option.state & QStyle.State_HasFocus:
+            painter.save()
+
+            pen = QPen(QColor("#8a4f00"))
+            pen.setWidth(2)
+            painter.setPen(pen)
+
+            painter.drawRect(option.rect.adjusted(1, 1, -2, -2))
+
+            painter.restore()
 
 # ======================================================================
 # HeatLossPanelV3
@@ -123,6 +157,7 @@ class HeatLossPanelV3(QWidget):
         # Canonical worksheet
         # --------------------------------------------------------------
         self._table = QTableWidget(self)
+        self._table.setItemDelegate(CurrentCellBorderDelegate(self._table))
         self._worksheet_table = self._table
         self._table.setColumnCount(5)
         self._table.setHorizontalHeaderLabels(
