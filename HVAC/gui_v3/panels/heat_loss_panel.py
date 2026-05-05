@@ -286,9 +286,7 @@ class HeatLossPanelV3(QWidget):
 
         if not surface_id and row_meta is not None:
             surface_id = getattr(row_meta, "surface_id", None)
-        header = self._table.horizontalHeaderItem(column)
-        header_text = header.text() if header else "?"
-        print(f"[HLP] clicked row={row}, column={column}, header={header_text}")
+
         # --------------------------------------------------
         # General cell selection intent
         # --------------------------------------------------
