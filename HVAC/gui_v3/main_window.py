@@ -145,6 +145,15 @@ class MainWindowV3(QMainWindow):
         # --------------------------------------------------
         self.setWindowTitle("HVACgooee")
         self.setMinimumWidth(260)
+        self.setStyleSheet("""
+        QTableWidget::item:selected,
+        QListWidget::item:selected,
+        QTreeWidget::item:selected,
+        QComboBox QAbstractItemView::item:selected {
+            background: #e0a15a;
+            color: #000000;
+        }
+        """)
 
         # --------------------------------------------------
         # Settings
@@ -382,6 +391,9 @@ class MainWindowV3(QMainWindow):
         self._uvp_panel.construction_selected.connect(
             self._on_uvp_construction_selected
         )
+
+
+
 
         # initial population
         self._uvp_panel.set_constructions(self._context.project_state.constructions)

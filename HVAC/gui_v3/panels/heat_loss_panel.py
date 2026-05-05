@@ -141,12 +141,6 @@ class HeatLossPanelV3(QWidget):
         self._table.setSelectionBehavior(QTableWidget.SelectRows)
         self._table.setSelectionMode(QTableWidget.SingleSelection)
         self._table.verticalHeader().setVisible(False)
-        self._table.setStyleSheet("""
-        QTableWidget::item[hl="true"] {
-            border-left: 4px solid #2f6fd6;
-            padding-left: 3px;
-        }
-        """)
         header = self._table.horizontalHeader()
         header.setDefaultAlignment(Qt.AlignCenter)
         header.setSectionResizeMode(0, QHeaderView.Stretch)
@@ -157,8 +151,8 @@ class HeatLossPanelV3(QWidget):
         root.addWidget(self._table)
         self._table.setStyleSheet("""
         QTableWidget::item:selected {
-            background: transparent;
-            color: inherit;
+            background: #e0a15a;
+            color: #000000;
         }
         QTableWidget::item[hl="true"] {
             border-left: 4px solid #2f6fd6;
