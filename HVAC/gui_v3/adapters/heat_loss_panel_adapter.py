@@ -326,28 +326,26 @@ class HeatLossPanelAdapter:
         Rules
         -----
         • U column focuses the selected row's construction.
+        • U column also records the focused surface target.
         • ΔT adjacency routing belongs to the panel.
         • No legacy surface-edit overlay is opened here.
         • Selected-cell styling remains owned by the panel/table.
         """
 
-        print(f"[HLPA] received row={row_index}, column={column}, U_COLUMN={U_COLUMN}")
-
         if column != U_COLUMN:
-            print(f"[HLPA] ignored non-U column: {column}")
             return
 
         meta = self._panel.meta_for_row(row_index)
         if not meta:
-            print(f"[HLPA] no meta for row={row_index}")
             return
+
+        surface_id = getattr(meta, "surface_id", None)
+        if surface_id and hasattr(self._context, "set_current_surface_id"):
+            self._context.set_current_surface_id(surface_id)
 
         cid = getattr(meta, "construction_id", None)
         if not cid:
-            print(f"[HLPA] no construction_id for row={row_index}")
             return
-
-        print(f"[HLPA] construction focus: {cid}")
 
         if hasattr(self._context, "set_current_construction_id"):
             self._context.set_current_construction_id(cid)

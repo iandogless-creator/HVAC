@@ -70,6 +70,9 @@ from HVAC.project.project_state import ProjectState
 from HVAC.core.value_resolution import resolve_effective_internal_temp_C
 from HVAC.gui_v3.adapters.uvp_panel_adapter import UVPPanelAdapter
 from HVAC.dev.bootstrap_dev_project import build_dev_project
+from HVAC.gui_v3.adapters.construction_panel_adapter import ConstructionPanelAdapter
+
+
 
 # ======================================================================
 # Main Window
@@ -150,7 +153,9 @@ class MainWindowV3(QMainWindow):
         self._gui_settings = GuiSettings(Path.home() / ".hvacgooee")
 
         self._context.edit_requested.connect(self._on_edit_requested)
-
+        self._context.construction_focus_changed.connect(
+            self._on_construction_focus_changed
+        )
         self._build_menu()
         self._wire_context_fanout()
         self._restore_workspace()
@@ -337,6 +342,11 @@ class MainWindowV3(QMainWindow):
         )
         self._heat_loss_panel_adapter = HeatLossPanelAdapter(
             panel=self._heat_loss_panel,
+            context=self._context,
+        )
+
+        self._construction_panel_adapter = ConstructionPanelAdapter(
+            panel=self._construction_panel,
             context=self._context,
         )
 
@@ -733,11 +743,25 @@ class MainWindowV3(QMainWindow):
                 lambda _: self._refresh_all_adapters()
             )
 
+    def _on_construction_focus_changed(self, cid: str) -> None:
+        """
+        GUI shell response to construction focus.
 
-    # ------------------------------------------------------------------
-    # Adjacency
-    # ------------------------------------------------------------------
+        Rules
+        -----
+        • Does not mutate ProjectState
+        • Does not calculate
+        • Shows/raises the Construction dock
+        • Content update remains owned by construction/UVP adapters
+        """
 
+        dock = self._docks.get("dock_construction")
+        if dock is None:
+            return
+
+        dock.show()
+        dock.raise_()
+        dock.setFocus()
 
     # ------------------------------------------------------------------
     # Navigation

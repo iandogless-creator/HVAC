@@ -43,7 +43,10 @@ class ConstructionPanel(QWidget):
         # Phase B: layers not implemented yet
         self._has_layers = False
         self._selected_surface_id: str | None = None
-
+        self._selected_construction_id: str | None = None
+        self._selected_construction_name: str | None = None
+        self._selected_u_value: float | None = None
+        self._usage_count: int = 0
         self._refresh_placeholders()
 
     # ------------------------------------------------------------------
@@ -132,6 +135,7 @@ class ConstructionPanel(QWidget):
     # ------------------------------------------------------------------
     # Intent
     # ------------------------------------------------------------------
+
     def _on_open_uvalues_clicked(self) -> None:
         # Emit navigation intent (surface_id may be None in Phase B)
         self.u_values_requested.emit(self._selected_surface_id)

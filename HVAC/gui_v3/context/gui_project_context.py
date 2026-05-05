@@ -103,6 +103,7 @@ class GuiProjectContext(QObject):
         # ---------------- GUI-only focus ----------------
         self._current_room_id: Optional[str] = None
         self._current_construction_id: Optional[str] = None
+        self._current_surface_id: Optional[str] = None
 
         # ---------------- Heat-loss run intent ----------------
         self.heatloss_run_context = HeatLossRunContext()
@@ -295,6 +296,22 @@ class GuiProjectContext(QObject):
                     cell.setData(Qt.UserRole + 1, "")
 
         table.viewport().update()
+
+    @property
+    def current_surface_id(self) -> Optional[str]:
+        return self._current_surface_id
+
+    def set_current_surface_id(self, surface_id: Optional[str]) -> None:
+        """
+        GUI intent: focus a topology/fabric surface.
+
+        Rules
+        -----
+        • Does NOT mutate ProjectState
+        • Does NOT calculate
+        • Used by construction/adjacency editors as selected target
+        """
+        self._current_surface_id = surface_id
 
     # ==================================================================
     # HLPE session control (GUI-only)
