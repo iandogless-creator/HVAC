@@ -160,3 +160,43 @@ class ConstructionPanel(QWidget):
             return
 
 
+    def set_focused_construction(
+        self,
+        *,
+        construction_id: str | None,
+        name: str | None,
+        u_value_W_m2K: float | None,
+        usage_count: int = 0,
+    ) -> None:
+        """
+        Display the currently focused construction.
+
+        Projection only:
+        • Does not mutate ProjectState
+        • Does not calculate
+        """
+
+        self._has_selection = bool(construction_id)
+
+        if not construction_id:
+            self._definition_label.setText("No construction selected.")
+            self._layers_label.setText("No layers defined.\n(Available in Phase C+)")
+            return
+
+        u_text = (
+            f"{float(u_value_W_m2K):.3f} W/m²·K"
+            if isinstance(u_value_W_m2K, (int, float))
+            else "—"
+        )
+
+        self._definition_label.setText(
+            f"Construction: {name or construction_id}\n"
+            f"CID: {construction_id}\n"
+            f"U-value: {u_text}\n"
+            f"Used by: {int(usage_count or 0)} surfaces"
+        )
+
+        self._layers_label.setText(
+            "No layers defined.\n"
+            "Using project construction-library U-value."
+        )
