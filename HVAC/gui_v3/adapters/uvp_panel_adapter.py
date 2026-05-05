@@ -49,9 +49,22 @@ class UVPPanelAdapter(QObject):
             self._context.request_assign_construction
         )
 
-
     def _on_focus_changed(self, surface_id: str | None) -> None:
-        self._panel.focus_surface(surface_id)
+        """
+        UVP surface focus projection.
+
+        Compatibility-safe:
+        older code used focus_surface();
+        current UVPPanel uses set_selected_surface().
+        """
+
+        if hasattr(self._panel, "set_selected_surface"):
+            self._panel.set_selected_surface(surface_id)
+            return
+
+        if hasattr(self._panel, "focus_surface"):
+            self._panel.focus_surface(surface_id)
+            return
 
     def _on_construction_focus(self, cid: str) -> None:
         self._panel.highlight_construction(cid)

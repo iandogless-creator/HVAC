@@ -285,8 +285,6 @@ class UVPPanel(QWidget):
 
         self._selected_cid = cid
 
-        print("UVP SELECT", cid)
-
         # 🔥 update panel immediately
         ps = self._context.project_state
         c = ps.constructions.get(cid)
