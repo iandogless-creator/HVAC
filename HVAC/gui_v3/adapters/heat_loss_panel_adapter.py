@@ -11,7 +11,7 @@ from HVAC.core.value_resolution import (
 )
 from HVAC.heatloss.fabric.row_builder_v1 import build_rows_with_meta
 from HVAC.heatloss.validation.surface_edit_validator import SurfaceEditValidator
-from PySide6.QtGui import QColor
+from PySide6.QtGui import QColor, QBrush
 from PySide6.QtCore import Qt
 
 from HVAC.fabric.generate_fabric_from_topology import (
@@ -22,7 +22,6 @@ from HVAC.gui_v3.common.worksheet_row_meta import (
     WorksheetCellMeta,
 )
 from HVAC.gui_v3.panels.heat_loss_panel import HeatLossPanelV3, U_COLUMN
-
 
 # ======================================================================
 # HeatLossPanelAdapter
@@ -61,6 +60,10 @@ class HeatLossPanelAdapter:
         )
         self._panel.run_requested.connect(self._on_run_requested)
         self._panel.cell_selected.connect(self._on_cell_selected)
+        if hasattr(self._panel, "surface_focus_requested"):
+            self._panel.surface_focus_requested.connect(
+                self._on_surface_focus_requested
+            )
         self._panel.adjacency_edit_requested.connect(
             self._on_adjacency_edit_requested
         )
@@ -286,16 +289,23 @@ class HeatLossPanelAdapter:
         """
         Soft-highlight all HLP rows using the focused construction.
 
-        Uses worksheet row meta as the projection contract.
-        Does not mutate ProjectState.
+        Rules
+        -----
+        • Does not mutate ProjectState
+        • Uses row meta construction_id
+        • Applies explicit item background/foreground
+        • Leaves normal table selection styling alone
         """
 
         table = self._panel._table
 
+        focus_bg = QBrush(QColor("#f2d2a4"))  # soft orange/tan
+        normal_bg = QBrush()
+        black_fg = QBrush(QColor("#000000"))
+
         for row in range(table.rowCount()):
             meta = self._panel.meta_for_row(row)
             assigned_cid = getattr(meta, "construction_id", None) if meta else None
-
             highlight = assigned_cid == cid
 
             for col in range(table.columnCount()):
@@ -303,10 +313,14 @@ class HeatLossPanelAdapter:
                 if not cell:
                     continue
 
-                if highlight and col == 0:
-                    cell.setData(Qt.UserRole + 1, "true")
+                if highlight:
+                    cell.setBackground(focus_bg)
+                    cell.setForeground(black_fg)
                 else:
-                    cell.setData(Qt.UserRole + 1, "")
+                    cell.setBackground(normal_bg)
+
+                    # Keep value colouring for ΔT/Qf handled elsewhere;
+                    # do not force foreground reset here.
 
         table.viewport().update()
 
@@ -320,28 +334,14 @@ class HeatLossPanelAdapter:
         self.refresh()
 
     def _on_cell_selected(self, row_index: int, column: int) -> None:
-        """
-        HLP cell selection routing.
-
-        Rules
-        -----
-        • U column focuses the selected row's construction.
-        • U column also records the focused surface target.
-        • ΔT adjacency routing belongs to the panel.
-        • No legacy surface-edit overlay is opened here.
-        • Selected-cell styling remains owned by the panel/table.
-        """
 
         if column != U_COLUMN:
             return
 
         meta = self._panel.meta_for_row(row_index)
+
         if not meta:
             return
-
-        surface_id = getattr(meta, "surface_id", None)
-        if surface_id and hasattr(self._context, "set_current_surface_id"):
-            self._context.set_current_surface_id(surface_id)
 
         cid = getattr(meta, "construction_id", None)
         if not cid:
@@ -354,6 +354,25 @@ class HeatLossPanelAdapter:
             self._context.construction_focus_changed.emit(cid)
 
         self.highlight_rows_for_construction(cid)
+
+    def _on_surface_focus_requested(self, surface_id: str) -> None:
+        """
+        HLP surface focus routing.
+
+        Source
+        ------
+        HeatLossPanel worksheet click emits surface_focus_requested(surface_id)
+
+        Effect
+        ------
+        Store selected surface in GuiProjectContext so Construction Panel
+        assignment has an authoritative target.
+        """
+        if not surface_id:
+            return
+
+        if hasattr(self._context, "set_current_surface_id"):
+            self._context.set_current_surface_id(surface_id)
 
     def _on_adjacency_edit_requested(self, surface_id: str) -> None:
         """
@@ -528,7 +547,6 @@ class HeatLossPanelAdapter:
             # Construction focus (V-C)
             # --------------------------------------------------
 
-
             metas.append(
                 WorksheetRowMeta(
                     surface_id=str(surface_id),
@@ -612,12 +630,12 @@ class HeatLossPanelAdapter:
 
         if geometry_ref == "ceiling":
             if boundary_kind == "EXTERNAL":
-                return "Roof / External Ceiling"
+                return "Roof / Ceiling"
             return "Ceiling"
 
         if geometry_ref == "roof":
             if boundary_kind == "EXTERNAL":
-                return "Roof / External Ceiling"
+                return "Roof / Ceiling"
             return "Ceiling"
 
         if geometry_ref == "wall" or "edge" in geometry_ref:
@@ -636,7 +654,7 @@ class HeatLossPanelAdapter:
 
         if element in ("roof", "ceiling") or surface_class in ("roof", "ceiling"):
             if boundary_kind == "EXTERNAL" or not boundary_kind:
-                return "Roof / External Ceiling"
+                return "Roof / Ceiling"
             return "Ceiling"
 
         if element in ("external_wall", "wall") or surface_class in ("wall", "external_wall"):

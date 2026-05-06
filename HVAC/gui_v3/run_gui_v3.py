@@ -51,11 +51,11 @@ def make_dev_bootstrap_project_state() -> ProjectState:
 
     # Constructions
     project.constructions = {
-        "DEV-EXT-WALL": ConstructionV1("DEV-EXT-WALL", "External Wall", 0.28),
+        "DEV-EXT-WALL": ConstructionV1("DEV-EXT-WALL", "External Wall", 0.26),
         "DEV-INT-WALL": ConstructionV1("DEV-INT-WALL", "Internal Wall", 1.50),
-        "DEV-ROOF": ConstructionV1("DEV-ROOF", "Roof", 0.18),
-        "DEV-FLOOR": ConstructionV1("DEV-FLOOR", "Floor", 0.22),
-        "DEV-WINDOW": ConstructionV1("DEV-WINDOW", "Window", 1.40),
+        "DEV-ROOF": ConstructionV1("DEV-ROOF", "Roof / Ceiling", 0.16),
+        "DEV-FLOOR": ConstructionV1("DEV-FLOOR", "Floor", 0.18),
+        "DEV-WINDOW": ConstructionV1("DEV-WINDOW", "Window / Door", 1.60),
     }
 
     # Room
@@ -92,7 +92,7 @@ def _ensure_default_constructions(ps: ProjectState) -> None:
 
     ps.constructions.setdefault(
         "DEV-WALL",
-        ConstructionV1("DEV-WALL", "External Wall", 0.28),
+        ConstructionV1("DEV-WALL", "External Wall", 0.26),
     )
     ps.constructions.setdefault(
         "DEV-INT-WALL",
@@ -100,15 +100,15 @@ def _ensure_default_constructions(ps: ProjectState) -> None:
     )
     ps.constructions.setdefault(
         "DEV-ROOF",
-        ConstructionV1("DEV-ROOF", "Roof", 0.18),
+        ConstructionV1("DEV-ROOF", "Roof / Ceiling", 0.16),
     )
     ps.constructions.setdefault(
         "DEV-FLOOR",
-        ConstructionV1("DEV-FLOOR", "Floor", 0.22),
+        ConstructionV1("DEV-FLOOR", "Floor", 0.18),
     )
     ps.constructions.setdefault(
         "DEV-WINDOW",
-        ConstructionV1("DEV-WINDOW", "Window", 1.40),
+        ConstructionV1("DEV-WINDOW", "Window / Door", 1.60),
     )
 
 

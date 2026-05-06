@@ -20,7 +20,7 @@ def ensure_dev_constructions(ps: ProjectState) -> None:
 
     ps.constructions.setdefault(
         "DEV-EXT-WALL",
-        ConstructionV1("DEV-EXT-WALL", "External Wall", 0.28),
+        ConstructionV1("DEV-EXT-WALL", "External Wall", 0.26),
     )
 
     ps.constructions.setdefault(
@@ -30,15 +30,15 @@ def ensure_dev_constructions(ps: ProjectState) -> None:
 
     ps.constructions.setdefault(
         "DEV-FLOOR",
-        ConstructionV1("DEV-FLOOR", "Floor", 0.22),
+        ConstructionV1("DEV-FLOOR", "Floor", 0.18),
     )
 
     ps.constructions.setdefault(
         "DEV-ROOF",
-        ConstructionV1("DEV-ROOF", "Roof / Ceiling", 0.18),
+        ConstructionV1("DEV-ROOF", "Roof / Ceiling", 0.16),
     )
 
     ps.constructions.setdefault(
         "DEV-WINDOW",
-        ConstructionV1("DEV-WINDOW", "Window / Door", 1.40),
+        ConstructionV1("DEV-WINDOW", "Window / Door", 1.60),
     )

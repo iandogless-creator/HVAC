@@ -317,6 +317,14 @@ class HeatLossPanelV3(QWidget):
             surface_id = getattr(row_meta, "surface_id", None)
 
         # --------------------------------------------------
+        # Surface focus intent
+        # Must happen before column-specific routing so the
+        # Construction panel has an assignment target.
+        # --------------------------------------------------
+        if surface_id:
+            self.surface_focus_requested.emit(str(surface_id))
+
+        # --------------------------------------------------
         # General cell selection intent
         # --------------------------------------------------
         self.cell_selected.emit(row, column)
@@ -679,6 +687,12 @@ class HeatLossPanelV3(QWidget):
             surface_id = getattr(row_meta, "surface_id", None)
 
         # --------------------------------------------------
+        # Surface focus — must happen before column routing
+        # --------------------------------------------------
+        if surface_id:
+            self.surface_focus_requested.emit(str(surface_id))
+
+        # --------------------------------------------------
         # 🔥 Adjacency click on ΔT column
         # --------------------------------------------------
         if column == DT_COLUMN and getattr(row_meta, "adjacency_editable", False):
@@ -692,12 +706,6 @@ class HeatLossPanelV3(QWidget):
         cell_meta = row_meta.columns.get(column) if row_meta else None
         if cell_meta and cell_meta.editable:
             self.worksheet_cell_edit_requested.emit(row, column)
-
-        # --------------------------------------------------
-        # Fallback: focus
-        # --------------------------------------------------
-        if surface_id:
-            self.surface_focus_requested.emit(surface_id)
 
     # ------------------------------------------------------------------
     # Room-level result display

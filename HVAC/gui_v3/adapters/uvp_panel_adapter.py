@@ -41,9 +41,14 @@ class UVPPanelAdapter(QObject):
         # --------------------------------------------------
         # Intent routing (FROM panel → context)
         # --------------------------------------------------
+
         self._panel.u_value_changed.connect(
             self._context.request_construction_u_value_change
         )
+        if hasattr(self._context, "surface_focus_changed"):
+            self._context.surface_focus_changed.connect(
+                self._on_surface_focus_changed
+            )
 
         self._panel.assign_requested.connect(
             self._context.request_assign_construction
@@ -58,6 +63,9 @@ class UVPPanelAdapter(QObject):
         current UVPPanel uses set_selected_surface().
         """
 
+        if not surface_id:
+            surface_id = getattr(self._context, "current_surface_id", None)
+
         if hasattr(self._panel, "set_selected_surface"):
             self._panel.set_selected_surface(surface_id)
             return
@@ -68,6 +76,17 @@ class UVPPanelAdapter(QObject):
 
     def _on_construction_focus(self, cid: str) -> None:
         self._panel.highlight_construction(cid)
+
+        surface_id = getattr(self._context, "current_surface_id", None)
+        if hasattr(self._panel, "set_selected_surface"):
+            self._panel.set_selected_surface(surface_id)
+
+    def _on_surface_focus_changed(self, surface_id: str | None) -> None:
+
+        if hasattr(self._panel, "set_selected_surface"):
+            self._panel.set_selected_surface(surface_id)
+        elif hasattr(self._panel, "focus_surface"):
+            self._panel.focus_surface(surface_id)
 
     def refresh(self) -> None:
         ps = self._context.project_state
@@ -83,6 +102,10 @@ class UVPPanelAdapter(QObject):
         # 2. Resolve current surface
         # --------------------------------------------------
         surface_id = self._context.get_uvp_focus()
+
+        if not surface_id:
+            surface_id = getattr(self._context, "current_surface_id", None)
+
         if not surface_id:
             self._panel.set_selected_surface(None)
             return
@@ -112,5 +135,9 @@ class UVPPanelAdapter(QObject):
         # --------------------------------------------------
         # 4. Push to panel
         # --------------------------------------------------
-        if assigned_cid:
+        if hasattr(self._panel, "set_selected_construction"):
             self._panel.set_selected_construction(assigned_cid)
+        elif hasattr(self._panel, "highlight_construction"):
+            self._panel.highlight_construction(assigned_cid)
+        elif hasattr(self._panel, "_select_construction_in_list"):
+            self._panel._select_construction_in_list(assigned_cid)

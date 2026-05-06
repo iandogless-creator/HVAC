@@ -192,6 +192,14 @@ class UVPPanel(QWidget):
     def set_selected_surface(self, surface_id: str | None) -> None:
         self._selected_surface_id = surface_id
 
+        # --------------------------------------------------
+        # Visible selected surface target
+        # --------------------------------------------------
+        surface_text = f"Surface: {surface_id}" if surface_id else "No surface selected"
+
+        if hasattr(self, "_surface_label"):
+            self._surface_label.setText(surface_text)
+
         if not surface_id:
             self._label_status.setText("No surface selected")
             self._label_status.setStyleSheet("color: #888;")
@@ -205,7 +213,7 @@ class UVPPanel(QWidget):
         default = self._resolve_default_for_surface(surface_id)
 
         # --------------------------------------------------
-        # 🔥 STEP 3 — Status text
+        # Status text
         # --------------------------------------------------
         if assigned:
             text = f"✔ Assigned: {assigned}"
@@ -215,7 +223,7 @@ class UVPPanel(QWidget):
         self._label_status.setText(text)
 
         # --------------------------------------------------
-        # 🔥 STEP 5 — Visual styling
+        # Visual styling
         # --------------------------------------------------
         if assigned:
             self._label_status.setStyleSheet("color: #2e7d32; font-weight: 600;")
@@ -223,7 +231,7 @@ class UVPPanel(QWidget):
             self._label_status.setStyleSheet("color: #888;")
 
         # --------------------------------------------------
-        # Existing behaviour (keep this)
+        # Existing behaviour
         # --------------------------------------------------
         cid = assigned or default
         self._select_construction_in_list(cid)

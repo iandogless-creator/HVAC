@@ -185,8 +185,9 @@ class ConstructionWizard:
         return mapping.get(surface_id)
 
     # ------------------------------------------------------------------
-    # Static entry point (used by UI / MainWindow)
+    # Static entry point (used by UI / Construction Panel)
     # ------------------------------------------------------------------
+
     @staticmethod
     def set_surface_construction(
         project_state,
@@ -194,16 +195,34 @@ class ConstructionWizard:
         construction_id: str,
     ) -> None:
         """
-        Static convenience wrapper for assignment.
+        Assign a construction to a topology-derived surface.
 
-        Keeps UI code simple and avoids needing instance creation.
+        This is the explicit per-surface override path used by the
+        Construction Panel selector.
         """
 
-        wizard = ConstructionWizard()
+        if project_state is None:
+            return
 
-        wizard.assign_to_surface(
-            project_state=project_state,
-            room_id="",  # not used in current logic
-            surface_id=surface_id,
-            construction_id=construction_id,
-        )
+        if not surface_id:
+            return
+
+        if not construction_id:
+            return
+
+        if construction_id not in project_state.constructions:
+            raise ValueError(f"Unknown construction_id: {construction_id}")
+
+        if not hasattr(project_state, "surface_construction_map"):
+            project_state.surface_construction_map = {}
+
+        project_state.surface_construction_map[surface_id] = construction_id
+
+        if hasattr(project_state, "mark_heatloss_dirty"):
+            project_state.mark_heatloss_dirty()
+
+        if hasattr(project_state, "heatloss_valid"):
+            project_state.heatloss_valid = False
+
+        if hasattr(project_state, "results_valid"):
+            project_state.results_valid = False

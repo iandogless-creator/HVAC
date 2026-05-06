@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QGroupBox,
     QPushButton,
+    QComboBox,
 )
 
 
@@ -32,7 +33,8 @@ class ConstructionPanel(QWidget):
 
     # Future: surface selection from worksheet / room context can feed this.
     u_values_requested = Signal(object)     # surface_id | None
-
+    construction_assign_requested = Signal(str)   # construction_id
+    construction_selection_changed = Signal(str)  # construction_id
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -47,6 +49,8 @@ class ConstructionPanel(QWidget):
         self._selected_construction_name: str | None = None
         self._selected_u_value: float | None = None
         self._usage_count: int = 0
+        self._construction_library: dict[str, dict[str, list[tuple[str, str]]]] = {}
+        self._suppress_combo_signals: bool = False
         self._refresh_placeholders()
 
     # ------------------------------------------------------------------
@@ -60,15 +64,35 @@ class ConstructionPanel(QWidget):
         # --------------------------------------------------------------
         # Element type
         # --------------------------------------------------------------
-        element_box = QGroupBox("Element Type")
-        element_layout = QVBoxLayout(element_box)
+        selector_box = QGroupBox("Construction Selector")
+        selector_layout = QVBoxLayout(selector_box)
 
-        element_layout.addWidget(QLabel("• Wall"))
-        element_layout.addWidget(QLabel("• Roof"))
-        element_layout.addWidget(QLabel("• Floor"))
-        element_layout.addWidget(QLabel("• Window / Door"))
+        selector_layout.addWidget(QLabel("Element Type"))
+        self._element_combo = QComboBox(self)
+        selector_layout.addWidget(self._element_combo)
 
-        root.addWidget(element_box)
+        selector_layout.addWidget(QLabel("Category"))
+        self._category_combo = QComboBox(self)
+        selector_layout.addWidget(self._category_combo)
+
+        selector_layout.addWidget(QLabel("Construction"))
+        self._construction_combo = QComboBox(self)
+        selector_layout.addWidget(self._construction_combo)
+
+        self._btn_assign = QPushButton("Assign to selected surface", self)
+        self._btn_assign.setToolTip(
+            "Assign the selected construction to the currently focused HLP surface."
+        )
+        selector_layout.addWidget(self._btn_assign)
+
+        self._element_combo.currentTextChanged.connect(self._on_element_changed)
+        self._category_combo.currentTextChanged.connect(self._on_category_changed)
+        self._construction_combo.currentIndexChanged.connect(
+            self._on_construction_combo_changed
+        )
+        self._btn_assign.clicked.connect(self._on_assign_clicked)
+
+        root.addWidget(selector_box)
 
         # --------------------------------------------------------------
         # Construction definition
@@ -113,17 +137,6 @@ class ConstructionPanel(QWidget):
         root.addWidget(guidance)
         root.addStretch()
 
-    # ------------------------------------------------------------------
-    # Public: selection (optional now, useful later)
-    # ------------------------------------------------------------------
-    def set_selected_surface(self, surface_id: str | None) -> None:
-        """
-        Phase B-safe: accept a selected surface id for navigation convenience.
-        """
-        self._selected_surface_id = surface_id
-        self._has_selection = bool(surface_id)
-        self._refresh_placeholders()
-
     def set_uvalue_missing_hint(self, missing: bool) -> None:
         """
         Optional UI hint: enable the navigation button regardless, but you can
@@ -140,33 +153,163 @@ class ConstructionPanel(QWidget):
         # Emit navigation intent (surface_id may be None in Phase B)
         self.u_values_requested.emit(self._selected_surface_id)
 
+    def set_construction_library(
+        self,
+        library: dict[str, dict[str, list[tuple[str, str]]]],
+    ) -> None:
+        """
+        Set available construction choices.
+
+        Shape:
+            {
+                "Wall": {
+                    "External Wall": [("DEV-EXT-WALL", "External Wall")],
+                }
+            }
+        """
+
+        self._construction_library = library or {}
+
+        self._suppress_combo_signals = True
+        try:
+            self._element_combo.clear()
+            self._element_combo.addItems(sorted(self._construction_library.keys()))
+
+            self._populate_categories()
+            self._populate_constructions()
+        finally:
+            self._suppress_combo_signals = False
+
+    def set_selected_construction_id(self, construction_id: str | None) -> None:
+        if not construction_id:
+            return
+
+        for element, categories in self._construction_library.items():
+            for category, items in categories.items():
+                for cid, _label in items:
+                    if cid == construction_id:
+                        self._suppress_combo_signals = True
+                        try:
+                            self._element_combo.setCurrentText(element)
+                            self._populate_categories()
+                            self._category_combo.setCurrentText(category)
+                            self._populate_constructions()
+
+                            index = self._construction_combo.findData(construction_id)
+                            if index >= 0:
+                                self._construction_combo.setCurrentIndex(index)
+                        finally:
+                            self._suppress_combo_signals = False
+                        return
+
+    def get_selected_construction_id(self) -> str | None:
+        cid = self._construction_combo.currentData()
+        return str(cid) if cid else None
+
+    def set_selected_surface(self, surface_id: str | None) -> None:
+        """
+        Project the currently focused HLP surface into the Construction panel.
+        """
+
+        self._selected_surface_id = surface_id
+
+        if self._selected_construction_id:
+            self.set_focused_construction(
+                construction_id=self._selected_construction_id,
+                name=self._selected_construction_name,
+                u_value_W_m2K=self._selected_u_value,
+                usage_count=self._usage_count,
+            )
+            return
+
+        self._refresh_placeholders()
+
+    def _populate_categories(self) -> None:
+        element = self._element_combo.currentText()
+        categories = self._construction_library.get(element, {})
+
+        self._category_combo.clear()
+        self._category_combo.addItems(sorted(categories.keys()))
+
+    def _populate_constructions(self) -> None:
+        element = self._element_combo.currentText()
+        category = self._category_combo.currentText()
+
+        items = (
+            self._construction_library
+            .get(element, {})
+            .get(category, [])
+        )
+
+        self._construction_combo.clear()
+
+        for cid, label in items:
+            self._construction_combo.addItem(label, cid)
+
+    def _on_element_changed(self, _text: str) -> None:
+        if self._suppress_combo_signals:
+            return
+
+        self._suppress_combo_signals = True
+        try:
+            self._populate_categories()
+            self._populate_constructions()
+        finally:
+            self._suppress_combo_signals = False
+
+    def _on_category_changed(self, _text: str) -> None:
+        if self._suppress_combo_signals:
+            return
+
+        self._suppress_combo_signals = True
+        try:
+            self._populate_constructions()
+        finally:
+            self._suppress_combo_signals = False
+
+    def _on_construction_combo_changed(self, _index: int) -> None:
+        if self._suppress_combo_signals:
+            return
+
+        cid = self.get_selected_construction_id()
+        if cid:
+            self.construction_selection_changed.emit(cid)
+
+    def _on_assign_clicked(self) -> None:
+        cid = self.get_selected_construction_id()
+        if cid:
+            self.construction_assign_requested.emit(cid)
+
     # ------------------------------------------------------------------
     # Placeholder state handling (Phase B)
     # ------------------------------------------------------------------
     def _refresh_placeholders(self) -> None:
-        if not self._has_selection:
+        surface_id = getattr(self, "_selected_surface_id", None)
+
+        if self._selected_construction_id:
+            return
+
+        if not surface_id:
             self._definition_label.setText(
-                f"Surface: {self._selected_surface_id}\nConstruction selected."
+                "Surface: None\n"
+                "No surface selected."
             )
             self._layers_label.setText("No layers defined.\n(Available in Phase C+)")
             return
 
-        if self._has_selection and not self._has_layers:
-            self._definition_label.setText("Construction selected.")
-            self._layers_label.setText(
-                "Construction selected, no layers yet.\n"
-                "(Layers will be defined in Phase C+)"
-            )
-            return
-
+        self._definition_label.setText(
+            f"Surface: {surface_id}\n"
+            "No construction selected."
+        )
+        self._layers_label.setText("No layers defined.\n(Available in Phase C+)")
 
     def set_focused_construction(
-        self,
-        *,
-        construction_id: str | None,
-        name: str | None,
-        u_value_W_m2K: float | None,
-        usage_count: int = 0,
+            self,
+            *,
+            construction_id: str | None,
+            name: str | None,
+            u_value_W_m2K: float | None,
+            usage_count: int = 0,
     ) -> None:
         """
         Display the currently focused construction.
@@ -176,10 +319,18 @@ class ConstructionPanel(QWidget):
         • Does not calculate
         """
 
+        self._selected_construction_id = construction_id
+        self._selected_construction_name = name
+        self._selected_u_value = u_value_W_m2K
+        self._usage_count = usage_count
+
         self._has_selection = bool(construction_id)
 
         if not construction_id:
-            self._definition_label.setText("No construction selected.")
+            self._definition_label.setText(
+                f"Surface: {self._selected_surface_id or 'None'}\n"
+                "No construction selected."
+            )
             self._layers_label.setText("No layers defined.\n(Available in Phase C+)")
             return
 
@@ -189,11 +340,14 @@ class ConstructionPanel(QWidget):
             else "—"
         )
 
+        surface_id = getattr(self, "_selected_surface_id", None)
+
         self._definition_label.setText(
-            f"Construction: {name or construction_id}\n"
+            f"Surface: {surface_id or 'None'}\n"
+            f"Construction: {name}\n"
             f"CID: {construction_id}\n"
             f"U-value: {u_text}\n"
-            f"Used by: {int(usage_count or 0)} surfaces"
+            f"Used by: {usage_count} surfaces"
         )
 
         self._layers_label.setText(

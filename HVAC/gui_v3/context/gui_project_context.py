@@ -82,6 +82,7 @@ class GuiProjectContext(QObject):
     adjacency_edit_requested = Signal(str)  # surface_id
     construction_focus_changed = Signal(str)  # construction_id
     project_changed = Signal()
+    surface_focus_changed = Signal(object)
 
     # ------------------------------------------------------------------
     # Construction
@@ -298,20 +299,12 @@ class GuiProjectContext(QObject):
         table.viewport().update()
 
     @property
-    def current_surface_id(self) -> Optional[str]:
+    def current_surface_id(self) -> str | None:
         return self._current_surface_id
 
-    def set_current_surface_id(self, surface_id: Optional[str]) -> None:
-        """
-        GUI intent: focus a topology/fabric surface.
-
-        Rules
-        -----
-        • Does NOT mutate ProjectState
-        • Does NOT calculate
-        • Used by construction/adjacency editors as selected target
-        """
+    def set_current_surface_id(self, surface_id: str | None) -> None:
         self._current_surface_id = surface_id
+        self.surface_focus_changed.emit(surface_id)
 
     # ==================================================================
     # HLPE session control (GUI-only)

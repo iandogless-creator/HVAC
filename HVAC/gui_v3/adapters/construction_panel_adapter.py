@@ -42,6 +42,9 @@ class ConstructionPanelAdapter:
             self._on_assign_requested
         )
 
+        if hasattr(self._context, "surface_focus_changed"):
+            self._context.surface_focus_changed.connect(self._on_surface_focus_changed)
+
         self.refresh()
 
     def _build_library(self) -> dict[str, dict[str, list[tuple[str, str]]]]:
@@ -72,7 +75,7 @@ class ConstructionPanelAdapter:
             return "Wall", "External Wall"
 
         if "ROOF" in text or "CEILING" in text:
-            return "Roof", "Roof / Ceiling"
+            return "Roof / Ceiling", "Roof / Ceiling"
 
         if "FLOOR" in text:
             return "Floor", "Floor"
@@ -82,12 +85,17 @@ class ConstructionPanelAdapter:
 
         return "Other", "Other"
 
+    def _on_surface_focus_changed(self, surface_id: str | None) -> None:
+        if hasattr(self._panel, "set_selected_surface"):
+            self._panel.set_selected_surface(surface_id)
+
     def _on_assign_requested(self, cid: str) -> None:
         ps = self._context.project_state
         if ps is None:
             return
 
         surface_id = getattr(self._context, "current_surface_id", None)
+
         if not surface_id:
             return
 
@@ -128,6 +136,9 @@ class ConstructionPanelAdapter:
             u_value_W_m2K=construction.u_value_W_m2K,
             usage_count=usage_count,
         )
+        surface_id = getattr(self._context, "current_surface_id", None)
+        if hasattr(self._panel, "set_selected_surface"):
+            self._panel.set_selected_surface(surface_id)
 
     def refresh(self) -> None:
         self._panel.set_construction_library(self._build_library())

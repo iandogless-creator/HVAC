@@ -666,11 +666,11 @@ class MainWindowV3(QMainWindow):
             if cid not in ps.constructions:
                 ps.constructions[cid] = ConstructionV1(cid, name, u)
 
-        _ensure_construction(ps, "DEV-EXT-WALL", "External Wall", 0.28)
-        _ensure_construction(ps, "DEV-ROOF", "Roof", 0.18)
-        _ensure_construction(ps, "DEV-WINDOW", "Window", 1.40)
+        _ensure_construction(ps, "DEV-EXT-WALL", "External Wall", 0.26)
+        _ensure_construction(ps, "DEV-ROOF", "Roof / Ceiling", 0.16)
+        _ensure_construction(ps, "DEV-WINDOW", "Window / Door", 1.60)
         _ensure_construction(ps, "DEV-INT-WALL", "Internal Wall", 1.50)
-        _ensure_construction(ps, "DEV-FLOOR", "Floor", 0.22)
+        _ensure_construction(ps, "DEV-FLOOR", "Floor", 0.18)
 
 
         # --------------------------------------------------

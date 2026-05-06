@@ -18,7 +18,7 @@ def ensure_dev_constructions(ps) -> None:
         ConstructionV1(
             construction_id="DEV-EXT-WALL",
             name="External Wall",
-            u_value_W_m2K=0.28,
+            u_value_W_m2K=0.26,
         ),
     )
 
@@ -36,7 +36,7 @@ def ensure_dev_constructions(ps) -> None:
         ConstructionV1(
             construction_id="DEV-FLOOR",
             name="Floor",
-            u_value_W_m2K=0.22,
+            u_value_W_m2K=0.16,
         ),
     )
 
@@ -44,8 +44,8 @@ def ensure_dev_constructions(ps) -> None:
         "DEV-ROOF",
         ConstructionV1(
             construction_id="DEV-ROOF",
-            name="Roof",
-            u_value_W_m2K=0.18,
+            name="Roof / Ceiling",
+            u_value_W_m2K=0.16,
         ),
     )
 
@@ -54,7 +54,7 @@ def ensure_dev_constructions(ps) -> None:
         ConstructionV1(
             construction_id="DEV-WINDOW",
             name="Window / Door",
-            u_value_W_m2K=1.40,
+            u_value_W_m2K=1.60,
         ),
     )
 
@@ -86,5 +86,5 @@ def build_dev_project(mode: str) -> ProjectState:
     # --------------------------------------------------
     if not hasattr(ps, "project_dir"):
         ps.project_dir = None
-
+    ensure_dev_constructions(ps)
     return ps
