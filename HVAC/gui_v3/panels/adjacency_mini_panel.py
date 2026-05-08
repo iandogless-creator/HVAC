@@ -116,9 +116,6 @@ class AdjacencyMiniPanelV1(QWidget):
         # --- Initial state -------------------------------------------
         self._set_unassigned_state()
 
-        # Debug (safe to remove later)
-        print("room_combo exists:", hasattr(self, "_room_combo"))
-
     # ------------------------------------------------------------------
     # Public API (adapter calls)
     # ------------------------------------------------------------------

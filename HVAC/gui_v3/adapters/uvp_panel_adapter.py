@@ -26,9 +26,9 @@ class UVPPanelAdapter(QObject):
     u_value_changed = Signal(str, float)  # cid, value
 
     def __init__(self, *, panel: UVPPanel, context: GuiProjectContext) -> None:
+        super().__init__()
         self._panel = panel
         self._context = context
-        super().__init__()
         # --------------------------------------------------
         # Focus routing (FROM context → panel)
         # --------------------------------------------------
@@ -124,12 +124,14 @@ class UVPPanelAdapter(QObject):
             seg = ps.boundary_segments.get(surface_id)
             if seg:
                 from HVAC.fabric.generate_fabric_from_topology import (
-                    _resolve_construction_id
+                    _resolve_construction_id,
                 )
+
                 assigned_cid = _resolve_construction_id(
                     ps,
                     seg,
                     seg.geometry_ref,
+                    seg.boundary_kind,
                 )
 
         # --------------------------------------------------

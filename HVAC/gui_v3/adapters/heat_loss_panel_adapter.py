@@ -64,6 +64,7 @@ class HeatLossPanelAdapter:
             self._panel.surface_focus_requested.connect(
                 self._on_surface_focus_requested
             )
+        self._panel.wall_wizard_requested.connect(self._on_wall_wizard_requested)
         self._panel.adjacency_edit_requested.connect(
             self._on_adjacency_edit_requested
         )
@@ -71,6 +72,9 @@ class HeatLossPanelAdapter:
     # ------------------------------------------------------------------
     # Public refresh
     # ------------------------------------------------------------------
+    def _on_wall_wizard_requested(self, surface_id: str) -> None:
+       self._context.request_wall_wizard(surface_id)
+
     def refresh(self) -> None:
         ps = self._context.project_state
         panel = self._panel

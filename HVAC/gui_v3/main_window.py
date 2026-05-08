@@ -6,8 +6,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import QEvent, Qt, QSettings, Signal
-from PySide6.QtGui import QAction
+from PySide6.QtCore import QEvent, Qt, QSettings, Signal, QObject
+from PySide6.QtGui import QAction, QCursor
 from PySide6.QtWidgets import (
     QApplication,
     QDockWidget,
@@ -71,15 +71,11 @@ from HVAC.core.value_resolution import resolve_effective_internal_temp_C
 from HVAC.gui_v3.adapters.uvp_panel_adapter import UVPPanelAdapter
 from HVAC.dev.bootstrap_dev_project import build_dev_project
 from HVAC.gui_v3.adapters.construction_panel_adapter import ConstructionPanelAdapter
-
-
+from HVAC.gui_v3.adapters.wall_wizard_adapter import WallWizardAdapter
 
 # ======================================================================
 # Main Window
 # ======================================================================
-from PySide6.QtCore import QObject, QEvent
-from PySide6.QtGui import QCursor
-from PySide6.QtWidgets import QApplication
 
 class MainWindowV3(QMainWindow):
 
@@ -373,6 +369,12 @@ class MainWindowV3(QMainWindow):
             context=self._context,
             refresh_all_callback=self._refresh_all_adapters,
         )
+
+        self.wall_wizard_adapter = WallWizardAdapter(
+            context=self._context,
+            parent=self,
+        )
+
         # Wiring
         self._construction_panel.u_values_requested.connect(self._on_uvp_focus_requested)
 

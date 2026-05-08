@@ -83,6 +83,7 @@ class GuiProjectContext(QObject):
     construction_focus_changed = Signal(str)  # construction_id
     project_changed = Signal()
     surface_focus_changed = Signal(object)
+    wall_wizard_requested = Signal(str)  # surface_id
 
     # ------------------------------------------------------------------
     # Construction
@@ -269,6 +270,13 @@ class GuiProjectContext(QObject):
 
         if construction_id is not None:
             self.construction_focus_changed.emit(construction_id)
+
+    def request_wall_wizard(self, surface_id: str) -> None:
+
+        if not surface_id:
+            return
+
+        self.wall_wizard_requested.emit(surface_id)
 
     def highlight_rows_for_construction(self, cid: str) -> None:
         """

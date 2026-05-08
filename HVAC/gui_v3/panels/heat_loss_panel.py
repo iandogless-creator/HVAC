@@ -28,6 +28,7 @@ U_COLUMN = 2
 DT_COLUMN = 3
 QF_COLUMN = 4
 
+
 # ======================================================================
 # CurrentCellBorderDelegate
 # ======================================================================
@@ -39,7 +40,6 @@ QF_COLUMN = 4
 
 class ClickableLabel(QLabel):
     clicked = Signal()
-
     def mousePressEvent(self, event) -> None:
         self.clicked.emit()
         super().mousePressEvent(event)
@@ -102,6 +102,7 @@ class HeatLossPanelV3(QWidget):
     adjacency_edit_requested = Signal(str)  # surface_id
     internal_design_temp_changed = Signal(float)
     add_room_requested = Signal()
+    wall_wizard_requested = Signal(str)  # surface_id
 
     # ------------------------------------------------------------------
     # Construction
@@ -316,30 +317,36 @@ class HeatLossPanelV3(QWidget):
         if not surface_id and row_meta is not None:
             surface_id = getattr(row_meta, "surface_id", None)
 
+        element_text = element_item.text().replace("_", " ").lower()
+
         # --------------------------------------------------
-        # Surface focus intent
-        # Must happen before column-specific routing so the
-        # Construction panel has an assignment target.
+        # Surface focus — must happen before column routing
         # --------------------------------------------------
         if surface_id:
             self.surface_focus_requested.emit(str(surface_id))
 
         # --------------------------------------------------
-        # General cell selection intent
+        # Element column → Wall Wizard intent
         # --------------------------------------------------
-        self.cell_selected.emit(row, column)
+        if column == ELEMENT_COLUMN:
+            if surface_id and "wall" in element_text:
+                self.wall_wizard_requested.emit(str(surface_id))
+                return
 
         # --------------------------------------------------
-        # ΔT column = boundary / adjacency editor
+        # ΔT column → adjacency editor
         # --------------------------------------------------
-        if (
-                column == DT_COLUMN
-                and row_meta is not None
-                and getattr(row_meta, "adjacency_editable", False)
-        ):
+        if column == DT_COLUMN and getattr(row_meta, "adjacency_editable", False):
             if surface_id:
                 self.adjacency_edit_requested.emit(str(surface_id))
             return
+
+        # --------------------------------------------------
+        # Editable cell future route
+        # --------------------------------------------------
+        cell_meta = row_meta.columns.get(column) if row_meta else None
+        if cell_meta and cell_meta.editable:
+            self.worksheet_cell_edit_requested.emit(row, column)
 
     def set_header_context(self, context: dict | None) -> None:
         return
@@ -693,19 +700,61 @@ class HeatLossPanelV3(QWidget):
             self.surface_focus_requested.emit(str(surface_id))
 
         # --------------------------------------------------
-        # 🔥 Adjacency click on ΔT column
+        # Element column → Wall Wizard intent
         # --------------------------------------------------
-        if column == DT_COLUMN and getattr(row_meta, "adjacency_editable", False):
-            if surface_id:
-                self.adjacency_edit_requested.emit(str(surface_id))
-            return
+        if column == 0:
+            element_text = ""
+
+            if row_meta is not None:
+                element_text = str(
+                    getattr(row_meta, "element_label", "")
+                    or getattr(row_meta, "surface_class", "")
+                    or getattr(row_meta, "element", "")
+                    or ""
+                ).replace("_", " ").lower()
+
+            # Fallback to visible Element cell text
+            if not element_text and element_item is not None:
+                element_text = element_item.text().replace("_", " ").lower()
+
+            if surface_id and "wall" in element_text:
+                print(
+                    "[HLP] wall wizard request:",
+                    "row=", row,
+                    "column=", column,
+                    "surface_id=", surface_id,
+                    "element_text=", element_text,
+                )
+                self.wall_wizard_requested.emit(str(surface_id))
+                return
 
         # --------------------------------------------------
-        # Editable cell (future use)
+        # Element column → Wall Wizard intent
         # --------------------------------------------------
-        cell_meta = row_meta.columns.get(column) if row_meta else None
-        if cell_meta and cell_meta.editable:
-            self.worksheet_cell_edit_requested.emit(row, column)
+        if column == 0:
+            # Use visible HLP text first. This is the v1 trigger.
+            element_text = element_item.text().replace("_", " ").lower()
+
+            if not element_text and row_meta is not None:
+                element_text = str(
+                    getattr(row_meta, "element_label", "")
+                    or getattr(row_meta, "surface_class", "")
+                    or getattr(row_meta, "element", "")
+                    or ""
+                ).replace("_", " ").lower()
+
+            print(
+                "[HLP] element click:",
+                "row=", row,
+                "column=", column,
+                "surface_id=", surface_id,
+                "element_text=", element_text,
+            )
+
+            if surface_id and "wall" in element_text:
+                print("[HLP] wall wizard request:", surface_id)
+                self.wall_wizard_requested.emit(str(surface_id))
+                return
 
     # ------------------------------------------------------------------
     # Room-level result display
