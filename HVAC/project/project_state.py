@@ -13,6 +13,7 @@ from HVAC.topology.boundary_segment_v1 import BoundarySegmentV1
 from HVAC.heatloss.fabric.fabric_from_segments_v1 import FabricFromSegmentsV1
 from HVAC.core.construction_v1 import ConstructionV1
 from HVAC.hydronics.emitter_v1 import EmitterV1
+from HVAC.core.opening_schedule_v1 import RoomOpeningScheduleV1
 
 # ======================================================================
 # ProjectState
@@ -31,12 +32,7 @@ class ProjectState:
     environment: Optional[EnvironmentStateV1] = None
     boundary_segments: Dict[str, BoundarySegmentV1] = field(default_factory=dict)
 
-
-    # ------------------------------------------------------------------
-    # Phase IV-D — Openings (sub-surfaces)
-    # surface_id -> list[OpeningV1]
-    # ------------------------------------------------------------------
-    openings_by_surface: Dict[str, list[Any]] = field(default_factory=dict)
+    room_opening_schedules: Dict[str, RoomOpeningScheduleV1] = field(default_factory=dict)
 
     # ------------------------------------------------------------------
     # v1 Construction library (minimal, stable)
@@ -409,6 +405,18 @@ class ProjectState:
         )
 
         self.mark_heatloss_dirty()
+
+    def get_or_create_room_opening_schedule(
+            self,
+            room_id: str,
+    ) -> RoomOpeningScheduleV1:
+        schedule = self.room_opening_schedules.get(room_id)
+
+        if schedule is None:
+            schedule = RoomOpeningScheduleV1(room_id=room_id)
+            self.room_opening_schedules[room_id] = schedule
+
+        return schedule
 
 class EmitterV1:
     emitter_id: str
