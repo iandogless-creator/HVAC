@@ -21,6 +21,13 @@ from PySide6.QtWidgets import (
     QWidget,
     QHBoxLayout,
 )
+from HVAC.gui_v3.wizards.wall_wizard import (
+    WallWizardDialog,
+    WallWizardProjection,
+    OpeningPreview,
+)
+
+from HVAC.core.opening_schedule_v1 import OpeningScheduleItemV1
 
 # ======================================================================
 # Helpers
@@ -401,17 +408,68 @@ class WallWizardAdapter:
     # ------------------------------------------------------------------
     # Opening intent
     # ------------------------------------------------------------------
+    def _room_id_for_surface(
+            self,
+            ps: Any,
+            surface_id: str,
+    ) -> Optional[str]:
+        boundary_segments = _safe_get(ps, "boundary_segments", {}) or {}
+        seg = boundary_segments.get(surface_id)
 
-    def _on_opening_requested(self, surface_id: str, opening_type: str) -> None:
-        """
-        Wall Wizard B1 intent only.
+        return _safe_get(seg, "owner_room_id", None)
 
-        No ProjectState mutation yet.
-        No heat-loss calculation yet.
-        No opening model creation yet.
+    def _construction_id_for_opening(self, opening: OpeningPreview) -> str:
+        if opening.opening_type == "WINDOW":
+            return "DEV-WINDOW"
+
+        if opening.opening_type == "DOOR":
+            if opening.profile_id == "INTERNAL_DOOR":
+                return "DEV-INT-DOOR"
+
+            return "DEV-EXT-DOOR"
+
+        return ""
+
+    def _on_opening_requested(
+            self,
+            surface_id: str,
+            opening: OpeningPreview,
+    ) -> None:
         """
+        Wall Wizard F1-B.
+
+        Writes room-level opening schedule items into ProjectState.
+        Does not change HLP physics yet.
+        """
+        ps = _safe_get(self._context, "project_state", None)
+        if ps is None:
+            ps = _safe_get(self._context, "_project_state", None)
+
+        if ps is None:
+            return
+
+        room_id = self._room_id_for_surface(ps, surface_id)
+        if not room_id:
+            return
+
+        schedule = ps.get_or_create_room_opening_schedule(room_id)
+
+        item = OpeningScheduleItemV1(
+            opening_type=opening.opening_type,
+            profile_id=opening.profile_id,
+            profile_name=opening.profile_name,
+            width_m=opening.width_m,
+            height_m=opening.height_m,
+            quantity=opening.quantity,
+            construction_id=self._construction_id_for_opening(opening),
+        )
+
+        schedule.add_item(item)
+
         print(
-            "[WALL WIZARD] opening intent:",
-            "surface_id=", surface_id,
-            "opening_type=", opening_type,
+            "[WALL WIZARD] saved opening schedule item:",
+            "room_id=", room_id,
+            "profile=", opening.profile_name,
+            "qty=", opening.quantity,
+            "area=", f"{opening.area_m2:.2f}",
         )

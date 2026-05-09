@@ -129,7 +129,7 @@ class UVPPanelAdapter(QObject):
 
                 assigned_cid = _resolve_construction_id(
                     ps,
-                    seg,
+                    surface_id,
                     seg.geometry_ref,
                     seg.boundary_kind,
                 )

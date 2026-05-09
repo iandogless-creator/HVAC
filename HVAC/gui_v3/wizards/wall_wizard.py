@@ -28,9 +28,14 @@ from PySide6.QtWidgets import (
 # Opening Preview DTO
 # ======================================================================
 
+# ======================================================================
+# Opening Preview DTO
+# ======================================================================
+
 @dataclass(frozen=True)
 class OpeningPreview:
     opening_type: str
+    profile_id: str
     profile_name: str
     width_m: float
     height_m: float
@@ -135,11 +140,12 @@ class WallWizardDialog(QDialog):
     • no opening persistence yet
     """
 
-    opening_requested = Signal(str, str)  # surface_id, opening_type
+    opening_requested = Signal(str, object)  # surface_id, OpeningPreview
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
 
+        self.setWindowTitle("Wall Wizard")
         self.setWindowTitle("Wall Wizard")
         self.setMinimumWidth(620)
 
@@ -281,21 +287,21 @@ class WallWizardDialog(QDialog):
 
         quantity = int(self._quantity_spin.value())
 
-        self._preview_openings.append(
-            OpeningPreview(
-                opening_type=str(profile["opening_type"]),
-                profile_name=str(profile["name"]),
-                width_m=float(profile["width_m"]),
-                height_m=float(profile["height_m"]),
-                quantity=quantity,
-            )
+        opening = OpeningPreview(
+            opening_type=str(profile["opening_type"]),
+            profile_id=str(profile_id),
+            profile_name=str(profile["name"]),
+            width_m=float(profile["width_m"]),
+            height_m=float(profile["height_m"]),
+            quantity=quantity,
         )
 
+        self._preview_openings.append(opening)
         self._refresh_area_summary()
 
         self.opening_requested.emit(
             self._current_surface_id,
-            str(profile["opening_type"]),
+            opening,
         )
 
     def _refresh_area_summary(self) -> None:
@@ -349,11 +355,12 @@ class WallWizardDialog(QDialog):
                 QTableWidgetItem(f"{opening.area_m2:.2f} m²"),
             )
 
-    def _grouped_openings(self) -> dict[tuple[str, float, float], OpeningPreview]:
-        grouped: dict[tuple[str, float, float], OpeningPreview] = {}
+    def _grouped_openings(self) -> dict[tuple[str, str, float, float], OpeningPreview]:
+        grouped: dict[tuple[str, str, float, float], OpeningPreview] = {}
 
         for opening in self._preview_openings:
             key = (
+                opening.profile_id,
                 opening.profile_name,
                 opening.width_m,
                 opening.height_m,
@@ -366,6 +373,7 @@ class WallWizardDialog(QDialog):
 
             grouped[key] = OpeningPreview(
                 opening_type=existing.opening_type,
+                profile_id=existing.profile_id,
                 profile_name=existing.profile_name,
                 width_m=existing.width_m,
                 height_m=existing.height_m,

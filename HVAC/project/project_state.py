@@ -33,7 +33,7 @@ class ProjectState:
     boundary_segments: Dict[str, BoundarySegmentV1] = field(default_factory=dict)
 
     room_opening_schedules: Dict[str, RoomOpeningScheduleV1] = field(default_factory=dict)
-
+    openings_by_surface: Dict[str, list[Any]] = field(default_factory=dict)
     # ------------------------------------------------------------------
     # v1 Construction library (minimal, stable)
     # ------------------------------------------------------------------
