@@ -136,53 +136,33 @@ class WallWizardAdapter:
         if ps is None:
             return None
 
-        seg = None
         boundary_segments = _safe_get(ps, "boundary_segments", {}) or {}
-        if surface_id:
-            seg = boundary_segments.get(surface_id)
+        seg = boundary_segments.get(surface_id) if surface_id else None
 
         room_id = _safe_get(seg, "owner_room_id", None)
         room_label = self._resolve_room_label(ps, room_id)
+        boundary_kind = _safe_get(seg, "boundary_kind", None)
 
         # --------------------------------------------------
         # Element label
         # --------------------------------------------------
-        boundary_kind = _safe_get(seg, "boundary_kind", None)
-
         if boundary_kind == "INTER_ROOM":
             element_label = "Internal Wall"
         elif boundary_kind == "EXTERNAL":
             element_label = "External Wall"
         else:
-            # Wall Wizard A is launched only from wall rows, so fallback is OK.
             element_label = "Wall"
 
         # --------------------------------------------------
         # Area
         # --------------------------------------------------
-        area_m2 = None
-
-        length_m = _safe_get(seg, "length_m", None)
-
-        room = None
-        if room_id:
-            rooms = _safe_get(ps, "rooms", {}) or {}
-            room = rooms.get(room_id)
-
-        height_m = None
-        geometry = _safe_get(room, "geometry", None)
-        if geometry is not None:
-            height_m = _safe_get(geometry, "height_m", None)
-
-        if height_m is None:
-            env = _safe_get(ps, "environment", None)
-            height_m = _safe_get(env, "default_room_height_m", None)
-
-        if length_m is not None and height_m is not None:
-            try:
-                area_m2 = float(length_m) * float(height_m)
-            except (TypeError, ValueError):
-                area_m2 = None
+        if boundary_kind == "EXTERNAL":
+            # V1 rule:
+            # clicking any external wall opens the room-level external opening schedule.
+            area_m2 = self._external_wall_gross_area_for_room(ps, room_id)
+        else:
+            # Internal walls remain selected-segment based for now.
+            area_m2 = self._segment_wall_area(ps, seg, room_id)
 
         # --------------------------------------------------
         # Construction
@@ -220,7 +200,52 @@ class WallWizardAdapter:
             construction_id=construction_id,
             construction_name=construction_name,
             u_value_W_m2K=u_value,
+            openings=[],
         )
+
+    def _external_wall_gross_area_for_room(self, ps: Any, room_id: str | None) -> Optional[float]:
+        if not room_id:
+            return None
+
+        rooms = _safe_get(ps, "rooms", {}) or {}
+        room = rooms.get(room_id)
+        if room is None:
+            return None
+
+        geometry = _safe_get(room, "geometry", None)
+        height_m = _safe_get(geometry, "height_m", None)
+
+        if height_m is None:
+            env = _safe_get(ps, "environment", None)
+            height_m = _safe_get(env, "default_room_height_m", None)
+
+        if height_m is None:
+            return None
+
+        boundary_segments = _safe_get(ps, "boundary_segments", {}) or {}
+
+        total_length_m = 0.0
+
+        for seg in boundary_segments.values():
+            if _safe_get(seg, "owner_room_id", None) != room_id:
+                continue
+
+            if _safe_get(seg, "boundary_kind", None) != "EXTERNAL":
+                continue
+
+            length_m = _safe_get(seg, "length_m", None)
+            if length_m is None:
+                continue
+
+            try:
+                total_length_m += float(length_m)
+            except (TypeError, ValueError):
+                continue
+
+        if total_length_m <= 0.0:
+            return None
+
+        return total_length_m * float(height_m)
 
     def _find_row_for_surface(self, ps: Any, surface_id: str) -> Any:
         """
@@ -254,6 +279,91 @@ class WallWizardAdapter:
 
         return None
 
+    def _external_wall_gross_area_for_room(
+            self,
+            ps: Any,
+            room_id: str | None,
+    ) -> Optional[float]:
+        """
+        V1 external-opening rule.
+
+        Any external wall click opens the room-level external wall schedule.
+        Therefore gross area is the total external wall area for the room,
+        not only the selected segment area.
+        """
+        if not room_id:
+            return None
+
+        height_m = self._resolve_room_height(ps, room_id)
+        if height_m is None:
+            return None
+
+        boundary_segments = _safe_get(ps, "boundary_segments", {}) or {}
+
+        total_length_m = 0.0
+
+        for seg in boundary_segments.values():
+            if _safe_get(seg, "owner_room_id", None) != room_id:
+                continue
+
+            if _safe_get(seg, "boundary_kind", None) != "EXTERNAL":
+                continue
+
+            length_m = _safe_get(seg, "length_m", None)
+            if length_m is None:
+                continue
+
+            try:
+                total_length_m += float(length_m)
+            except (TypeError, ValueError):
+                continue
+
+        if total_length_m <= 0.0:
+            return None
+
+        return total_length_m * float(height_m)
+
+    def _segment_wall_area(
+            self,
+            ps: Any,
+            seg: Any,
+            room_id: str | None,
+    ) -> Optional[float]:
+        """
+        Selected-segment wall area.
+
+        Used for internal walls for now.
+        """
+        length_m = _safe_get(seg, "length_m", None)
+        height_m = self._resolve_room_height(ps, room_id)
+
+        if length_m is None or height_m is None:
+            return None
+
+        try:
+            return float(length_m) * float(height_m)
+        except (TypeError, ValueError):
+            return None
+
+    def _resolve_room_height(
+            self,
+            ps: Any,
+            room_id: str | None,
+    ) -> Optional[float]:
+        if not room_id:
+            return None
+
+        rooms = _safe_get(ps, "rooms", {}) or {}
+        room = rooms.get(room_id)
+
+        geometry = _safe_get(room, "geometry", None)
+        height_m = _safe_get(geometry, "height_m", None)
+
+        if height_m is not None:
+            return height_m
+
+        env = _safe_get(ps, "environment", None)
+        return _safe_get(env, "default_room_height_m", None)
     def _resolve_construction_id(self, ps: Any, surface_id: str, row: Any = None) -> Optional[str]:
         surface_map = _safe_get(ps, "surface_construction_map", {}) or {}
 
