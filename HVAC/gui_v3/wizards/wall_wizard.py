@@ -6,6 +6,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Optional
+
+from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
     QDialog,
     QVBoxLayout,
@@ -14,21 +16,81 @@ from PySide6.QtWidgets import (
     QPushButton,
     QWidget,
     QHBoxLayout,
+    QComboBox,
+    QSpinBox,
+    QTableWidget,
+    QTableWidgetItem,
+    QHeaderView,
 )
-from PySide6.QtCore import Signal
+
+
+# ======================================================================
+# Opening Preview DTO
+# ======================================================================
+
+@dataclass(frozen=True)
+class OpeningPreview:
+    opening_type: str
+    profile_name: str
+    width_m: float
+    height_m: float
+    quantity: int = 1
+
+    @property
+    def area_m2(self) -> float:
+        return self.width_m * self.height_m * self.quantity
+
+    @property
+    def size_label(self) -> str:
+        return f"{self.width_m:.2f} × {self.height_m:.2f} m"
+
+
+# ======================================================================
+# Opening Profiles — Wall Wizard E1 preview catalogue
+# ======================================================================
+
+OPENING_PROFILES = {
+    "SMALL_WINDOW": {
+        "name": "Small Window",
+        "opening_type": "WINDOW",
+        "width_m": 0.60,
+        "height_m": 0.90,
+        "external_only": True,
+    },
+    "STANDARD_WINDOW": {
+        "name": "Standard Window",
+        "opening_type": "WINDOW",
+        "width_m": 1.20,
+        "height_m": 1.20,
+        "external_only": True,
+    },
+    "LARGE_WINDOW": {
+        "name": "Large Window",
+        "opening_type": "WINDOW",
+        "width_m": 1.80,
+        "height_m": 1.20,
+        "external_only": True,
+    },
+    "EXTERNAL_DOOR": {
+        "name": "External Door",
+        "opening_type": "DOOR",
+        "width_m": 0.90,
+        "height_m": 2.10,
+        "external_only": True,
+    },
+    "INTERNAL_DOOR": {
+        "name": "Internal Door",
+        "opening_type": "DOOR",
+        "width_m": 0.90,
+        "height_m": 2.10,
+        "external_only": False,
+    },
+}
+
 
 # ======================================================================
 # Projection DTO
 # ======================================================================
-@dataclass(frozen=True)
-class OpeningPreview:
-    opening_type: str
-    width_m: float
-    height_m: float
-
-    @property
-    def area_m2(self) -> float:
-        return self.width_m * self.height_m
 
 @dataclass(frozen=True)
 class WallWizardProjection:
@@ -48,37 +110,38 @@ class WallWizardProjection:
     u_value_W_m2K: Optional[float]
     openings: list[OpeningPreview] = field(default_factory=list)
 
+
 # ======================================================================
 # WallWizardDialog
 # ======================================================================
 
-
 class WallWizardDialog(QDialog):
     """
-    Wall Wizard A — read-only shell.
+    Wall Wizard E1 — room-level opening schedule preview.
 
     Scope
     -----
-    • show selected wall surface
-    • show room / element / area
-    • show assigned construction
-    • show construction U-value
-    • placeholder for future openings
+    • show selected wall / room context
+    • show gross wall area
+    • preview grouped opening schedule
+    • show opening area and net wall area
+    • emit opening intent only
 
     Explicitly forbidden
     --------------------
     • no ProjectState mutation
     • no U-value writes
     • no heat-loss calculation
-    • no opening creation yet
+    • no opening persistence yet
     """
 
-    opening_requested = Signal(str, str)  # surface_id, opening_typeA
+    opening_requested = Signal(str, str)  # surface_id, opening_type
+
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
 
         self.setWindowTitle("Wall Wizard")
-        self.setMinimumWidth(420)
+        self.setMinimumWidth(620)
 
         self._current_surface_id: str | None = None
         self._current_gross_area_m2: float | None = None
@@ -86,6 +149,13 @@ class WallWizardDialog(QDialog):
 
         root = QVBoxLayout(self)
 
+        title = QLabel("Wall Wizard")
+        title.setStyleSheet("font-weight: 700; font-size: 16px;")
+        root.addWidget(title)
+
+        # --------------------------------------------------
+        # Projection fields
+        # --------------------------------------------------
         self._surface_id = QLabel("—")
         self._room = QLabel("—")
         self._element = QLabel("—")
@@ -110,33 +180,56 @@ class WallWizardDialog(QDialog):
         form.addRow("U-value:", self._u_value)
         root.addLayout(form)
 
-        self._current_surface_id: str | None = None
         # --------------------------------------------------
-        # Opening intent buttons
+        # Opening schedule controls
         # --------------------------------------------------
-        opening_title = QLabel("Opening options")
+        opening_title = QLabel("Opening schedule preview")
         opening_title.setStyleSheet("font-weight: 700; margin-top: 8px;")
         root.addWidget(opening_title)
 
-        opening_row = QHBoxLayout()
+        control_row = QHBoxLayout()
 
-        self._add_window_btn = QPushButton("Add Window…")
-        self._add_door_btn = QPushButton("Add Door…")
+        self._profile_combo = QComboBox()
 
-        self._add_window_btn.clicked.connect(
-            lambda: self._emit_opening_requested("WINDOW")
+        self._quantity_spin = QSpinBox()
+        self._quantity_spin.setRange(1, 99)
+        self._quantity_spin.setValue(1)
+
+        self._add_opening_btn = QPushButton("Add opening")
+
+        control_row.addWidget(QLabel("Profile:"))
+        control_row.addWidget(self._profile_combo, 1)
+        control_row.addWidget(QLabel("Qty:"))
+        control_row.addWidget(self._quantity_spin)
+        control_row.addWidget(self._add_opening_btn)
+
+        root.addLayout(control_row)
+
+        # --------------------------------------------------
+        # Opening schedule table
+        # --------------------------------------------------
+        self._opening_table = QTableWidget(0, 4)
+        self._opening_table.setHorizontalHeaderLabels(
+            ["Profile", "Qty", "Size", "Area"]
         )
-        self._add_door_btn.clicked.connect(
-            lambda: self._emit_opening_requested("DOOR")
-        )
+        self._opening_table.verticalHeader().setVisible(False)
+        self._opening_table.setSelectionBehavior(QTableWidget.SelectRows)
+        self._opening_table.setEditTriggers(QTableWidget.NoEditTriggers)
 
-        opening_row.addWidget(self._add_window_btn)
-        opening_row.addWidget(self._add_door_btn)
+        header = self._opening_table.horizontalHeader()
+        header.setSectionResizeMode(0, QHeaderView.Stretch)
+        header.setSectionResizeMode(1, QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(2, QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(3, QHeaderView.ResizeToContents)
 
-        root.addLayout(opening_row)
+        self._opening_table.setMinimumHeight(120)
+        root.addWidget(self._opening_table)
 
         self._opening_hint = QLabel("No openings defined yet.")
         root.addWidget(self._opening_hint)
+
+        self._add_opening_btn.clicked.connect(self._add_selected_opening)
+
         close_btn = QPushButton("Close")
         close_btn.clicked.connect(self.close)
         root.addWidget(close_btn)
@@ -167,41 +260,42 @@ class WallWizardDialog(QDialog):
         else:
             self._u_value.setText(f"{projection.u_value_W_m2K:.3f} W/m²·K")
 
+        self._update_opening_profile_choices(projection)
         self._refresh_area_summary()
-        self._update_opening_buttons(projection)
 
     # ------------------------------------------------------------------
     # Opening intent / preview
     # ------------------------------------------------------------------
 
-    def _emit_opening_requested(self, opening_type: str) -> None:
+    def _add_selected_opening(self) -> None:
         if not self._current_surface_id:
             return
 
-        # Wall-Wizard C1: temporary preview only.
-        # No ProjectState mutation.
-        if opening_type == "WINDOW":
-            self._preview_openings.append(
-                OpeningPreview(
-                    opening_type="WINDOW",
-                    width_m=1.20,
-                    height_m=1.20,
-                )
+        profile_id = self._profile_combo.currentData()
+        if not profile_id:
+            return
+
+        profile = OPENING_PROFILES.get(str(profile_id))
+        if not profile:
+            return
+
+        quantity = int(self._quantity_spin.value())
+
+        self._preview_openings.append(
+            OpeningPreview(
+                opening_type=str(profile["opening_type"]),
+                profile_name=str(profile["name"]),
+                width_m=float(profile["width_m"]),
+                height_m=float(profile["height_m"]),
+                quantity=quantity,
             )
-        elif opening_type == "DOOR":
-            self._preview_openings.append(
-                OpeningPreview(
-                    opening_type="DOOR",
-                    width_m=0.90,
-                    height_m=2.10,
-                )
-            )
+        )
 
         self._refresh_area_summary()
 
         self.opening_requested.emit(
             self._current_surface_id,
-            opening_type,
+            str(profile["opening_type"]),
         )
 
     def _refresh_area_summary(self) -> None:
@@ -216,40 +310,121 @@ class WallWizardDialog(QDialog):
             net = max(gross - opening_area, 0.0)
             self._net_area.setText(f"{net:.2f} m²")
 
+        self._refresh_opening_table()
+
         if not self._preview_openings:
             self._opening_hint.setText("No openings defined yet.")
             return
 
-        parts = [
-            f"{o.opening_type.title()} "
-            f"{o.width_m:.2f} × {o.height_m:.2f} = {o.area_m2:.2f} m²"
-            for o in self._preview_openings
-        ]
-
+        grouped_count = self._grouped_openings()
         self._opening_hint.setText(
-            "Preview openings: " + "; ".join(parts)
+            f"{len(grouped_count)} grouped schedule line(s), "
+            f"total opening area {opening_area:.2f} m²."
         )
 
-    def _update_opening_buttons(self, projection: WallWizardProjection) -> None:
+    def _refresh_opening_table(self) -> None:
+        rows = list(self._grouped_openings().values())
+
+        self._opening_table.setRowCount(len(rows))
+
+        for row_index, opening in enumerate(rows):
+            self._opening_table.setItem(
+                row_index,
+                0,
+                QTableWidgetItem(opening.profile_name),
+            )
+            self._opening_table.setItem(
+                row_index,
+                1,
+                QTableWidgetItem(str(opening.quantity)),
+            )
+            self._opening_table.setItem(
+                row_index,
+                2,
+                QTableWidgetItem(opening.size_label),
+            )
+            self._opening_table.setItem(
+                row_index,
+                3,
+                QTableWidgetItem(f"{opening.area_m2:.2f} m²"),
+            )
+
+    def _grouped_openings(self) -> dict[tuple[str, float, float], OpeningPreview]:
+        grouped: dict[tuple[str, float, float], OpeningPreview] = {}
+
+        for opening in self._preview_openings:
+            key = (
+                opening.profile_name,
+                opening.width_m,
+                opening.height_m,
+            )
+
+            existing = grouped.get(key)
+            if existing is None:
+                grouped[key] = opening
+                continue
+
+            grouped[key] = OpeningPreview(
+                opening_type=existing.opening_type,
+                profile_name=existing.profile_name,
+                width_m=existing.width_m,
+                height_m=existing.height_m,
+                quantity=existing.quantity + opening.quantity,
+            )
+
+        return grouped
+
+    def _update_opening_profile_choices(
+        self,
+        projection: WallWizardProjection,
+    ) -> None:
         element_text = (projection.element_label or "").lower()
 
         is_external_wall = "external wall" in element_text
         is_internal_wall = "internal wall" in element_text
         is_wall = "wall" in element_text
 
-        self._add_window_btn.setEnabled(is_external_wall)
-        self._add_door_btn.setEnabled(is_wall)
+        self._profile_combo.clear()
+
+        if is_external_wall:
+            allowed_ids = [
+                "SMALL_WINDOW",
+                "STANDARD_WINDOW",
+                "LARGE_WINDOW",
+                "EXTERNAL_DOOR",
+            ]
+        elif is_internal_wall:
+            allowed_ids = [
+                "INTERNAL_DOOR",
+            ]
+        else:
+            allowed_ids = []
+
+        for profile_id in allowed_ids:
+            profile = OPENING_PROFILES[profile_id]
+            label = (
+                f'{profile["name"]} '
+                f'({float(profile["width_m"]):.2f} × '
+                f'{float(profile["height_m"]):.2f} m)'
+            )
+            self._profile_combo.addItem(label, profile_id)
+
+        enabled = is_wall and bool(allowed_ids)
+
+        self._profile_combo.setEnabled(enabled)
+        self._quantity_spin.setEnabled(enabled)
+        self._add_opening_btn.setEnabled(enabled)
 
         if self._preview_openings:
             return
 
         if is_external_wall:
             self._opening_hint.setText(
-                "No openings defined yet. Window and door options are available."
+                "No room-level external openings defined yet."
             )
         elif is_internal_wall:
             self._opening_hint.setText(
-                "No openings defined yet. Internal wall supports door/opening intent only."
+                "No internal door/opening defined yet."
             )
         else:
             self._opening_hint.setText(
