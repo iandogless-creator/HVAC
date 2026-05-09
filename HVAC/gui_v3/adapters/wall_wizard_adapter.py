@@ -6,14 +6,21 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
-from PySide6.QtWidgets import QWidget
-
 from HVAC.gui_v3.context.gui_project_context import GuiProjectContext
 from HVAC.gui_v3.wizards.wall_wizard import (
     WallWizardDialog,
     WallWizardProjection,
 )
-
+from PySide6.QtCore import Signal
+from PySide6.QtWidgets import (
+    QDialog,
+    QVBoxLayout,
+    QFormLayout,
+    QLabel,
+    QPushButton,
+    QWidget,
+    QHBoxLayout,
+)
 
 # ======================================================================
 # Helpers
@@ -62,7 +69,7 @@ class WallWizardAdapter:
     Responsibilities
     ----------------
     • listen for wall_wizard_requested(surface_id)
-    • resolve display data from ProjectState / row projection
+    • resolve display data from ProjectState
     • open read-only WallWizardDialog
 
     Explicitly forbidden
@@ -72,6 +79,7 @@ class WallWizardAdapter:
     • no surface U-value writes
     • no heat-loss calculation
     """
+    opening_requested = Signal(str, str)  # surface_id, opening_type
 
     def __init__(
         self,
@@ -83,7 +91,11 @@ class WallWizardAdapter:
         self._parent = parent
         self._dialog: Optional[WallWizardDialog] = None
 
-        context.wall_wizard_requested.connect(self._open_for_surface)
+        self._context.wall_wizard_requested.connect(
+            self._open_for_surface
+        )
+
+
 
     # ------------------------------------------------------------------
     # Open
@@ -103,6 +115,9 @@ class WallWizardAdapter:
 
         if self._dialog is None:
             self._dialog = WallWizardDialog(parent=self._parent)
+            self._dialog.opening_requested.connect(
+                self._on_opening_requested
+            )
 
         self._dialog.set_projection(projection)
         self._dialog.show()
@@ -272,3 +287,21 @@ class WallWizardAdapter:
             return row.get(name, default)
 
         return getattr(row, name, default)
+
+    # ------------------------------------------------------------------
+    # Opening intent
+    # ------------------------------------------------------------------
+
+    def _on_opening_requested(self, surface_id: str, opening_type: str) -> None:
+        """
+        Wall Wizard B1 intent only.
+
+        No ProjectState mutation yet.
+        No heat-loss calculation yet.
+        No opening model creation yet.
+        """
+        print(
+            "[WALL WIZARD] opening intent:",
+            "surface_id=", surface_id,
+            "opening_type=", opening_type,
+        )
