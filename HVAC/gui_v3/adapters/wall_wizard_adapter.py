@@ -122,8 +122,15 @@ class WallWizardAdapter:
 
         if self._dialog is None:
             self._dialog = WallWizardDialog(parent=self._parent)
+
             self._dialog.opening_requested.connect(
                 self._on_opening_requested
+            )
+            self._dialog.opening_remove_requested.connect(
+                self._on_opening_remove_requested
+            )
+            self._dialog.openings_clear_requested.connect(
+                self._on_openings_clear_requested
             )
 
         self._dialog.set_projection(projection)
@@ -371,6 +378,7 @@ class WallWizardAdapter:
 
         env = _safe_get(ps, "environment", None)
         return _safe_get(env, "default_room_height_m", None)
+
     def _resolve_construction_id(self, ps: Any, surface_id: str, row: Any = None) -> Optional[str]:
         surface_map = _safe_get(ps, "surface_construction_map", {}) or {}
 
@@ -436,7 +444,7 @@ class WallWizardAdapter:
             opening: OpeningPreview,
     ) -> None:
         """
-        Wall Wizard F1-B.
+        Wall Wizard F1-B/F1-C.
 
         Writes room-level opening schedule items into ProjectState.
         Does not change HLP physics yet.
@@ -472,4 +480,75 @@ class WallWizardAdapter:
             "profile=", opening.profile_name,
             "qty=", opening.quantity,
             "area=", f"{opening.area_m2:.2f}",
+        )
+
+    def _on_opening_remove_requested(
+            self,
+            surface_id: str,
+            opening: OpeningPreview,
+    ) -> None:
+        """
+        Wall Wizard F1-C.
+
+        Remove a grouped opening schedule row from ProjectState.
+        HLP physics remains untouched.
+        """
+        ps = _safe_get(self._context, "project_state", None)
+        if ps is None:
+            ps = _safe_get(self._context, "_project_state", None)
+
+        if ps is None:
+            return
+
+        room_id = self._room_id_for_surface(ps, surface_id)
+        if not room_id:
+            return
+
+        schedules = _safe_get(ps, "room_opening_schedules", {}) or {}
+        schedule = schedules.get(room_id)
+
+        if schedule is None:
+            return
+
+        schedule.remove_matching_items(
+            profile_id=opening.profile_id,
+            width_m=opening.width_m,
+            height_m=opening.height_m,
+        )
+
+        print(
+            "[WALL WIZARD] removed opening schedule group:",
+            "room_id=", room_id,
+            "profile=", opening.profile_name,
+        )
+
+    def _on_openings_clear_requested(self, surface_id: str) -> None:
+        """
+        Wall Wizard F1-C.
+
+        Clear all room-level opening schedule rows from ProjectState.
+        HLP physics remains untouched.
+        """
+        ps = _safe_get(self._context, "project_state", None)
+        if ps is None:
+            ps = _safe_get(self._context, "_project_state", None)
+
+        if ps is None:
+            return
+
+        room_id = self._room_id_for_surface(ps, surface_id)
+        if not room_id:
+            return
+
+        schedules = _safe_get(ps, "room_opening_schedules", {}) or {}
+        schedule = schedules.get(room_id)
+
+        if schedule is None:
+            return
+
+        schedule.clear()
+
+        print(
+            "[WALL WIZARD] cleared opening schedule:",
+            "room_id=", room_id,
         )

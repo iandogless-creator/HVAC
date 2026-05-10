@@ -7,7 +7,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Optional
 
-from PySide6.QtCore import Signal
+from PySide6.QtCore import Signal, Qt
 from PySide6.QtWidgets import (
     QDialog,
     QVBoxLayout,
@@ -23,10 +23,6 @@ from PySide6.QtWidgets import (
     QHeaderView,
 )
 
-
-# ======================================================================
-# Opening Preview DTO
-# ======================================================================
 
 # ======================================================================
 # Opening Preview DTO
@@ -122,7 +118,7 @@ class WallWizardProjection:
 
 class WallWizardDialog(QDialog):
     """
-    Wall Wizard E1 — room-level opening schedule preview.
+    Wall Wizard F1-C — room-level opening schedule editor shell.
 
     Scope
     -----
@@ -130,22 +126,23 @@ class WallWizardDialog(QDialog):
     • show gross wall area
     • preview grouped opening schedule
     • show opening area and net wall area
-    • emit opening intent only
+    • emit add/remove/clear opening intent only
 
     Explicitly forbidden
     --------------------
     • no ProjectState mutation
     • no U-value writes
     • no heat-loss calculation
-    • no opening persistence yet
+    • no project-file persistence
     """
 
-    opening_requested = Signal(str, object)  # surface_id, OpeningPreview
+    opening_requested = Signal(str, object)          # surface_id, OpeningPreview
+    opening_remove_requested = Signal(str, object)   # surface_id, OpeningPreview
+    openings_clear_requested = Signal(str)           # surface_id
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
 
-        self.setWindowTitle("Wall Wizard")
         self.setWindowTitle("Wall Wizard")
         self.setMinimumWidth(620)
 
@@ -202,12 +199,16 @@ class WallWizardDialog(QDialog):
         self._quantity_spin.setValue(1)
 
         self._add_opening_btn = QPushButton("Add opening")
+        self._remove_opening_btn = QPushButton("Remove selected")
+        self._clear_openings_btn = QPushButton("Clear all")
 
         control_row.addWidget(QLabel("Profile:"))
         control_row.addWidget(self._profile_combo, 1)
         control_row.addWidget(QLabel("Qty:"))
         control_row.addWidget(self._quantity_spin)
         control_row.addWidget(self._add_opening_btn)
+        control_row.addWidget(self._remove_opening_btn)
+        control_row.addWidget(self._clear_openings_btn)
 
         root.addLayout(control_row)
 
@@ -234,11 +235,18 @@ class WallWizardDialog(QDialog):
         self._opening_hint = QLabel("No openings defined yet.")
         root.addWidget(self._opening_hint)
 
+        # --------------------------------------------------
+        # Signal wiring
+        # --------------------------------------------------
         self._add_opening_btn.clicked.connect(self._add_selected_opening)
+        self._remove_opening_btn.clicked.connect(self._remove_selected_opening)
+        self._clear_openings_btn.clicked.connect(self._clear_openings)
 
         close_btn = QPushButton("Close")
         close_btn.clicked.connect(self.close)
         root.addWidget(close_btn)
+
+        self._refresh_opening_table()
 
     # ------------------------------------------------------------------
     # Projection
@@ -304,6 +312,60 @@ class WallWizardDialog(QDialog):
             opening,
         )
 
+    def _selected_grouped_opening(self) -> OpeningPreview | None:
+        selected = self._opening_table.selectedItems()
+        if not selected:
+            return None
+
+        row = selected[0].row()
+        item = self._opening_table.item(row, 0)
+        if item is None:
+            return None
+
+        opening = item.data(Qt.UserRole)
+        if isinstance(opening, OpeningPreview):
+            return opening
+
+        return None
+
+    def _remove_selected_opening(self) -> None:
+        if not self._current_surface_id:
+            return
+
+        opening = self._selected_grouped_opening()
+        if opening is None:
+            return
+
+        self._preview_openings = [
+            item
+            for item in self._preview_openings
+            if not (
+                item.profile_id == opening.profile_id
+                and float(item.width_m) == float(opening.width_m)
+                and float(item.height_m) == float(opening.height_m)
+            )
+        ]
+
+        self._refresh_area_summary()
+
+        self.opening_remove_requested.emit(
+            self._current_surface_id,
+            opening,
+        )
+
+    def _clear_openings(self) -> None:
+        if not self._current_surface_id:
+            return
+
+        self._preview_openings.clear()
+        self._refresh_area_summary()
+
+        self.openings_clear_requested.emit(self._current_surface_id)
+
+    # ------------------------------------------------------------------
+    # Display refresh
+    # ------------------------------------------------------------------
+
     def _refresh_area_summary(self) -> None:
         gross = self._current_gross_area_m2
         opening_area = sum(o.area_m2 for o in self._preview_openings)
@@ -334,11 +396,10 @@ class WallWizardDialog(QDialog):
         self._opening_table.setRowCount(len(rows))
 
         for row_index, opening in enumerate(rows):
-            self._opening_table.setItem(
-                row_index,
-                0,
-                QTableWidgetItem(opening.profile_name),
-            )
+            profile_item = QTableWidgetItem(opening.profile_name)
+            profile_item.setData(Qt.UserRole, opening)
+
+            self._opening_table.setItem(row_index, 0, profile_item)
             self._opening_table.setItem(
                 row_index,
                 1,
@@ -354,6 +415,10 @@ class WallWizardDialog(QDialog):
                 3,
                 QTableWidgetItem(f"{opening.area_m2:.2f} m²"),
             )
+
+        has_rows = bool(rows)
+        self._remove_opening_btn.setEnabled(has_rows)
+        self._clear_openings_btn.setEnabled(has_rows)
 
     def _grouped_openings(self) -> dict[tuple[str, str, float, float], OpeningPreview]:
         grouped: dict[tuple[str, str, float, float], OpeningPreview] = {}
@@ -381,6 +446,10 @@ class WallWizardDialog(QDialog):
             )
 
         return grouped
+
+    # ------------------------------------------------------------------
+    # Profile choices
+    # ------------------------------------------------------------------
 
     def _update_opening_profile_choices(
         self,

@@ -88,6 +88,31 @@ class RoomOpeningScheduleV1:
             if item.opening_type == "DOOR"
         )
 
+    def remove_matching_items(
+        self,
+        *,
+        profile_id: str,
+        width_m: float,
+        height_m: float,
+    ) -> None:
+        """
+        Remove all schedule items matching a grouped preview row.
+
+        F1-C rule
+        ---------
+        The Wall Wizard table groups identical opening schedule items.
+        Removing a grouped row removes all underlying matching items.
+        """
+        self.openings = [
+            item
+            for item in self.openings
+            if not (
+                item.profile_id == profile_id
+                and float(item.width_m) == float(width_m)
+                and float(item.height_m) == float(height_m)
+            )
+        ]
+
     def add_item(self, item: OpeningScheduleItemV1) -> None:
         """
         Add a schedule item.
