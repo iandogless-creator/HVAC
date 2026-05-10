@@ -418,7 +418,5 @@ class ProjectState:
 
         return schedule
 
-class EmitterV1:
-    emitter_id: str
-    room_id: str
-    design_output_W: float
+
+
