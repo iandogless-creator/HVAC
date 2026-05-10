@@ -15,7 +15,7 @@ Read-only schematic rendering driven by a schematic DTO.
 """
 
 from __future__ import annotations
-
+from typing import Optional
 from PySide6.QtCore import (
     Qt,
     QRectF,
@@ -38,8 +38,16 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QGraphicsView,
     QGraphicsScene,
+    QTableWidget,
+    QTableWidgetItem,
+    QHeaderView,
 )
 
+from HVAC.gui_v3.schematic.dto import (
+    HydronicsSchematicDTO,
+    SchematicNodeDTO,
+    SchematicEdgeDTO,
+)
 # ======================================================================
 # Floating Inspector (Phase D)
 # ======================================================================
@@ -132,6 +140,24 @@ class HydronicsSchematicPanel(QWidget):
         title = QLabel("Hydronics schematic")
         title.setStyleSheet("font-weight:600; padding:6px;")
         layout.addWidget(title)
+
+        self._emitter_demand_table = QTableWidget(0, 5)
+        self._emitter_demand_table.setHorizontalHeaderLabels(
+            ["Room", "Heat Load", "Emitter", "Output", "Status"]
+        )
+        self._emitter_demand_table.verticalHeader().setVisible(False)
+        self._emitter_demand_table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self._emitter_demand_table.setSelectionBehavior(QTableWidget.SelectRows)
+
+        header = self._emitter_demand_table.horizontalHeader()
+        header.setSectionResizeMode(0, QHeaderView.Stretch)
+        header.setSectionResizeMode(1, QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(2, QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(3, QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(4, QHeaderView.ResizeToContents)
+
+        self._emitter_demand_table.setMinimumHeight(120)
+        layout.addWidget(self._emitter_demand_table)
 
         layout.addStretch(1)
 
@@ -390,6 +416,38 @@ class HydronicsSchematicPanel(QWidget):
         """
         self._schematic = None
         self.update()
+
+    def set_emitter_demand_rows(self, rows) -> None:
+        """
+        Observer-only hydronics demand projection.
+
+        Rows are already derived DTOs from the adapter.
+        The panel does not inspect ProjectState and does not calculate.
+        """
+        table = self._emitter_demand_table
+        table.setRowCount(len(rows))
+
+        for row_index, row in enumerate(rows):
+            heat_load = (
+                "—"
+                if row.design_heat_load_W is None
+                else f"{row.design_heat_load_W:.1f} W"
+            )
+
+            emitter = row.emitter_type or "—"
+
+            output = (
+                "—"
+                if row.emitter_output_W is None
+                else f"{row.emitter_output_W:.1f} W"
+            )
+
+            table.setItem(row_index, 0, QTableWidgetItem(row.room_name))
+            table.setItem(row_index, 1, QTableWidgetItem(heat_load))
+            table.setItem(row_index, 2, QTableWidgetItem(emitter))
+            table.setItem(row_index, 3, QTableWidgetItem(output))
+            table.setItem(row_index, 4, QTableWidgetItem(row.status))
+
 
     # ------------------------------------------------------------------
     # Input suppression

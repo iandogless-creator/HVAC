@@ -29,7 +29,9 @@ from HVAC.gui_v3.schematic.dto import (
     EdgeStyle,
     NodeRole,
 )
-
+from HVAC.hydronics.adapters.room_emitter_demand_adapter_v1 import (
+            RoomEmitterDemandAdapterV1,
+)
 
 class HydronicsSchematicPanelAdapter:
     """
@@ -61,11 +63,15 @@ class HydronicsSchematicPanelAdapter:
 
     def refresh(self) -> None:
         """
-        Phase B/C refresh.
+        Phase H-B refresh.
 
-        • Empty ProjectState → empty schematic
-        • No exceptions raised
+        • Demand rows are observer-only
+        • Empty hydronics topology remains a valid schematic empty state
+        • No hydronic physics is executed here
         """
+        rows = RoomEmitterDemandAdapterV1().build_rows(self._project_state)
+        self._panel.set_emitter_demand_rows(rows)
+
         snapshot = self._resolve_topology_snapshot()
 
         if snapshot is None:
