@@ -892,5 +892,49 @@ Once frozen:
 **Phase H is hereby FROZEN.**
 
 # ======================================================================
+# FREEZE 9 — Wall Wizard / Room-Level Opening Schedule Contract
+# Status: LOCKED
+# Date: Sunday 10 May 2026
+# ======================================================================
+
+## Scope
+
+This freeze governs:
+
+- Wall Wizard v1
+- Room-level opening schedules
+- Opening profile preview rows
+- Runtime ProjectState ownership of opening schedules
+- Wall Wizard add / remove / clear behaviour
+
+It applies to:
+
+- `HVAC/gui_v3/wizards/wall_wizard.py`
+- `HVAC/gui_v3/adapters/wall_wizard_adapter.py`
+- `HVAC/core/opening_schedule_v1.py`
+- `ProjectState.room_opening_schedules`
+
+---
+
+## Definition
+
+Wall Wizard v1 is a room-level opening schedule editor.
+
+It is NOT a CAD wall editor.
+It is NOT a heat-loss engine.
+It is NOT an authoritative wall geometry system.
+
+For v1:
+
+- Windows and doors are scheduled at room level
+- Openings are not placed on individual wall segments
+- Any external wall click in a room may open the same room-level external opening schedule
+- Gross external wall area is the total external wall area for that room
+- Net wall area is previewed as:
+
+```text
+net_external_wall_area = gross_external_wall_area - total_room_opening_area
+
+# ======================================================================
 # END OF DOCUMENT
 # ======================================================================
