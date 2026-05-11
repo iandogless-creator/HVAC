@@ -76,8 +76,6 @@ from HVAC.gui_v3.panels.hydronic_control_panel import HydronicControlPanel
 from HVAC.gui_v3.adapters.hydronic_control_panel_adapter import (
     HydronicControlPanelAdapter,
 )
-from HVAC.gui_v3.panels.hydronic_control_panel import HydronicControlPanel
-
 
 # ======================================================================
 # Main Window
