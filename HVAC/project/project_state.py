@@ -16,6 +16,36 @@ from HVAC.hydronics.emitter_v1 import EmitterV1
 from HVAC.core.opening_schedule_v1 import RoomOpeningScheduleV1
 
 # ======================================================================
+# Hydronics emitter serialization
+# ======================================================================
+
+def _emitter_to_dict(emitter: EmitterV1) -> dict[str, Any]:
+    return {
+        "emitter_id": emitter.emitter_id,
+        "room_id": emitter.room_id,
+        "name": emitter.name,
+        "emitter_type": emitter.emitter_type,
+        "design_output_W": emitter.design_output_W,
+        "flow_temp_C": emitter.flow_temp_C,
+        "return_temp_C": emitter.return_temp_C,
+        "room_temp_C": emitter.room_temp_C,
+        "notes": emitter.notes,
+    }
+
+
+def _emitter_from_dict(data: dict[str, Any]) -> EmitterV1:
+    return EmitterV1(
+        emitter_id=str(data.get("emitter_id") or ""),
+        room_id=str(data.get("room_id") or ""),
+        name=str(data.get("name") or "Emitter"),
+        emitter_type=str(data.get("emitter_type") or "radiator"),
+        design_output_W=data.get("design_output_W"),
+        flow_temp_C=data.get("flow_temp_C"),
+        return_temp_C=data.get("return_temp_C"),
+        room_temp_C=data.get("room_temp_C"),
+        notes=str(data.get("notes") or ""),
+    )
+# ======================================================================
 # ProjectState
 # ======================================================================
 
@@ -214,6 +244,10 @@ class ProjectState:
                 "valid": self.heatloss_valid,
                 "results": self.heatloss_results,
             },
+            "emitters": {
+                emitter_id: _emitter_to_dict(emitter)
+                for emitter_id, emitter in self.emitters.items()
+            },
             "hydronics": {
                 "valid": self.hydronics_valid,
                 "results": self.hydronics_results,
@@ -238,6 +272,24 @@ class ProjectState:
 
         for room_id, room_data in (data.get("rooms", {}) or {}).items():
             instance.rooms[room_id] = RoomStateV1.from_dict(room_id, room_data)
+        # --------------------------------------------------
+        # Hydronic emitters
+        # --------------------------------------------------
+        raw_emitters = data.get("emitters", {}) or {}
+
+        instance.emitters = {}
+
+        for emitter_id, emitter_data in raw_emitters.items():
+            if not isinstance(emitter_data, dict):
+                continue
+
+            emitter = _emitter_from_dict(emitter_data)
+
+            key = emitter.emitter_id or str(emitter_id)
+            if not emitter.emitter_id:
+                emitter.emitter_id = key
+
+            instance.emitters[key] = emitter
 
         instance.boundary_segments = {
             seg_id: BoundarySegmentV1.from_dict(seg_data)
@@ -302,6 +354,7 @@ class ProjectState:
             }
 
         return instance
+
     # ==================================================================
     # Openings helpers (Phase IV-D)
     # ==================================================================
