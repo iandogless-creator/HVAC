@@ -47,13 +47,11 @@ class VentilationHeatLossEngine:
         qv_by_room_W: dict[str, float] = {}
         total_qv_W = 0.0
 
-        project_id: str | None = None
+        seen_any_room = False
 
         for snapshot in room_snapshots:
 
-            # Capture project_id once (snapshots are authoritative)
-            if project_id is None:
-                project_id = snapshot.project_id
+            seen_any_room = True
 
             delta_t = (
                 snapshot.internal_design_temp_C
@@ -75,11 +73,11 @@ class VentilationHeatLossEngine:
             qv_by_room_W[snapshot.room_id] = qv
             total_qv_W += qv
 
-        if project_id is None:
+        if not seen_any_room:
             raise RuntimeError("No room snapshots supplied")
 
         return VentilationHeatLossEngine.VentilationHeatLossResultDTO(
-            project_id=project_id,
+            project_id="",
             external_design_temp_C=float(external_design_temp_C),
             qv_by_room_W=qv_by_room_W,
             total_qv_W=total_qv_W,

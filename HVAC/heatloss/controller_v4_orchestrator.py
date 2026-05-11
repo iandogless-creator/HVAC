@@ -34,6 +34,34 @@ from HVAC.heatloss.dto.heatloss_results_dto import (
 )
 from HVAC.heatloss.validation.surface_edit_validator import SurfaceEditValidator
 
+
+def _aggregate_qf_by_room(fabric_result) -> dict[str, float]:
+    """
+    Aggregate FabricHeatLossEngine row results by room_id.
+
+    FabricHeatLossEngine returns list[dict], one row per fabric surface.
+    Controller aggregates this into room-level Qf totals.
+    """
+    qf_by_room_W: dict[str, float] = {}
+
+    for row in fabric_result or []:
+        if isinstance(row, dict):
+            room_id = row.get("room_id")
+            qf = row.get("q_fabric_W")
+        else:
+            room_id = getattr(row, "room_id", None)
+            qf = getattr(row, "q_fabric_W", None)
+
+        if room_id is None or qf is None:
+            continue
+
+        room_key = str(room_id)
+        qf_by_room_W[room_key] = (
+                qf_by_room_W.get(room_key, 0.0) + float(qf)
+        )
+
+    return qf_by_room_W
+
 class HeatLossControllerV4:
     """
     Orchestrator-only controller.
@@ -83,6 +111,10 @@ class HeatLossControllerV4:
         # --------------------------------------------------
         self._main_window.refresh_all_adapters()
 
+    # ======================================================================
+    # Fabric result aggregation
+    # ======================================================================
+
     def run(self, *, internal_design_temp_C: float) -> None:
 
         # --------------------------------------------------
@@ -109,23 +141,11 @@ class HeatLossControllerV4:
         )
 
         # --------------------------------------------------
-        # 🔥 BUILD SURFACES (FIX)
+        # Fabric surfaces
         # --------------------------------------------------
-        from HVAC.heatloss.fabric.fabric_from_segments_v1 import FabricFromSegmentsV1
-
-        surfaces = []
-
-        for room in self._project.rooms.values():
-            rows = FabricFromSegmentsV1.build_rows_for_room(self._project, room)
-
-            for r in rows:
-                if (
-                        r.area_m2 is not None
-                        and r.u_value_W_m2K is not None
-                        and r.delta_t_K is not None
-                        and r.area_m2 > 0.0
-                ):
-                    surfaces.append(r)
+        # The effective snapshot builder converts topology/fabric rows into
+        # FabricSurfaceInputDTO objects, which are the physics engine contract.
+        surfaces = snapshot.fabric_surfaces
 
         # --------------------------------------------------
         # Engines
@@ -140,7 +160,7 @@ class HeatLossControllerV4:
         # --------------------------------------------------
         # Aggregate authoritative totals
         # --------------------------------------------------
-        qf_by_room_W = fabric_result.qf_by_room_W
+        qf_by_room_W = _aggregate_qf_by_room(fabric_result)
         qv_by_room_W = ventilation_result.qv_by_room_W
 
         room_results: list[RoomHeatLossResultDTO] = []
@@ -173,12 +193,21 @@ class HeatLossControllerV4:
         # --------------------------------------------------
         # Atomic commit
         # --------------------------------------------------
+        room_totals = {
+            r.room_id: {
+                "q_fabric_W": float(r.q_fabric_W),
+                "q_ventilation_W": float(r.q_ventilation_W),
+                "q_total_W": float(r.q_total_W),
+            }
+            for r in room_results
+        }
+
         self._project.heatloss_results = {
             "result": result_dto,
+            "room_totals": room_totals,
             "fabric": fabric_result,
             "ventilation": ventilation_result,
         }
-        self._context.room_state_changed.emit(self._context.current_room_id)
         self._project.mark_heatloss_valid()
 
     def _apply_mutation(self, ctx, values) -> None:

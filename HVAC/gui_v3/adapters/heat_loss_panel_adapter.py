@@ -173,13 +173,9 @@ class HeatLossPanelAdapter:
             hl = getattr(ps, "heatloss_results", None)
 
             if isinstance(hl, dict):
-                fabric = hl.get("fabric", {})
-                ventilation = hl.get("ventilation", {})
-                room_totals = hl.get("room_totals", {})
-
-                sum_qf = fabric.get("qf_by_room_W", {}).get(room_id)
-                qv = ventilation.get("qv_by_room_W", {}).get(room_id)
-                qt = room_totals.get("qt_by_room_W", {}).get(room_id)
+                sum_qf = self._resolve_committed_qf_W(hl, room_id)
+                qv = self._resolve_committed_qv_W(hl, room_id)
+                qt = self._resolve_committed_qt_W(hl, room_id)
 
         if sum_qf is None:
             sum_qf = self._sum_qf_from_rows(rows)
@@ -359,6 +355,113 @@ class HeatLossPanelAdapter:
 
         self.highlight_rows_for_construction(cid)
 
+    def _resolve_committed_qf_W(
+        self,
+        results: dict,
+        room_id: str,
+    ) -> float | None:
+        """
+        Resolve committed fabric heat loss for a room.
+
+        Supports current container:
+            results["room_totals"][room_id]["q_fabric_W"]
+
+        And legacy/current engine output:
+            results["fabric"] as list[dict] rows with q_fabric_W
+        """
+        room_totals = results.get("room_totals") or {}
+        room_total = room_totals.get(room_id)
+
+        if isinstance(room_total, dict):
+            value = room_total.get("q_fabric_W")
+            if value is not None:
+                return float(value)
+
+        fabric = results.get("fabric")
+
+        if hasattr(fabric, "qf_by_room_W"):
+            value = fabric.qf_by_room_W.get(room_id)
+            return None if value is None else float(value)
+
+        if isinstance(fabric, dict):
+            by_room = fabric.get("qf_by_room_W") or {}
+            value = by_room.get(room_id)
+            return None if value is None else float(value)
+
+        if isinstance(fabric, list):
+            total = 0.0
+            found = False
+
+            for row in fabric:
+                if not isinstance(row, dict):
+                    continue
+
+                if str(row.get("room_id")) != str(room_id):
+                    continue
+
+                value = row.get("q_fabric_W")
+                if value is None:
+                    continue
+
+                total += float(value)
+                found = True
+
+            return total if found else None
+
+        return None
+
+    def _resolve_committed_qv_W(
+        self,
+        results: dict,
+        room_id: str,
+    ) -> float | None:
+        """
+        Resolve committed ventilation heat loss for a room.
+        """
+        room_totals = results.get("room_totals") or {}
+        room_total = room_totals.get(room_id)
+
+        if isinstance(room_total, dict):
+            value = room_total.get("q_ventilation_W")
+            if value is not None:
+                return float(value)
+
+        ventilation = results.get("ventilation")
+
+        if hasattr(ventilation, "qv_by_room_W"):
+            value = ventilation.qv_by_room_W.get(room_id)
+            return None if value is None else float(value)
+
+        if isinstance(ventilation, dict):
+            by_room = ventilation.get("qv_by_room_W") or {}
+            value = by_room.get(room_id)
+            return None if value is None else float(value)
+
+        return None
+
+    def _resolve_committed_qt_W(
+        self,
+        results: dict,
+        room_id: str,
+    ) -> float | None:
+        """
+        Resolve committed total heat loss for a room.
+        """
+        room_totals = results.get("room_totals") or {}
+        room_total = room_totals.get(room_id)
+
+        if isinstance(room_total, dict):
+            value = room_total.get("q_total_W")
+            if value is not None:
+                return float(value)
+
+        qf = self._resolve_committed_qf_W(results, room_id)
+        qv = self._resolve_committed_qv_W(results, room_id)
+
+        if qf is None or qv is None:
+            return None
+
+        return float(qf) + float(qv)
     def _on_surface_focus_requested(self, surface_id: str) -> None:
         """
         HLP surface focus routing.

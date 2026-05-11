@@ -71,6 +71,12 @@ class HydronicsSchematicPanelAdapter:
         • No emitter creation
         • No hydronic physics is executed here
         """
+        print(
+            "[HYDRONICS H-J] heatloss_valid=",
+            getattr(self._project_state, "heatloss_valid", None),
+            "heatloss_results=",
+            bool(getattr(self._project_state, "heatloss_results", None)),
+        )
         rows = RoomEmitterDemandAdapterV1().build_rows(self._project_state)
         self._panel.set_emitter_demand_rows(rows)
 

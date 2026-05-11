@@ -67,6 +67,53 @@ def build_effective_room_snapshot(
     )
 
 
+# ======================================================================
+# Construction U-value resolution
+# ======================================================================
+
+def _resolve_construction_u_value(
+    project: ProjectState,
+    construction_id: str,
+) -> float | None:
+    """
+    Resolve construction U-value from current ProjectState authority.
+
+    Current authority:
+        project.constructions
+
+    Legacy compatibility:
+        project.construction_library
+    """
+    if not construction_id:
+        return None
+
+    cid = str(construction_id)
+
+    constructions = getattr(project, "constructions", None)
+    if constructions is None:
+        constructions = getattr(project, "construction_library", None)
+
+    if not constructions:
+        return None
+
+    construction = constructions.get(cid)
+    if construction is None:
+        return None
+
+    value = (
+        getattr(construction, "u_value_W_m2K", None)
+        or getattr(construction, "u_value", None)
+        or getattr(construction, "U", None)
+    )
+
+    if value is None:
+        return None
+
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
 # ----------------------------------------------------------------------
 # Project Snapshot (composite)
 # ----------------------------------------------------------------------
@@ -115,7 +162,10 @@ def build_effective_project_snapshot(
                     f"Room '{room.room_id}' element '{row.element}' has no construction_id"
                 )
 
-            u_value = project.construction_library.get(str(construction_id))
+            u_value = _resolve_construction_u_value(
+                project,
+                construction_id,
+            )
 
             if u_value is None or float(u_value) <= 0.0:
                 raise RuntimeError(
