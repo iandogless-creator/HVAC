@@ -47,6 +47,7 @@ class HydronicControlPanel(QWidget):
     add_emitter_requested = Signal(dict)
     update_emitter_requested = Signal(dict)
     remove_emitter_requested = Signal(str)  # emitter_id
+    emitter_selected = Signal(str)  # emitter_id
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
@@ -70,15 +71,12 @@ class HydronicControlPanel(QWidget):
         self._emitter_combo = QComboBox()
 
         self._emitter_type = QComboBox()
-        self._emitter_type.addItems(
-            [
-                "radiator",
-                "towel_rail",
-                "ufh_loop",
-                "fan_convector",
-                "air_terminal",
-            ]
-        )
+
+        self._emitter_type.addItem("Radiator", "radiator")
+        self._emitter_type.addItem("Towel rail", "towel_rail")
+        self._emitter_type.addItem("UFH loop", "ufh_loop")
+        self._emitter_type.addItem("Fan convector", "fan_convector")
+        self._emitter_type.addItem("Air terminal", "air_terminal")
 
         self._quantity = QSpinBox()
         self._quantity.setRange(1, 99)
@@ -136,10 +134,36 @@ class HydronicControlPanel(QWidget):
         self._add_btn.clicked.connect(self._emit_add_requested)
         self._update_btn.clicked.connect(self._emit_update_requested)
         self._remove_btn.clicked.connect(self._emit_remove_requested)
-
+        self._emitter_combo.currentIndexChanged.connect(
+        self._emit_emitter_selected
+    )
     # ------------------------------------------------------------------
     # Adapter ingress
     # ------------------------------------------------------------------
+    def _emit_emitter_selected(self) -> None:
+        self.emitter_selected.emit(self.current_emitter_id())
+
+    def set_emitter_editor_values(
+            self,
+            *,
+            emitter_type: str,
+            design_output_W: float | None,
+            flow_temp_C: float | None,
+            return_temp_C: float | None,
+    ) -> None:
+        index = self._emitter_type.findData(emitter_type)
+        if index >= 0:
+            self._emitter_type.setCurrentIndex(index)
+
+        self._design_output_W.setValue(
+            0.0 if design_output_W is None else float(design_output_W)
+        )
+
+        if flow_temp_C is not None:
+            self._flow_temp_C.setValue(float(flow_temp_C))
+
+        if return_temp_C is not None:
+            self._return_temp_C.setValue(float(return_temp_C))
 
     def set_rooms(self, rooms: list[tuple[str, str]]) -> None:
         """
@@ -217,7 +241,11 @@ class HydronicControlPanel(QWidget):
         return {
             "room_id": self.current_room_id(),
             "emitter_id": self.current_emitter_id(),
-            "emitter_type": self._emitter_type.currentText(),
+            "emitter_type": str(
+            self._emitter_type.currentData()
+            or self._emitter_type.currentText()
+            or "radiator"
+        ),
             "quantity": int(self._quantity.value()),
             "design_output_W": float(self._design_output_W.value()),
             "flow_temp_C": float(self._flow_temp_C.value()),

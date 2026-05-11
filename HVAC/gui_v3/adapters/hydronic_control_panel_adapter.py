@@ -9,6 +9,9 @@ from typing import Any
 from HVAC.project.project_state import ProjectState
 from HVAC.gui_v3.panels.hydronic_control_panel import HydronicControlPanel
 from HVAC.hydronics.emitter_v1 import EmitterV1
+from HVAC.hydronics.adapters.emitter_candidate_builder_v1 import (
+    EmitterCandidateBuilderV1,
+)
 
 # ======================================================================
 # HydronicControlPanelAdapter
@@ -51,6 +54,10 @@ class HydronicControlPanelAdapter:
         self._panel.remove_emitter_requested.connect(
             self._on_remove_emitter_requested
         )
+        self._panel.emitter_selected.connect(
+            self._on_emitter_selected
+        )
+        self._default_emitters_bootstrapped = False
         self._refresh_all = refresh_all
         self.refresh()
 
@@ -58,10 +65,37 @@ class HydronicControlPanelAdapter:
     # Refresh
     # ------------------------------------------------------------------
 
+    # ------------------------------------------------------------------
+    # Refresh
+    # ------------------------------------------------------------------
+
     def refresh(self) -> None:
+        """
+        Hydronic Control Panel refresh.
+
+        • Bootstrap default emitter candidates once
+        • Project rooms into the control panel
+        • Project existing emitters into the control panel
+        • No hydronic calculation
+        • No pipe sizing
+        """
+        if not self._default_emitters_bootstrapped:
+            created = EmitterCandidateBuilderV1().ensure_default_emitters(
+                self._project_state
+            )
+
+            self._default_emitters_bootstrapped = True
+
+            if created:
+                print(
+                    "[HYDRONIC CONTROL] default emitter candidates created:",
+                    created,
+                )
+
         self._panel.set_rooms(self._room_options())
         self._panel.set_emitters(self._emitter_options())
         self._panel.set_status("Hydronic control shell ready.")
+
 
     def _room_options(self) -> list[tuple[str, str]]:
         rooms = getattr(self._project_state, "rooms", {}) or {}
@@ -92,6 +126,25 @@ class HydronicControlPanelAdapter:
             options.append((emitter_id, label))
 
         return options
+
+    def _on_emitter_selected(self, emitter_id: str) -> None:
+        emitter_id = str(emitter_id or "")
+
+        if not emitter_id:
+            return
+
+        emitters = getattr(self._project_state, "emitters", {}) or {}
+        emitter = emitters.get(emitter_id)
+
+        if emitter is None:
+            return
+
+        self._panel.set_emitter_editor_values(
+            emitter_type=getattr(emitter, "emitter_type", "radiator"),
+            design_output_W=getattr(emitter, "design_output_W", None),
+            flow_temp_C=getattr(emitter, "flow_temp_C", None),
+            return_temp_C=getattr(emitter, "return_temp_C", None),
+        )
 
     def _optional_positive_float(self, value: Any) -> float | None:
         try:
@@ -212,7 +265,83 @@ class HydronicControlPanelAdapter:
         )
 
     def _on_update_emitter_requested(self, payload: dict) -> None:
-        print("[HYDRONIC CONTROL] update emitter intent:", payload)
+        """
+        Hydronics H-H.
+
+        Update selected EmitterV1 fields from panel intent.
+
+        Authority
+        ---------
+        • Adapter receives intent
+        • ProjectState.emitters owns the updated emitter
+        • No hydronic calculation
+        • No pipe sizing
+        • No heat-loss calculation
+        """
+        emitter_id = str(payload.get("emitter_id") or "")
+
+        if not emitter_id:
+            self._panel.set_status("Cannot update emitter: none selected.")
+            return
+
+        emitters = getattr(self._project_state, "emitters", {}) or {}
+        emitter = emitters.get(emitter_id)
+
+        if emitter is None:
+            self._panel.set_status(
+                f"Cannot update emitter: {emitter_id} not found."
+            )
+            return
+
+        room_id = str(payload.get("room_id") or getattr(emitter, "room_id", "") or "")
+        emitter_type = str(payload.get("emitter_type") or getattr(emitter, "emitter_type", "radiator"))
+
+        design_output_W = self._optional_positive_float(
+            payload.get("design_output_W")
+        )
+        flow_temp_C = self._optional_positive_float(
+            payload.get("flow_temp_C")
+        )
+        return_temp_C = self._optional_positive_float(
+            payload.get("return_temp_C")
+        )
+
+        rooms = getattr(self._project_state, "rooms", {}) or {}
+        room = rooms.get(room_id)
+
+        room_name = (
+                getattr(room, "name", None)
+                or getattr(room, "label", None)
+                or room_id
+        )
+
+        emitter.room_id = room_id
+        emitter.emitter_type = emitter_type
+        emitter.design_output_W = design_output_W
+        emitter.flow_temp_C = flow_temp_C
+        emitter.return_temp_C = return_temp_C
+        emitter.name = f"{self._display_emitter_type(emitter_type)} — {room_name}"
+
+        print(
+            "[HYDRONIC CONTROL] updated emitter:",
+            emitter_id,
+            {
+                "room_id": room_id,
+                "emitter_type": emitter_type,
+                "design_output_W": design_output_W,
+                "flow_temp_C": flow_temp_C,
+                "return_temp_C": return_temp_C,
+            },
+        )
+
+        self.refresh()
+
+        if self._refresh_all is not None:
+            self._refresh_all()
+
+        self._panel.set_status(
+            f"Updated {emitter.name}."
+        )
 
     def _on_remove_emitter_requested(self, emitter_id: str) -> None:
         """
