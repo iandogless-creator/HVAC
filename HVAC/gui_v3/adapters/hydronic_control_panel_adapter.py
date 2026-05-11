@@ -215,4 +215,48 @@ class HydronicControlPanelAdapter:
         print("[HYDRONIC CONTROL] update emitter intent:", payload)
 
     def _on_remove_emitter_requested(self, emitter_id: str) -> None:
-        print("[HYDRONIC CONTROL] remove emitter intent:", emitter_id)
+        """
+        Hydronics H-G.
+
+        Remove selected EmitterV1 from ProjectState.emitters.
+
+        Authority
+        ---------
+        • Adapter receives intent
+        • ProjectState.emitters owns the result
+        • No hydronic calculation
+        • No pipe sizing
+        """
+        emitter_id = str(emitter_id or "")
+
+        if not emitter_id:
+            self._panel.set_status("Cannot remove emitter: none selected.")
+            return
+
+        emitters = getattr(self._project_state, "emitters", {}) or {}
+
+        emitter = emitters.get(emitter_id)
+        if emitter is None:
+            self._panel.set_status(
+                f"Cannot remove emitter: {emitter_id} not found."
+            )
+            return
+
+        room_id = getattr(emitter, "room_id", "")
+        emitter_name = getattr(emitter, "name", None) or emitter_id
+
+        del emitters[emitter_id]
+
+        print(
+            "[HYDRONIC CONTROL] removed emitter:",
+            emitter_id,
+        )
+
+        self.refresh()
+
+        if self._refresh_all is not None:
+            self._refresh_all()
+
+        self._panel.set_status(
+            f"Removed {emitter_name} from {room_id or 'room'}."
+        )
