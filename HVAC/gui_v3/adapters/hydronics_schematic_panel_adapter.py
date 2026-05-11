@@ -32,7 +32,9 @@ from HVAC.gui_v3.schematic.dto import (
 from HVAC.hydronics.adapters.room_emitter_demand_adapter_v1 import (
             RoomEmitterDemandAdapterV1,
 )
-
+from HVAC.hydronics.adapters.emitter_candidate_builder_v1 import (
+    EmitterCandidateBuilderV1,
+)
 class HydronicsSchematicPanelAdapter:
     """
     Adapter responsibilities:
@@ -63,12 +65,23 @@ class HydronicsSchematicPanelAdapter:
 
     def refresh(self) -> None:
         """
-        Phase H-B refresh.
+        Phase H-C refresh.
 
-        • Demand rows are observer-only
+        • Ensures default emitter candidates exist
+        • Demand rows are observer-only in the panel
         • Empty hydronics topology remains a valid schematic empty state
         • No hydronic physics is executed here
         """
+        created = EmitterCandidateBuilderV1().ensure_default_emitters(
+            self._project_state
+        )
+
+        if created:
+            print(
+                "[HYDRONICS H-C] default emitter candidates created:",
+                created,
+            )
+
         rows = RoomEmitterDemandAdapterV1().build_rows(self._project_state)
         self._panel.set_emitter_demand_rows(rows)
 
