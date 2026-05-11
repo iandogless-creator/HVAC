@@ -77,9 +77,7 @@ from HVAC.gui_v3.adapters.hydronic_control_panel_adapter import (
     HydronicControlPanelAdapter,
 )
 from HVAC.gui_v3.panels.hydronic_control_panel import HydronicControlPanel
-from HVAC.gui_v3.adapters.hydronic_control_panel_adapter import (
-    HydronicControlPanelAdapter,
-)
+
 
 # ======================================================================
 # Main Window
@@ -366,6 +364,7 @@ class MainWindowV3(QMainWindow):
         self._hydronic_control_adapter = HydronicControlPanelAdapter(
             panel=self._hydronic_control_panel,
             project_state=self._context.project_state,
+            refresh_all=self._refresh_all_adapters,
         )
 
         self._geometry_adapter = GeometryMiniPanelAdapter(
@@ -837,6 +836,12 @@ class MainWindowV3(QMainWindow):
         if self._context.project_state:
             readiness = self._context.project_state.evaluate_heatloss_readiness()
             self._heat_loss_panel.set_readiness(readiness)
+
+        if hasattr(self, "_hydronic_control_adapter"):
+            self._hydronic_control_adapter.refresh()
+
+        if hasattr(self, "_hydronics_adapter"):
+            self._hydronics_adapter.refresh()
 
         if hasattr(self, "_hydronic_control_adapter"):
             self._hydronic_control_adapter.refresh()

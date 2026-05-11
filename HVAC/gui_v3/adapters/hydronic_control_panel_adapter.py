@@ -8,7 +8,7 @@ from typing import Any
 
 from HVAC.project.project_state import ProjectState
 from HVAC.gui_v3.panels.hydronic_control_panel import HydronicControlPanel
-
+from HVAC.hydronics.emitter_v1 import EmitterV1
 
 # ======================================================================
 # HydronicControlPanelAdapter
@@ -34,14 +34,14 @@ class HydronicControlPanelAdapter:
     """
 
     def __init__(
-        self,
-        *,
-        panel: HydronicControlPanel,
-        project_state: ProjectState,
+            self,
+            *,
+            panel: HydronicControlPanel,
+            project_state: ProjectState,
+            refresh_all: Any | None = None,
     ) -> None:
         self._panel = panel
         self._project_state = project_state
-
         self._panel.add_emitter_requested.connect(
             self._on_add_emitter_requested
         )
@@ -51,7 +51,7 @@ class HydronicControlPanelAdapter:
         self._panel.remove_emitter_requested.connect(
             self._on_remove_emitter_requested
         )
-
+        self._refresh_all = refresh_all
         self.refresh()
 
     # ------------------------------------------------------------------
@@ -93,12 +93,123 @@ class HydronicControlPanelAdapter:
 
         return options
 
+    def _optional_positive_float(self, value: Any) -> float | None:
+        try:
+            result = float(value)
+        except (TypeError, ValueError):
+            return None
+
+        if result <= 0.0:
+            return None
+
+        return result
+
+    def _make_emitter_id(
+        self,
+        *,
+        room_id: str,
+        emitter_type: str,
+    ) -> str:
+        safe_type = emitter_type.replace(" ", "_").replace("-", "_")
+        base = f"emitter-{safe_type}-{room_id}"
+
+        emitters = getattr(self._project_state, "emitters", {}) or {}
+
+        index = 1
+        while True:
+            candidate = f"{base}-{index:03d}"
+            if candidate not in emitters:
+                return candidate
+
+            index += 1
+
+    def _display_emitter_type(self, emitter_type: str) -> str:
+        return emitter_type.replace("_", " ").title()
+
     # ------------------------------------------------------------------
     # Intent handlers — shell only
     # ------------------------------------------------------------------
 
     def _on_add_emitter_requested(self, payload: dict) -> None:
-        print("[HYDRONIC CONTROL] add emitter intent:", payload)
+        """
+        Hydronics H-F.
+
+        Create one or more EmitterV1 objects from panel intent.
+
+        Authority
+        ---------
+        • Adapter receives intent
+        • ProjectState.emitters owns the result
+        • No hydronic calculation
+        • No pipe sizing
+        """
+        room_id = str(payload.get("room_id") or "")
+        if not room_id:
+            self._panel.set_status("Cannot add emitter: no room selected.")
+            return
+
+        emitter_type = str(payload.get("emitter_type") or "radiator")
+        quantity = int(payload.get("quantity") or 1)
+
+        design_output_W = self._optional_positive_float(
+            payload.get("design_output_W")
+        )
+        flow_temp_C = self._optional_positive_float(
+            payload.get("flow_temp_C")
+        )
+        return_temp_C = self._optional_positive_float(
+            payload.get("return_temp_C")
+        )
+
+        rooms = getattr(self._project_state, "rooms", {}) or {}
+        room = rooms.get(room_id)
+
+        room_name = (
+                getattr(room, "name", None)
+                or getattr(room, "label", None)
+                or room_id
+        )
+
+        created_ids: list[str] = []
+
+        for _ in range(quantity):
+            emitter_id = self._make_emitter_id(
+                room_id=room_id,
+                emitter_type=emitter_type,
+            )
+
+            self._project_state.emitters[emitter_id] = EmitterV1(
+                emitter_id=emitter_id,
+                room_id=room_id,
+                name=f"{self._display_emitter_type(emitter_type)} — {room_name}",
+                emitter_type=emitter_type,
+                design_output_W=design_output_W,
+                flow_temp_C=flow_temp_C,
+                return_temp_C=return_temp_C,
+                room_temp_C=None,
+                notes="Created from Hydronic Control Panel",
+            )
+
+            created_ids.append(emitter_id)
+
+        print(
+            "[HYDRONIC CONTROL] created emitter(s):",
+            created_ids,
+        )
+
+        self.refresh()
+        self.refresh()
+
+        if self._refresh_all is not None:
+            self._refresh_all()
+
+        self._panel.set_status(
+            f"Added {len(created_ids)} emitter(s) to {room_name}."
+        )
+
+        self._panel.set_status(
+            f"Added {len(created_ids)} emitter(s) to {room_name}."
+        )
 
     def _on_update_emitter_requested(self, payload: dict) -> None:
         print("[HYDRONIC CONTROL] update emitter intent:", payload)
