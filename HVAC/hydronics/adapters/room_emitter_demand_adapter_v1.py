@@ -25,6 +25,11 @@ class RoomEmitterDemandRowV1:
     • Does not mutate ProjectState
     • Does not calculate heat loss
     • Does not size pipes
+
+    H-D rule
+    --------
+    A room may have zero, one, or many emitters.
+    This row represents the aggregate room-level emitter state.
     """
 
     room_id: str
@@ -32,8 +37,8 @@ class RoomEmitterDemandRowV1:
 
     design_heat_load_W: Optional[float]
 
-    emitter_id: Optional[str]
-    emitter_type: Optional[str]
+    emitter_count: int
+    emitter_summary: str
     emitter_output_W: Optional[float]
 
     status: str
@@ -45,9 +50,9 @@ class RoomEmitterDemandRowV1:
 
 class RoomEmitterDemandAdapterV1:
     """
-    Hydronics Phase H-A.
+    Hydronics Phase H-D.
 
-    Builds room-level emitter demand rows from ProjectState.
+    Builds room-level aggregate emitter demand rows from ProjectState.
 
     Explicitly forbidden
     --------------------
@@ -75,16 +80,16 @@ class RoomEmitterDemandAdapterV1:
                 room_id,
             )
 
-            emitter = self._find_emitter_for_room(project, room_id)
+            emitters = self._emitters_for_room(project, room_id)
 
-            emitter_id = getattr(emitter, "emitter_id", None) if emitter else None
-            emitter_type = getattr(emitter, "emitter_type", None) if emitter else None
-            emitter_output_W = getattr(emitter, "design_output_W", None) if emitter else None
+            emitter_count = len(emitters)
+            emitter_summary = self._summarise_emitters(emitters)
+            emitter_output_W = self._sum_emitter_output_W(emitters)
 
             status = self._resolve_status(
                 design_heat_load_W=design_heat_load_W,
                 emitter_output_W=emitter_output_W,
-                has_emitter=emitter is not None,
+                emitter_count=emitter_count,
             )
 
             rows.append(
@@ -92,8 +97,8 @@ class RoomEmitterDemandAdapterV1:
                     room_id=room_id,
                     room_name=room_name,
                     design_heat_load_W=design_heat_load_W,
-                    emitter_id=emitter_id,
-                    emitter_type=emitter_type,
+                    emitter_count=emitter_count,
+                    emitter_summary=emitter_summary,
                     emitter_output_W=emitter_output_W,
                     status=status,
                 )
@@ -102,7 +107,7 @@ class RoomEmitterDemandAdapterV1:
         return rows
 
     # ------------------------------------------------------------------
-    # Resolution helpers
+    # Heat-loss demand resolution
     # ------------------------------------------------------------------
 
     def _resolve_room_heat_load_W(
@@ -111,14 +116,15 @@ class RoomEmitterDemandAdapterV1:
         room_id: str,
     ) -> Optional[float]:
         """
-        Read committed heat-loss result if available.
+        Read committed heat-loss total if available.
 
-        Hydronics does not calculate heat-loss.
+        ProjectState.get_room_heatloss_totals(room_id) returns:
+            (q_fabric_W, q_ventilation_W, q_total_W)
+
+        Hydronics consumes q_total_W only.
+        It does not calculate heat loss.
         """
         if not getattr(project, "heatloss_valid", False):
-            return None
-
-        if not getattr(project, "heatloss_results", None):
             return None
 
         getter = getattr(project, "get_room_heatloss_totals", None)
@@ -130,41 +136,97 @@ class RoomEmitterDemandAdapterV1:
         if not totals:
             return None
 
-        # Tolerant because historical result DTO shapes have varied.
-        for key in ("Qt_W", "qt_W", "total_W", "total_heat_loss_W", "Qt"):
-            value = self._read_value(totals, key)
-            if value is not None:
-                try:
-                    return float(value)
-                except (TypeError, ValueError):
-                    return None
+        try:
+            _qf, _qv, qt = totals
+        except (TypeError, ValueError):
+            return None
 
-        return None
+        if qt is None:
+            return None
 
-    def _find_emitter_for_room(
+        try:
+            return float(qt)
+        except (TypeError, ValueError):
+            return None
+
+    # ------------------------------------------------------------------
+    # Emitter aggregation
+    # ------------------------------------------------------------------
+
+    def _emitters_for_room(
         self,
         project: ProjectState,
         room_id: str,
-    ) -> Any | None:
+    ) -> list[Any]:
         emitters = getattr(project, "emitters", {}) or {}
 
-        for emitter in emitters.values():
-            if getattr(emitter, "room_id", None) == room_id:
-                return emitter
+        return [
+            emitter
+            for emitter in emitters.values()
+            if getattr(emitter, "room_id", None) == room_id
+        ]
 
-        return None
+    def _summarise_emitters(self, emitters: list[Any]) -> str:
+        if not emitters:
+            return "—"
+
+        counts: dict[str, int] = {}
+
+        for emitter in emitters:
+            emitter_type = (
+                getattr(emitter, "emitter_type", None)
+                or "emitter"
+            )
+            counts[emitter_type] = counts.get(emitter_type, 0) + 1
+
+        parts = [
+            f"{count} × {emitter_type}"
+            if count > 1
+            else emitter_type
+            for emitter_type, count in sorted(counts.items())
+        ]
+
+        return ", ".join(parts)
+
+    def _sum_emitter_output_W(self, emitters: list[Any]) -> Optional[float]:
+        if not emitters:
+            return None
+
+        total = 0.0
+        has_output = False
+
+        for emitter in emitters:
+            value = getattr(emitter, "design_output_W", None)
+
+            if value is None:
+                continue
+
+            try:
+                total += float(value)
+                has_output = True
+            except (TypeError, ValueError):
+                continue
+
+        if not has_output:
+            return None
+
+        return total
+
+    # ------------------------------------------------------------------
+    # Status
+    # ------------------------------------------------------------------
 
     def _resolve_status(
         self,
         *,
         design_heat_load_W: Optional[float],
         emitter_output_W: Optional[float],
-        has_emitter: bool,
+        emitter_count: int,
     ) -> str:
         if design_heat_load_W is None:
             return "NO_HEAT_LOSS_RESULT"
 
-        if not has_emitter:
+        if emitter_count <= 0:
             return "NEEDS_EMITTER"
 
         if emitter_output_W is None:
@@ -177,9 +239,3 @@ class RoomEmitterDemandAdapterV1:
             return "NEEDS_EMITTER_OUTPUT"
 
         return "EMITTER_OK"
-
-    def _read_value(self, obj: Any, key: str) -> Any:
-        if isinstance(obj, dict):
-            return obj.get(key)
-
-        return getattr(obj, key, None)

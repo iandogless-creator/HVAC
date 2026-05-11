@@ -69,8 +69,8 @@ def main() -> None:
             f"{row.room_id:16s} | "
             f"{row.room_name:24s} | "
             f"load={heat_load:>10s} | "
-            f"emitter={row.emitter_id or '—':>24s} | "
-            f"type={row.emitter_type or '—':>10s} | "
+            f"emitters={row.emitter_count:>2d} | "
+            f"summary={row.emitter_summary:>18s} | "
             f"output={emitter_output:>10s} | "
             f"{row.status}"
         )

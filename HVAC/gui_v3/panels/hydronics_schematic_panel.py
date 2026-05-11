@@ -47,7 +47,11 @@ from HVAC.gui_v3.schematic.dto import (
     HydronicsSchematicDTO,
     SchematicNodeDTO,
     SchematicEdgeDTO,
+    SchematicLabelDTO,
+    NodeHoverDTO,
+    EdgeHoverDTO,
 )
+
 # ======================================================================
 # Floating Inspector (Phase D)
 # ======================================================================
@@ -434,7 +438,7 @@ class HydronicsSchematicPanel(QWidget):
                 else f"{row.design_heat_load_W:.1f} W"
             )
 
-            emitter = row.emitter_type or "—"
+            emitter = row.emitter_summary or "—"
 
             output = (
                 "—"
