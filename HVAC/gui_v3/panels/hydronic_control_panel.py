@@ -1,0 +1,240 @@
+# ======================================================================
+# HVAC/gui_v3/panels/hydronic_control_panel.py
+# ======================================================================
+
+from __future__ import annotations
+
+from PySide6.QtCore import Signal
+from PySide6.QtWidgets import (
+    QWidget,
+    QVBoxLayout,
+    QFormLayout,
+    QLabel,
+    QComboBox,
+    QSpinBox,
+    QDoubleSpinBox,
+    QPushButton,
+    QHBoxLayout,
+)
+
+
+# ======================================================================
+# HydronicControlPanel
+# ======================================================================
+
+class HydronicControlPanel(QWidget):
+    """
+    Hydronics H-E — Hydronic Control Panel shell.
+
+    Role
+    ----
+    Intent editor shell only.
+
+    Authority
+    ---------
+    • No ProjectState access
+    • No hydronic calculation
+    • No heat-loss calculation
+    • No pipe sizing
+    • No direct mutation
+
+    Behaviour
+    ---------
+    Emits intent only.
+    Adapter/controller decides what to do with that intent.
+    """
+
+    add_emitter_requested = Signal(dict)
+    update_emitter_requested = Signal(dict)
+    remove_emitter_requested = Signal(str)  # emitter_id
+
+    def __init__(self, parent=None) -> None:
+        super().__init__(parent)
+
+        self._build_ui()
+
+    # ------------------------------------------------------------------
+    # UI
+    # ------------------------------------------------------------------
+
+    def _build_ui(self) -> None:
+        root = QVBoxLayout(self)
+
+        title = QLabel("Hydronic control")
+        title.setStyleSheet("font-weight: 700; padding: 6px;")
+        root.addWidget(title)
+
+        form = QFormLayout()
+
+        self._room_combo = QComboBox()
+        self._emitter_combo = QComboBox()
+
+        self._emitter_type = QComboBox()
+        self._emitter_type.addItems(
+            [
+                "radiator",
+                "towel_rail",
+                "ufh_loop",
+                "fan_convector",
+                "air_terminal",
+            ]
+        )
+
+        self._quantity = QSpinBox()
+        self._quantity.setRange(1, 99)
+        self._quantity.setValue(1)
+
+        self._design_output_W = QDoubleSpinBox()
+        self._design_output_W.setRange(0.0, 100000.0)
+        self._design_output_W.setDecimals(1)
+        self._design_output_W.setSingleStep(50.0)
+        self._design_output_W.setSuffix(" W")
+        self._design_output_W.setSpecialValueText("—")
+
+        self._flow_temp_C = QDoubleSpinBox()
+        self._flow_temp_C.setRange(0.0, 100.0)
+        self._flow_temp_C.setDecimals(1)
+        self._flow_temp_C.setSingleStep(1.0)
+        self._flow_temp_C.setSuffix(" °C")
+        self._flow_temp_C.setValue(70.0)
+
+        self._return_temp_C = QDoubleSpinBox()
+        self._return_temp_C.setRange(0.0, 100.0)
+        self._return_temp_C.setDecimals(1)
+        self._return_temp_C.setSingleStep(1.0)
+        self._return_temp_C.setSuffix(" °C")
+        self._return_temp_C.setValue(50.0)
+
+        form.addRow("Room:", self._room_combo)
+        form.addRow("Existing emitter:", self._emitter_combo)
+        form.addRow("Emitter type:", self._emitter_type)
+        form.addRow("Quantity:", self._quantity)
+        form.addRow("Design output:", self._design_output_W)
+        form.addRow("Flow temp:", self._flow_temp_C)
+        form.addRow("Return temp:", self._return_temp_C)
+
+        root.addLayout(form)
+
+        button_row = QHBoxLayout()
+
+        self._add_btn = QPushButton("Add emitter")
+        self._update_btn = QPushButton("Update selected")
+        self._remove_btn = QPushButton("Remove selected")
+
+        button_row.addWidget(self._add_btn)
+        button_row.addWidget(self._update_btn)
+        button_row.addWidget(self._remove_btn)
+
+        root.addLayout(button_row)
+
+        self._status = QLabel("Hydronic control shell ready.")
+        self._status.setStyleSheet("color: #666; padding: 6px;")
+        root.addWidget(self._status)
+
+        root.addStretch(1)
+
+        self._add_btn.clicked.connect(self._emit_add_requested)
+        self._update_btn.clicked.connect(self._emit_update_requested)
+        self._remove_btn.clicked.connect(self._emit_remove_requested)
+
+    # ------------------------------------------------------------------
+    # Adapter ingress
+    # ------------------------------------------------------------------
+
+    def set_rooms(self, rooms: list[tuple[str, str]]) -> None:
+        """
+        Observer projection.
+
+        Parameters
+        ----------
+        rooms:
+            list of (room_id, room_label)
+        """
+        current_room_id = self.current_room_id()
+
+        self._room_combo.blockSignals(True)
+        self._room_combo.clear()
+
+        for room_id, label in rooms:
+            self._room_combo.addItem(label, room_id)
+
+        if current_room_id:
+            index = self._room_combo.findData(current_room_id)
+            if index >= 0:
+                self._room_combo.setCurrentIndex(index)
+
+        self._room_combo.blockSignals(False)
+
+    def set_emitters(self, emitters: list[tuple[str, str]]) -> None:
+        """
+        Observer projection.
+
+        Parameters
+        ----------
+        emitters:
+            list of (emitter_id, label)
+        """
+        current_emitter_id = self.current_emitter_id()
+
+        self._emitter_combo.blockSignals(True)
+        self._emitter_combo.clear()
+
+        self._emitter_combo.addItem("—", "")
+
+        for emitter_id, label in emitters:
+            self._emitter_combo.addItem(label, emitter_id)
+
+        selected = False
+
+        if current_emitter_id:
+            index = self._emitter_combo.findData(current_emitter_id)
+            if index >= 0:
+                self._emitter_combo.setCurrentIndex(index)
+                selected = True
+
+        # H-E shell convenience:
+        # if there is exactly one or more real emitters and no previous
+        # selection, select the first real emitter.
+        if not selected and emitters:
+            self._emitter_combo.setCurrentIndex(1)
+
+        self._emitter_combo.blockSignals(False)
+
+    def set_status(self, message: str) -> None:
+        self._status.setText(message or "")
+
+    # ------------------------------------------------------------------
+    # Current values
+    # ------------------------------------------------------------------
+
+    def current_room_id(self) -> str:
+        return str(self._room_combo.currentData() or "")
+
+    def current_emitter_id(self) -> str:
+        return str(self._emitter_combo.currentData() or "")
+
+    def _payload(self) -> dict:
+        return {
+            "room_id": self.current_room_id(),
+            "emitter_id": self.current_emitter_id(),
+            "emitter_type": self._emitter_type.currentText(),
+            "quantity": int(self._quantity.value()),
+            "design_output_W": float(self._design_output_W.value()),
+            "flow_temp_C": float(self._flow_temp_C.value()),
+            "return_temp_C": float(self._return_temp_C.value()),
+        }
+
+    # ------------------------------------------------------------------
+    # Intent emitters
+    # ------------------------------------------------------------------
+
+    def _emit_add_requested(self) -> None:
+        self.add_emitter_requested.emit(self._payload())
+
+    def _emit_update_requested(self) -> None:
+        self.update_emitter_requested.emit(self._payload())
+
+    def _emit_remove_requested(self) -> None:
+        emitter_id = self.current_emitter_id()
+        if emitter_id:
+            self.remove_emitter_requested.emit(emitter_id)

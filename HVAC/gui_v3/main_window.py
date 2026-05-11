@@ -72,6 +72,14 @@ from HVAC.gui_v3.adapters.uvp_panel_adapter import UVPPanelAdapter
 from HVAC.dev.bootstrap_dev_project import build_dev_project
 from HVAC.gui_v3.adapters.construction_panel_adapter import ConstructionPanelAdapter
 from HVAC.gui_v3.adapters.wall_wizard_adapter import WallWizardAdapter
+from HVAC.gui_v3.panels.hydronic_control_panel import HydronicControlPanel
+from HVAC.gui_v3.adapters.hydronic_control_panel_adapter import (
+    HydronicControlPanelAdapter,
+)
+from HVAC.gui_v3.panels.hydronic_control_panel import HydronicControlPanel
+from HVAC.gui_v3.adapters.hydronic_control_panel_adapter import (
+    HydronicControlPanelAdapter,
+)
 
 # ======================================================================
 # Main Window
@@ -248,6 +256,11 @@ class MainWindowV3(QMainWindow):
             HydronicsSchematicPanel(self),
         )
 
+        self._hydronic_control_panel = self._register_panel(
+            "hydronic_control",
+            HydronicControlPanel(self),
+        )
+
         self._dev_panel = self._register_panel(
             "dev",
             DevSettingsPanel(self),
@@ -289,6 +302,11 @@ class MainWindowV3(QMainWindow):
         self._dock_heat_loss = self._mk_dock("Heat-Loss", "dock_heat_loss", self._heat_loss_panel)
         self._dock_education = self._mk_dock("Education", "dock_education", self._education_panel)
         self._dock_hydronics = self._mk_dock("Hydronics", "dock_hydronics", self._hydronics_panel)
+        self._dock_hydronic_control = self._mk_dock(
+            "Hydronic Control",
+            "dock_hydronic_control",
+            self._hydronic_control_panel,
+        )
         self._dock_dev = self._mk_dock("Dev", "dock_dev", self._dev_panel)
         self._dock_geometry = self._mk_dock("Geometry", "dock_geometry", self._geometry_mini_panel)
         self._dock_ach = self._mk_dock("ACH", "dock_ach", self._ach_mini_panel)
@@ -306,6 +324,7 @@ class MainWindowV3(QMainWindow):
                 self._dock_heat_loss,
                 self._dock_education,
                 self._dock_hydronics,
+                self._dock_hydronic_control,
                 self._dock_dev,
                 self._dock_geometry,
                 self._dock_ach,
@@ -327,6 +346,10 @@ class MainWindowV3(QMainWindow):
         self.tabifyDockWidget(self._dock_hydronics, self._dock_dev)
         self.tabifyDockWidget(self._dock_hydronics, self._dock_geometry)
         self.tabifyDockWidget(self._dock_hydronics, self._dock_ach)
+        self.tabifyDockWidget(self._dock_hydronics, self._dock_hydronic_control)
+        self.tabifyDockWidget(self._dock_hydronics, self._dock_dev)
+        self.tabifyDockWidget(self._dock_hydronics, self._dock_geometry)
+        self.tabifyDockWidget(self._dock_hydronics, self._dock_ach)
 
         # Show DEV tab initially while debugging
         self._dock_dev.show()
@@ -340,6 +363,11 @@ class MainWindowV3(QMainWindow):
         self._readiness_adapter = ProjectHeatLossReadinessAdapter(panel=self._heat_loss_panel, context=self._context)
         self._education_panel_adapter = EducationPanelAdapter(panel=self._education_panel, domain="heatloss", topic="overview", mode="standard")
         self._hydronics_adapter = HydronicsSchematicPanelAdapter(panel=self._hydronics_panel, project_state=self._context.project_state)
+        self._hydronic_control_adapter = HydronicControlPanelAdapter(
+            panel=self._hydronic_control_panel,
+            project_state=self._context.project_state,
+        )
+
         self._geometry_adapter = GeometryMiniPanelAdapter(
             panel=self._geometry_mini_panel,
             context=self._context,
@@ -810,6 +838,8 @@ class MainWindowV3(QMainWindow):
             readiness = self._context.project_state.evaluate_heatloss_readiness()
             self._heat_loss_panel.set_readiness(readiness)
 
+        if hasattr(self, "_hydronic_control_adapter"):
+            self._hydronic_control_adapter.refresh()
 
     # ------------------------------------------------------------------
     # Helpers
