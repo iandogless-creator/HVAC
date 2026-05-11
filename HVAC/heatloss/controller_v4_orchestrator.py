@@ -75,7 +75,6 @@ class HeatLossControllerV4:
     """
 
     def __init__(self, *, project_state: ProjectState) -> None:
-        print(">>> CONTROLLER FILE LOADED:", __file__)
         self._project = project_state
         self._validator = SurfaceEditValidator()
         self._overlay = None
