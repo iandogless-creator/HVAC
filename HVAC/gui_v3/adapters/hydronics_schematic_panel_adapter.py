@@ -30,7 +30,10 @@ from HVAC.gui_v3.schematic.dto import (
     NodeRole,
 )
 from HVAC.hydronics.adapters.room_emitter_demand_adapter_v1 import (
-            RoomEmitterDemandAdapterV1,
+    RoomEmitterDemandAdapterV1,
+)
+from HVAC.hydronics.builders.hydronic_skeleton_from_project_state_v1 import (
+    build_hydronic_skeleton_from_project_state_v1,
 )
 
 
@@ -75,6 +78,13 @@ class HydronicsSchematicPanelAdapter:
         rows = RoomEmitterDemandAdapterV1().build_rows(self._project_state)
         self._panel.set_emitter_demand_rows(rows)
 
+        skeleton = build_hydronic_skeleton_from_project_state_v1(
+            self._project_state
+        )
+        self._panel.set_hydronic_skeleton_rows(
+            self._build_skeleton_rows(skeleton)
+        )
+
         snapshot = self._resolve_topology_snapshot()
 
         if snapshot is None:
@@ -83,6 +93,47 @@ class HydronicsSchematicPanelAdapter:
 
         dto = self._build_schematic_dto(snapshot)
         self._panel._set_schematic(dto)
+
+    # ------------------------------------------------------------------
+    # Skeleton table projection
+    # ------------------------------------------------------------------
+
+    def _build_skeleton_rows(self, skeleton) -> list[dict]:
+        rows: list[dict] = []
+
+        for leg in skeleton.supply_legs.values():
+            rows.append(
+                {
+                    "leg_id": leg.leg_id,
+                    "from": self._node_label(skeleton, leg.from_node_id),
+                    "to": self._node_label(skeleton, leg.to_node_id),
+                    "type": "Supply",
+                    "length_m": leg.length_m,
+                }
+            )
+
+        for leg in skeleton.return_legs.values():
+            rows.append(
+                {
+                    "leg_id": leg.leg_id,
+                    "from": self._node_label(skeleton, leg.from_node_id),
+                    "to": self._node_label(skeleton, leg.to_node_id),
+                    "type": "Return",
+                    "length_m": leg.length_m,
+                }
+            )
+
+        return rows
+
+    def _node_label(self, skeleton, node_id: str) -> str:
+        if node_id == skeleton.boiler.boiler_id:
+            return skeleton.boiler.name
+
+        terminal = skeleton.terminals.get(node_id)
+        if terminal is not None:
+            return terminal.room_name
+
+        return str(node_id)
 
     # ------------------------------------------------------------------
     # DTO construction
