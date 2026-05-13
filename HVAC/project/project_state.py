@@ -14,6 +14,9 @@ from HVAC.heatloss.fabric.fabric_from_segments_v1 import FabricFromSegmentsV1
 from HVAC.core.construction_v1 import ConstructionV1
 from HVAC.hydronics.emitter_v1 import EmitterV1
 from HVAC.core.opening_schedule_v1 import RoomOpeningScheduleV1
+from HVAC.hydronics.models.basic_hydronic_sizing_intent_v1 import (
+    BasicHydronicSizingIntentV1,
+)
 
 # ======================================================================
 # Hydronics emitter serialization
@@ -86,6 +89,11 @@ class ProjectState:
     # in project_state.py
 
     emitters: Dict[str, EmitterV1] = field(default_factory=dict)
+
+    # ------------------------------------------------------------------
+    # Hydronics H-N3 — Basic first-pass sizing intent
+    # ------------------------------------------------------------------
+    basic_hydronic_sizing_intent: Optional[BasicHydronicSizingIntentV1] = None
     # ------------------------------------------------------------------
     # Execution override (temporary)
     # ------------------------------------------------------------------
@@ -219,7 +227,10 @@ class ProjectState:
             "project_id": self.project_id,
             "name": self.name,
             "environment": self.environment.to_dict() if self.environment else None,
-            "rooms": {rid: room.to_dict() for rid, room in self.rooms.items()},
+            "rooms": {
+                rid: room.to_dict()
+                for rid, room in self.rooms.items()
+            },
             "boundary_segments": {
                 seg_id: seg.to_dict()
                 for seg_id, seg in self.boundary_segments.items()
@@ -233,13 +244,13 @@ class ProjectState:
                 for sid, openings in self.openings_by_surface.items()
             },
             "constructions": {
-    cid: {
-        "construction_id": c.construction_id,
-        "name": c.name,
-        "u_value_W_m2K": c.u_value_W_m2K,
-    }
-    for cid, c in (self.constructions or {}).items()
-},
+                cid: {
+                    "construction_id": c.construction_id,
+                    "name": c.name,
+                    "u_value_W_m2K": c.u_value_W_m2K,
+                }
+                for cid, c in (self.constructions or {}).items()
+            },
             "heatloss": {
                 "valid": self.heatloss_valid,
                 "results": self.heatloss_results,
@@ -248,12 +259,16 @@ class ProjectState:
                 emitter_id: _emitter_to_dict(emitter)
                 for emitter_id, emitter in self.emitters.items()
             },
+            "basic_hydronic_sizing_intent": (
+                self.basic_hydronic_sizing_intent.to_dict()
+                if self.basic_hydronic_sizing_intent
+                else None
+            ),
             "hydronics": {
                 "valid": self.hydronics_valid,
                 "results": self.hydronics_results,
             },
         }
-
     # ==================================================================
     # Deserialization
     # ==================================================================
@@ -291,6 +306,19 @@ class ProjectState:
 
             instance.emitters[key] = emitter
 
+        # --------------------------------------------------
+        # Hydronics H-N3 — Basic first-pass sizing intent
+        # --------------------------------------------------
+        raw_basic_hydronic_sizing_intent = data.get(
+            "basic_hydronic_sizing_intent"
+        )
+
+        if isinstance(raw_basic_hydronic_sizing_intent, dict):
+            instance.basic_hydronic_sizing_intent = (
+                BasicHydronicSizingIntentV1.from_dict(
+                    raw_basic_hydronic_sizing_intent
+                )
+            )
         instance.boundary_segments = {
             seg_id: BoundarySegmentV1.from_dict(seg_data)
             for seg_id, seg_data in (data.get("boundary_segments", {}) or {}).items()
