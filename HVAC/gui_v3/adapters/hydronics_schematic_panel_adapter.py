@@ -35,7 +35,9 @@ from HVAC.hydronics.adapters.room_emitter_demand_adapter_v1 import (
 from HVAC.hydronics.builders.hydronic_skeleton_from_project_state_v1 import (
     build_hydronic_skeleton_from_project_state_v1,
 )
-
+from HVAC.hydronics.pipes.pipe_run_intent_builder_v1 import (
+    build_pipe_run_intents_from_skeleton_v1,
+)
 
 class HydronicsSchematicPanelAdapter:
     """
@@ -83,6 +85,11 @@ class HydronicsSchematicPanelAdapter:
         )
         self._panel.set_hydronic_skeleton_rows(
             self._build_skeleton_rows(skeleton)
+        )
+
+        pipe_runs = build_pipe_run_intents_from_skeleton_v1(skeleton)
+        self._panel.set_pipe_run_intent_rows(
+            self._build_pipe_run_rows(skeleton, pipe_runs)
         )
 
         snapshot = self._resolve_topology_snapshot()
@@ -134,6 +141,24 @@ class HydronicsSchematicPanelAdapter:
             return terminal.room_name
 
         return str(node_id)
+
+    def _build_pipe_run_rows(self, skeleton, pipe_runs) -> list[dict]:
+        rows: list[dict] = []
+
+        for pipe in pipe_runs:
+            rows.append(
+                {
+                    "pipe_run_id": pipe.pipe_run_id,
+                    "from": self._node_label(skeleton, pipe.from_node_id),
+                    "to": self._node_label(skeleton, pipe.to_node_id),
+                    "circuit_type": pipe.circuit_type,
+                    "length_m": pipe.length_m,
+                    "material_id": pipe.material_id,
+                    "nominal_diameter_mm": pipe.nominal_diameter_mm,
+                }
+            )
+
+        return rows
 
     # ------------------------------------------------------------------
     # DTO construction

@@ -141,10 +141,16 @@ class HydronicsSchematicPanel(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
 
+        # --------------------------------------------------
+        # Title
+        # --------------------------------------------------
         title = QLabel("Hydronics schematic")
         title.setStyleSheet("font-weight:600; padding:6px;")
         layout.addWidget(title)
 
+        # --------------------------------------------------
+        # Demand table
+        # --------------------------------------------------
         self._emitter_demand_table = QTableWidget(0, 5)
         self._emitter_demand_table.setHorizontalHeaderLabels(
             ["Room", "Heat Load", "Emitter", "Output", "Status"]
@@ -153,16 +159,19 @@ class HydronicsSchematicPanel(QWidget):
         self._emitter_demand_table.setEditTriggers(QTableWidget.NoEditTriggers)
         self._emitter_demand_table.setSelectionBehavior(QTableWidget.SelectRows)
 
-        header = self._emitter_demand_table.horizontalHeader()
-        header.setSectionResizeMode(0, QHeaderView.Stretch)
-        header.setSectionResizeMode(1, QHeaderView.ResizeToContents)
-        header.setSectionResizeMode(2, QHeaderView.ResizeToContents)
-        header.setSectionResizeMode(3, QHeaderView.ResizeToContents)
-        header.setSectionResizeMode(4, QHeaderView.ResizeToContents)
+        demand_header = self._emitter_demand_table.horizontalHeader()
+        demand_header.setSectionResizeMode(0, QHeaderView.Stretch)
+        demand_header.setSectionResizeMode(1, QHeaderView.ResizeToContents)
+        demand_header.setSectionResizeMode(2, QHeaderView.ResizeToContents)
+        demand_header.setSectionResizeMode(3, QHeaderView.ResizeToContents)
+        demand_header.setSectionResizeMode(4, QHeaderView.ResizeToContents)
 
         self._emitter_demand_table.setMinimumHeight(120)
         layout.addWidget(self._emitter_demand_table)
 
+        # --------------------------------------------------
+        # Hydronic skeleton table
+        # --------------------------------------------------
         skeleton_title = QLabel("Hydronic skeleton")
         skeleton_title.setStyleSheet("font-weight:600; padding:6px;")
         layout.addWidget(skeleton_title)
@@ -185,6 +194,34 @@ class HydronicsSchematicPanel(QWidget):
         self._hydronic_skeleton_table.setMinimumHeight(120)
         layout.addWidget(self._hydronic_skeleton_table)
 
+        # --------------------------------------------------
+        # Pipe-run intent table
+        # --------------------------------------------------
+        pipe_title = QLabel("Pipe-run intent")
+        pipe_title.setStyleSheet("font-weight:600; padding:6px;")
+        layout.addWidget(pipe_title)
+
+        self._pipe_run_intent_table = QTableWidget(0, 7)
+        self._pipe_run_intent_table.setHorizontalHeaderLabels(
+            ["Pipe Run", "From", "To", "Circuit", "Length", "Material", "Diameter"]
+        )
+        self._pipe_run_intent_table.verticalHeader().setVisible(False)
+        self._pipe_run_intent_table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self._pipe_run_intent_table.setSelectionBehavior(QTableWidget.SelectRows)
+
+        pipe_header = self._pipe_run_intent_table.horizontalHeader()
+        pipe_header.setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        pipe_header.setSectionResizeMode(1, QHeaderView.Stretch)
+        pipe_header.setSectionResizeMode(2, QHeaderView.Stretch)
+        pipe_header.setSectionResizeMode(3, QHeaderView.ResizeToContents)
+        pipe_header.setSectionResizeMode(4, QHeaderView.ResizeToContents)
+        pipe_header.setSectionResizeMode(5, QHeaderView.ResizeToContents)
+        pipe_header.setSectionResizeMode(6, QHeaderView.ResizeToContents)
+
+        self._pipe_run_intent_table.setMinimumHeight(120)
+        layout.addWidget(self._pipe_run_intent_table)
+
+        # Only one stretch, always last.
         layout.addStretch(1)
 
     # ------------------------------------------------------------------
@@ -501,6 +538,43 @@ class HydronicsSchematicPanel(QWidget):
                 item.setFlags(item.flags() & ~Qt.ItemIsEditable)
                 table.setItem(row_index, col_index, item)
 
+    def set_pipe_run_intent_rows(self, rows: list[dict]) -> None:
+        """
+        Observer-only pipe-run intent projection.
+
+        Rows are adapter-derived display DTOs.
+        The panel does not inspect ProjectState and does not calculate.
+        """
+        table = self._pipe_run_intent_table
+        table.setRowCount(len(rows))
+
+        for row_index, row in enumerate(rows):
+            length_m = row.get("length_m")
+            length_text = "—" if length_m is None else f"{float(length_m):.2f} m"
+
+            diameter_mm = row.get("nominal_diameter_mm")
+            diameter_text = (
+                "—"
+                if diameter_mm is None
+                else f"{float(diameter_mm):.0f} mm"
+            )
+
+            material_text = str(row.get("material_id") or "—")
+
+            values = [
+                str(row.get("pipe_run_id", "")),
+                str(row.get("from", "")),
+                str(row.get("to", "")),
+                str(row.get("circuit_type", "")),
+                length_text,
+                material_text,
+                diameter_text,
+            ]
+
+            for col_index, value in enumerate(values):
+                item = QTableWidgetItem(value)
+                item.setFlags(item.flags() & ~Qt.ItemIsEditable)
+                table.setItem(row_index, col_index, item)
 
     # ------------------------------------------------------------------
     # Input suppression
