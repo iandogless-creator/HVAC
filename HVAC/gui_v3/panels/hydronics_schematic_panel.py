@@ -217,7 +217,7 @@ class HydronicsSchematicPanel(QWidget):
         painter.drawText(
             self.rect(),
             Qt.AlignCenter,
-            "No hydronics schematic available",
+            "No drawn topology schematic available",
         )
 
     def _paint_nodes(
