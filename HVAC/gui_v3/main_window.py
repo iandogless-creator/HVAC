@@ -355,7 +355,6 @@ class MainWindowV3(QMainWindow):
         # Adapters
         self._environment_panel_adapter = EnvironmentPanelAdapter(self._context, self._environment_panel)
         self._room_tree_panel_adapter = RoomTreePanelAdapter(panel=self._room_tree_panel, context=self._context)
-        self._heat_loss_panel_adapter = HeatLossPanelAdapter(panel=self._heat_loss_panel, context=self._context)
         self._readiness_adapter = ProjectHeatLossReadinessAdapter(panel=self._heat_loss_panel, context=self._context)
         self._education_panel_adapter = EducationPanelAdapter(panel=self._education_panel, domain="heatloss", topic="overview", mode="standard")
         self._hydronics_adapter = HydronicsSchematicPanelAdapter(panel=self._hydronics_panel, project_state=self._context.project_state)
@@ -373,6 +372,7 @@ class MainWindowV3(QMainWindow):
         self._heat_loss_panel_adapter = HeatLossPanelAdapter(
             panel=self._heat_loss_panel,
             context=self._context,
+            refresh_all_callback=self._refresh_all_adapters,
         )
 
         self._construction_panel_adapter = ConstructionPanelAdapter(

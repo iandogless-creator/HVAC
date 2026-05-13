@@ -48,9 +48,11 @@ class HeatLossPanelAdapter:
         *,
         panel: HeatLossPanelV3,
         context: GuiProjectContext,
+        refresh_all_callback=None,
     ) -> None:
         self._panel = panel
         self._context = context
+        self._refresh_all_callback = refresh_all_callback
         self._validator = SurfaceEditValidator()
 
         self._context.room_state_changed.connect(self.refresh)
@@ -541,6 +543,9 @@ class HeatLossPanelAdapter:
         )
 
         self._apply_run_result(success=True)
+
+        if self._refresh_all_callback is not None:
+            self._refresh_all_callback()
 
     def _build_topology_rows_with_meta(self, ps, room) -> tuple[list[dict], list[WorksheetRowMeta]]:
         """
