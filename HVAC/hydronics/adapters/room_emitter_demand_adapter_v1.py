@@ -124,18 +124,30 @@ class RoomEmitterDemandAdapterV1:
             return None
 
         getter = getattr(project, "get_room_heatloss_totals", None)
-        if getter is None:
-            return None
 
-        totals = getter(room_id)
+        if callable(getter):
+            totals = getter(room_id)
 
-        if not totals:
-            return None
+            if totals:
+                try:
+                    _qf, _qv, qt = totals
+                except (TypeError, ValueError):
+                    qt = None
 
-        try:
-            _qf, _qv, qt = totals
-        except (TypeError, ValueError):
-            return None
+                if qt is not None:
+                    try:
+                        return float(qt)
+                    except (TypeError, ValueError):
+                        return None
+
+        # --------------------------------------------------
+        # Fallback: current canonical heat-loss container
+        # --------------------------------------------------
+        heatloss_results = getattr(project, "heatloss_results", None) or {}
+        room_totals = heatloss_results.get("room_totals", {}) or {}
+        room_total = room_totals.get(room_id, {}) or {}
+
+        qt = room_total.get("q_total_W")
 
         if qt is None:
             return None
