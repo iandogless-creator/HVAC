@@ -42,6 +42,9 @@ from HVAC.core.room_identity import room_short_label
 from HVAC.hydronics.worksheets.basic_hydronics_worksheet_v1 import (
     build_basic_hydronics_worksheet_v1,
 )
+from HVAC.hydronics.sizing.emitter_sizing_suggestion_v1 import (
+    build_emitter_sizing_suggestion_v1,
+)
 
 class HydronicsSchematicPanelAdapter:
     """
@@ -107,8 +110,16 @@ class HydronicsSchematicPanelAdapter:
         worksheet = build_basic_hydronics_worksheet_v1(
             self._project_state
         )
+        sizing_suggestion = build_emitter_sizing_suggestion_v1(
+            self._project_state,
+            allowance_percent=12.0,
+            rounding_step_W=50.0,
+        )
         self._panel.set_basic_hydronics_worksheet_rows(
-            self._build_basic_hydronics_rows(worksheet)
+            self._build_basic_hydronics_rows(
+                worksheet,
+                sizing_suggestion,
+            )
         )
         snapshot = self._resolve_topology_snapshot()
 
@@ -185,17 +196,43 @@ class HydronicsSchematicPanelAdapter:
 
         return rows
 
-    def _build_basic_hydronics_rows(self, worksheet) -> list[dict]:
+    def _build_basic_hydronics_rows(
+            self,
+            worksheet,
+            sizing_suggestion,
+    ) -> list[dict]:
         rows: list[dict] = []
 
+        sizing_by_room_id = {
+            row.room_id: row
+            for row in getattr(sizing_suggestion, "rows", [])
+        }
+
         for row in worksheet.rows:
+            sizing = sizing_by_room_id.get(row.room_id)
+
             rows.append(
                 {
                     "room": row.room_label,
                     "heat_load": self._fmt_w(row.heat_load_W),
+                    "required_output": (
+                        self._fmt_w(sizing.required_output_W)
+                        if sizing is not None
+                        else "—"
+                    ),
+                    "suggested_output": (
+                        self._fmt_w(sizing.suggested_rounded_output_W)
+                        if sizing is not None
+                        else "—"
+                    ),
                     "emitter": row.emitter_summary,
                     "output": self._fmt_w(row.emitter_output_W),
                     "status": row.emitter_status,
+                    "sizing_status": (
+                        sizing.status
+                        if sizing is not None
+                        else "—"
+                    ),
                     "flow_temp": self._fmt_c(row.flow_temp_C),
                     "return_temp": self._fmt_c(row.return_temp_C),
                     "water_delta_t": self._fmt_k(row.water_delta_t_K),

@@ -300,14 +300,17 @@ class HydronicsSchematicPanel(QWidget):
         # --------------------------------------------------
         # Basic hydronics worksheet table
         # --------------------------------------------------
-        self._basic_hydronics_table = QTableWidget(0, 9)
+        self._basic_hydronics_table = QTableWidget(0, 12)
         self._basic_hydronics_table.setHorizontalHeaderLabels(
             [
                 "Room",
                 "Load",
+                "Required",
+                "Suggested",
                 "Emitter",
                 "Output",
                 "Status",
+                "Sizing",
                 "FT",
                 "RT",
                 "ΔT",
@@ -328,6 +331,9 @@ class HydronicsSchematicPanel(QWidget):
         basic_header.setSectionResizeMode(6, QHeaderView.ResizeToContents)
         basic_header.setSectionResizeMode(7, QHeaderView.ResizeToContents)
         basic_header.setSectionResizeMode(8, QHeaderView.ResizeToContents)
+        basic_header.setSectionResizeMode(9, QHeaderView.ResizeToContents)
+        basic_header.setSectionResizeMode(10, QHeaderView.ResizeToContents)
+        basic_header.setSectionResizeMode(11, QHeaderView.ResizeToContents)
 
         self._basic_hydronics_table.setMinimumHeight(140)
         layout.addWidget(
@@ -452,9 +458,12 @@ class HydronicsSchematicPanel(QWidget):
             values = [
                 row.get("room", "—"),
                 row.get("heat_load", "—"),
+                row.get("required_output", "—"),
+                row.get("suggested_output", "—"),
                 row.get("emitter", "—"),
                 row.get("output", "—"),
                 row.get("status", "—"),
+                row.get("sizing_status", "—"),
                 row.get("flow_temp", "—"),
                 row.get("return_temp", "—"),
                 row.get("water_delta_t", "—"),
