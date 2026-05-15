@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
     QWidget,
     QFileDialog,
 )
+from typing import TypeVar
 
 # ----------------------------------------------------------------------
 # Context
@@ -83,6 +84,7 @@ from HVAC.gui_v3.adapters.basic_hydronics_panel_adapter import (
 # ======================================================================
 # Main Window
 # ======================================================================
+PanelT = TypeVar("PanelT", bound=QWidget)
 
 class MainWindowV3(QMainWindow):
 
@@ -123,10 +125,7 @@ class MainWindowV3(QMainWindow):
         # Wire context → adapters (NOW SAFE)
         # --------------------------------------------------
         self._context.project_changed.connect(
-            self._heat_loss_panel_adapter.refresh
-        )
-        self._context.project_changed.connect(
-            self._uvp_panel_adapter.refresh
+            self._refresh_all_adapters
         )
 
         # --------------------------------------------------
@@ -376,6 +375,7 @@ class MainWindowV3(QMainWindow):
         self._hydronic_control_adapter = HydronicControlPanelAdapter(
             panel=self._hydronic_control_panel,
             project_state=self._context.project_state,
+            context=self._context,
             refresh_all=self._refresh_all_adapters,
         )
         self._basic_hydronics_adapter = BasicHydronicsPanelAdapter(
@@ -829,6 +829,12 @@ class MainWindowV3(QMainWindow):
         self._uvp_panel.set_selected_surface(surface_id)
         self._context.set_uvp_focus(surface_id)
 
+    def current_index_room_id(self) -> str:
+        return str(self._index_room.currentData() or "")
+
+    def current_index_emitter_id(self) -> str:
+        return str(self._index_emitter.currentData() or "")
+
     # ------------------------------------------------------------------
     # Refresh
     # ------------------------------------------------------------------
@@ -854,9 +860,15 @@ class MainWindowV3(QMainWindow):
             self._heat_loss_panel.set_readiness(readiness)
 
         if hasattr(self, "_hydronic_control_adapter"):
+            self._hydronic_control_adapter.set_project_state(
+                self._context.project_state
+            )
             self._hydronic_control_adapter.refresh()
 
         if hasattr(self, "_hydronics_adapter"):
+            self._hydronics_adapter.set_project_state(
+                self._context.project_state
+            )
             self._hydronics_adapter.refresh()
 
         if hasattr(self, "_basic_hydronics_adapter"):
@@ -879,10 +891,11 @@ class MainWindowV3(QMainWindow):
         self._docks[name] = d
         return d
 
-    def _register_panel(self, key: str, widget: QWidget) -> QWidget:
+    def _register_panel(self, key: str, panel: PanelT) -> PanelT:
+
         if key in self._panels:
             raise RuntimeError(f"Panel already exists: {key}")
 
-        self._panels[key] = widget
-        print(f"[PANEL REGISTERED] {key} -> {id(widget)}")  # ✅ correct place
-        return widget
+        self._panels[key] = panel
+        print(f"[PANEL REGISTERED] {key} -> {id(panel)}")
+        return panel

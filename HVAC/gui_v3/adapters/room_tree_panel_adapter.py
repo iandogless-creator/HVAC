@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from HVAC.gui_v3.context.gui_project_context import GuiProjectContext
 from HVAC.gui_v3.panels.room_tree_panel import RoomTreePanel
-
+from HVAC.core.room_identity import room_short_label
 
 class RoomTreePanelAdapter:
     """
@@ -75,18 +75,20 @@ class RoomTreePanelAdapter:
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
-    def _build_room_list(self, ps) -> list[str]:
+    def _build_room_list(self, ps) -> list[tuple[str, str]]:
         """
-        Build flat list of room IDs.
+        Build flat list of rooms for display.
 
-        Phase E-A:
-        • Flat list
-        • Room ID is the label
+        Internal room_id remains the emitted authority.
+        Label is human-facing only.
         """
         if not hasattr(ps, "rooms") or not ps.rooms:
             return []
 
-        return list(ps.rooms.keys())
+        return [
+            (room_id, room_short_label(room_id, room))
+            for room_id, room in ps.rooms.items()
+        ]
 
     # ------------------------------------------------------------------
     # Signal handlers

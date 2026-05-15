@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from typing import Any, Optional
 
 from HVAC.project.project_state import ProjectState
-
+from HVAC.core.room_identity import room_short_label
 
 # ======================================================================
 # RoomEmitterDemandRowV1
@@ -69,11 +69,7 @@ class RoomEmitterDemandAdapterV1:
         rooms = getattr(project, "rooms", {}) or {}
 
         for room_id, room in rooms.items():
-            room_name = (
-                getattr(room, "name", None)
-                or getattr(room, "label", None)
-                or room_id
-            )
+            room_name = room_short_label(room_id, room)
 
             design_heat_load_W = self._resolve_room_heat_load_W(
                 project,

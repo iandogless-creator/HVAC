@@ -189,6 +189,24 @@ class HydronicControlPanel(QWidget):
 
         self._room_combo.blockSignals(False)
 
+    def set_active_room(self, room_id: str | None) -> None:
+        """
+        Select the active/current room without emitting user intent.
+
+        The room_id remains internal authority.
+        """
+        self._room_combo.blockSignals(True)
+        try:
+            if not room_id:
+                return
+
+            index = self._room_combo.findData(room_id)
+            if index >= 0:
+                self._room_combo.setCurrentIndex(index)
+        finally:
+            self._room_combo.blockSignals(False)
+
+
     def set_emitters(self, emitters: list[tuple[str, str]]) -> None:
         """
         Observer projection.

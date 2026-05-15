@@ -11,7 +11,7 @@ from HVAC.gui_v3.panels.basic_hydronics_panel import BasicHydronicsPanel
 from HVAC.hydronics.models.basic_hydronic_sizing_intent_v1 import (
     BasicHydronicSizingIntentV1,
 )
-
+from HVAC.core.room_identity import room_short_label
 
 # ======================================================================
 # BasicHydronicsPanelAdapter
@@ -51,10 +51,10 @@ class BasicHydronicsPanelAdapter:
 
         self._panel.intent_committed.connect(self._on_intent_committed)
 
+        self._last_project_identity: int | None = None
+        self._has_primed_project: bool = False
+
         # Best-effort subscriptions.
-        #
-        # Context signal APIs have evolved during GUI v3, so keep this
-        # defensive rather than making this adapter brittle.
         self._subscribe_if_present("room_state_changed", self.refresh)
         self._subscribe_if_present("current_room_changed", self.refresh)
 
@@ -63,6 +63,7 @@ class BasicHydronicsPanelAdapter:
     # ==================================================================
     # Refresh
     # ==================================================================
+
     def refresh(self, *args, **kwargs) -> None:
         project = self._context.project_state
         if project is None:
@@ -82,11 +83,21 @@ class BasicHydronicsPanelAdapter:
             display_name = self._room_display_name(room_id, room)
             room_options.append((room_id, display_name))
 
+        project_identity = id(project)
+        project_changed = project_identity != self._last_project_identity
+
+        if project_changed:
+            self._last_project_identity = project_identity
+            self._has_primed_project = False
+
         selected_room_id = (
             intent.index_room_id
             if intent is not None
-            else self._current_room_id()
+            else self._panel.current_index_room_id()
         )
+
+        if not selected_room_id and not self._has_primed_project:
+            selected_room_id = self._current_room_id()
 
         self._panel.set_room_options(
             room_options,
@@ -109,7 +120,7 @@ class BasicHydronicsPanelAdapter:
         selected_emitter_id = (
             intent.index_emitter_id
             if intent is not None
-            else None
+            else self._panel.current_index_emitter_id()
         )
 
         self._panel.set_emitter_options(
@@ -120,11 +131,12 @@ class BasicHydronicsPanelAdapter:
         # --------------------------------------------------------------
         # Intent projection
         # --------------------------------------------------------------
-        self._panel.prime_intent(
-            intent.to_dict()
-            if intent is not None
-            else None
-        )
+        if intent is not None:
+            self._panel.prime_intent(intent.to_dict())
+            self._has_primed_project = True
+        elif not self._has_primed_project:
+            self._panel.prime_intent(None)
+            self._has_primed_project = True
 
     # ==================================================================
     # Intent commit
@@ -164,15 +176,7 @@ class BasicHydronicsPanelAdapter:
     # ==================================================================
     @staticmethod
     def _room_display_name(room_id: str, room: object) -> str:
-        name = getattr(room, "name", None)
-        if name:
-            return str(name)
-
-        display_name = getattr(room, "display_name", None)
-        if display_name:
-            return str(display_name)
-
-        return str(room_id)
+        return room_short_label(room_id, room)
 
     @staticmethod
     def _emitter_display_name(

@@ -38,6 +38,7 @@ from HVAC.hydronics.builders.hydronic_skeleton_from_project_state_v1 import (
 from HVAC.hydronics.pipes.pipe_run_intent_builder_v1 import (
     build_pipe_run_intents_from_skeleton_v1,
 )
+from HVAC.core.room_identity import room_short_label
 
 class HydronicsSchematicPanelAdapter:
     """
@@ -62,6 +63,14 @@ class HydronicsSchematicPanelAdapter:
 
         # Phase B: safe initial refresh
         self.refresh()
+
+    def set_project_state(self, project_state: ProjectState) -> None:
+        """
+        Rebind adapter to the current ProjectState.
+
+        Required when a project is loaded or DEV mode swaps ProjectState.
+        """
+        self._project_state = project_state
 
     # ------------------------------------------------------------------
     # Public API
@@ -138,7 +147,14 @@ class HydronicsSchematicPanelAdapter:
 
         terminal = skeleton.terminals.get(node_id)
         if terminal is not None:
-            return terminal.room_name
+            room_id = getattr(terminal, "room_id", None)
+
+            if room_id:
+                room = self._project_state.rooms.get(room_id)
+                if room is not None:
+                    return room_short_label(room_id, room)
+
+            return getattr(terminal, "room_name", None) or str(node_id)
 
         return str(node_id)
 

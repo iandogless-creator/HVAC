@@ -1,0 +1,235 @@
+{
+  "schema_version": 4,
+  "project_id": "DEV-CLEAN-4ROOM-001",
+  "name": "Clean 4 Room Identity + Adjacency Test",
+
+  "environment": {
+    "external_design_temp_C": -3.0,
+    "default_internal_temp_C": 21.0,
+    "default_room_height_m": 2.4,
+    "default_ach": 0.5
+  },
+
+  "rooms": {
+    "room-001": {
+      "name": "Airing Cupboard",
+      "room_ref": "R1",
+      "storey_index": 1,
+      "storey_label": "First Floor",
+      "internal_design_temp_C": 21.0,
+      "geometry": {
+        "polygon": [[0, 3], [2, 3], [2, 5], [0, 5]],
+        "height_m": 2.4
+      }
+    },
+
+    "room-002": {
+      "name": "Kitchen",
+      "room_ref": "R2",
+      "storey_index": 0,
+      "storey_label": "Ground Floor",
+      "internal_design_temp_C": 21.0,
+      "geometry": {
+        "polygon": [[0, 0], [4, 0], [4, 3], [0, 3]],
+        "height_m": 2.4
+      }
+    },
+
+    "room-003": {
+      "name": "Lounge",
+      "room_ref": "R3",
+      "storey_index": 0,
+      "storey_label": "Ground Floor",
+      "internal_design_temp_C": 21.0,
+      "geometry": {
+        "polygon": [[4, 0], [8, 0], [8, 3], [4, 3]],
+        "height_m": 2.4
+      }
+    },
+
+    "room-004": {
+      "name": "Bedroom 1",
+      "room_ref": "R4",
+      "storey_index": 1,
+      "storey_label": "First Floor",
+      "internal_design_temp_C": 21.0,
+      "geometry": {
+        "polygon": [[2, 3], [6, 3], [6, 6], [2, 6]],
+        "height_m": 2.4
+      }
+    }
+  },
+
+  "boundary_segments": {
+    "r1_e1": {
+      "segment_id": "r1_e1",
+      "owner_room_id": "room-001",
+      "geometry_ref": "edge_1",
+      "length_m": 2.0,
+      "boundary_kind": "EXTERNAL",
+      "adjacent_room_id": null
+    },
+    "r1_e2": {
+      "segment_id": "r1_e2",
+      "owner_room_id": "room-001",
+      "geometry_ref": "edge_2",
+      "length_m": 2.0,
+      "boundary_kind": "INTER_ROOM",
+      "adjacent_room_id": "room-004"
+    },
+    "r1_e3": {
+      "segment_id": "r1_e3",
+      "owner_room_id": "room-001",
+      "geometry_ref": "edge_3",
+      "length_m": 2.0,
+      "boundary_kind": "EXTERNAL",
+      "adjacent_room_id": null
+    },
+    "r1_e4": {
+      "segment_id": "r1_e4",
+      "owner_room_id": "room-001",
+      "geometry_ref": "edge_4",
+      "length_m": 2.0,
+      "boundary_kind": "EXTERNAL",
+      "adjacent_room_id": null
+    },
+
+    "r2_e1": {
+      "segment_id": "r2_e1",
+      "owner_room_id": "room-002",
+      "geometry_ref": "edge_1",
+      "length_m": 4.0,
+      "boundary_kind": "EXTERNAL",
+      "adjacent_room_id": null
+    },
+    "r2_e2": {
+      "segment_id": "r2_e2",
+      "owner_room_id": "room-002",
+      "geometry_ref": "edge_2",
+      "length_m": 3.0,
+      "boundary_kind": "INTER_ROOM",
+      "adjacent_room_id": "room-003"
+    },
+    "r2_e3": {
+      "segment_id": "r2_e3",
+      "owner_room_id": "room-002",
+      "geometry_ref": "edge_3",
+      "length_m": 4.0,
+      "boundary_kind": "EXTERNAL",
+      "adjacent_room_id": null
+    },
+    "r2_e4": {
+      "segment_id": "r2_e4",
+      "owner_room_id": "room-002",
+      "geometry_ref": "edge_4",
+      "length_m": 3.0,
+      "boundary_kind": "EXTERNAL",
+      "adjacent_room_id": null
+    },
+
+    "r3_e1": {
+      "segment_id": "r3_e1",
+      "owner_room_id": "room-003",
+      "geometry_ref": "edge_1",
+      "length_m": 4.0,
+      "boundary_kind": "EXTERNAL",
+      "adjacent_room_id": null
+    },
+    "r3_e2": {
+      "segment_id": "r3_e2",
+      "owner_room_id": "room-003",
+      "geometry_ref": "edge_2",
+      "length_m": 3.0,
+      "boundary_kind": "EXTERNAL",
+      "adjacent_room_id": null
+    },
+    "r3_e3": {
+      "segment_id": "r3_e3",
+      "owner_room_id": "room-003",
+      "geometry_ref": "edge_3",
+      "length_m": 4.0,
+      "boundary_kind": "EXTERNAL",
+      "adjacent_room_id": null
+    },
+    "r3_e4": {
+      "segment_id": "r3_e4",
+      "owner_room_id": "room-003",
+      "geometry_ref": "edge_4",
+      "length_m": 3.0,
+      "boundary_kind": "INTER_ROOM",
+      "adjacent_room_id": "room-002"
+    },
+
+    "r4_e1": {
+      "segment_id": "r4_e1",
+      "owner_room_id": "room-004",
+      "geometry_ref": "edge_1",
+      "length_m": 4.0,
+      "boundary_kind": "EXTERNAL",
+      "adjacent_room_id": null
+    },
+    "r4_e2": {
+      "segment_id": "r4_e2",
+      "owner_room_id": "room-004",
+      "geometry_ref": "edge_2",
+      "length_m": 3.0,
+      "boundary_kind": "EXTERNAL",
+      "adjacent_room_id": null
+    },
+    "r4_e3": {
+      "segment_id": "r4_e3",
+      "owner_room_id": "room-004",
+      "geometry_ref": "edge_3",
+      "length_m": 4.0,
+      "boundary_kind": "EXTERNAL",
+      "adjacent_room_id": null
+    },
+    "r4_e4": {
+      "segment_id": "r4_e4",
+      "owner_room_id": "room-004",
+      "geometry_ref": "edge_4",
+      "length_m": 3.0,
+      "boundary_kind": "INTER_ROOM",
+      "adjacent_room_id": "room-001"
+    }
+  },
+
+  "surface_construction_map": {},
+
+  "constructions": {
+    "DEV-EXT-WALL": {
+      "construction_id": "DEV-EXT-WALL",
+      "name": "External Wall",
+      "u_value_W_m2K": 0.26
+    },
+    "DEV-INT-WALL": {
+      "construction_id": "DEV-INT-WALL",
+      "name": "Internal Wall",
+      "u_value_W_m2K": 1.5
+    },
+    "DEV-FLOOR": {
+      "construction_id": "DEV-FLOOR",
+      "name": "Floor",
+      "u_value_W_m2K": 0.18
+    },
+    "DEV-ROOF": {
+      "construction_id": "DEV-ROOF",
+      "name": "Roof / Ceiling",
+      "u_value_W_m2K": 0.16
+    }
+  },
+
+  "heatloss": {
+    "valid": false,
+    "results": null
+  },
+
+  "emitters": {},
+
+  "basic_hydronic_sizing_intent": null,
+
+  "hydronics": {
+    "valid": false,
+    "results": null
+  }
+}

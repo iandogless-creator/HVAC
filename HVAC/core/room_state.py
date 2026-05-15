@@ -33,6 +33,7 @@ class RoomStateV1:
     # ------------------------------------------------------------------
     room_id: str
     name: str
+    room_ref: str = ""
     storey_index: int = 0
     storey_label: str = "Ground Floor"
     # ------------------------------------------------------------------
@@ -52,6 +53,7 @@ class RoomStateV1:
 
         return {
             "name": self.name,
+            "room_ref": self.room_ref,
             "storey_index": self.storey_index,
             "storey_label": self.storey_label,
             "geometry": self.geometry.to_dict(),
@@ -66,7 +68,8 @@ class RoomStateV1:
         instance = cls(
             room_id=room_id,
             name=data.get("name", room_id),
-            storey_index=data.get("storey_index", 0),
+            room_ref=data.get("room_ref", ""),
+            storey_index=int(data.get("storey_index", 0)),
             storey_label=data.get("storey_label", "Ground Floor"),
             internal_temp_override_C=data.get("internal_temp_override_C"),
             ach_override=data.get("ach_override"),

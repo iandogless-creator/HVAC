@@ -288,6 +288,12 @@ class BasicHydronicsPanel(QWidget):
 
         self.set_derived_allowance_Pa(length * gradient)
 
+    def current_index_room_id(self) -> str:
+        return str(self._index_room.currentData() or "")
+
+    def current_index_emitter_id(self) -> str:
+        return str(self._index_emitter.currentData() or "")
+
     # ==================================================================
     # Intent emission
     # ==================================================================

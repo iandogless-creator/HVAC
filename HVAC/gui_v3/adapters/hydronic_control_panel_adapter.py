@@ -12,7 +12,7 @@ from HVAC.hydronics.emitter_v1 import EmitterV1
 from HVAC.hydronics.adapters.emitter_candidate_builder_v1 import (
     EmitterCandidateBuilderV1,
 )
-
+from HVAC.core.room_identity import room_short_label
 # ======================================================================
 # HydronicControlPanelAdapter
 # ======================================================================
@@ -41,10 +41,12 @@ class HydronicControlPanelAdapter:
             *,
             panel: HydronicControlPanel,
             project_state: ProjectState,
+            context: Any | None = None,
             refresh_all: Any | None = None,
     ) -> None:
         self._panel = panel
         self._project_state = project_state
+        self._context = context
         self._panel.add_emitter_requested.connect(
             self._on_add_emitter_requested
         )
@@ -61,9 +63,21 @@ class HydronicControlPanelAdapter:
         self._refresh_all = refresh_all
         self.refresh()
 
-    # ------------------------------------------------------------------
-    # Refresh
-    # ------------------------------------------------------------------
+    def set_project_state(self, project_state: ProjectState) -> None:
+        """
+        Rebind adapter to the current ProjectState.
+
+        Required when a project is loaded or DEV mode swaps ProjectState.
+        """
+        if project_state is self._project_state:
+            return
+
+        self._project_state = project_state
+        self._default_emitters_bootstrapped = False
+
+
+
+
 
     # ------------------------------------------------------------------
     # Refresh
@@ -93,9 +107,13 @@ class HydronicControlPanelAdapter:
                 )
 
         self._panel.set_rooms(self._room_options())
+
+        current_room_id = self._current_room_id()
+        if current_room_id:
+            self._panel.set_active_room(current_room_id)
+
         self._panel.set_emitters(self._emitter_options())
         self._panel.set_status("Hydronic control shell ready.")
-
 
     def _room_options(self) -> list[tuple[str, str]]:
         rooms = getattr(self._project_state, "rooms", {}) or {}
@@ -103,14 +121,16 @@ class HydronicControlPanelAdapter:
         options: list[tuple[str, str]] = []
 
         for room_id, room in rooms.items():
-            label = (
-                getattr(room, "name", None)
-                or getattr(room, "label", None)
-                or room_id
-            )
-            options.append((room_id, label))
+            options.append((room_id, room_short_label(room_id, room)))
 
         return options
+
+    def _room_name_for_display(self, room_id: str) -> str:
+        rooms = getattr(self._project_state, "rooms", {}) or {}
+        room = rooms.get(room_id)
+        if room is None:
+            return str(room_id)
+        return room_short_label(room_id, room)
 
     def _emitter_options(self) -> list[tuple[str, str]]:
         emitters = getattr(self._project_state, "emitters", {}) or {}
@@ -122,7 +142,8 @@ class HydronicControlPanelAdapter:
             emitter_type = getattr(emitter, "emitter_type", "emitter")
             name = getattr(emitter, "name", None) or emitter_id
 
-            label = f"{name} ({emitter_type}, {room_id})"
+            room_label = self._room_name_for_display(room_id) if room_id else "room"
+            label = f"{name} ({emitter_type}, {room_label})"
             options.append((emitter_id, label))
 
         return options
@@ -176,6 +197,15 @@ class HydronicControlPanelAdapter:
 
             index += 1
 
+    def _current_room_id(self) -> str:
+        context = getattr(self, "_context", None)
+        if context is not None:
+            value = getattr(context, "current_room_id", None)
+            if value:
+                return str(value)
+
+        return ""
+
     def _display_emitter_type(self, emitter_type: str) -> str:
         return emitter_type.replace("_", " ").title()
 
@@ -214,14 +244,7 @@ class HydronicControlPanelAdapter:
             payload.get("return_temp_C")
         )
 
-        rooms = getattr(self._project_state, "rooms", {}) or {}
-        room = rooms.get(room_id)
-
-        room_name = (
-                getattr(room, "name", None)
-                or getattr(room, "label", None)
-                or room_id
-        )
+        room_name = self._room_name_for_display(room_id)
 
         created_ids: list[str] = []
 
@@ -306,14 +329,7 @@ class HydronicControlPanelAdapter:
             payload.get("return_temp_C")
         )
 
-        rooms = getattr(self._project_state, "rooms", {}) or {}
-        room = rooms.get(room_id)
-
-        room_name = (
-                getattr(room, "name", None)
-                or getattr(room, "label", None)
-                or room_id
-        )
+        room_name = self._room_name_for_display(room_id)
 
         emitter.room_id = room_id
         emitter.emitter_type = emitter_type
