@@ -41,6 +41,7 @@ from PySide6.QtWidgets import (
     QTableWidget,
     QTableWidgetItem,
     QHeaderView,
+    QToolButton,
 )
 
 from HVAC.gui_v3.schematic.dto import (
@@ -102,6 +103,68 @@ class _HoverInspector(QFrame):
 # HydronicsSchematicPanel
 # ======================================================================
 
+# ======================================================================
+# Collapsible Section
+# ======================================================================
+
+class _CollapsibleSection(QWidget):
+    """
+    Small GUI-only collapsible section.
+
+    Authority
+    ---------
+    • No ProjectState access
+    • No calculation
+    • Pure presentation/layout helper
+    """
+
+    def __init__(
+        self,
+        title: str,
+        content: QWidget,
+        *,
+        expanded: bool = True,
+        parent: QWidget | None = None,
+    ) -> None:
+        super().__init__(parent)
+
+        self._content = content
+
+        self._toggle = QToolButton(self)
+        self._toggle.setText(title)
+        self._toggle.setCheckable(True)
+        self._toggle.setChecked(expanded)
+        self._toggle.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        self._toggle.setArrowType(
+            Qt.DownArrow if expanded else Qt.RightArrow
+        )
+        self._toggle.setStyleSheet(
+            "QToolButton { font-weight: 600; padding: 6px; border: none; }"
+        )
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+        layout.addWidget(self._toggle)
+        layout.addWidget(self._content)
+
+        self._content.setVisible(expanded)
+
+        self._toggle.toggled.connect(self._on_toggled)
+
+    def _on_toggled(self, checked: bool) -> None:
+        self._toggle.setArrowType(
+            Qt.DownArrow if checked else Qt.RightArrow
+        )
+        self._content.setVisible(checked)
+
+    def set_expanded(self, expanded: bool) -> None:
+        self._toggle.setChecked(bool(expanded))
+
+    def is_expanded(self) -> bool:
+        return bool(self._toggle.isChecked())
+
+
 class HydronicsSchematicPanel(QWidget):
 
     def __init__(self, parent=None) -> None:
@@ -149,7 +212,7 @@ class HydronicsSchematicPanel(QWidget):
         layout.addWidget(title)
 
         # --------------------------------------------------
-        # Demand table
+        # Emitter demand summary table
         # --------------------------------------------------
         self._emitter_demand_table = QTableWidget(0, 5)
         self._emitter_demand_table.setHorizontalHeaderLabels(
@@ -167,15 +230,18 @@ class HydronicsSchematicPanel(QWidget):
         demand_header.setSectionResizeMode(4, QHeaderView.ResizeToContents)
 
         self._emitter_demand_table.setMinimumHeight(120)
-        layout.addWidget(self._emitter_demand_table)
+        layout.addWidget(
+            _CollapsibleSection(
+                "Emitter demand summary",
+                self._emitter_demand_table,
+                expanded=True,
+                parent=self,
+            )
+        )
 
         # --------------------------------------------------
         # Hydronic skeleton table
         # --------------------------------------------------
-        skeleton_title = QLabel("Hydronic skeleton")
-        skeleton_title.setStyleSheet("font-weight:600; padding:6px;")
-        layout.addWidget(skeleton_title)
-
         self._hydronic_skeleton_table = QTableWidget(0, 5)
         self._hydronic_skeleton_table.setHorizontalHeaderLabels(
             ["Leg", "From", "To", "Type", "Length"]
@@ -192,15 +258,18 @@ class HydronicsSchematicPanel(QWidget):
         skeleton_header.setSectionResizeMode(4, QHeaderView.ResizeToContents)
 
         self._hydronic_skeleton_table.setMinimumHeight(120)
-        layout.addWidget(self._hydronic_skeleton_table)
+        layout.addWidget(
+            _CollapsibleSection(
+                "Hydronic skeleton",
+                self._hydronic_skeleton_table,
+                expanded=True,
+                parent=self,
+            )
+        )
 
         # --------------------------------------------------
         # Pipe-run intent table
         # --------------------------------------------------
-        pipe_title = QLabel("Pipe-run intent")
-        pipe_title.setStyleSheet("font-weight:600; padding:6px;")
-        layout.addWidget(pipe_title)
-
         self._pipe_run_intent_table = QTableWidget(0, 7)
         self._pipe_run_intent_table.setHorizontalHeaderLabels(
             ["Pipe Run", "From", "To", "Circuit", "Length", "Material", "Diameter"]
@@ -219,17 +288,18 @@ class HydronicsSchematicPanel(QWidget):
         pipe_header.setSectionResizeMode(6, QHeaderView.ResizeToContents)
 
         self._pipe_run_intent_table.setMinimumHeight(120)
-        layout.addWidget(self._pipe_run_intent_table)
+        layout.addWidget(
+            _CollapsibleSection(
+                "Pipe-run intent",
+                self._pipe_run_intent_table,
+                expanded=True,
+                parent=self,
+            )
+        )
 
-        # Only one stretch, always last.
-        layout.addStretch(1)
         # --------------------------------------------------
         # Basic hydronics worksheet table
         # --------------------------------------------------
-        basic_title = QLabel("Basic hydronics worksheet")
-        basic_title.setStyleSheet("font-weight:600; padding:6px;")
-        layout.addWidget(basic_title)
-
         self._basic_hydronics_table = QTableWidget(0, 9)
         self._basic_hydronics_table.setHorizontalHeaderLabels(
             [
@@ -260,7 +330,17 @@ class HydronicsSchematicPanel(QWidget):
         basic_header.setSectionResizeMode(8, QHeaderView.ResizeToContents)
 
         self._basic_hydronics_table.setMinimumHeight(140)
-        layout.addWidget(self._basic_hydronics_table)
+        layout.addWidget(
+            _CollapsibleSection(
+                "Basic hydronics worksheet",
+                self._basic_hydronics_table,
+                expanded=True,
+                parent=self,
+            )
+        )
+
+        # Only one stretch, always last.
+        layout.addStretch(1)
     # ------------------------------------------------------------------
     # Painting
     # ------------------------------------------------------------------

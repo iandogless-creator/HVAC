@@ -112,7 +112,12 @@ class HydronicControlPanelAdapter:
         if current_room_id:
             self._panel.set_active_room(current_room_id)
 
+        # in HydronicControlPanelAdapter.refresh()
         self._panel.set_emitters(self._emitter_options())
+
+        current_emitter_id = self._panel.current_emitter_id()
+        if current_emitter_id:
+            self._on_emitter_selected(current_emitter_id)
         self._panel.set_status("Hydronic control shell ready.")
 
     def _room_options(self) -> list[tuple[str, str]]:
