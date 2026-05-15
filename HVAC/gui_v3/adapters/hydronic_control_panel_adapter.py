@@ -133,17 +133,39 @@ class HydronicControlPanelAdapter:
         return room_short_label(room_id, room)
 
     def _emitter_options(self) -> list[tuple[str, str]]:
+        """
+        Existing emitter options for the currently selected room only.
+
+        Hydronic Control is a room/emitter editor, so its emitter selector
+        should follow the active room rather than listing unrelated emitters.
+        """
         emitters = getattr(self._project_state, "emitters", {}) or {}
+
+        active_room_id = self._panel.current_room_id()
+        if not active_room_id:
+            active_room_id = self._current_room_id()
 
         options: list[tuple[str, str]] = []
 
         for emitter_id, emitter in emitters.items():
-            room_id = getattr(emitter, "room_id", "")
+            room_id = str(getattr(emitter, "room_id", "") or "")
+
+            if active_room_id and room_id != active_room_id:
+                continue
+
             emitter_type = getattr(emitter, "emitter_type", "emitter")
             name = getattr(emitter, "name", None) or emitter_id
 
+            output_W = getattr(emitter, "design_output_W", None)
+            output_label = (
+                "—"
+                if output_W is None
+                else f"{float(output_W):.1f} W"
+            )
+
             room_label = self._room_name_for_display(room_id) if room_id else "room"
-            label = f"{name} ({emitter_type}, {room_label})"
+            label = f"{name} — {output_label} ({emitter_type}, {room_label})"
+
             options.append((emitter_id, label))
 
         return options

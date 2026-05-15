@@ -223,7 +223,44 @@ class HydronicsSchematicPanel(QWidget):
 
         # Only one stretch, always last.
         layout.addStretch(1)
+        # --------------------------------------------------
+        # Basic hydronics worksheet table
+        # --------------------------------------------------
+        basic_title = QLabel("Basic hydronics worksheet")
+        basic_title.setStyleSheet("font-weight:600; padding:6px;")
+        layout.addWidget(basic_title)
 
+        self._basic_hydronics_table = QTableWidget(0, 9)
+        self._basic_hydronics_table.setHorizontalHeaderLabels(
+            [
+                "Room",
+                "Load",
+                "Emitter",
+                "Output",
+                "Status",
+                "FT",
+                "RT",
+                "ΔT",
+                "Flow",
+            ]
+        )
+        self._basic_hydronics_table.verticalHeader().setVisible(False)
+        self._basic_hydronics_table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self._basic_hydronics_table.setSelectionBehavior(QTableWidget.SelectRows)
+
+        basic_header = self._basic_hydronics_table.horizontalHeader()
+        basic_header.setSectionResizeMode(0, QHeaderView.Stretch)
+        basic_header.setSectionResizeMode(1, QHeaderView.ResizeToContents)
+        basic_header.setSectionResizeMode(2, QHeaderView.ResizeToContents)
+        basic_header.setSectionResizeMode(3, QHeaderView.ResizeToContents)
+        basic_header.setSectionResizeMode(4, QHeaderView.ResizeToContents)
+        basic_header.setSectionResizeMode(5, QHeaderView.ResizeToContents)
+        basic_header.setSectionResizeMode(6, QHeaderView.ResizeToContents)
+        basic_header.setSectionResizeMode(7, QHeaderView.ResizeToContents)
+        basic_header.setSectionResizeMode(8, QHeaderView.ResizeToContents)
+
+        self._basic_hydronics_table.setMinimumHeight(140)
+        layout.addWidget(self._basic_hydronics_table)
     # ------------------------------------------------------------------
     # Painting
     # ------------------------------------------------------------------
@@ -320,6 +357,38 @@ class HydronicsSchematicPanel(QWidget):
 
         for label in labels:
             painter.drawText(label.x, label.y, label.text)
+
+    def set_basic_hydronics_worksheet_rows(self, rows: list[dict]) -> None:
+        """
+        Read-only H-N5 basic hydronics worksheet projection.
+
+        No authority.
+        No ProjectState access.
+        No calculation.
+        """
+        self._basic_hydronics_table.setRowCount(len(rows))
+
+        for row_index, row in enumerate(rows):
+            values = [
+                row.get("room", "—"),
+                row.get("heat_load", "—"),
+                row.get("emitter", "—"),
+                row.get("output", "—"),
+                row.get("status", "—"),
+                row.get("flow_temp", "—"),
+                row.get("return_temp", "—"),
+                row.get("water_delta_t", "—"),
+                row.get("mass_flow", "—"),
+            ]
+
+            for col_index, value in enumerate(values):
+                item = QTableWidgetItem(str(value))
+                item.setFlags(item.flags() & ~Qt.ItemIsEditable)
+                self._basic_hydronics_table.setItem(
+                    row_index,
+                    col_index,
+                    item,
+                )
 
     # ------------------------------------------------------------------
     # Shape rendering (Phase E)

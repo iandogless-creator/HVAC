@@ -155,6 +155,22 @@ class MainWindowV3(QMainWindow):
             background: #e0a15a;
             color: #000000;
         }
+
+        QTableWidget::item:selected:active,
+        QListWidget::item:selected:active,
+        QTreeWidget::item:selected:active,
+        QComboBox QAbstractItemView::item:selected:active {
+            background: #e0a15a;
+            color: #000000;
+        }
+
+        QTableWidget::item:selected:!active,
+        QListWidget::item:selected:!active,
+        QTreeWidget::item:selected:!active,
+        QComboBox QAbstractItemView::item:selected:!active {
+            background: #e0a15a;
+            color: #000000;
+        }
         """)
 
         # --------------------------------------------------

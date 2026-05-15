@@ -39,6 +39,9 @@ from HVAC.hydronics.pipes.pipe_run_intent_builder_v1 import (
     build_pipe_run_intents_from_skeleton_v1,
 )
 from HVAC.core.room_identity import room_short_label
+from HVAC.hydronics.worksheets.basic_hydronics_worksheet_v1 import (
+    build_basic_hydronics_worksheet_v1,
+)
 
 class HydronicsSchematicPanelAdapter:
     """
@@ -101,6 +104,12 @@ class HydronicsSchematicPanelAdapter:
             self._build_pipe_run_rows(skeleton, pipe_runs)
         )
 
+        worksheet = build_basic_hydronics_worksheet_v1(
+            self._project_state
+        )
+        self._panel.set_basic_hydronics_worksheet_rows(
+            self._build_basic_hydronics_rows(worksheet)
+        )
         snapshot = self._resolve_topology_snapshot()
 
         if snapshot is None:
@@ -175,6 +184,42 @@ class HydronicsSchematicPanelAdapter:
             )
 
         return rows
+
+    def _build_basic_hydronics_rows(self, worksheet) -> list[dict]:
+        rows: list[dict] = []
+
+        for row in worksheet.rows:
+            rows.append(
+                {
+                    "room": row.room_label,
+                    "heat_load": self._fmt_w(row.heat_load_W),
+                    "emitter": row.emitter_summary,
+                    "output": self._fmt_w(row.emitter_output_W),
+                    "status": row.emitter_status,
+                    "flow_temp": self._fmt_c(row.flow_temp_C),
+                    "return_temp": self._fmt_c(row.return_temp_C),
+                    "water_delta_t": self._fmt_k(row.water_delta_t_K),
+                    "mass_flow": self._fmt_kg_s(row.mass_flow_kg_s),
+                }
+            )
+
+        return rows
+
+    @staticmethod
+    def _fmt_w(value) -> str:
+        return "—" if value is None else f"{float(value):.1f} W"
+
+    @staticmethod
+    def _fmt_c(value) -> str:
+        return "—" if value is None else f"{float(value):.1f} °C"
+
+    @staticmethod
+    def _fmt_k(value) -> str:
+        return "—" if value is None else f"{float(value):.1f} K"
+
+    @staticmethod
+    def _fmt_kg_s(value) -> str:
+        return "—" if value is None else f"{float(value):.5f} kg/s"
 
     # ------------------------------------------------------------------
     # DTO construction
@@ -312,3 +357,19 @@ class HydronicsSchematicPanelAdapter:
             return 180.0
 
         return 0.0
+
+    @staticmethod
+    def _fmt_w(value) -> str:
+        return "—" if value is None else f"{float(value):.1f} W"
+
+    @staticmethod
+    def _fmt_c(value) -> str:
+        return "—" if value is None else f"{float(value):.1f} °C"
+
+    @staticmethod
+    def _fmt_k(value) -> str:
+        return "—" if value is None else f"{float(value):.1f} K"
+
+    @staticmethod
+    def _fmt_kg_s(value) -> str:
+        return "—" if value is None else f"{float(value):.5f} kg/s"

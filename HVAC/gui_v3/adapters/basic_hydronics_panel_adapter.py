@@ -178,26 +178,32 @@ class BasicHydronicsPanelAdapter:
     def _room_display_name(room_id: str, room: object) -> str:
         return room_short_label(room_id, room)
 
-    @staticmethod
     def _emitter_display_name(
-            *,
-            emitter_id: str,
-            emitter: object,
-            project: object,
+        self,
+        *,
+        emitter_id: str,
+        emitter: object,
+        project,
     ) -> str:
-        emitter_name = getattr(emitter, "name", None) or "Emitter"
+
+        name = getattr(emitter, "name", None) or emitter_id
         emitter_type = getattr(emitter, "emitter_type", None) or "emitter"
         room_id = getattr(emitter, "room_id", None)
 
-        room_name = None
-        if room_id and hasattr(project, "rooms"):
+        output_W = getattr(emitter, "design_output_W", None)
+        output_label = (
+            "—"
+            if output_W is None
+            else f"{float(output_W):.1f} W"
+        )
+
+        if room_id:
             room = project.rooms.get(room_id)
             if room is not None:
-                room_name = getattr(room, "name", None) or getattr(
-                    room,
-                    "display_name",
-                    None,
-                )
+                room_label = self._room_display_name(room_id, room)
+                return f"{name} — {output_label} ({emitter_type}, {room_label})"
+
+        return f"{name} — {output_label} ({emitter_type})"
 
         # Avoid labels like:
         #   Emitter — Kitchen (DEV) — Kitchen (DEV)
