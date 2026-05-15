@@ -157,13 +157,10 @@ class HydronicControlPanelAdapter:
             name = getattr(emitter, "name", None) or emitter_id
 
             output_W = getattr(emitter, "design_output_W", None)
-            output_label = (
-                "—"
-                if output_W is None
-                else f"{float(output_W):.1f} W"
-            )
+            output_label = self._fmt_output_W(output_W)
 
             room_label = self._room_name_for_display(room_id) if room_id else "room"
+
             label = f"{name} — {output_label} ({emitter_type}, {room_label})"
 
             options.append((emitter_id, label))
@@ -230,6 +227,26 @@ class HydronicControlPanelAdapter:
 
     def _display_emitter_type(self, emitter_type: str) -> str:
         return emitter_type.replace("_", " ").title()
+
+    @staticmethod
+    def _fmt_output_W(value) -> str:
+        if value is None:
+            return "output unset"
+
+        try:
+            return f"{float(value):.1f} W"
+        except (TypeError, ValueError):
+            return "output unset"
+
+    @staticmethod
+    def _fmt_output_W(value) -> str:
+        if value is None:
+            return "output unset"
+
+        try:
+            return f"{float(value):.1f} W"
+        except (TypeError, ValueError):
+            return "output unset"
 
     # ------------------------------------------------------------------
     # Intent handlers — shell only

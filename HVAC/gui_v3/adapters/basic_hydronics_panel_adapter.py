@@ -179,23 +179,18 @@ class BasicHydronicsPanelAdapter:
         return room_short_label(room_id, room)
 
     def _emitter_display_name(
-        self,
-        *,
-        emitter_id: str,
-        emitter: object,
-        project,
+            self,
+            *,
+            emitter_id: str,
+            emitter: object,
+            project,
     ) -> str:
-
         name = getattr(emitter, "name", None) or emitter_id
         emitter_type = getattr(emitter, "emitter_type", None) or "emitter"
         room_id = getattr(emitter, "room_id", None)
 
         output_W = getattr(emitter, "design_output_W", None)
-        output_label = (
-            "—"
-            if output_W is None
-            else f"{float(output_W):.1f} W"
-        )
+        output_label = self._fmt_output_W(output_W)
 
         if room_id:
             room = project.rooms.get(room_id)
@@ -205,15 +200,15 @@ class BasicHydronicsPanelAdapter:
 
         return f"{name} — {output_label} ({emitter_type})"
 
-        # Avoid labels like:
-        #   Emitter — Kitchen (DEV) — Kitchen (DEV)
-        if room_name and str(room_name) not in str(emitter_name):
-            return f"{emitter_name} — {room_name}"
+    @staticmethod
+    def _fmt_output_W(value) -> str:
+        if value is None:
+            return "output unset"
 
-        if emitter_type:
-            return f"{emitter_name} ({emitter_type})"
-
-        return str(emitter_id)
+        try:
+            return f"{float(value):.1f} W"
+        except (TypeError, ValueError):
+            return "output unset"
 
     def _current_room_id(self) -> Optional[str]:
         for attr in (
