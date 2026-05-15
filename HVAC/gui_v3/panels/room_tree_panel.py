@@ -17,7 +17,6 @@ from PySide6.QtWidgets import (
     QTreeWidgetItem,
 )
 
-
 class RoomTreePanel(QWidget):
     """
     RoomTreePanel — GUI v3 (Observer)
@@ -42,6 +41,9 @@ class RoomTreePanel(QWidget):
     # ------------------------------------------------------------------
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
+
+        self._is_priming = False
+
         self.setMinimumWidth(240)
         self._build_ui()
 
@@ -83,19 +85,27 @@ class RoomTreePanel(QWidget):
         Display labels are human-facing only.
         Qt.UserRole stores the internal room_id.
         """
-        self._tree.clear()
+        self._is_priming = True
+        self._tree.blockSignals(True)
 
-        for entry in rooms:
-            if isinstance(entry, tuple) and len(entry) >= 2:
-                room_id = entry[0]
-                label = entry[1]
-            else:
-                room_id = entry
-                label = entry
+        try:
+            self._tree.clear()
 
-            item = QTreeWidgetItem([str(label)])
-            item.setData(0, Qt.UserRole, room_id)
-            self._tree.addTopLevelItem(item)
+            for entry in rooms:
+                if isinstance(entry, tuple) and len(entry) >= 2:
+                    room_id = entry[0]
+                    label = entry[1]
+                else:
+                    room_id = entry
+                    label = entry
+
+                item = QTreeWidgetItem([str(label)])
+                item.setData(0, Qt.UserRole, room_id)
+                self._tree.addTopLevelItem(item)
+
+        finally:
+            self._tree.blockSignals(False)
+            self._is_priming = False
 
     def set_active_room(self, room_id: object | None) -> None:
         """
@@ -103,24 +113,54 @@ class RoomTreePanel(QWidget):
 
         None-safe.
         """
-        if room_id is None:
-            self._tree.clearSelection()
-            return
+        self._is_priming = True
+        self._tree.blockSignals(True)
 
-        for i in range(self._tree.topLevelItemCount()):
-            item = self._tree.topLevelItem(i)
-            if item.data(0, Qt.UserRole) == room_id:
-                item.setSelected(True)
-                self._tree.scrollToItem(item)
+        try:
+            if room_id is None:
+                self._tree.clearSelection()
                 return
+
+            for i in range(self._tree.topLevelItemCount()):
+                item = self._tree.topLevelItem(i)
+
+                if item is None:
+                    continue
+
+                try:
+                    if item.data(0, Qt.UserRole) == room_id:
+                        item.setSelected(True)
+
+                        try:
+                            self._tree.scrollToItem(item)
+                        except RuntimeError:
+                            # Qt item was invalidated during a concurrent refresh.
+                            # Safe to ignore; next refresh will restore selection.
+                            pass
+
+                        return
+                except RuntimeError:
+                    # Item was deleted by Qt during refresh.
+                    continue
+
+        finally:
+            self._tree.blockSignals(False)
+            self._is_priming = False
 
     # ------------------------------------------------------------------
     # Internal
     # ------------------------------------------------------------------
     def _on_selection_changed(self) -> None:
+        if self._is_priming:
+            return
+
         items = self._tree.selectedItems()
         if not items:
             return
 
-        room_id = items[0].data(0, Qt.UserRole)
+        try:
+            room_id = items[0].data(0, Qt.UserRole)
+        except RuntimeError:
+            return
+
         self.room_selected.emit(room_id)

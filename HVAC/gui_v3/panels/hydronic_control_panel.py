@@ -52,6 +52,8 @@ class HydronicControlPanel(QWidget):
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
 
+        self._is_priming = False
+
         self._build_ui()
 
     # ------------------------------------------------------------------
@@ -141,6 +143,9 @@ class HydronicControlPanel(QWidget):
     # Adapter ingress
     # ------------------------------------------------------------------
     def _emit_emitter_selected(self) -> None:
+        if self._is_priming:
+            return
+
         self.emitter_selected.emit(self.current_emitter_id())
 
     def set_emitter_editor_values(
@@ -151,19 +156,23 @@ class HydronicControlPanel(QWidget):
             flow_temp_C: float | None,
             return_temp_C: float | None,
     ) -> None:
-        index = self._emitter_type.findData(emitter_type)
-        if index >= 0:
-            self._emitter_type.setCurrentIndex(index)
+        self._is_priming = True
+        try:
+            index = self._emitter_type.findData(emitter_type)
+            if index >= 0:
+                self._emitter_type.setCurrentIndex(index)
 
-        self._design_output_W.setValue(
-            0.0 if design_output_W is None else float(design_output_W)
-        )
+            self._design_output_W.setValue(
+                0.0 if design_output_W is None else float(design_output_W)
+            )
 
-        if flow_temp_C is not None:
-            self._flow_temp_C.setValue(float(flow_temp_C))
+            if flow_temp_C is not None:
+                self._flow_temp_C.setValue(float(flow_temp_C))
 
-        if return_temp_C is not None:
-            self._return_temp_C.setValue(float(return_temp_C))
+            if return_temp_C is not None:
+                self._return_temp_C.setValue(float(return_temp_C))
+        finally:
+            self._is_priming = False
 
     def set_rooms(self, rooms: list[tuple[str, str]]) -> None:
         """
@@ -176,18 +185,21 @@ class HydronicControlPanel(QWidget):
         """
         current_room_id = self.current_room_id()
 
+        self._is_priming = True
         self._room_combo.blockSignals(True)
-        self._room_combo.clear()
+        try:
+            self._room_combo.clear()
 
-        for room_id, label in rooms:
-            self._room_combo.addItem(label, room_id)
+            for room_id, label in rooms:
+                self._room_combo.addItem(label, room_id)
 
-        if current_room_id:
-            index = self._room_combo.findData(current_room_id)
-            if index >= 0:
-                self._room_combo.setCurrentIndex(index)
-
-        self._room_combo.blockSignals(False)
+            if current_room_id:
+                index = self._room_combo.findData(current_room_id)
+                if index >= 0:
+                    self._room_combo.setCurrentIndex(index)
+        finally:
+            self._room_combo.blockSignals(False)
+            self._is_priming = False
 
     def set_active_room(self, room_id: str | None) -> None:
         """
@@ -206,7 +218,6 @@ class HydronicControlPanel(QWidget):
         finally:
             self._room_combo.blockSignals(False)
 
-
     def set_emitters(self, emitters: list[tuple[str, str]]) -> None:
         """
         Observer projection.
@@ -218,29 +229,29 @@ class HydronicControlPanel(QWidget):
         """
         current_emitter_id = self.current_emitter_id()
 
+        self._is_priming = True
         self._emitter_combo.blockSignals(True)
-        self._emitter_combo.clear()
+        try:
+            self._emitter_combo.clear()
 
-        self._emitter_combo.addItem("—", "")
+            self._emitter_combo.addItem("—", "")
 
-        for emitter_id, label in emitters:
-            self._emitter_combo.addItem(label, emitter_id)
+            for emitter_id, label in emitters:
+                self._emitter_combo.addItem(label, emitter_id)
 
-        selected = False
+            selected = False
 
-        if current_emitter_id:
-            index = self._emitter_combo.findData(current_emitter_id)
-            if index >= 0:
-                self._emitter_combo.setCurrentIndex(index)
-                selected = True
+            if current_emitter_id:
+                index = self._emitter_combo.findData(current_emitter_id)
+                if index >= 0:
+                    self._emitter_combo.setCurrentIndex(index)
+                    selected = True
 
-        # H-E shell convenience:
-        # if there is exactly one or more real emitters and no previous
-        # selection, select the first real emitter.
-        if not selected and emitters:
-            self._emitter_combo.setCurrentIndex(1)
-
-        self._emitter_combo.blockSignals(False)
+            if not selected and emitters:
+                self._emitter_combo.setCurrentIndex(1)
+        finally:
+            self._emitter_combo.blockSignals(False)
+            self._is_priming = False
 
     def set_status(self, message: str) -> None:
         self._status.setText(message or "")
@@ -275,12 +286,21 @@ class HydronicControlPanel(QWidget):
     # ------------------------------------------------------------------
 
     def _emit_add_requested(self) -> None:
+        if self._is_priming:
+            return
+
         self.add_emitter_requested.emit(self._payload())
 
     def _emit_update_requested(self) -> None:
+        if self._is_priming:
+            return
+
         self.update_emitter_requested.emit(self._payload())
 
     def _emit_remove_requested(self) -> None:
+        if self._is_priming:
+            return
+
         emitter_id = self.current_emitter_id()
         if emitter_id:
             self.remove_emitter_requested.emit(emitter_id)

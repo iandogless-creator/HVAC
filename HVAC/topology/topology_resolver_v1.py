@@ -156,6 +156,7 @@ class TopologyResolverV1:
 
         L = float(g.length_m)
         W = float(g.width_m)
+        area_m2 = L * W
 
         segments: List[BoundarySegmentV1] = []
 
@@ -167,7 +168,7 @@ class TopologyResolverV1:
                 segment_id=f"{room.room_id}-floor",
                 owner_room_id=room.room_id,
                 geometry_ref="floor",
-                length_m=0.0,
+                length_m=float(area_m2),
                 boundary_kind="EXTERNAL",
                 adjacent_room_id=None,
             )
@@ -196,7 +197,7 @@ class TopologyResolverV1:
                 segment_id=f"{room.room_id}-ceiling",
                 owner_room_id=room.room_id,
                 geometry_ref="ceiling",
-                length_m=0.0,
+                length_m=float(area_m2),
                 boundary_kind="EXTERNAL",
                 adjacent_room_id=None,
             )
