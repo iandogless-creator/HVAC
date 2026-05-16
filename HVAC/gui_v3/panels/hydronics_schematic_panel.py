@@ -212,97 +212,80 @@ class HydronicsSchematicPanel(QWidget):
         layout.addWidget(title)
 
         # --------------------------------------------------
-        # Emitter demand summary table
+        # Emitter demand summary
         # --------------------------------------------------
-        self._emitter_demand_table = QTableWidget(0, 5)
-        self._emitter_demand_table.setHorizontalHeaderLabels(
-            ["Room", "Heat Load", "Emitter", "Output", "Status"]
+        self._emitter_demand_table = self._make_table(
+            columns=["Room", "Heat Load", "Emitter", "Output", "Status"],
+            stretch_columns={0},
         )
-        self._emitter_demand_table.verticalHeader().setVisible(False)
-        self._emitter_demand_table.setEditTriggers(QTableWidget.NoEditTriggers)
-        self._emitter_demand_table.setSelectionBehavior(QTableWidget.SelectRows)
-
-        demand_header = self._emitter_demand_table.horizontalHeader()
-        demand_header.setSectionResizeMode(0, QHeaderView.Stretch)
-        demand_header.setSectionResizeMode(1, QHeaderView.ResizeToContents)
-        demand_header.setSectionResizeMode(2, QHeaderView.ResizeToContents)
-        demand_header.setSectionResizeMode(3, QHeaderView.ResizeToContents)
-        demand_header.setSectionResizeMode(4, QHeaderView.ResizeToContents)
-
-        self._emitter_demand_table.setMinimumHeight(120)
-        layout.addWidget(
-            _CollapsibleSection(
-                "Emitter demand summary",
-                self._emitter_demand_table,
-                expanded=True,
-                parent=self,
-            )
+        self._add_section(
+            layout,
+            title="Emitter demand summary",
+            table=self._emitter_demand_table,
+            min_height=120,
         )
 
         # --------------------------------------------------
-        # Hydronic skeleton table
+        # Hydronic skeleton
         # --------------------------------------------------
-        self._hydronic_skeleton_table = QTableWidget(0, 5)
-        self._hydronic_skeleton_table.setHorizontalHeaderLabels(
-            ["Leg", "From", "To", "Type", "Length"]
+        self._hydronic_skeleton_table = self._make_table(
+            columns=["Leg", "From", "To", "Type", "Length"],
+            stretch_columns={1, 2},
         )
-        self._hydronic_skeleton_table.verticalHeader().setVisible(False)
-        self._hydronic_skeleton_table.setEditTriggers(QTableWidget.NoEditTriggers)
-        self._hydronic_skeleton_table.setSelectionBehavior(QTableWidget.SelectRows)
-
-        skeleton_header = self._hydronic_skeleton_table.horizontalHeader()
-        skeleton_header.setSectionResizeMode(0, QHeaderView.ResizeToContents)
-        skeleton_header.setSectionResizeMode(1, QHeaderView.Stretch)
-        skeleton_header.setSectionResizeMode(2, QHeaderView.Stretch)
-        skeleton_header.setSectionResizeMode(3, QHeaderView.ResizeToContents)
-        skeleton_header.setSectionResizeMode(4, QHeaderView.ResizeToContents)
-
-        self._hydronic_skeleton_table.setMinimumHeight(120)
-        layout.addWidget(
-            _CollapsibleSection(
-                "Hydronic skeleton",
-                self._hydronic_skeleton_table,
-                expanded=True,
-                parent=self,
-            )
+        self._add_section(
+            layout,
+            title="Hydronic skeleton",
+            table=self._hydronic_skeleton_table,
+            min_height=120,
         )
 
         # --------------------------------------------------
-        # Pipe-run intent table
+        # Pipe-run intent
         # --------------------------------------------------
-        self._pipe_run_intent_table = QTableWidget(0, 7)
-        self._pipe_run_intent_table.setHorizontalHeaderLabels(
-            ["Pipe Run", "From", "To", "Circuit", "Length", "Material", "Diameter"]
+        self._pipe_run_intent_table = self._make_table(
+            columns=[
+                "Pipe Run",
+                "From",
+                "To",
+                "Circuit",
+                "Length",
+                "Material",
+                "Diameter",
+            ],
+            stretch_columns={1, 2},
         )
-        self._pipe_run_intent_table.verticalHeader().setVisible(False)
-        self._pipe_run_intent_table.setEditTriggers(QTableWidget.NoEditTriggers)
-        self._pipe_run_intent_table.setSelectionBehavior(QTableWidget.SelectRows)
-
-        pipe_header = self._pipe_run_intent_table.horizontalHeader()
-        pipe_header.setSectionResizeMode(0, QHeaderView.ResizeToContents)
-        pipe_header.setSectionResizeMode(1, QHeaderView.Stretch)
-        pipe_header.setSectionResizeMode(2, QHeaderView.Stretch)
-        pipe_header.setSectionResizeMode(3, QHeaderView.ResizeToContents)
-        pipe_header.setSectionResizeMode(4, QHeaderView.ResizeToContents)
-        pipe_header.setSectionResizeMode(5, QHeaderView.ResizeToContents)
-        pipe_header.setSectionResizeMode(6, QHeaderView.ResizeToContents)
-
-        self._pipe_run_intent_table.setMinimumHeight(120)
-        layout.addWidget(
-            _CollapsibleSection(
-                "Pipe-run intent",
-                self._pipe_run_intent_table,
-                expanded=True,
-                parent=self,
-            )
+        self._add_section(
+            layout,
+            title="Pipe-run intent",
+            table=self._pipe_run_intent_table,
+            min_height=120,
         )
 
         # --------------------------------------------------
-        # Basic hydronics worksheet table
+        # Index route accumulator
         # --------------------------------------------------
-        self._basic_hydronics_table = QTableWidget(0, 12)
-        self._basic_hydronics_table.setHorizontalHeaderLabels(
-            [
+        self._index_route_table = self._make_table(
+            columns=[
+                "Sec",
+                "From",
+                "To",
+                "Acc. flow",
+                "Included",
+            ],
+            stretch_columns={1, 2},
+        )
+        self._add_section(
+            layout,
+            title="Index route accumulator",
+            table=self._index_route_table,
+            min_height=150,
+        )
+
+        # --------------------------------------------------
+        # Basic hydronics worksheet
+        # --------------------------------------------------
+        self._basic_hydronics_table = self._make_table(
+            columns=[
                 "Room",
                 "Load",
                 "Required",
@@ -315,38 +298,104 @@ class HydronicsSchematicPanel(QWidget):
                 "RT",
                 "ΔT",
                 "Flow",
-            ]
+            ],
+            stretch_columns={0},
         )
-        self._basic_hydronics_table.verticalHeader().setVisible(False)
-        self._basic_hydronics_table.setEditTriggers(QTableWidget.NoEditTriggers)
-        self._basic_hydronics_table.setSelectionBehavior(QTableWidget.SelectRows)
-
-        basic_header = self._basic_hydronics_table.horizontalHeader()
-        basic_header.setSectionResizeMode(0, QHeaderView.Stretch)
-        basic_header.setSectionResizeMode(1, QHeaderView.ResizeToContents)
-        basic_header.setSectionResizeMode(2, QHeaderView.ResizeToContents)
-        basic_header.setSectionResizeMode(3, QHeaderView.ResizeToContents)
-        basic_header.setSectionResizeMode(4, QHeaderView.ResizeToContents)
-        basic_header.setSectionResizeMode(5, QHeaderView.ResizeToContents)
-        basic_header.setSectionResizeMode(6, QHeaderView.ResizeToContents)
-        basic_header.setSectionResizeMode(7, QHeaderView.ResizeToContents)
-        basic_header.setSectionResizeMode(8, QHeaderView.ResizeToContents)
-        basic_header.setSectionResizeMode(9, QHeaderView.ResizeToContents)
-        basic_header.setSectionResizeMode(10, QHeaderView.ResizeToContents)
-        basic_header.setSectionResizeMode(11, QHeaderView.ResizeToContents)
-
-        self._basic_hydronics_table.setMinimumHeight(140)
-        layout.addWidget(
-            _CollapsibleSection(
-                "Basic hydronics worksheet",
-                self._basic_hydronics_table,
-                expanded=True,
-                parent=self,
-            )
+        self._add_section(
+            layout,
+            title="Basic hydronics worksheet",
+            table=self._basic_hydronics_table,
+            min_height=160,
         )
 
         # Only one stretch, always last.
         layout.addStretch(1)
+
+    def _make_table(
+        self,
+        *,
+        columns: list[str],
+        stretch_columns: set[int] | None = None,
+    ) -> QTableWidget:
+        """
+        Create a standard read-only hydronics table.
+
+        Presentation only.
+        No ProjectState access.
+        No calculation.
+        """
+        table = QTableWidget(0, len(columns))
+        table.setHorizontalHeaderLabels(columns)
+
+        table.verticalHeader().setVisible(False)
+        table.setEditTriggers(QTableWidget.NoEditTriggers)
+        table.setSelectionBehavior(QTableWidget.SelectRows)
+
+        stretch_columns = stretch_columns or set()
+
+        header = table.horizontalHeader()
+        for column_index in range(len(columns)):
+            if column_index in stretch_columns:
+                header.setSectionResizeMode(
+                    column_index,
+                    QHeaderView.Stretch,
+                )
+            else:
+                header.setSectionResizeMode(
+                    column_index,
+                    QHeaderView.ResizeToContents,
+                )
+
+        return table
+
+    def _add_section(
+        self,
+        layout: QVBoxLayout,
+        *,
+        title: str,
+        table: QTableWidget,
+        min_height: int,
+        expanded: bool = True,
+    ) -> None:
+        """
+        Add a table inside a collapsible hydronics section.
+
+        Presentation only.
+        """
+        table.setMinimumHeight(min_height)
+
+        layout.addWidget(
+            _CollapsibleSection(
+                title,
+                table,
+                expanded=expanded,
+                parent=self,
+            )
+        )
+
+    def _fit_table_height(
+            self,
+            table: QTableWidget,
+            *,
+            min_height: int = 120,
+            max_height: int = 260,
+    ) -> None:
+        """
+        Presentation-only table height helper.
+
+        Keeps worksheet sections readable without forcing every table to
+        consume excessive vertical space.
+        """
+        header_height = table.horizontalHeader().height()
+        row_count = table.rowCount()
+        row_height = table.verticalHeader().defaultSectionSize()
+        frame = table.frameWidth() * 2
+
+        wanted = header_height + frame + ((row_count + 1) * row_height)
+        height = max(min_height, min(max_height, wanted))
+
+        table.setMinimumHeight(height)
+
     # ------------------------------------------------------------------
     # Painting
     # ------------------------------------------------------------------
@@ -478,6 +527,35 @@ class HydronicsSchematicPanel(QWidget):
                     col_index,
                     item,
                 )
+        self._fit_table_height(self._basic_hydronics_table, min_height=160, max_height=280)
+        self._basic_hydronics_table.scrollToTop()
+
+    def set_index_route_accumulator_rows(self, rows: list[dict]) -> None:
+        """
+        Observer-only H-N7 index route accumulator projection.
+
+        Rows are adapter-derived display DTOs.
+        The panel does not inspect ProjectState and does not calculate.
+        """
+        table = self._index_route_table
+        table.setRowCount(len(rows))
+
+        for row_index, row in enumerate(rows):
+            values = [
+                row.get("section", "—"),
+                row.get("from", "—"),
+                row.get("to", "—"),
+                row.get("accumulated_flow", "—"),
+                row.get("included", "—"),
+            ]
+
+            for col_index, value in enumerate(values):
+                item = QTableWidgetItem(str(value))
+                item.setFlags(item.flags() & ~Qt.ItemIsEditable)
+                table.setItem(row_index, col_index, item)
+
+        self._fit_table_height(table, min_height=150, max_height=240)
+        table.scrollToTop()
 
     # ------------------------------------------------------------------
     # Shape rendering (Phase E)
@@ -668,6 +746,8 @@ class HydronicsSchematicPanel(QWidget):
             table.setItem(row_index, 2, QTableWidgetItem(emitter))
             table.setItem(row_index, 3, QTableWidgetItem(output))
             table.setItem(row_index, 4, QTableWidgetItem(row.status))
+            self._fit_table_height(table, min_height=120, max_height=220)
+            table.scrollToTop()
 
     def set_hydronic_skeleton_rows(self, rows: list[dict]) -> None:
         """
@@ -695,6 +775,8 @@ class HydronicsSchematicPanel(QWidget):
                 item = QTableWidgetItem(value)
                 item.setFlags(item.flags() & ~Qt.ItemIsEditable)
                 table.setItem(row_index, col_index, item)
+        self._fit_table_height(table, min_height=120, max_height=240)
+        table.scrollToTop()
 
     def set_pipe_run_intent_rows(self, rows: list[dict]) -> None:
         """
@@ -733,6 +815,8 @@ class HydronicsSchematicPanel(QWidget):
                 item = QTableWidgetItem(value)
                 item.setFlags(item.flags() & ~Qt.ItemIsEditable)
                 table.setItem(row_index, col_index, item)
+        self._fit_table_height(table, min_height=120, max_height=240)
+        table.scrollToTop()
 
     # ------------------------------------------------------------------
     # Input suppression

@@ -45,6 +45,9 @@ from HVAC.hydronics.worksheets.basic_hydronics_worksheet_v1 import (
 from HVAC.hydronics.sizing.emitter_sizing_suggestion_v1 import (
     build_emitter_sizing_suggestion_v1,
 )
+from HVAC.hydronics.routing.index_route_accumulator_v1 import (
+    build_index_route_accumulator_v1,
+)
 
 class HydronicsSchematicPanelAdapter:
     """
@@ -106,13 +109,19 @@ class HydronicsSchematicPanelAdapter:
         self._panel.set_pipe_run_intent_rows(
             self._build_pipe_run_rows(skeleton, pipe_runs)
         )
+        index_route = build_index_route_accumulator_v1(
+            self._project_state
+        )
+        self._panel.set_index_route_accumulator_rows(
+            self._build_index_route_rows(index_route)
+        )
 
         worksheet = build_basic_hydronics_worksheet_v1(
             self._project_state
         )
         sizing_suggestion = build_emitter_sizing_suggestion_v1(
             self._project_state,
-            allowance_percent=12.0,
+            allowance_percent=self._resolve_emitter_allowance_percent(),
             rounding_step_W=50.0,
         )
         self._panel.set_basic_hydronics_worksheet_rows(
@@ -121,6 +130,7 @@ class HydronicsSchematicPanelAdapter:
                 sizing_suggestion,
             )
         )
+
         snapshot = self._resolve_topology_snapshot()
 
         if snapshot is None:
@@ -156,6 +166,39 @@ class HydronicsSchematicPanelAdapter:
                     "to": self._node_label(skeleton, leg.to_node_id),
                     "type": "Return",
                     "length_m": leg.length_m,
+                }
+            )
+
+        return rows
+
+    def _build_index_route_rows(self, index_route) -> list[dict]:
+        rows: list[dict] = []
+
+        for section in getattr(index_route, "sections", []):
+            rows.append(
+                {
+                    "section": str(section.section_index),
+                    "from": section.from_room_label,
+                    "to": section.to_room_label,
+                    "accumulated_flow": self._fmt_kg_s(
+                        section.accumulated_mass_flow_kg_s
+                    ),
+                    "included": self._compact_included_labels(
+                        section.included_room_labels
+                    ),
+                }
+            )
+
+        # Optional compact note row for excluded rooms.
+        excluded = getattr(index_route, "excluded_room_labels", tuple()) or tuple()
+        if excluded:
+            rows.append(
+                {
+                    "section": "—",
+                    "from": "Excluded",
+                    "to": "",
+                    "accumulated_flow": "",
+                    "included": ", ".join(excluded),
                 }
             )
 
@@ -241,6 +284,77 @@ class HydronicsSchematicPanelAdapter:
             )
 
         return rows
+
+    def _resolve_emitter_allowance_percent(self) -> float:
+        """
+        Resolve emitter sizing allowance.
+
+        Current authority
+        -----------------
+        ProjectState.basic_hydronic_sizing_intent.allowance_percent
+
+        Fallback
+        --------
+        12.0 %
+
+        Notes
+        -----
+        This is a read-only projection helper. It does not mutate ProjectState.
+        Later this may move to Environment / Hydronic Design Conditions.
+        """
+        intent = getattr(
+            self._project_state,
+            "basic_hydronic_sizing_intent",
+            None,
+        )
+
+        if intent is None:
+            return 12.0
+
+        value = getattr(intent, "allowance_percent", None)
+
+        if value is None:
+            return 12.0
+
+        try:
+            value = float(value)
+        except (TypeError, ValueError):
+            return 12.0
+
+        if value < 0.0:
+            return 12.0
+
+        return value
+
+    @staticmethod
+    def _compact_included_labels(labels) -> str:
+        """
+        Compact display for included route rooms.
+
+        For short paths:
+            R5
+            R5 + R4
+            R5 + R4 + R3
+
+        For longer paths:
+            R5–R2
+        """
+        labels = list(labels or [])
+
+        if not labels:
+            return "—"
+
+        refs: list[str] = []
+
+        for label in labels:
+            text = str(label)
+            ref = text.split(" ", 1)[0] if text else ""
+            refs.append(ref or text)
+
+        if len(refs) <= 3:
+            return " + ".join(refs)
+
+        return f"{refs[0]}–{refs[-1]}"
 
     @staticmethod
     def _fmt_w(value) -> str:
