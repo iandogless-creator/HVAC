@@ -116,6 +116,10 @@ class HydronicsSchematicPanelAdapter:
             self._build_index_route_rows(index_route)
         )
 
+        self._panel.set_index_route_trace(
+            **self._build_index_route_trace(index_route)
+        )
+
         worksheet = build_basic_hydronics_worksheet_v1(
             self._project_state
         )
@@ -170,6 +174,46 @@ class HydronicsSchematicPanelAdapter:
             )
 
         return rows
+
+    def _build_index_route_trace(self, index_route) -> dict:
+        """
+        Build display data for the H-N7c linear index route trace.
+
+        This is projection only. Route authority remains
+        IndexRouteAccumulatorV1.
+        """
+        sections = list(getattr(index_route, "sections", []) or [])
+
+        if not sections:
+            return {
+                "nodes": [],
+                "flows": [],
+                "excluded": list(
+                    getattr(index_route, "excluded_room_labels", tuple())
+                    or tuple()
+                ),
+                "basis": str(getattr(index_route, "route_basis", "") or ""),
+            }
+
+        nodes: list[str] = [sections[0].from_room_label]
+        flows: list[str] = []
+
+        for section in sections:
+            nodes.append(section.to_room_label)
+            flows.append(
+                self._fmt_kg_s(section.accumulated_mass_flow_kg_s)
+            )
+
+        excluded = list(
+            getattr(index_route, "excluded_room_labels", tuple()) or tuple()
+        )
+
+        return {
+            "nodes": nodes,
+            "flows": flows,
+            "excluded": excluded,
+            "basis": str(getattr(index_route, "route_basis", "") or ""),
+        }
 
     def _build_index_route_rows(self, index_route) -> list[dict]:
         rows: list[dict] = []

@@ -81,6 +81,7 @@ from HVAC.gui_v3.panels.basic_hydronics_panel import BasicHydronicsPanel
 from HVAC.gui_v3.adapters.basic_hydronics_panel_adapter import (
     BasicHydronicsPanelAdapter,
 )
+
 # ======================================================================
 # Main Window
 # ======================================================================
@@ -523,6 +524,31 @@ class MainWindowV3(QMainWindow):
         self._uvp_panel.set_constructions(ps.constructions)
         self._refresh_all_adapters()
 
+    def _run_heatloss_for_current_project(self) -> None:
+        """
+        Shared project-level heat-loss execution path.
+
+        Delegates to HeatLossPanelAdapter so Project → Run Heat-Loss and
+        the Heat-Loss panel button use the same calculation path.
+        """
+        adapter = getattr(self, "_heat_loss_panel_adapter", None)
+        if adapter is None:
+            return
+
+        adapter.run_heatloss()
+
+    def _run_heatloss_project_action(self) -> None:
+        """
+        Project-level Run Heat-Loss action.
+
+        This must not depend on the Heat-Loss panel being visible.
+        It reuses the same calculation path as the Heat-Loss worksheet button.
+        """
+        ps = self._context.project_state
+        if ps is None:
+            return
+
+        self._run_heatloss_for_current_project()
 
     def _create_default_room(self, project: ProjectState) -> str:
         room_id = "room-001"
@@ -604,6 +630,14 @@ class MainWindowV3(QMainWindow):
     # ------------------------------------------------------------------
     def _build_menu(self) -> None:
         menubar = self.menuBar()
+        # ---------------------------
+        # Project Menu
+        # ---------------------------
+        project_menu = menubar.addMenu("Project")
+
+        action_run_heatloss = QAction("Run Heat-Loss", self)
+        action_run_heatloss.triggered.connect(self._run_heatloss_project_action)
+        project_menu.addAction(action_run_heatloss)
 
         # ---------------------------
         # File Menu

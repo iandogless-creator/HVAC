@@ -165,6 +165,157 @@ class _CollapsibleSection(QWidget):
         return bool(self._toggle.isChecked())
 
 
+# ======================================================================
+# Index Route Strip Widget
+# ======================================================================
+
+class _IndexRouteStripWidget(QWidget):
+    """
+    H-N7c — Linear index route trace.
+
+    Visual projection only:
+    • no ProjectState access
+    • no route calculation
+    • no pipe sizing
+    • no pressure loss
+    """
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+
+        self._nodes: list[str] = []
+        self._flows: list[str] = []
+        self._excluded: list[str] = []
+        self._basis: str = ""
+
+        self.setMinimumHeight(130)
+
+    def set_route(
+        self,
+        *,
+        nodes: list[str],
+        flows: list[str],
+        excluded: list[str],
+        basis: str,
+    ) -> None:
+        self._nodes = list(nodes or [])
+        self._flows = list(flows or [])
+        self._excluded = list(excluded or [])
+        self._basis = str(basis or "")
+        self.update()
+
+    def paintEvent(self, event) -> None:  # noqa: N802
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+
+        painter.fillRect(self.rect(), QBrush(Qt.white))
+
+        if len(self._nodes) < 2:
+            painter.setPen(QPen(Qt.gray))
+            painter.drawText(
+                self.rect(),
+                Qt.AlignCenter,
+                "No index route trace available",
+            )
+            return
+
+        margin_x = 24.0
+        node_y = 48.0
+        node_w = 118.0
+        node_h = 30.0
+
+        available_w = max(1.0, float(self.width()) - (2.0 * margin_x))
+        count = len(self._nodes)
+
+        if count <= 1:
+            x_positions = [margin_x]
+        else:
+            step = available_w / float(count - 1)
+            x_positions = [margin_x + (i * step) for i in range(count)]
+
+        # --------------------------------------------------
+        # Draw links first
+        # --------------------------------------------------
+        for i in range(count - 1):
+            x1 = x_positions[i] + (node_w / 2.0)
+            x2 = x_positions[i + 1] - (node_w / 2.0)
+            y = node_y + (node_h / 2.0)
+
+            # If the panel is narrow, allow overlap but still draw a line.
+            if x2 < x1:
+                x1 = x_positions[i]
+                x2 = x_positions[i + 1]
+
+            painter.setPen(QPen(Qt.darkGray, 2.0))
+            painter.drawLine(QPointF(x1, y), QPointF(x2, y))
+
+            # Arrow head
+            arrow = QPolygonF(
+                [
+                    QPointF(x2, y),
+                    QPointF(x2 - 8.0, y - 5.0),
+                    QPointF(x2 - 8.0, y + 5.0),
+                ]
+            )
+            painter.setBrush(QBrush(Qt.darkGray))
+            painter.drawPolygon(arrow)
+
+            # Flow label
+            flow = self._flows[i] if i < len(self._flows) else ""
+            if flow:
+                painter.setPen(QPen(Qt.darkBlue))
+                painter.drawText(
+                    QRectF(
+                        min(x1, x2),
+                        y + 8.0,
+                        abs(x2 - x1) + 1.0,
+                        20.0,
+                    ),
+                    Qt.AlignCenter,
+                    flow,
+                )
+
+        # --------------------------------------------------
+        # Draw nodes
+        # --------------------------------------------------
+        painter.setFont(QFont())
+
+        for i, label in enumerate(self._nodes):
+            x = x_positions[i] - (node_w / 2.0)
+            rect = QRectF(x, node_y, node_w, node_h)
+
+            painter.setPen(QPen(Qt.black))
+            painter.setBrush(QBrush(Qt.lightGray))
+            painter.drawRoundedRect(rect, 6.0, 6.0)
+
+            painter.setPen(QPen(Qt.black))
+            painter.drawText(rect, Qt.AlignCenter, label)
+
+        # --------------------------------------------------
+        # Footer
+        # --------------------------------------------------
+        footer_y = node_y + node_h + 48.0
+
+        footer_parts: list[str] = []
+
+        if self._basis:
+            footer_parts.append(f"Basis: {self._basis}")
+
+        if self._excluded:
+            footer_parts.append(
+                "Excluded: " + ", ".join(self._excluded)
+            )
+
+        footer = "   |   ".join(footer_parts)
+
+        if footer:
+            painter.setPen(QPen(Qt.darkGray))
+            painter.drawText(
+                QRectF(12.0, footer_y, float(self.width()) - 24.0, 24.0),
+                Qt.AlignLeft | Qt.AlignVCenter,
+                footer,
+            )
+
 class HydronicsSchematicPanel(QWidget):
 
     def __init__(self, parent=None) -> None:
@@ -279,6 +430,18 @@ class HydronicsSchematicPanel(QWidget):
             title="Index route accumulator",
             table=self._index_route_table,
             min_height=150,
+        )
+
+        # --------------------------------------------------
+        # Linear index route trace
+        # --------------------------------------------------
+        self._index_route_strip = _IndexRouteStripWidget(self)
+
+        self._add_section(
+            layout,
+            title="Linear index route trace",
+            table=self._index_route_strip,
+            min_height=130,
         )
 
         # --------------------------------------------------
@@ -401,18 +564,7 @@ class HydronicsSchematicPanel(QWidget):
     # ------------------------------------------------------------------
 
     def paintEvent(self, event) -> None:  # noqa: N802
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.Antialiasing)
-
-        self._paint_background(painter)
-
-        if self._schematic is None:
-            self._paint_empty(painter)
-            return
-
-        self._paint_edges(painter, self._schematic.edges)
-        self._paint_nodes(painter, self._schematic.nodes)
-        self._paint_labels(painter, self._schematic.annotations)
+        return
 
     # ------------------------------------------------------------------
     # Painting helpers
@@ -492,6 +644,28 @@ class HydronicsSchematicPanel(QWidget):
 
         for label in labels:
             painter.drawText(label.x, label.y, label.text)
+
+    def set_index_route_trace(
+        self,
+        *,
+        nodes: list[str],
+        flows: list[str],
+        excluded: list[str],
+        basis: str,
+    ) -> None:
+        """
+        Observer-only H-N7c linear index route trace projection.
+
+        No ProjectState access.
+        No route calculation.
+        No pipe sizing.
+        """
+        self._index_route_strip.set_route(
+            nodes=nodes,
+            flows=flows,
+            excluded=excluded,
+            basis=basis,
+        )
 
     def set_basic_hydronics_worksheet_rows(self, rows: list[dict]) -> None:
         """

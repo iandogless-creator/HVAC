@@ -464,6 +464,7 @@ class HeatLossPanelAdapter:
             return None
 
         return float(qf) + float(qv)
+
     def _on_surface_focus_requested(self, surface_id: str) -> None:
         """
         HLP surface focus routing.
@@ -497,6 +498,18 @@ class HeatLossPanelAdapter:
     # ------------------------------------------------------------------
     # Run
     # ------------------------------------------------------------------
+    def run_heatloss(self) -> None:
+        """
+        Public project-level heat-loss execution entry point.
+
+        Used by:
+        • Heat-Loss panel Run button
+        • MainWindow project-level Run Heat-Loss action
+
+        The calculation implementation remains in _on_run_requested().
+        """
+        self._on_run_requested()
+
     def _on_run_requested(self) -> None:
         from HVAC.topology.topology_validator_v1 import TopologyValidatorV1
         from HVAC.heatloss.controller_v4_orchestrator import HeatLossControllerV4
