@@ -48,6 +48,9 @@ from HVAC.hydronics.sizing.emitter_sizing_suggestion_v1 import (
 from HVAC.hydronics.routing.index_route_accumulator_v1 import (
     build_index_route_accumulator_v1,
 )
+from HVAC.hydronics.sizing.basic_pipe_size_suggestion_v1 import (
+    build_basic_pipe_size_suggestion_v1,
+)
 
 class HydronicsSchematicPanelAdapter:
     """
@@ -128,13 +131,25 @@ class HydronicsSchematicPanelAdapter:
             allowance_percent=self._resolve_emitter_allowance_percent(),
             rounding_step_W=50.0,
         )
+
         self._panel.set_basic_hydronics_worksheet_rows(
             self._build_basic_hydronics_rows(
                 worksheet,
                 sizing_suggestion,
             )
         )
-
+        index_route = build_index_route_accumulator_v1(
+            self._project_state
+        )
+        self._panel.set_index_route_accumulator_rows(
+            self._build_index_route_rows(index_route)
+        )
+        pipe_size_suggestion = build_basic_pipe_size_suggestion_v1(
+            self._project_state
+        )
+        self._panel.set_pipe_size_suggestion_rows(
+            self._build_pipe_size_suggestion_rows(pipe_size_suggestion)
+        )
         snapshot = self._resolve_topology_snapshot()
 
         if snapshot is None:
@@ -143,6 +158,30 @@ class HydronicsSchematicPanelAdapter:
 
         dto = self._build_schematic_dto(snapshot)
         self._panel._set_schematic(dto)
+
+    def _build_pipe_size_suggestion_rows(self, suggestion) -> list[dict]:
+        rows: list[dict] = []
+
+        for row in getattr(suggestion, "rows", []):
+            rows.append(
+                {
+                    "section": str(row.section_index),
+                    "from": row.from_room_label,
+                    "to": row.to_room_label,
+                    "flow": self._fmt_kg_s(
+                        row.accumulated_mass_flow_kg_s
+                    ),
+                    "size": self._fmt_mm(
+                        row.suggested_nominal_size_mm
+                    ),
+                    "capacity": self._fmt_kg_s(
+                        row.capacity_mass_flow_kg_s
+                    ),
+                    "status": row.status,
+                }
+            )
+
+        return rows
 
     # ------------------------------------------------------------------
     # Skeleton table projection
@@ -568,3 +607,7 @@ class HydronicsSchematicPanelAdapter:
     @staticmethod
     def _fmt_kg_s(value) -> str:
         return "—" if value is None else f"{float(value):.5f} kg/s"
+
+    @staticmethod
+    def _fmt_mm(value) -> str:
+        return "—" if value is None else f"{float(value):.0f} mm"

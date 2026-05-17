@@ -445,6 +445,28 @@ class HydronicsSchematicPanel(QWidget):
         )
 
         # --------------------------------------------------
+        # Basic pipe size suggestion table
+        # --------------------------------------------------
+        self._pipe_size_suggestion_table = self._make_table(
+            columns=[
+                "Sec",
+                "From",
+                "To",
+                "Flow",
+                "Size",
+                "Capacity",
+                "Status",
+            ],
+            stretch_columns={1, 2},
+        )
+        self._add_section(
+            layout,
+            title="Pipe size suggestion",
+            table=self._pipe_size_suggestion_table,
+            min_height=140,
+        )
+
+        # --------------------------------------------------
         # Basic hydronics worksheet
         # --------------------------------------------------
         self._basic_hydronics_table = self._make_table(
@@ -535,6 +557,35 @@ class HydronicsSchematicPanel(QWidget):
                 parent=self,
             )
         )
+
+    def set_pipe_size_suggestion_rows(self, rows: list[dict]) -> None:
+        """
+        Observer-only H-N8 basic pipe size suggestion projection.
+
+        Rows are adapter-derived display DTOs.
+        The panel does not inspect ProjectState and does not calculate.
+        """
+        table = self._pipe_size_suggestion_table
+        table.setRowCount(len(rows))
+
+        for row_index, row in enumerate(rows):
+            values = [
+                row.get("section", "—"),
+                row.get("from", "—"),
+                row.get("to", "—"),
+                row.get("flow", "—"),
+                row.get("size", "—"),
+                row.get("capacity", "—"),
+                row.get("status", "—"),
+            ]
+
+            for col_index, value in enumerate(values):
+                item = QTableWidgetItem(str(value))
+                item.setFlags(item.flags() & ~Qt.ItemIsEditable)
+                table.setItem(row_index, col_index, item)
+
+        self._fit_table_height(table, min_height=140, max_height=240)
+        table.scrollToTop()
 
     def _fit_table_height(
             self,
