@@ -42,7 +42,9 @@ from PySide6.QtWidgets import (
     QTableWidgetItem,
     QHeaderView,
     QToolButton,
+    QScrollArea,
 )
+
 
 from HVAC.gui_v3.schematic.dto import (
     HydronicsSchematicDTO,
@@ -391,8 +393,21 @@ class HydronicsSchematicPanel(QWidget):
         )
 
     def _build_ui(self) -> None:
-        layout = QVBoxLayout(self)
+        outer_layout = QVBoxLayout(self)
+        outer_layout.setContentsMargins(0, 0, 0, 0)
+        outer_layout.setSpacing(0)
+
+        scroll = QScrollArea(self)
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+
+        content = QWidget(scroll)
+        layout = QVBoxLayout(content)
         layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(4)
+
+        scroll.setWidget(content)
+        outer_layout.addWidget(scroll)
 
         # --------------------------------------------------
         # Title
