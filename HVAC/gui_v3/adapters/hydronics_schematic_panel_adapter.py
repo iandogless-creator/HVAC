@@ -90,17 +90,28 @@ class HydronicsSchematicPanelAdapter:
 
     def refresh(self) -> None:
         """
-        Phase H-D/H-F refresh.
+        Phase H-D/H-N refresh.
 
         • Demand rows are observer-only
-        • Empty hydronics topology remains a valid schematic empty state
+        • Hydronic skeleton / pipe-run intent are projections
+        • Index route accumulator is projection-only
+        • Basic pipe size suggestion is projection-only
         • No emitter creation
-        • No hydronic physics is executed here
+        • No hydronic physics / pressure-loss calculation is executed here
+        • No ProjectState mutation
         """
 
-        rows = RoomEmitterDemandAdapterV1().build_rows(self._project_state)
-        self._panel.set_emitter_demand_rows(rows)
+        # --------------------------------------------------
+        # Emitter demand summary
+        # --------------------------------------------------
+        demand_rows = RoomEmitterDemandAdapterV1().build_rows(
+            self._project_state
+        )
+        self._panel.set_emitter_demand_rows(demand_rows)
 
+        # --------------------------------------------------
+        # Hydronic skeleton
+        # --------------------------------------------------
         skeleton = build_hydronic_skeleton_from_project_state_v1(
             self._project_state
         )
@@ -108,10 +119,17 @@ class HydronicsSchematicPanelAdapter:
             self._build_skeleton_rows(skeleton)
         )
 
+        # --------------------------------------------------
+        # Pipe-run intent
+        # --------------------------------------------------
         pipe_runs = build_pipe_run_intents_from_skeleton_v1(skeleton)
         self._panel.set_pipe_run_intent_rows(
             self._build_pipe_run_rows(skeleton, pipe_runs)
         )
+
+        # --------------------------------------------------
+        # Index route accumulator
+        # --------------------------------------------------
         index_route = build_index_route_accumulator_v1(
             self._project_state
         )
@@ -119,10 +137,29 @@ class HydronicsSchematicPanelAdapter:
             self._build_index_route_rows(index_route)
         )
 
-        self._panel.set_index_route_trace(
-            **self._build_index_route_trace(index_route)
+        # --------------------------------------------------
+        # Basic pipe size suggestion
+        # --------------------------------------------------
+        pipe_size_suggestion = build_basic_pipe_size_suggestion_v1(
+            self._project_state
+        )
+        self._panel.set_pipe_size_suggestion_rows(
+            self._build_pipe_size_suggestion_rows(pipe_size_suggestion)
         )
 
+        # --------------------------------------------------
+        # Linear index route trace
+        # --------------------------------------------------
+        self._panel.set_index_route_trace(
+            **self._build_index_route_trace(
+                index_route,
+                pipe_size_suggestion,
+            )
+        )
+
+        # --------------------------------------------------
+        # Basic hydronics worksheet
+        # --------------------------------------------------
         worksheet = build_basic_hydronics_worksheet_v1(
             self._project_state
         )
@@ -138,18 +175,10 @@ class HydronicsSchematicPanelAdapter:
                 sizing_suggestion,
             )
         )
-        index_route = build_index_route_accumulator_v1(
-            self._project_state
-        )
-        self._panel.set_index_route_accumulator_rows(
-            self._build_index_route_rows(index_route)
-        )
-        pipe_size_suggestion = build_basic_pipe_size_suggestion_v1(
-            self._project_state
-        )
-        self._panel.set_pipe_size_suggestion_rows(
-            self._build_pipe_size_suggestion_rows(pipe_size_suggestion)
-        )
+
+        # --------------------------------------------------
+        # Legacy drawn topology schematic
+        # --------------------------------------------------
         snapshot = self._resolve_topology_snapshot()
 
         if snapshot is None:
@@ -214,19 +243,31 @@ class HydronicsSchematicPanelAdapter:
 
         return rows
 
-    def _build_index_route_trace(self, index_route) -> dict:
+    def _build_index_route_trace(self, index_route, pipe_size_suggestion=None) -> dict:
         """
-        Build display data for the H-N7c linear index route trace.
+        Build display data for the H-N8c linear index route trace.
 
-        This is projection only. Route authority remains
-        IndexRouteAccumulatorV1.
+        Projection only.
+        Route authority remains IndexRouteAccumulatorV1.
+        Pipe size suggestion authority remains BasicPipeSizeSuggestionV1.
         """
         sections = list(getattr(index_route, "sections", []) or [])
+
+        pipe_rows = (
+            list(getattr(pipe_size_suggestion, "rows", []) or [])
+            if pipe_size_suggestion is not None
+            else []
+        )
+
+        pipe_by_section = {
+            row.section_index: row
+            for row in pipe_rows
+        }
 
         if not sections:
             return {
                 "nodes": [],
-                "flows": [],
+                "link_labels": [],
                 "excluded": list(
                     getattr(index_route, "excluded_room_labels", tuple())
                     or tuple()
@@ -235,13 +276,24 @@ class HydronicsSchematicPanelAdapter:
             }
 
         nodes: list[str] = [sections[0].from_room_label]
-        flows: list[str] = []
+        link_labels: list[str] = []
 
         for section in sections:
             nodes.append(section.to_room_label)
-            flows.append(
-                self._fmt_kg_s(section.accumulated_mass_flow_kg_s)
+
+            pipe_row = pipe_by_section.get(section.section_index)
+
+            flow_text = self._fmt_kg_s(
+                section.accumulated_mass_flow_kg_s
             )
+
+            size_text = (
+                self._fmt_mm(pipe_row.suggested_nominal_size_mm)
+                if pipe_row is not None
+                else "—"
+            )
+
+            link_labels.append(f"{flow_text}\n{size_text}")
 
         excluded = list(
             getattr(index_route, "excluded_room_labels", tuple()) or tuple()
@@ -249,11 +301,10 @@ class HydronicsSchematicPanelAdapter:
 
         return {
             "nodes": nodes,
-            "flows": flows,
+            "link_labels": link_labels,
             "excluded": excluded,
             "basis": str(getattr(index_route, "route_basis", "") or ""),
         }
-
     def _build_index_route_rows(self, index_route) -> list[dict]:
         rows: list[dict] = []
 

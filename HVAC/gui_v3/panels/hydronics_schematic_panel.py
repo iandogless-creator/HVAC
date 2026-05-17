@@ -169,6 +169,10 @@ class _CollapsibleSection(QWidget):
 # Index Route Strip Widget
 # ======================================================================
 
+# ======================================================================
+# Index Route Strip Widget
+# ======================================================================
+
 class _IndexRouteStripWidget(QWidget):
     """
     H-N7c — Linear index route trace.
@@ -184,22 +188,22 @@ class _IndexRouteStripWidget(QWidget):
         super().__init__(parent)
 
         self._nodes: list[str] = []
-        self._flows: list[str] = []
+        self._link_labels: list[str] = []
         self._excluded: list[str] = []
         self._basis: str = ""
 
-        self.setMinimumHeight(130)
+        self.setMinimumHeight(170)
 
     def set_route(
         self,
         *,
         nodes: list[str],
-        flows: list[str],
+        link_labels: list[str],
         excluded: list[str],
         basis: str,
     ) -> None:
         self._nodes = list(nodes or [])
-        self._flows = list(flows or [])
+        self._link_labels = list(link_labels or [])
         self._excluded = list(excluded or [])
         self._basis = str(basis or "")
         self.update()
@@ -220,28 +224,35 @@ class _IndexRouteStripWidget(QWidget):
             return
 
         margin_x = 24.0
-        node_y = 48.0
+        node_y = 28.0
         node_w = 118.0
         node_h = 30.0
 
-        available_w = max(1.0, float(self.width()) - (2.0 * margin_x))
         count = len(self._nodes)
 
+        left_x = margin_x + (node_w / 2.0)
+        right_x = max(
+            left_x,
+            float(self.width()) - margin_x - (node_w / 2.0),
+        )
+
+        available_w = max(1.0, right_x - left_x)
+
         if count <= 1:
-            x_positions = [margin_x]
+            x_positions = [left_x]
         else:
             step = available_w / float(count - 1)
-            x_positions = [margin_x + (i * step) for i in range(count)]
+            x_positions = [left_x + (i * step) for i in range(count)]
 
         # --------------------------------------------------
-        # Draw links first
+        # Links
         # --------------------------------------------------
         for i in range(count - 1):
-            x1 = x_positions[i] + (node_w / 2.0)
-            x2 = x_positions[i + 1] - (node_w / 2.0)
             y = node_y + (node_h / 2.0)
 
-            # If the panel is narrow, allow overlap but still draw a line.
+            x1 = x_positions[i] + (node_w / 2.0)
+            x2 = x_positions[i + 1] - (node_w / 2.0)
+
             if x2 < x1:
                 x1 = x_positions[i]
                 x2 = x_positions[i + 1]
@@ -249,7 +260,6 @@ class _IndexRouteStripWidget(QWidget):
             painter.setPen(QPen(Qt.darkGray, 2.0))
             painter.drawLine(QPointF(x1, y), QPointF(x2, y))
 
-            # Arrow head
             arrow = QPolygonF(
                 [
                     QPointF(x2, y),
@@ -260,23 +270,27 @@ class _IndexRouteStripWidget(QWidget):
             painter.setBrush(QBrush(Qt.darkGray))
             painter.drawPolygon(arrow)
 
-            # Flow label
-            flow = self._flows[i] if i < len(self._flows) else ""
-            if flow:
+            link_label = (
+                self._link_labels[i]
+                if i < len(self._link_labels)
+                else ""
+            )
+
+            if link_label:
                 painter.setPen(QPen(Qt.darkBlue))
                 painter.drawText(
                     QRectF(
                         min(x1, x2),
-                        y + 8.0,
+                        y + 14.0,
                         abs(x2 - x1) + 1.0,
-                        20.0,
+                        44.0,
                     ),
-                    Qt.AlignCenter,
-                    flow,
+                    Qt.AlignCenter | Qt.TextWordWrap,
+                    link_label,
                 )
 
         # --------------------------------------------------
-        # Draw nodes
+        # Nodes
         # --------------------------------------------------
         painter.setFont(QFont())
 
@@ -294,8 +308,6 @@ class _IndexRouteStripWidget(QWidget):
         # --------------------------------------------------
         # Footer
         # --------------------------------------------------
-        footer_y = node_y + node_h + 48.0
-
         footer_parts: list[str] = []
 
         if self._basis:
@@ -311,7 +323,12 @@ class _IndexRouteStripWidget(QWidget):
         if footer:
             painter.setPen(QPen(Qt.darkGray))
             painter.drawText(
-                QRectF(12.0, footer_y, float(self.width()) - 24.0, 24.0),
+                QRectF(
+                    12.0,
+                    node_y + node_h + 66.0,
+                    float(self.width()) - 24.0,
+                    24.0,
+                ),
                 Qt.AlignLeft | Qt.AlignVCenter,
                 footer,
             )
@@ -350,6 +367,28 @@ class HydronicsSchematicPanel(QWidget):
         """
         self._schematic = dto
         self.update()
+
+    def set_index_route_trace(
+        self,
+        *,
+        nodes: list[str],
+        link_labels: list[str],
+        excluded: list[str],
+        basis: str,
+    ) -> None:
+        """
+        Observer-only H-N8c linear index route trace projection.
+
+        No ProjectState access.
+        No route calculation.
+        No pipe sizing.
+        """
+        self._index_route_strip.set_route(
+            nodes=nodes,
+            link_labels=link_labels,
+            excluded=excluded,
+            basis=basis,
+        )
 
     def _build_ui(self) -> None:
         layout = QVBoxLayout(self)
@@ -696,27 +735,7 @@ class HydronicsSchematicPanel(QWidget):
         for label in labels:
             painter.drawText(label.x, label.y, label.text)
 
-    def set_index_route_trace(
-        self,
-        *,
-        nodes: list[str],
-        flows: list[str],
-        excluded: list[str],
-        basis: str,
-    ) -> None:
-        """
-        Observer-only H-N7c linear index route trace projection.
 
-        No ProjectState access.
-        No route calculation.
-        No pipe sizing.
-        """
-        self._index_route_strip.set_route(
-            nodes=nodes,
-            flows=flows,
-            excluded=excluded,
-            basis=basis,
-        )
 
     def set_basic_hydronics_worksheet_rows(self, rows: list[dict]) -> None:
         """
