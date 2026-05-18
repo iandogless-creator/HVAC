@@ -491,9 +491,14 @@ class ProjectState:
     # ==================================================================
     # Authoritative totals reader
     # ==================================================================
-    def get_room_heatloss_totals(self, room_id: str) -> dict[str, float] | None:
+    def get_room_heatloss_totals(self, room_id: str):
         """
         Return heat-loss totals for one room.
+
+        Compatibility contract
+        ----------------------
+        Returns:
+            (q_fabric_W, q_ventilation_W, q_total_W)
 
         Supports both runtime DTO shape and persisted JSON shape.
 
@@ -519,13 +524,11 @@ class ProjectState:
             if isinstance(room_totals, dict):
                 totals = room_totals.get(room_id)
                 if isinstance(totals, dict):
-                    return {
-                        "q_fabric_W": float(totals.get("q_fabric_W", 0.0)),
-                        "q_ventilation_W": float(
-                            totals.get("q_ventilation_W", 0.0)
-                        ),
-                        "q_total_W": float(totals.get("q_total_W", 0.0)),
-                    }
+                    return (
+                        float(totals.get("q_fabric_W", 0.0)),
+                        float(totals.get("q_ventilation_W", 0.0)),
+                        float(totals.get("q_total_W", 0.0)),
+                    )
 
             # --------------------------------------------------
             # Persisted JSON shape:
@@ -540,13 +543,11 @@ class ProjectState:
                     if str(row.get("room_id") or "") != str(room_id):
                         continue
 
-                    return {
-                        "q_fabric_W": float(row.get("q_fabric_W", 0.0)),
-                        "q_ventilation_W": float(
-                            row.get("q_ventilation_W", 0.0)
-                        ),
-                        "q_total_W": float(row.get("q_total_W", 0.0)),
-                    }
+                    return (
+                        float(row.get("q_fabric_W", 0.0)),
+                        float(row.get("q_ventilation_W", 0.0)),
+                        float(row.get("q_total_W", 0.0)),
+                    )
 
         # --------------------------------------------------
         # Runtime DTO shape:
@@ -566,13 +567,11 @@ class ProjectState:
             if str(getattr(row, "room_id", "") or "") != str(room_id):
                 continue
 
-            return {
-                "q_fabric_W": float(getattr(row, "q_fabric_W", 0.0)),
-                "q_ventilation_W": float(
-                    getattr(row, "q_ventilation_W", 0.0)
-                ),
-                "q_total_W": float(getattr(row, "q_total_W", 0.0)),
-            }
+            return (
+                float(getattr(row, "q_fabric_W", 0.0)),
+                float(getattr(row, "q_ventilation_W", 0.0)),
+                float(getattr(row, "q_total_W", 0.0)),
+            )
 
         return None
 

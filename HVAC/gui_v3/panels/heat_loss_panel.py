@@ -802,9 +802,15 @@ class HeatLossPanelV3(QWidget):
             self.set_room_results(sum_qf=None, ach=None, qv=None, qt=None)
             return
 
-        qf, qv, qt = project_state.get_room_heatloss_totals(
+        totals = project_state.get_room_heatloss_totals(
             self._current_room_id
         )
+
+        if totals is None:
+            self.set_room_results(sum_qf=None, ach=None, qv=None, qt=None)
+            return
+
+        qf, qv, qt = totals
 
         self.set_room_results(
             sum_qf=qf,

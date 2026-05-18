@@ -160,6 +160,12 @@ def _build_index_summary(
 ) -> BasicHydronicsWorksheetIndexSummaryV1:
     intent = getattr(project, "basic_hydronic_sizing_intent", None)
 
+    nominal_pressure_gradient_Pa_per_m = (
+        _resolve_nominal_pressure_gradient_Pa_per_m(intent)
+    )
+
+    pressure_gradient_source = _resolve_pressure_gradient_source(intent)
+
     if intent is None:
         return BasicHydronicsWorksheetIndexSummaryV1(
             basis_mode="INDEX_LENGTH",
@@ -168,10 +174,10 @@ def _build_index_summary(
             index_emitter_id=None,
             index_emitter_label=None,
             total_index_length_m=None,
-            nominal_pressure_gradient_Pa_per_m=None,
+            nominal_pressure_gradient_Pa_per_m=nominal_pressure_gradient_Pa_per_m,
             nominal_index_pipework_dp_Pa=None,
             length_source="unset",
-            pressure_gradient_source="unset",
+            pressure_gradient_source=pressure_gradient_source,
         )
 
     index_room_label = None
@@ -194,9 +200,7 @@ def _build_index_summary(
 
     nominal_index_pipework_dp_Pa = _nominal_index_pipework_dp_Pa(
         total_index_length_m=intent.total_index_length_m,
-        nominal_pressure_gradient_Pa_per_m=(
-            intent.nominal_pressure_gradient_Pa_per_m
-        ),
+        nominal_pressure_gradient_Pa_per_m=nominal_pressure_gradient_Pa_per_m,
     )
 
     return BasicHydronicsWorksheetIndexSummaryV1(
@@ -206,12 +210,10 @@ def _build_index_summary(
         index_emitter_id=intent.index_emitter_id,
         index_emitter_label=index_emitter_label,
         total_index_length_m=intent.total_index_length_m,
-        nominal_pressure_gradient_Pa_per_m=(
-            intent.nominal_pressure_gradient_Pa_per_m
-        ),
+        nominal_pressure_gradient_Pa_per_m=nominal_pressure_gradient_Pa_per_m,
         nominal_index_pipework_dp_Pa=nominal_index_pipework_dp_Pa,
         length_source=str(intent.length_source or "unset"),
-        pressure_gradient_source=str(intent.pressure_gradient_source or "unset"),
+        pressure_gradient_source=pressure_gradient_source,
     )
 
 
@@ -322,7 +324,80 @@ def _nominal_index_pipework_dp_Pa(
 
     return length * gradient
 
+def _resolve_nominal_pressure_gradient_Pa_per_m(intent) -> float:
+    """
+    Resolve effective nominal pressure gradient for v1 hydronics.
 
+    If the user has not provided a valid value, use the H-Q default:
+        100 Pa/m
+    """
+    default_gradient = 100.0
+
+    if intent is None:
+        return default_gradient
+
+    value = getattr(intent, "nominal_pressure_gradient_Pa_per_m", None)
+
+    if value is None:
+        return default_gradient
+
+    try:
+        value = float(value)
+    except (TypeError, ValueError):
+        return default_gradient
+
+    if value <= 0.0:
+        return default_gradient
+
+    return value
+
+def _resolve_nominal_pressure_gradient_Pa_per_m(intent) -> float:
+    """
+    Resolve effective nominal pressure gradient for v1 hydronics.
+
+    If the user has not provided a valid value, use the H-Q default:
+        100 Pa/m
+    """
+    default_gradient = 100.0
+
+    if intent is None:
+        return default_gradient
+
+    value = getattr(intent, "nominal_pressure_gradient_Pa_per_m", None)
+
+    if value is None:
+        return default_gradient
+
+    try:
+        value = float(value)
+    except (TypeError, ValueError):
+        return default_gradient
+
+    if value <= 0.0:
+        return default_gradient
+
+    return value
+
+
+def _resolve_pressure_gradient_source(intent) -> str:
+    """
+    Resolve display source for the effective nominal pressure gradient.
+    """
+    if intent is None:
+        return "default_v1"
+
+    value = getattr(intent, "nominal_pressure_gradient_Pa_per_m", None)
+
+    try:
+        value = float(value)
+    except (TypeError, ValueError):
+        return "default_v1"
+
+    if value <= 0.0:
+        return "default_v1"
+
+    source = getattr(intent, "pressure_gradient_source", None)
+    return str(source or "user")
 def _emitter_label(
     *,
     emitter_id: str,

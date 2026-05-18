@@ -129,7 +129,7 @@ def build_basic_pipe_size_suggestion_v1(
         )
 
     return BasicPipeSizeSuggestionV1(
-        basis="BASIC_CAPACITY_TABLE",
+        basis="BASIC_CAPACITY_TABLE_WITH_DEFAULT_100_PA_PER_M",
         nominal_pressure_gradient_Pa_per_m=nominal_gradient,
         rows=rows,
     )
@@ -140,23 +140,36 @@ def build_basic_pipe_size_suggestion_v1(
 # ======================================================================
 
 def _resolve_nominal_gradient(project: ProjectState) -> Optional[float]:
+    """
+    Resolve nominal pressure gradient for first-pass pipe sizing.
+
+    H-Q default
+    -----------
+    If no BasicHydronicSizingIntentV1 exists, or if the value is unset/invalid,
+    use a v1 default of 100 Pa/m.
+
+    This is not a final hydraulic authority. It is a first-pass design basis
+    so the pipe-size projection can produce a complete, honest row.
+    """
+    default_gradient_Pa_per_m = 100.0
+
     intent = getattr(project, "basic_hydronic_sizing_intent", None)
 
     if intent is None:
-        return None
+        return default_gradient_Pa_per_m
 
     value = getattr(intent, "nominal_pressure_gradient_Pa_per_m", None)
 
     if value is None:
-        return None
+        return default_gradient_Pa_per_m
 
     try:
         value = float(value)
     except (TypeError, ValueError):
-        return None
+        return default_gradient_Pa_per_m
 
     if value <= 0.0:
-        return None
+        return default_gradient_Pa_per_m
 
     return value
 
