@@ -75,10 +75,6 @@ class HydronicControlPanelAdapter:
         self._project_state = project_state
         self._default_emitters_bootstrapped = False
 
-
-
-
-
     # ------------------------------------------------------------------
     # Refresh
     # ------------------------------------------------------------------
@@ -87,24 +83,14 @@ class HydronicControlPanelAdapter:
         """
         Hydronic Control Panel refresh.
 
-        • Bootstrap default emitter candidates once
-        • Project rooms into the control panel
-        • Project existing emitters into the control panel
+        H-O emitter authority rule:
+        • ProjectState.emitters is the authority
+        • Existing emitters are projected into the control panel
+        • Missing emitters are shown as missing; they are not created here
+        • No default emitter creation during refresh/load
         • No hydronic calculation
         • No pipe sizing
         """
-        if not self._default_emitters_bootstrapped:
-            created = EmitterCandidateBuilderV1().ensure_default_emitters(
-                self._project_state
-            )
-
-            self._default_emitters_bootstrapped = True
-
-            if created:
-                print(
-                    "[HYDRONIC CONTROL] default emitter candidates created:",
-                    created,
-                )
 
         self._panel.set_rooms(self._room_options())
 
@@ -112,13 +98,13 @@ class HydronicControlPanelAdapter:
         if current_room_id:
             self._panel.set_active_room(current_room_id)
 
-        # in HydronicControlPanelAdapter.refresh()
         self._panel.set_emitters(self._emitter_options())
 
         current_emitter_id = self._panel.current_emitter_id()
         if current_emitter_id:
             self._on_emitter_selected(current_emitter_id)
-        self._panel.set_status("Hydronic control shell ready.")
+
+        self._panel.set_status("Hydronic control ready.")
 
     def _room_options(self) -> list[tuple[str, str]]:
         rooms = getattr(self._project_state, "rooms", {}) or {}
@@ -318,14 +304,9 @@ class HydronicControlPanelAdapter:
         )
 
         self.refresh()
-        self.refresh()
 
         if self._refresh_all is not None:
             self._refresh_all()
-
-        self._panel.set_status(
-            f"Added {len(created_ids)} emitter(s) to {room_name}."
-        )
 
         self._panel.set_status(
             f"Added {len(created_ids)} emitter(s) to {room_name}."

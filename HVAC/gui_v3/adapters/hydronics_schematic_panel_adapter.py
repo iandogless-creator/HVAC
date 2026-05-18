@@ -54,14 +54,22 @@ from HVAC.hydronics.sizing.basic_pipe_size_suggestion_v1 import (
 
 class HydronicsSchematicPanelAdapter:
     """
-    Adapter responsibilities:
-    • Read ProjectState (read-only)
-    • Extract hydronic topology snapshot
-    • Build schematic DTO
-    • Push DTO into panel
+    GUI v3 — Hydronics Schematic Panel Adapter.
 
-    Phase B rule:
-    • Missing snapshot is VALID
+    Responsibilities
+    ----------------
+    • Read ProjectState
+    • Build hydronics projection rows
+    • Build read-only schematic DTO when available
+    • Push projection data into HydronicsSchematicPanel
+
+    Explicitly forbidden
+    --------------------
+    • No ProjectState mutation
+    • No emitter creation
+    • No hydronic authority
+    • No heat-loss calculation
+    • No pressure-loss calculation
     """
 
     def __init__(
@@ -73,16 +81,19 @@ class HydronicsSchematicPanelAdapter:
         self._panel = panel
         self._project_state = project_state
 
-        # Phase B: safe initial refresh
         self.refresh()
 
     def set_project_state(self, project_state: ProjectState) -> None:
         """
         Rebind adapter to the current ProjectState.
 
-        Required when a project is loaded or DEV mode swaps ProjectState.
+        Required when a project is loaded or ProjectState is swapped.
         """
+        if project_state is self._project_state:
+            return
+
         self._project_state = project_state
+        self.refresh()
 
     # ------------------------------------------------------------------
     # Public API
@@ -90,15 +101,21 @@ class HydronicsSchematicPanelAdapter:
 
     def refresh(self) -> None:
         """
-        Phase H-D/H-N refresh.
+        Hydronics schematic panel refresh.
 
-        • Demand rows are observer-only
-        • Hydronic skeleton / pipe-run intent are projections
-        • Index route accumulator is projection-only
-        • Basic pipe size suggestion is projection-only
-        • No emitter creation
-        • No hydronic physics / pressure-loss calculation is executed here
-        • No ProjectState mutation
+        Projection only:
+        • demand summary
+        • hydronic skeleton
+        • pipe-run intent
+        • index route accumulator
+        • index route pipe size suggestion
+        • linear index route trace
+        • basic hydronics worksheet
+        • legacy schematic DTO if available
+
+        No ProjectState mutation.
+        No emitter creation.
+        No hydronic physics.
         """
 
         # --------------------------------------------------
@@ -138,7 +155,7 @@ class HydronicsSchematicPanelAdapter:
         )
 
         # --------------------------------------------------
-        # Basic pipe size suggestion
+        # Index route pipe size suggestion
         # --------------------------------------------------
         pipe_size_suggestion = build_basic_pipe_size_suggestion_v1(
             self._project_state
@@ -489,22 +506,6 @@ class HydronicsSchematicPanelAdapter:
             return " + ".join(refs)
 
         return f"{refs[0]}–{refs[-1]}"
-
-    @staticmethod
-    def _fmt_w(value) -> str:
-        return "—" if value is None else f"{float(value):.1f} W"
-
-    @staticmethod
-    def _fmt_c(value) -> str:
-        return "—" if value is None else f"{float(value):.1f} °C"
-
-    @staticmethod
-    def _fmt_k(value) -> str:
-        return "—" if value is None else f"{float(value):.1f} K"
-
-    @staticmethod
-    def _fmt_kg_s(value) -> str:
-        return "—" if value is None else f"{float(value):.5f} kg/s"
 
     # ------------------------------------------------------------------
     # DTO construction

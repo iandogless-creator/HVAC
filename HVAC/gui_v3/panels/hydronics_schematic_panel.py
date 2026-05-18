@@ -499,7 +499,7 @@ class HydronicsSchematicPanel(QWidget):
         )
 
         # --------------------------------------------------
-        # Basic pipe size suggestion table
+        # Index route pipe size suggestion table
         # --------------------------------------------------
         self._pipe_size_suggestion_table = self._make_table(
             columns=[
@@ -515,7 +515,7 @@ class HydronicsSchematicPanel(QWidget):
         )
         self._add_section(
             layout,
-            title="Pipe size suggestion",
+            title="Index route pipe size suggestion",
             table=self._pipe_size_suggestion_table,
             min_height=140,
         )
