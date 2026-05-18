@@ -127,20 +127,19 @@ def build_index_route_accumulator_v1(
     intent = getattr(project, "basic_hydronic_sizing_intent", None)
     index_room_id = getattr(intent, "index_room_id", None) if intent else None
 
+    # --------------------------------------------------
+    # H-Q/H-N fallback
+    # --------------------------------------------------
+    # If no explicit index room is stored yet, use the last room in
+    # ProjectState.rooms order. This preserves the original v1 assumed
+    # reverse-room-order route:
+    #
+    #     last room → ... → first room / plant
+    #
+    # Missing sizing intent must not exclude the whole project.
+    # --------------------------------------------------
     if not index_room_id or index_room_id not in rooms:
-        return IndexRouteAccumulatorV1(
-            route_basis=ROUTE_BASIS_ASSUMED_REVERSE_ROOM_ORDER,
-            plant_room_id=plant_room_id,
-            plant_room_label=plant_room_label,
-            index_room_id=index_room_id,
-            index_room_label=None,
-            sections=[],
-            excluded_room_ids=tuple(room_ids),
-            excluded_room_labels=tuple(
-                room_short_label(room_id, room)
-                for room_id, room in rooms.items()
-            ),
-        )
+        index_room_id = room_ids[-1]
 
     index_room_label = room_short_label(
         index_room_id,
@@ -282,4 +281,5 @@ def _room_mass_flow_map(project: ProjectState) -> dict[str, float]:
         except (TypeError, ValueError):
             continue
 
+    return result
     return result

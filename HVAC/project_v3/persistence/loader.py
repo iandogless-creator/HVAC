@@ -4,6 +4,8 @@ import json
 from HVAC.project.project_state import ProjectState
 from .saver import compute_checksum
 
+from HVAC.project.project_state import ProjectState
+
 MAX_BACKUPS = 5
 
 
@@ -30,6 +32,19 @@ def _load_and_validate(file_path: Path) -> dict:
 
 #    return payload
 
+def _unwrap_project_payload(data: dict) -> dict:
+    payload = data
+
+    while (
+        isinstance(payload, dict)
+        and "project_id" not in payload
+        and isinstance(payload.get("payload"), dict)
+    ):
+        payload = payload["payload"]
+
+    return payload
+
+
 
 # ----------------------------------------------------------------------
 # Backup restoration
@@ -41,35 +56,38 @@ def _restore_backup(backup_path: Path, main_path: Path) -> None:
 # ----------------------------------------------------------------------
 # Public loader
 # ----------------------------------------------------------------------
-def load(project_dir: Path) -> ProjectState:
-    project_dir = project_dir.resolve()
+def load(project_path: Path) -> ProjectState:
+    """
+    Load an HVACgooee project.
 
-    main_file = project_dir / "project.json"
+    Accepts either:
+        project folder/
+        project folder/project.json
+    """
 
-    if not main_file.exists():
-        raise FileNotFoundError("project.json not found")
+    project_path = Path(project_path).resolve()
 
-    candidates = [main_file] + [
-        project_dir / f"project.backup.{i}.json"
-        for i in range(1, MAX_BACKUPS + 1)
-    ]
+    if project_path.is_dir():
+        project_file = project_path / "project.json"
+        project_dir = project_path
+    else:
+        project_file = project_path
+        project_dir = project_path.parent
 
-    for file_path in candidates:
-        if not file_path.exists():
-            continue
+    if not project_file.exists():
+        raise FileNotFoundError(f"Project file not found: {project_file}")
 
-        try:
-            payload = _load_and_validate(file_path)
+    with project_file.open("r", encoding="utf-8") as f:
+        data = json.load(f)
 
-            # Recovery: promote backup to main
-            if file_path != main_file:
-                print(f"[RECOVERY] Restored from {file_path.name}")
-                _restore_backup(file_path, main_file)
+    payload = _unwrap_project_payload(data)
 
-            return ProjectState.from_dict(payload)
+    if "project_id" not in payload:
+        raise ValueError(
+            f"Invalid HVACgooee project file: missing project_id in {project_file}"
+        )
 
+    project_state = ProjectState.from_dict(payload)
+    project_state.project_dir = project_dir
 
-        except Exception as e:
-
-            raise
-    raise ValueError("All project files corrupted — recovery failed")
+    return project_state

@@ -491,25 +491,90 @@ class ProjectState:
     # ==================================================================
     # Authoritative totals reader
     # ==================================================================
-    def get_room_heatloss_totals(
-        self, room_id: str
-    ) -> tuple[float | None, float | None, float | None]:
-        if not self.heatloss_valid or not self.heatloss_results:
-            return None, None, None
+    def get_room_heatloss_totals(self, room_id: str) -> dict[str, float] | None:
+        """
+        Return heat-loss totals for one room.
 
-        result = self.heatloss_results.get("result")
+        Supports both runtime DTO shape and persisted JSON shape.
+
+        Runtime shape may contain:
+            heatloss_results["result"].rooms
+
+        Persisted JSON shape may contain:
+            heatloss_results["room_totals"][room_id]
+            or
+            heatloss_results["result"]["rooms"]
+        """
+        if not self.heatloss_results:
+            return None
+
+        results = self.heatloss_results
+
+        # --------------------------------------------------
+        # Persisted JSON shape:
+        # heatloss_results["room_totals"][room_id]
+        # --------------------------------------------------
+        if isinstance(results, dict):
+            room_totals = results.get("room_totals") or {}
+            if isinstance(room_totals, dict):
+                totals = room_totals.get(room_id)
+                if isinstance(totals, dict):
+                    return {
+                        "q_fabric_W": float(totals.get("q_fabric_W", 0.0)),
+                        "q_ventilation_W": float(
+                            totals.get("q_ventilation_W", 0.0)
+                        ),
+                        "q_total_W": float(totals.get("q_total_W", 0.0)),
+                    }
+
+            # --------------------------------------------------
+            # Persisted JSON shape:
+            # heatloss_results["result"]["rooms"]
+            # --------------------------------------------------
+            result = results.get("result")
+            if isinstance(result, dict):
+                for row in result.get("rooms", []) or []:
+                    if not isinstance(row, dict):
+                        continue
+
+                    if str(row.get("room_id") or "") != str(room_id):
+                        continue
+
+                    return {
+                        "q_fabric_W": float(row.get("q_fabric_W", 0.0)),
+                        "q_ventilation_W": float(
+                            row.get("q_ventilation_W", 0.0)
+                        ),
+                        "q_total_W": float(row.get("q_total_W", 0.0)),
+                    }
+
+        # --------------------------------------------------
+        # Runtime DTO shape:
+        # heatloss_results["result"].rooms
+        # --------------------------------------------------
+        result = None
+
+        if isinstance(results, dict):
+            result = results.get("result")
+        else:
+            result = getattr(results, "result", None)
+
         if result is None:
-            return None, None, None
+            return None
 
-        for r in result.rooms:
-            if r.room_id == room_id:
-                return (
-                    r.q_fabric_W,
-                    r.q_ventilation_W,
-                    r.q_total_W,
-                )
+        for row in getattr(result, "rooms", []) or []:
+            if str(getattr(row, "room_id", "") or "") != str(room_id):
+                continue
 
-        return None, None, None
+            return {
+                "q_fabric_W": float(getattr(row, "q_fabric_W", 0.0)),
+                "q_ventilation_W": float(
+                    getattr(row, "q_ventilation_W", 0.0)
+                ),
+                "q_total_W": float(getattr(row, "q_total_W", 0.0)),
+            }
+
+        return None
 
     def add_room(self, room_id: str, name: str) -> None:
         from HVAC.core.room_state import RoomStateV1

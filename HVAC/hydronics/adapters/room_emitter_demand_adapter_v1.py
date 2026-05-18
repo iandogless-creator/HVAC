@@ -107,18 +107,19 @@ class RoomEmitterDemandAdapterV1:
     # ------------------------------------------------------------------
 
     def _resolve_room_heat_load_W(
-        self,
-        project: ProjectState,
-        room_id: str,
+            self,
+            project: ProjectState,
+            room_id: str,
     ) -> Optional[float]:
         """
         Read committed heat-loss total if available.
 
-        ProjectState.get_room_heatloss_totals(room_id) returns:
-            (q_fabric_W, q_ventilation_W, q_total_W)
-
         Hydronics consumes q_total_W only.
         It does not calculate heat loss.
+
+        Supports both:
+        • dict shape: {"q_fabric_W": ..., "q_ventilation_W": ..., "q_total_W": ...}
+        • legacy tuple/list shape: (q_fabric_W, q_ventilation_W, q_total_W)
         """
         if not getattr(project, "heatloss_valid", False):
             return None
@@ -128,7 +129,15 @@ class RoomEmitterDemandAdapterV1:
         if callable(getter):
             totals = getter(room_id)
 
-            if totals:
+            if isinstance(totals, dict):
+                qt = totals.get("q_total_W")
+                if qt is not None:
+                    try:
+                        return float(qt)
+                    except (TypeError, ValueError):
+                        return None
+
+            elif totals:
                 try:
                     _qf, _qv, qt = totals
                 except (TypeError, ValueError):
@@ -141,21 +150,24 @@ class RoomEmitterDemandAdapterV1:
                         return None
 
         # --------------------------------------------------
-        # Fallback: current canonical heat-loss container
+        # Fallback: persisted/canonical heat-loss container
         # --------------------------------------------------
         heatloss_results = getattr(project, "heatloss_results", None) or {}
-        room_totals = heatloss_results.get("room_totals", {}) or {}
-        room_total = room_totals.get(room_id, {}) or {}
 
-        qt = room_total.get("q_total_W")
+        if isinstance(heatloss_results, dict):
+            room_totals = heatloss_results.get("room_totals", {}) or {}
+            room_total = room_totals.get(room_id, {}) or {}
 
-        if qt is None:
-            return None
+            if isinstance(room_total, dict):
+                qt = room_total.get("q_total_W")
 
-        try:
-            return float(qt)
-        except (TypeError, ValueError):
-            return None
+                if qt is not None:
+                    try:
+                        return float(qt)
+                    except (TypeError, ValueError):
+                        return None
+
+        return None
 
     # ------------------------------------------------------------------
     # Emitter aggregation
