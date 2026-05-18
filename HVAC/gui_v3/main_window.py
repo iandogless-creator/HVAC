@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QWidget,
     QFileDialog,
+    QInputDialog,
 )
 from typing import TypeVar
 
@@ -823,14 +824,72 @@ class MainWindowV3(QMainWindow):
 
         save_project(project, project.project_dir)
 
+        QMessageBox.information(
+            self,
+            "Project Saved",
+            f"Saved project to:\n{project.project_dir / 'project.json'}",
+        )
+
     def _save_project_as(self) -> None:
-        directory = QFileDialog.getExistingDirectory(self, "Save Project As")
-        if not directory:
+        """
+        Save the current ProjectState into a new named project folder.
+
+        HVACgooee project convention:
+            <project folder>/project.json
+
+        Save As should therefore ask for:
+        • parent directory
+        • project folder name
+
+        It should not ask the user to rename project.json.
+        """
+
+        parent_directory = QFileDialog.getExistingDirectory(
+            self,
+            "Choose parent folder for project",
+        )
+        if not parent_directory:
             return
 
-        project_dir = Path(directory)
-        self._context.project_state.project_dir = project_dir
-        save_project(self._context.project_state, project_dir)
+        project = self._context.project_state
+
+        default_name = (
+                str(getattr(project, "name", "") or "").strip()
+                or "HVACgooee Project"
+        )
+
+        project_name, accepted = QInputDialog.getText(
+            self,
+            "Save Project As",
+            "Project folder name:",
+            text=default_name,
+        )
+
+        if not accepted:
+            return
+
+        project_name = str(project_name or "").strip()
+        if not project_name:
+            QMessageBox.warning(
+                self,
+                "Save Project As",
+                "Project folder name cannot be empty.",
+            )
+            return
+
+        project_dir = Path(parent_directory).resolve() / project_name
+        project_dir.mkdir(parents=True, exist_ok=True)
+
+        project.project_dir = project_dir
+        project.name = project_name
+
+        save_project(project, project_dir)
+
+        QMessageBox.information(
+            self,
+            "Project Saved As",
+            f"Saved project as:\n{project_dir / 'project.json'}",
+        )
 
     def _show_about(self) -> None:
         QMessageBox.about(

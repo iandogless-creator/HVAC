@@ -4,7 +4,7 @@
 
 from __future__ import annotations
 from pathlib import Path
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, asdict, is_dataclass
 from typing import Any, Dict, Optional
 from HVAC.core.environment_state import EnvironmentStateV1
 from HVAC.core.room_state import RoomStateV1
@@ -35,6 +35,44 @@ def _emitter_to_dict(emitter: EmitterV1) -> dict[str, Any]:
         "notes": emitter.notes,
     }
 
+def _json_safe(value: Any) -> Any:
+    """
+    Convert runtime DTOs / dataclasses / simple objects into JSON-safe data.
+
+    Persistence must never expose live Python DTO instances directly to
+    json.dumps().
+    """
+    if value is None:
+        return None
+
+    if isinstance(value, (str, int, float, bool)):
+        return value
+
+    if isinstance(value, Path):
+        return str(value)
+
+    if isinstance(value, dict):
+        return {
+            str(k): _json_safe(v)
+            for k, v in value.items()
+        }
+
+    if isinstance(value, (list, tuple, set)):
+        return [
+            _json_safe(v)
+            for v in value
+        ]
+
+    if hasattr(value, "to_dict"):
+        return _json_safe(value.to_dict())
+
+    if is_dataclass(value):
+        return _json_safe(asdict(value))
+
+    if hasattr(value, "__dict__"):
+        return _json_safe(vars(value))
+
+    return str(value)
 
 def _emitter_from_dict(data: dict[str, Any]) -> EmitterV1:
     return EmitterV1(
@@ -253,7 +291,7 @@ class ProjectState:
             },
             "heatloss": {
                 "valid": self.heatloss_valid,
-                "results": self.heatloss_results,
+                "results": _json_safe(self.heatloss_results),
             },
             "emitters": {
                 emitter_id: _emitter_to_dict(emitter)
@@ -266,12 +304,14 @@ class ProjectState:
             ),
             "hydronics": {
                 "valid": self.hydronics_valid,
-                "results": self.hydronics_results,
+                "results": _json_safe(self.hydronics_results),
             },
         }
+
     # ==================================================================
     # Deserialization
     # ==================================================================
+
     @classmethod
     def from_dict(cls, data: dict) -> "ProjectState":
         if data.get("schema_version") not in (3, 4):

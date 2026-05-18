@@ -223,7 +223,7 @@ def main() -> None:
 
     from HVAC.project.project_state import ProjectState
 
-    path = Path("HVAC/HVACprojects/6 room/project.json")
+    path = Path("HVAC/HVACprojects/clean_4_room_identity_test/project.json")
 
     if not path.exists():
         raise SystemExit(f"Project file not found: {path}")
@@ -231,7 +231,9 @@ def main() -> None:
     with path.open("r", encoding="utf-8") as f:
         data = json.load(f)
 
-    project_state = ProjectState.from_dict(data)
+    payload = data.get("payload", data)
+
+    project_state = ProjectState.from_dict(payload)
 
     print_emitter_authority(project_state)
 

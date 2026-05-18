@@ -12,8 +12,6 @@ def save(project_state: ProjectState, project_dir: Path) -> None:
     project_dir = project_dir.resolve()
     project_dir.mkdir(parents=True, exist_ok=True)
 
-    _rotate_backups(project_dir)
-
     target_file = project_dir / "project.json"
     temp_file = None
 
@@ -34,6 +32,10 @@ def save(project_state: ProjectState, project_dir: Path) -> None:
         ) as tmp:
             json.dump(wrapper, tmp, indent=4, sort_keys=True)
             temp_file = Path(tmp.name)
+
+        # Only rotate backups after the new project file has been fully
+        # serialized to a temp file.
+        _rotate_backups(project_dir)
 
         os.replace(temp_file, target_file)
 
