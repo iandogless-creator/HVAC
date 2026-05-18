@@ -801,6 +801,7 @@ class MainWindowV3(QMainWindow):
             ps,
             project_dir=project_dir,
         )
+
         self._uvp_panel.set_constructions(ps.constructions)
         # --------------------------------------------------
         # Select first room
