@@ -101,10 +101,14 @@ class HydronicControlPanelAdapter:
         self._panel.set_emitters(self._emitter_options())
 
         current_emitter_id = self._panel.current_emitter_id()
+
         if current_emitter_id:
             self._on_emitter_selected(current_emitter_id)
+            self._panel.set_existing_emitter_available()
+            self._panel.set_status("Hydronic control ready.")
+            return
 
-        self._panel.set_status("Hydronic control ready.")
+        self._panel.set_no_existing_emitter()
 
     def _room_options(self) -> list[tuple[str, str]]:
         rooms = getattr(self._project_state, "rooms", {}) or {}
@@ -162,12 +166,14 @@ class HydronicControlPanelAdapter:
         emitter_id = str(emitter_id or "")
 
         if not emitter_id:
+            self._panel.set_no_existing_emitter()
             return
 
         emitters = getattr(self._project_state, "emitters", {}) or {}
         emitter = emitters.get(emitter_id)
 
         if emitter is None:
+            self._panel.set_no_existing_emitter()
             return
 
         self._panel.set_emitter_editor_values(
@@ -176,6 +182,8 @@ class HydronicControlPanelAdapter:
             flow_temp_C=getattr(emitter, "flow_temp_C", None),
             return_temp_C=getattr(emitter, "return_temp_C", None),
         )
+
+        self._panel.set_existing_emitter_available()
 
     def _optional_positive_float(self, value: Any) -> float | None:
         try:

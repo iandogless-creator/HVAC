@@ -174,6 +174,37 @@ class HydronicControlPanel(QWidget):
         finally:
             self._is_priming = False
 
+    def set_no_existing_emitter(self) -> None:
+        """
+        Display an honest no-emitter state for the active room.
+
+        The add-emitter editor may still show defaults, but update/remove
+        must not imply that an existing emitter is selected.
+        """
+        self._is_priming = True
+        try:
+            index = self._emitter_combo.findData("")
+            if index >= 0:
+                self._emitter_combo.setCurrentIndex(index)
+        finally:
+            self._is_priming = False
+
+        self._add_btn.setEnabled(True)
+        self._update_btn.setEnabled(False)
+        self._remove_btn.setEnabled(False)
+
+        self.set_status("No emitter assigned to this room.")
+
+    def set_existing_emitter_available(self) -> None:
+        """
+        Display edit/remove state for an existing selected emitter.
+        """
+        self._add_btn.setEnabled(True)
+        self._update_btn.setEnabled(True)
+        self._remove_btn.setEnabled(True)
+
+
+
     def set_rooms(self, rooms: list[tuple[str, str]]) -> None:
         """
         Observer projection.
