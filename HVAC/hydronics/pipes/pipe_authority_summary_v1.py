@@ -13,7 +13,7 @@ Purpose
 Classify hydronic pipework into authority categories so the UI can clearly
 distinguish:
 
-• • common-main / boiler-side pipework
+• common-main / boiler-side pipework
 • selected index-route sections
 • non-index branch terminals
 • no-emitter / unresolved branches
@@ -122,7 +122,7 @@ def build_pipe_authority_summary_v1(
     H-Q1 rule
     ---------
     This first pass labels authority only. It does not size COMMON_MAIN,
-NON_INDEX_BRANCH_TERMINAL, or NO_EMITTER_UNRESOLVED pipework.
+    NON_INDEX_BRANCH_TERMINAL, or NO_EMITTER_UNRESOLVED pipework.
     """
 
     rows: list[PipeAuthoritySummaryRowV1] = []
