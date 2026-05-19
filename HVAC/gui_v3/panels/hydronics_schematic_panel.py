@@ -17,8 +17,6 @@ Authority
 
 The panel displays adapter-derived rows only.
 
-H-Q4 layout
------------
 H-R2 layout
 -----------
 The panel is split into three tabs:
@@ -37,7 +35,7 @@ Authority
 
 Proportioning
     • Branch / proportioning summary
-""
+"""
 from __future__ import annotations
 
 from typing import Optional

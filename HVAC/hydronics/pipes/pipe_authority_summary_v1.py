@@ -13,9 +13,10 @@ Purpose
 Classify hydronic pipework into authority categories so the UI can clearly
 distinguish:
 
-• terminal stubs
-• index-route sections
-• boiler/common-main pipework
+• • common-main / boiler-side pipework
+• selected index-route sections
+• non-index branch terminals
+• no-emitter / unresolved branches
 
 This module is deliberately read-only.
 
@@ -35,9 +36,10 @@ from typing import Any
 # Constants
 # ======================================================================
 
-PIPE_ROLE_TERMINAL_STUB = "TERMINAL_STUB"
-PIPE_ROLE_INDEX_ROUTE_SECTION = "INDEX_ROUTE_SECTION"
 PIPE_ROLE_COMMON_MAIN = "COMMON_MAIN"
+PIPE_ROLE_INDEX_ROUTE_SECTION = "INDEX_ROUTE_SECTION"
+PIPE_ROLE_NON_INDEX_BRANCH_TERMINAL = "NON_INDEX_BRANCH_TERMINAL"
+PIPE_ROLE_NO_EMITTER_UNRESOLVED = "NO_EMITTER_UNRESOLVED"
 
 SIZING_SCOPE_DEFERRED = "DEFERRED"
 SIZING_SCOPE_INDEX_ROUTE = "INDEX_ROUTE"
@@ -46,8 +48,8 @@ SIZING_SCOPE_NOT_SIZED = "NOT_SIZED"
 STATUS_DEFERRED = "DEFERRED"
 STATUS_SIZED_ELSEWHERE = "SIZED_ELSEWHERE"
 STATUS_INFORMATIONAL = "INFORMATIONAL"
-PIPE_ROLE_NON_INDEX_BRANCH_TERMINAL = "NON_INDEX_BRANCH_TERMINAL"
 STATUS_NON_INDEX_BRANCH = "NON_INDEX_BRANCH"
+STATUS_UNRESOLVED = "UNRESOLVED"
 
 # ======================================================================
 # DTO
@@ -119,8 +121,8 @@ def build_pipe_authority_summary_v1(
 
     H-Q1 rule
     ---------
-    This first pass labels authority only. It does not size COMMON_MAIN or
-    TERMINAL_STUB pipework.
+    This first pass labels authority only. It does not size COMMON_MAIN,
+NON_INDEX_BRANCH_TERMINAL, or NO_EMITTER_UNRESOLVED pipework.
     """
 
     rows: list[PipeAuthoritySummaryRowV1] = []
@@ -175,9 +177,6 @@ def build_pipe_authority_summary_v1(
         if to_room_id:
             index_route_room_ids.add(str(to_room_id))
 
-    # --------------------------------------------------
-    # Terminal stubs
-    # --------------------------------------------------
     # --------------------------------------------------
     # Non-index branch terminals
     # --------------------------------------------------

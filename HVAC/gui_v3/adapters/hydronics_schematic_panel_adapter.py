@@ -246,13 +246,13 @@ class HydronicsSchematicPanelAdapter:
             "COMMON_MAIN": 0,
             "INDEX_ROUTE_SECTION": 1,
             "NON_INDEX_BRANCH_TERMINAL": 2,
-            "TERMINAL_STUB": 3,
+            "NO_EMITTER_UNRESOLVED": 3,
         }
         role_display = {
             "COMMON_MAIN": "Common main",
             "INDEX_ROUTE_SECTION": "Selected index route",
-            "NON_INDEX_BRANCH_TERMINAL": "Branch terminal",
-            "TERMINAL_STUB": "Terminal branch",
+            "NON_INDEX_BRANCH_TERMINAL": "Non-index branch terminal",
+            "NO_EMITTER_UNRESOLVED": "No-emitter / unresolved",
         }
         authority_rows = list(getattr(summary, "rows", []) or [])
 
