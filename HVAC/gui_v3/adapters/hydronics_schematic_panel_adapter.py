@@ -51,6 +51,9 @@ from HVAC.hydronics.routing.index_route_accumulator_v1 import (
 from HVAC.hydronics.sizing.basic_pipe_size_suggestion_v1 import (
     build_basic_pipe_size_suggestion_v1,
 )
+from HVAC.hydronics.pipes.pipe_authority_summary_v1 import (
+    build_pipe_authority_summary_v1,
+)
 
 class HydronicsSchematicPanelAdapter:
     """
@@ -145,11 +148,29 @@ class HydronicsSchematicPanelAdapter:
         )
 
         # --------------------------------------------------
-        # Index route accumulator
+        # Pipe authority summary
         # --------------------------------------------------
         index_route = build_index_route_accumulator_v1(
             self._project_state
         )
+
+        pipe_authority_summary = build_pipe_authority_summary_v1(
+            project_state=self._project_state,
+            skeleton=skeleton,
+            pipe_runs=pipe_runs,
+            index_route=index_route,
+        )
+
+        self._panel.set_pipe_authority_summary_rows(
+            self._build_pipe_authority_summary_rows(
+                pipe_authority_summary
+            )
+        )
+
+        # --------------------------------------------------
+        # Index route accumulator
+        # --------------------------------------------------
+
         self._panel.set_index_route_accumulator_rows(
             self._build_index_route_rows(index_route)
         )
@@ -204,6 +225,51 @@ class HydronicsSchematicPanelAdapter:
 
         dto = self._build_schematic_dto(snapshot)
         self._panel._set_schematic(dto)
+
+    def _build_pipe_authority_summary_rows(self, summary) -> list[dict]:
+        rows: list[dict] = []
+
+        role_order = {
+            "COMMON_MAIN": 0,
+            "INDEX_ROUTE_SECTION": 1,
+            "NON_INDEX_BRANCH_TERMINAL": 2,
+            "TERMINAL_STUB": 3,
+        }
+        role_display = {
+            "COMMON_MAIN": "Common main",
+            "INDEX_ROUTE_SECTION": "Selected index route",
+            "NON_INDEX_BRANCH_TERMINAL": "Branch terminal",
+            "TERMINAL_STUB": "Terminal branch",
+        }
+        authority_rows = list(getattr(summary, "rows", []) or [])
+
+        authority_rows.sort(
+            key=lambda row: (
+                role_order.get(getattr(row, "pipe_role", ""), 99),
+                getattr(row, "from_label", ""),
+                getattr(row, "to_label", ""),
+            )
+        )
+
+        for row in authority_rows:
+            rows.append(
+                {
+                    "pipe_role": role_display.get(
+                        getattr(row, "pipe_role", "—"),
+                        getattr(row, "pipe_role", "—"),
+                    ),
+                    "from_label": getattr(row, "from_label", "—"),
+                    "to_label": getattr(row, "to_label", "—"),
+                    "flow_basis": getattr(row, "flow_basis", "—"),
+                    "mass_flow": self._fmt_mass_flow(
+                        getattr(row, "mass_flow_kg_s", None)
+                    ),
+                    "sizing_scope": getattr(row, "sizing_scope", "—"),
+                    "status": getattr(row, "status", "—"),
+                }
+            )
+
+        return rows
 
     def _build_pipe_size_suggestion_rows(self, suggestion) -> list[dict]:
         rows: list[dict] = []
@@ -663,3 +729,13 @@ class HydronicsSchematicPanelAdapter:
     @staticmethod
     def _fmt_mm(value) -> str:
         return "—" if value is None else f"{float(value):.0f} mm"
+
+    @staticmethod
+    def _fmt_mass_flow(value) -> str:
+        if value is None:
+            return "—"
+
+        try:
+            return f"{float(value):.5f} kg/s"
+        except (TypeError, ValueError):
+            return "—"

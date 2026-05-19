@@ -46,7 +46,7 @@ SIZING_SCOPE_NOT_SIZED = "NOT_SIZED"
 STATUS_DEFERRED = "DEFERRED"
 STATUS_SIZED_ELSEWHERE = "SIZED_ELSEWHERE"
 STATUS_INFORMATIONAL = "INFORMATIONAL"
-
+PIPE_ROLE_NON_INDEX_BRANCH_TERMINAL = "NON_INDEX_BRANCH_TERMINAL"
 
 # ======================================================================
 # DTO
@@ -133,7 +133,7 @@ def build_pipe_authority_summary_v1(
         PipeAuthoritySummaryRowV1(
             pipe_role=PIPE_ROLE_COMMON_MAIN,
             from_label="Boiler / Heat Source",
-            to_label="Distribution / first branch",
+            to_label="Common main / first branch",
             flow_basis="Total assigned emitter flow",
             mass_flow_kg_s=total_flow_kg_s,
             sizing_scope=SIZING_SCOPE_DEFERRED,
@@ -144,13 +144,14 @@ def build_pipe_authority_summary_v1(
     # --------------------------------------------------
     # Index-route sections
     # --------------------------------------------------
+
     for section in getattr(index_route, "sections", []) or []:
         rows.append(
             PipeAuthoritySummaryRowV1(
                 pipe_role=PIPE_ROLE_INDEX_ROUTE_SECTION,
                 from_label=str(getattr(section, "from_room_label", "—")),
                 to_label=str(getattr(section, "to_room_label", "—")),
-                flow_basis="Accumulated index-route flow",
+                flow_basis="Accumulated route flow",
                 mass_flow_kg_s=getattr(
                     section,
                     "accumulated_mass_flow_kg_s",
@@ -160,6 +161,18 @@ def build_pipe_authority_summary_v1(
                 status=STATUS_SIZED_ELSEWHERE,
             )
         )
+
+    index_route_room_ids: set[str] = set()
+
+    for section in getattr(index_route, "sections", []) or []:
+        from_room_id = getattr(section, "from_room_id", None)
+        to_room_id = getattr(section, "to_room_id", None)
+
+        if from_room_id:
+            index_route_room_ids.add(str(from_room_id))
+
+        if to_room_id:
+            index_route_room_ids.add(str(to_room_id))
 
     # --------------------------------------------------
     # Terminal stubs

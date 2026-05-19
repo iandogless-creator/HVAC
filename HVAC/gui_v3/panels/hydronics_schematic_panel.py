@@ -4,18 +4,40 @@
 
 """
 HVACgooee — GUI v3
-Hydronics Schematic Panel — Phase D
+Hydronics Schematic Panel
 
-Read-only schematic rendering driven by a schematic DTO.
+Read-only hydronics projection panel.
 
-• No authority
+Authority
+---------
 • No ProjectState access
 • No physics
-• Hover via floating inspector panel
+• No pipe sizing
+• No mutation
+
+The panel displays adapter-derived rows only.
+
+H-Q4 layout
+-----------
+The panel is split into two tabs:
+
+Overview
+    • Emitter demand summary
+    • Index route accumulator
+    • Linear index route trace
+    • Index route pipe size suggestion
+
+Authority
+    • Hydronic skeleton
+    • Pipe-run intent
+    • Pipe authority summary
+    • Basic hydronics worksheet
 """
 
 from __future__ import annotations
+
 from typing import Optional
+
 from PySide6.QtCore import (
     Qt,
     QRectF,
@@ -36,15 +58,13 @@ from PySide6.QtWidgets import (
     QFrame,
     QLabel,
     QVBoxLayout,
-    QGraphicsView,
-    QGraphicsScene,
     QTableWidget,
     QTableWidgetItem,
     QHeaderView,
     QToolButton,
     QScrollArea,
+    QTabWidget,
 )
-
 
 from HVAC.gui_v3.schematic.dto import (
     HydronicsSchematicDTO,
@@ -55,8 +75,9 @@ from HVAC.gui_v3.schematic.dto import (
     EdgeHoverDTO,
 )
 
+
 # ======================================================================
-# Floating Inspector (Phase D)
+# Floating Inspector
 # ======================================================================
 
 class _HoverInspector(QFrame):
@@ -100,10 +121,6 @@ class _HoverInspector(QFrame):
     def hide_payload(self) -> None:
         self.hide()
 
-
-# ======================================================================
-# HydronicsSchematicPanel
-# ======================================================================
 
 # ======================================================================
 # Collapsible Section
@@ -171,13 +188,9 @@ class _CollapsibleSection(QWidget):
 # Index Route Strip Widget
 # ======================================================================
 
-# ======================================================================
-# Index Route Strip Widget
-# ======================================================================
-
 class _IndexRouteStripWidget(QWidget):
     """
-    H-N7c — Linear index route trace.
+    Linear index route trace.
 
     Visual projection only:
     • no ProjectState access
@@ -335,37 +348,43 @@ class _IndexRouteStripWidget(QWidget):
                 footer,
             )
 
+
+# ======================================================================
+# HydronicsSchematicPanel
+# ======================================================================
+
 class HydronicsSchematicPanel(QWidget):
+    """
+    Read-only hydronics schematic / worksheet projection panel.
+    """
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
+
+        # Current schematic DTO, retained for old drawn-schematic path.
+        self._schematic: Optional[HydronicsSchematicDTO] = None
+
+        # Floating inspector.
+        self._inspector = _HoverInspector(self)
 
         self._build_ui()
         self.render_empty_state()
 
         self.setFocusPolicy(Qt.NoFocus)
         self.setContextMenuPolicy(Qt.NoContextMenu)
-
         self.setMinimumSize(400, 260)
 
-        # Current schematic DTO (or None)
-        self._schematic: Optional[HydronicsSchematicDTO] = None
-
-        # Floating inspector
-        self._inspector = _HoverInspector(self)
-
     # ------------------------------------------------------------------
-    # Adapter ingress (PRIVATE)
+    # Adapter ingress
     # ------------------------------------------------------------------
 
     def _set_schematic(self, dto: HydronicsSchematicDTO) -> None:
         """
         Replace the current schematic DTO and repaint.
 
-        Phase C/D contract:
-        - Replace-only semantics
-        - No validation
-        - No interpretation
+        Replace-only semantics.
+        No validation.
+        No interpretation.
         """
         self._schematic = dto
         self.update()
@@ -379,11 +398,7 @@ class HydronicsSchematicPanel(QWidget):
         basis: str,
     ) -> None:
         """
-        Observer-only H-N8c linear index route trace projection.
-
-        No ProjectState access.
-        No route calculation.
-        No pipe sizing.
+        Observer-only linear index route trace projection.
         """
         self._index_route_strip.set_route(
             nodes=nodes,
@@ -392,83 +407,39 @@ class HydronicsSchematicPanel(QWidget):
             basis=basis,
         )
 
+    # ------------------------------------------------------------------
+    # UI construction
+    # ------------------------------------------------------------------
+
     def _build_ui(self) -> None:
         outer_layout = QVBoxLayout(self)
         outer_layout.setContentsMargins(0, 0, 0, 0)
         outer_layout.setSpacing(0)
 
-        scroll = QScrollArea(self)
-        scroll.setWidgetResizable(True)
-        scroll.setFrameShape(QFrame.NoFrame)
-
-        content = QWidget(scroll)
-        layout = QVBoxLayout(content)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(4)
-
-        scroll.setWidget(content)
-        outer_layout.addWidget(scroll)
-
-        # --------------------------------------------------
-        # Title
-        # --------------------------------------------------
         title = QLabel("Hydronics schematic")
         title.setStyleSheet("font-weight:600; padding:6px;")
-        layout.addWidget(title)
+        outer_layout.addWidget(title)
+
+        self._tabs = QTabWidget(self)
+        outer_layout.addWidget(self._tabs)
+
+        overview_layout = self._make_tab("Overview")
+        authority_layout = self._make_tab("Authority")
 
         # --------------------------------------------------
-        # Emitter demand summary
+        # Overview tab
         # --------------------------------------------------
         self._emitter_demand_table = self._make_table(
             columns=["Room", "Heat Load", "Emitter", "Output", "Status"],
             stretch_columns={0},
         )
         self._add_section(
-            layout,
+            overview_layout,
             title="Emitter demand summary",
             table=self._emitter_demand_table,
             min_height=120,
         )
 
-        # --------------------------------------------------
-        # Hydronic skeleton
-        # --------------------------------------------------
-        self._hydronic_skeleton_table = self._make_table(
-            columns=["Leg", "From", "To", "Type", "Length"],
-            stretch_columns={1, 2},
-        )
-        self._add_section(
-            layout,
-            title="Hydronic skeleton",
-            table=self._hydronic_skeleton_table,
-            min_height=120,
-        )
-
-        # --------------------------------------------------
-        # Pipe-run intent
-        # --------------------------------------------------
-        self._pipe_run_intent_table = self._make_table(
-            columns=[
-                "Pipe Run",
-                "From",
-                "To",
-                "Circuit",
-                "Length",
-                "Material",
-                "Diameter",
-            ],
-            stretch_columns={1, 2},
-        )
-        self._add_section(
-            layout,
-            title="Pipe-run intent",
-            table=self._pipe_run_intent_table,
-            min_height=120,
-        )
-
-        # --------------------------------------------------
-        # Index route accumulator
-        # --------------------------------------------------
         self._index_route_table = self._make_table(
             columns=[
                 "Sec",
@@ -480,27 +451,20 @@ class HydronicsSchematicPanel(QWidget):
             stretch_columns={1, 2},
         )
         self._add_section(
-            layout,
+            overview_layout,
             title="Index route accumulator",
             table=self._index_route_table,
             min_height=150,
         )
 
-        # --------------------------------------------------
-        # Linear index route trace
-        # --------------------------------------------------
         self._index_route_strip = _IndexRouteStripWidget(self)
-
         self._add_section(
-            layout,
+            overview_layout,
             title="Linear index route trace",
             table=self._index_route_strip,
-            min_height=130,
+            min_height=170,
         )
 
-        # --------------------------------------------------
-        # Index route pipe size suggestion table
-        # --------------------------------------------------
         self._pipe_size_suggestion_table = self._make_table(
             columns=[
                 "Sec",
@@ -514,15 +478,74 @@ class HydronicsSchematicPanel(QWidget):
             stretch_columns={1, 2},
         )
         self._add_section(
-            layout,
+            overview_layout,
             title="Index route pipe size suggestion",
             table=self._pipe_size_suggestion_table,
             min_height=140,
         )
 
+        overview_layout.addStretch(1)
+
         # --------------------------------------------------
-        # Basic hydronics worksheet
+        # Authority tab
         # --------------------------------------------------
+        self._hydronic_skeleton_table = self._make_table(
+            columns=["Leg", "From", "To", "Type", "Length"],
+            stretch_columns={1, 2},
+        )
+        self._add_section(
+            authority_layout,
+            title="Hydronic skeleton",
+            table=self._hydronic_skeleton_table,
+            min_height=120,
+        )
+
+        self._pipe_run_intent_table = self._make_table(
+            columns=[
+                "Pipe Run",
+                "From",
+                "To",
+                "Circuit",
+                "Length",
+                "Material",
+                "Diameter",
+            ],
+            stretch_columns={1, 2},
+        )
+        self._add_section(
+            authority_layout,
+            title="Pipe-run intent",
+            table=self._pipe_run_intent_table,
+            min_height=120,
+        )
+
+        self._pipe_authority_summary_table = self._make_table(
+            columns=[
+                "Role",
+                "From",
+                "To",
+                "Flow basis",
+                "Mass flow",
+                "Sizing scope",
+                "Status",
+            ],
+            stretch_columns={1, 2, 3},
+        )
+        self._pipe_authority_summary_table.setColumnWidth(0, 150)
+        self._pipe_authority_summary_table.setColumnWidth(1, 160)
+        self._pipe_authority_summary_table.setColumnWidth(2, 180)
+        self._pipe_authority_summary_table.setColumnWidth(3, 190)
+        self._pipe_authority_summary_table.setColumnWidth(4, 110)
+        self._pipe_authority_summary_table.setColumnWidth(5, 120)
+        self._pipe_authority_summary_table.setColumnWidth(6, 130)
+
+        self._add_section(
+            authority_layout,
+            title="Pipe authority summary",
+            table=self._pipe_authority_summary_table,
+            min_height=240,
+        )
+
         self._basic_hydronics_table = self._make_table(
             columns=[
                 "Room",
@@ -541,14 +564,31 @@ class HydronicsSchematicPanel(QWidget):
             stretch_columns={0},
         )
         self._add_section(
-            layout,
+            authority_layout,
             title="Basic hydronics worksheet",
             table=self._basic_hydronics_table,
             min_height=160,
         )
 
-        # Only one stretch, always last.
-        layout.addStretch(1)
+        authority_layout.addStretch(1)
+
+    def _make_tab(self, title: str) -> QVBoxLayout:
+        """
+        Create a scrollable tab and return its content layout.
+        """
+        scroll = QScrollArea(self._tabs)
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+
+        content = QWidget(scroll)
+        layout = QVBoxLayout(content)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(4)
+
+        scroll.setWidget(content)
+        self._tabs.addTab(scroll, title)
+
+        return layout
 
     def _make_table(
         self,
@@ -558,10 +598,6 @@ class HydronicsSchematicPanel(QWidget):
     ) -> QTableWidget:
         """
         Create a standard read-only hydronics table.
-
-        Presentation only.
-        No ProjectState access.
-        No calculation.
         """
         table = QTableWidget(0, len(columns))
         table.setHorizontalHeaderLabels(columns)
@@ -592,14 +628,12 @@ class HydronicsSchematicPanel(QWidget):
         layout: QVBoxLayout,
         *,
         title: str,
-        table: QTableWidget,
+        table: QWidget,
         min_height: int,
         expanded: bool = True,
     ) -> None:
         """
-        Add a table inside a collapsible hydronics section.
-
-        Presentation only.
+        Add a widget inside a collapsible hydronics section.
         """
         table.setMinimumHeight(min_height)
 
@@ -612,12 +646,189 @@ class HydronicsSchematicPanel(QWidget):
             )
         )
 
+    def _fit_table_height(
+        self,
+        table: QTableWidget,
+        *,
+        min_height: int = 120,
+        max_height: int = 260,
+    ) -> None:
+        """
+        Presentation-only table height helper.
+
+        Keeps worksheet sections readable without forcing every table to
+        consume excessive vertical space.
+        """
+        header_height = table.horizontalHeader().height()
+        row_count = table.rowCount()
+        row_height = table.verticalHeader().defaultSectionSize()
+        frame = table.frameWidth() * 2
+
+        wanted = header_height + frame + ((row_count + 1) * row_height)
+        height = max(min_height, min(max_height, wanted))
+
+        table.setMinimumHeight(height)
+
+    # ------------------------------------------------------------------
+    # Row setters
+    # ------------------------------------------------------------------
+
+    def set_emitter_demand_rows(self, rows) -> None:
+        """
+        Observer-only hydronics demand projection.
+        """
+        table = self._emitter_demand_table
+        table.setRowCount(len(rows))
+
+        for row_index, row in enumerate(rows):
+            heat_load = (
+                "—"
+                if row.design_heat_load_W is None
+                else f"{row.design_heat_load_W:.1f} W"
+            )
+
+            emitter = row.emitter_summary or "—"
+
+            output = (
+                "—"
+                if row.emitter_output_W is None
+                else f"{row.emitter_output_W:.1f} W"
+            )
+
+            values = [
+                row.room_name,
+                heat_load,
+                emitter,
+                output,
+                row.status,
+            ]
+
+            for col_index, value in enumerate(values):
+                item = QTableWidgetItem(str(value))
+                item.setFlags(item.flags() & ~Qt.ItemIsEditable)
+                table.setItem(row_index, col_index, item)
+
+        self._fit_table_height(table, min_height=120, max_height=220)
+        table.scrollToTop()
+
+    def set_hydronic_skeleton_rows(self, rows: list[dict]) -> None:
+        """
+        Observer-only hydronic skeleton projection.
+        """
+        table = self._hydronic_skeleton_table
+        table.setRowCount(len(rows))
+
+        for row_index, row in enumerate(rows):
+            length_m = row.get("length_m")
+            length_text = "—" if length_m is None else f"{float(length_m):.2f} m"
+
+            values = [
+                str(row.get("leg_id", "")),
+                str(row.get("from", "")),
+                str(row.get("to", "")),
+                str(row.get("type", "")),
+                length_text,
+            ]
+
+            for col_index, value in enumerate(values):
+                item = QTableWidgetItem(value)
+                item.setFlags(item.flags() & ~Qt.ItemIsEditable)
+                table.setItem(row_index, col_index, item)
+
+        self._fit_table_height(table, min_height=120, max_height=240)
+        table.scrollToTop()
+
+    def set_pipe_run_intent_rows(self, rows: list[dict]) -> None:
+        """
+        Observer-only pipe-run intent projection.
+        """
+        table = self._pipe_run_intent_table
+        table.setRowCount(len(rows))
+
+        for row_index, row in enumerate(rows):
+            length_m = row.get("length_m")
+            length_text = "—" if length_m is None else f"{float(length_m):.2f} m"
+
+            diameter_mm = row.get("nominal_diameter_mm")
+            diameter_text = (
+                "—"
+                if diameter_mm is None
+                else f"{float(diameter_mm):.0f} mm"
+            )
+
+            material_text = str(row.get("material_id") or "—")
+
+            values = [
+                str(row.get("pipe_run_id", "")),
+                str(row.get("from", "")),
+                str(row.get("to", "")),
+                str(row.get("circuit_type", "")),
+                length_text,
+                material_text,
+                diameter_text,
+            ]
+
+            for col_index, value in enumerate(values):
+                item = QTableWidgetItem(value)
+                item.setFlags(item.flags() & ~Qt.ItemIsEditable)
+                table.setItem(row_index, col_index, item)
+
+        self._fit_table_height(table, min_height=120, max_height=240)
+        table.scrollToTop()
+
+    def set_pipe_authority_summary_rows(self, rows: list[dict]) -> None:
+        """
+        Observer-only pipe authority summary projection.
+        """
+        table = self._pipe_authority_summary_table
+        table.setRowCount(len(rows))
+
+        for row_index, row in enumerate(rows):
+            values = [
+                row.get("pipe_role", "—"),
+                row.get("from_label", "—"),
+                row.get("to_label", "—"),
+                row.get("flow_basis", "—"),
+                row.get("mass_flow", "—"),
+                row.get("sizing_scope", "—"),
+                row.get("status", "—"),
+            ]
+
+            for col_index, value in enumerate(values):
+                item = QTableWidgetItem(str(value))
+                item.setFlags(item.flags() & ~Qt.ItemIsEditable)
+                table.setItem(row_index, col_index, item)
+
+        self._fit_table_height(table, min_height=240, max_height=340)
+        table.scrollToTop()
+
+    def set_index_route_accumulator_rows(self, rows: list[dict]) -> None:
+        """
+        Observer-only index route accumulator projection.
+        """
+        table = self._index_route_table
+        table.setRowCount(len(rows))
+
+        for row_index, row in enumerate(rows):
+            values = [
+                row.get("section", "—"),
+                row.get("from", "—"),
+                row.get("to", "—"),
+                row.get("accumulated_flow", "—"),
+                row.get("included", "—"),
+            ]
+
+            for col_index, value in enumerate(values):
+                item = QTableWidgetItem(str(value))
+                item.setFlags(item.flags() & ~Qt.ItemIsEditable)
+                table.setItem(row_index, col_index, item)
+
+        self._fit_table_height(table, min_height=150, max_height=240)
+        table.scrollToTop()
+
     def set_pipe_size_suggestion_rows(self, rows: list[dict]) -> None:
         """
-        Observer-only H-N8 basic pipe size suggestion projection.
-
-        Rows are adapter-derived display DTOs.
-        The panel does not inspect ProjectState and does not calculate.
+        Observer-only basic pipe size suggestion projection.
         """
         table = self._pipe_size_suggestion_table
         table.setRowCount(len(rows))
@@ -641,39 +852,43 @@ class HydronicsSchematicPanel(QWidget):
         self._fit_table_height(table, min_height=140, max_height=240)
         table.scrollToTop()
 
-    def _fit_table_height(
-            self,
-            table: QTableWidget,
-            *,
-            min_height: int = 120,
-            max_height: int = 260,
-    ) -> None:
+    def set_basic_hydronics_worksheet_rows(self, rows: list[dict]) -> None:
         """
-        Presentation-only table height helper.
-
-        Keeps worksheet sections readable without forcing every table to
-        consume excessive vertical space.
+        Read-only basic hydronics worksheet projection.
         """
-        header_height = table.horizontalHeader().height()
-        row_count = table.rowCount()
-        row_height = table.verticalHeader().defaultSectionSize()
-        frame = table.frameWidth() * 2
+        table = self._basic_hydronics_table
+        table.setRowCount(len(rows))
 
-        wanted = header_height + frame + ((row_count + 1) * row_height)
-        height = max(min_height, min(max_height, wanted))
+        for row_index, row in enumerate(rows):
+            values = [
+                row.get("room", "—"),
+                row.get("heat_load", "—"),
+                row.get("required_output", "—"),
+                row.get("suggested_output", "—"),
+                row.get("emitter", "—"),
+                row.get("output", "—"),
+                row.get("status", "—"),
+                row.get("sizing_status", "—"),
+                row.get("flow_temp", "—"),
+                row.get("return_temp", "—"),
+                row.get("water_delta_t", "—"),
+                row.get("mass_flow", "—"),
+            ]
 
-        table.setMinimumHeight(height)
+            for col_index, value in enumerate(values):
+                item = QTableWidgetItem(str(value))
+                item.setFlags(item.flags() & ~Qt.ItemIsEditable)
+                table.setItem(row_index, col_index, item)
+
+        self._fit_table_height(table, min_height=160, max_height=280)
+        table.scrollToTop()
 
     # ------------------------------------------------------------------
-    # Painting
+    # Legacy drawing path
     # ------------------------------------------------------------------
 
     def paintEvent(self, event) -> None:  # noqa: N802
         return
-
-    # ------------------------------------------------------------------
-    # Painting helpers
-    # ------------------------------------------------------------------
 
     def _paint_background(self, painter: QPainter) -> None:
         painter.fillRect(self.rect(), QBrush(Qt.white))
@@ -687,9 +902,9 @@ class HydronicsSchematicPanel(QWidget):
         )
 
     def _paint_nodes(
-            self,
-            painter: QPainter,
-            nodes: list[SchematicNodeDTO],
+        self,
+        painter: QPainter,
+        nodes: list[SchematicNodeDTO],
     ) -> None:
         pen = QPen(Qt.black)
         brush = QBrush(Qt.lightGray)
@@ -708,8 +923,6 @@ class HydronicsSchematicPanel(QWidget):
                 orientation_deg=orientation,
             )
 
-
-            # Label
             painter.drawText(
                 QRectF(node.x - 50, node.y + 18, 100, 20),
                 Qt.AlignCenter,
@@ -750,103 +963,27 @@ class HydronicsSchematicPanel(QWidget):
         for label in labels:
             painter.drawText(label.x, label.y, label.text)
 
-
-
-    def set_basic_hydronics_worksheet_rows(self, rows: list[dict]) -> None:
-        """
-        Read-only H-N5 basic hydronics worksheet projection.
-
-        No authority.
-        No ProjectState access.
-        No calculation.
-        """
-        self._basic_hydronics_table.setRowCount(len(rows))
-
-        for row_index, row in enumerate(rows):
-            values = [
-                row.get("room", "—"),
-                row.get("heat_load", "—"),
-                row.get("required_output", "—"),
-                row.get("suggested_output", "—"),
-                row.get("emitter", "—"),
-                row.get("output", "—"),
-                row.get("status", "—"),
-                row.get("sizing_status", "—"),
-                row.get("flow_temp", "—"),
-                row.get("return_temp", "—"),
-                row.get("water_delta_t", "—"),
-                row.get("mass_flow", "—"),
-            ]
-
-            for col_index, value in enumerate(values):
-                item = QTableWidgetItem(str(value))
-                item.setFlags(item.flags() & ~Qt.ItemIsEditable)
-                self._basic_hydronics_table.setItem(
-                    row_index,
-                    col_index,
-                    item,
-                )
-        self._fit_table_height(self._basic_hydronics_table, min_height=160, max_height=280)
-        self._basic_hydronics_table.scrollToTop()
-
-    def set_index_route_accumulator_rows(self, rows: list[dict]) -> None:
-        """
-        Observer-only H-N7 index route accumulator projection.
-
-        Rows are adapter-derived display DTOs.
-        The panel does not inspect ProjectState and does not calculate.
-        """
-        table = self._index_route_table
-        table.setRowCount(len(rows))
-
-        for row_index, row in enumerate(rows):
-            values = [
-                row.get("section", "—"),
-                row.get("from", "—"),
-                row.get("to", "—"),
-                row.get("accumulated_flow", "—"),
-                row.get("included", "—"),
-            ]
-
-            for col_index, value in enumerate(values):
-                item = QTableWidgetItem(str(value))
-                item.setFlags(item.flags() & ~Qt.ItemIsEditable)
-                table.setItem(row_index, col_index, item)
-
-        self._fit_table_height(table, min_height=150, max_height=240)
-        table.scrollToTop()
-
-    # ------------------------------------------------------------------
-    # Shape rendering (Phase E)
-    # ------------------------------------------------------------------
-
     def _draw_node_shape(
-            self,
-            painter: QPainter,
-            *,
-            x: float,
-            y: float,
-            shape: str,
-            orientation_deg: float | None = None,
-            size: float = 14.0,
+        self,
+        painter: QPainter,
+        *,
+        x: float,
+        y: float,
+        shape: str,
+        orientation_deg: float | None = None,
+        size: float = 14.0,
     ) -> None:
-
         """
         Draw a schematic node shape.
 
-        Phase E rules:
-        - Pure rendering
-        - No interpretation
-        - Shape is a hint, not authority
+        Pure rendering.
+        Shape is a hint, not authority.
         """
-
         if shape == "CIRCLE":
-            # Outer pump / node body
             painter.drawEllipse(
                 QRectF(x - size, y - size, size * 2, size * 2)
             )
 
-            # Optional inner orientation marker (Phase E)
             if orientation_deg is not None:
                 painter.save()
                 painter.translate(x, y)
@@ -861,7 +998,6 @@ class HydronicsSchematicPanel(QWidget):
                 painter.drawPolygon(points)
 
                 painter.restore()
-
 
         elif shape == "RECT":
             painter.drawRect(
@@ -885,13 +1021,12 @@ class HydronicsSchematicPanel(QWidget):
             painter.drawPolygon(points)
 
         else:
-            # Defensive fallback
             painter.drawEllipse(
                 QRectF(x - size, y - size, size * 2, size * 2)
             )
 
     # ------------------------------------------------------------------
-    # Hover formatting (presentation-only)
+    # Hover formatting
     # ------------------------------------------------------------------
 
     def _format_node_hover(self, hover: NodeHoverDTO) -> str:
@@ -932,10 +1067,10 @@ class HydronicsSchematicPanel(QWidget):
         return "<br>".join(lines)
 
     # ------------------------------------------------------------------
-    # Mouse hover handling (Phase D)
+    # Mouse hover handling
     # ------------------------------------------------------------------
 
-    def mouseMoveEvent(self, event) -> None:
+    def mouseMoveEvent(self, event) -> None:  # noqa: N802
         if self._schematic is None:
             self._inspector.hide_payload()
             event.ignore()
@@ -944,7 +1079,6 @@ class HydronicsSchematicPanel(QWidget):
         pos = event.position().toPoint()
         global_pos = event.globalPosition().toPoint()
 
-        # Nodes first (priority)
         for node in self._schematic.nodes:
             dx = pos.x() - node.x
             dy = pos.y() - node.y
@@ -955,7 +1089,6 @@ class HydronicsSchematicPanel(QWidget):
                 )
                 return
 
-        # Edges (Phase D: coarse)
         for edge in self._schematic.edges:
             if edge.hover:
                 self._inspector.show_payload(
@@ -969,113 +1102,10 @@ class HydronicsSchematicPanel(QWidget):
 
     def render_empty_state(self) -> None:
         """
-        Phase B:
         Render a safe empty schematic state.
         """
         self._schematic = None
         self.update()
-
-    def set_emitter_demand_rows(self, rows) -> None:
-        """
-        Observer-only hydronics demand projection.
-
-        Rows are already derived DTOs from the adapter.
-        The panel does not inspect ProjectState and does not calculate.
-        """
-        table = self._emitter_demand_table
-        table.setRowCount(len(rows))
-
-        for row_index, row in enumerate(rows):
-            heat_load = (
-                "—"
-                if row.design_heat_load_W is None
-                else f"{row.design_heat_load_W:.1f} W"
-            )
-
-            emitter = row.emitter_summary or "—"
-
-            output = (
-                "—"
-                if row.emitter_output_W is None
-                else f"{row.emitter_output_W:.1f} W"
-            )
-
-            table.setItem(row_index, 0, QTableWidgetItem(row.room_name))
-            table.setItem(row_index, 1, QTableWidgetItem(heat_load))
-            table.setItem(row_index, 2, QTableWidgetItem(emitter))
-            table.setItem(row_index, 3, QTableWidgetItem(output))
-            table.setItem(row_index, 4, QTableWidgetItem(row.status))
-            self._fit_table_height(table, min_height=120, max_height=220)
-            table.scrollToTop()
-
-    def set_hydronic_skeleton_rows(self, rows: list[dict]) -> None:
-        """
-        Observer-only hydronic skeleton projection.
-
-        Rows are adapter-derived display DTOs.
-        The panel does not inspect ProjectState and does not calculate.
-        """
-        table = self._hydronic_skeleton_table
-        table.setRowCount(len(rows))
-
-        for row_index, row in enumerate(rows):
-            length_m = row.get("length_m")
-            length_text = "—" if length_m is None else f"{float(length_m):.2f} m"
-
-            values = [
-                str(row.get("leg_id", "")),
-                str(row.get("from", "")),
-                str(row.get("to", "")),
-                str(row.get("type", "")),
-                length_text,
-            ]
-
-            for col_index, value in enumerate(values):
-                item = QTableWidgetItem(value)
-                item.setFlags(item.flags() & ~Qt.ItemIsEditable)
-                table.setItem(row_index, col_index, item)
-        self._fit_table_height(table, min_height=120, max_height=240)
-        table.scrollToTop()
-
-    def set_pipe_run_intent_rows(self, rows: list[dict]) -> None:
-        """
-        Observer-only pipe-run intent projection.
-
-        Rows are adapter-derived display DTOs.
-        The panel does not inspect ProjectState and does not calculate.
-        """
-        table = self._pipe_run_intent_table
-        table.setRowCount(len(rows))
-
-        for row_index, row in enumerate(rows):
-            length_m = row.get("length_m")
-            length_text = "—" if length_m is None else f"{float(length_m):.2f} m"
-
-            diameter_mm = row.get("nominal_diameter_mm")
-            diameter_text = (
-                "—"
-                if diameter_mm is None
-                else f"{float(diameter_mm):.0f} mm"
-            )
-
-            material_text = str(row.get("material_id") or "—")
-
-            values = [
-                str(row.get("pipe_run_id", "")),
-                str(row.get("from", "")),
-                str(row.get("to", "")),
-                str(row.get("circuit_type", "")),
-                length_text,
-                material_text,
-                diameter_text,
-            ]
-
-            for col_index, value in enumerate(values):
-                item = QTableWidgetItem(value)
-                item.setFlags(item.flags() & ~Qt.ItemIsEditable)
-                table.setItem(row_index, col_index, item)
-        self._fit_table_height(table, min_height=120, max_height=240)
-        table.scrollToTop()
 
     # ------------------------------------------------------------------
     # Input suppression
