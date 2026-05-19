@@ -47,6 +47,7 @@ STATUS_DEFERRED = "DEFERRED"
 STATUS_SIZED_ELSEWHERE = "SIZED_ELSEWHERE"
 STATUS_INFORMATIONAL = "INFORMATIONAL"
 PIPE_ROLE_NON_INDEX_BRANCH_TERMINAL = "NON_INDEX_BRANCH_TERMINAL"
+STATUS_NON_INDEX_BRANCH = "NON_INDEX_BRANCH"
 
 # ======================================================================
 # DTO
@@ -177,27 +178,40 @@ def build_pipe_authority_summary_v1(
     # --------------------------------------------------
     # Terminal stubs
     # --------------------------------------------------
+    # --------------------------------------------------
+    # Non-index branch terminals
+    # --------------------------------------------------
     for pipe_run in pipe_runs or []:
-        from_label = _node_label(skeleton, pipe_run.from_node_id)
-        to_label = _node_label(skeleton, pipe_run.to_node_id)
-
         terminal_room_id = _terminal_room_id_for_pipe_run(
             skeleton=skeleton,
             pipe_run=pipe_run,
         )
 
+        if not terminal_room_id:
+            continue
+
+        # Do not duplicate rooms already represented by the selected
+        # index-route sections. They are already visible in the route.
+        if terminal_room_id in index_route_room_ids:
+            continue
+
+        terminal_label = _node_label(skeleton, pipe_run.to_node_id)
+
+        # Supply pipe runs normally go boiler -> terminal.
+        # For the authority explanation, show the local branch terminal
+        # as flowing back toward the plant/common side.
         rows.append(
             PipeAuthoritySummaryRowV1(
-                pipe_role=PIPE_ROLE_TERMINAL_STUB,
-                from_label=from_label,
-                to_label=to_label,
-                flow_basis="Single terminal/emitter flow",
+                pipe_role=PIPE_ROLE_NON_INDEX_BRANCH_TERMINAL,
+                from_label=terminal_label,
+                to_label="Common main / plant side",
+                flow_basis="Local branch terminal flow",
                 mass_flow_kg_s=_room_emitter_mass_flow_kg_s(
                     project_state,
                     terminal_room_id,
                 ),
                 sizing_scope=SIZING_SCOPE_NOT_SIZED,
-                status=STATUS_DEFERRED,
+                status=STATUS_NON_INDEX_BRANCH,
             )
         )
 
