@@ -54,6 +54,9 @@ from HVAC.hydronics.sizing.basic_pipe_size_suggestion_v1 import (
 from HVAC.hydronics.pipes.pipe_authority_summary_v1 import (
     build_pipe_authority_summary_v1,
 )
+from HVAC.hydronics.proportioning.branch_proportioning_summary_v1 import (
+    build_branch_proportioning_summary_v1,
+)
 
 class HydronicsSchematicPanelAdapter:
     """
@@ -168,6 +171,16 @@ class HydronicsSchematicPanelAdapter:
         )
 
         # --------------------------------------------------
+        # Branch / proportioning summary
+        # --------------------------------------------------
+        proportioning_rows = build_branch_proportioning_summary_v1(
+            self._project_state
+        )
+        self._panel.set_proportioning_rows(
+            self._build_proportioning_rows(proportioning_rows)
+        )
+
+        # --------------------------------------------------
         # Index route accumulator
         # --------------------------------------------------
 
@@ -270,6 +283,33 @@ class HydronicsSchematicPanelAdapter:
             )
 
         return rows
+
+    def _build_proportioning_rows(self, rows) -> list[dict]:
+        """
+        Convert H-R1 branch/proportioning DTO rows into panel rows.
+
+        Adapter responsibility:
+        • DTO → display dict only
+        • no physics
+        • no ProjectState mutation
+        """
+
+        out: list[dict] = []
+
+        for row in rows or []:
+            out.append(
+                {
+                    "group": str(getattr(row, "group", "") or ""),
+                    "role": str(getattr(row, "role", "") or ""),
+                    "from": str(getattr(row, "from_label", "") or ""),
+                    "to": str(getattr(row, "to_label", "") or ""),
+                    "flow": str(getattr(row, "flow_label", "") or ""),
+                    "basis": str(getattr(row, "basis", "") or ""),
+                    "status": str(getattr(row, "status", "") or ""),
+                }
+            )
+
+        return out
 
     def _build_pipe_size_suggestion_rows(self, suggestion) -> list[dict]:
         rows: list[dict] = []

@@ -19,7 +19,9 @@ The panel displays adapter-derived rows only.
 
 H-Q4 layout
 -----------
-The panel is split into two tabs:
+H-R2 layout
+-----------
+The panel is split into three tabs:
 
 Overview
     • Emitter demand summary
@@ -32,8 +34,10 @@ Authority
     • Pipe-run intent
     • Pipe authority summary
     • Basic hydronics worksheet
-"""
 
+Proportioning
+    • Branch / proportioning summary
+""
 from __future__ import annotations
 
 from typing import Optional
@@ -425,6 +429,7 @@ class HydronicsSchematicPanel(QWidget):
 
         overview_layout = self._make_tab("Overview")
         authority_layout = self._make_tab("Authority")
+        proportioning_layout = self._make_tab("Proportioning")
 
         # --------------------------------------------------
         # Overview tab
@@ -569,8 +574,34 @@ class HydronicsSchematicPanel(QWidget):
             table=self._basic_hydronics_table,
             min_height=160,
         )
+        # --------------------------------------------------
+        #
 
         authority_layout.addStretch(1)
+
+        # --------------------------------------------------
+        # Proportioning tab
+        # --------------------------------------------------
+        self._proportioning_table = self._make_table(
+            columns=[
+                "Group",
+                "Role",
+                "From",
+                "To",
+                "Flow",
+                "Basis",
+                "Status",
+            ],
+            stretch_columns={0, 1, 2, 3, 5, 6},
+        )
+        self._add_section(
+            proportioning_layout,
+            title="Branch / proportioning summary",
+            table=self._proportioning_table,
+            min_height=220,
+        )
+
+        proportioning_layout.addStretch(1)
 
     def _make_tab(self, title: str) -> QVBoxLayout:
         """
@@ -800,6 +831,38 @@ class HydronicsSchematicPanel(QWidget):
                 table.setItem(row_index, col_index, item)
 
         self._fit_table_height(table, min_height=240, max_height=340)
+        table.scrollToTop()
+
+    def set_proportioning_rows(self, rows: list[dict]) -> None:
+        """
+        Observer-only branch/proportioning summary projection.
+
+        Display only:
+        • no ProjectState access
+        • no pipe sizing
+        • no pressure loss
+        • no balancing
+        """
+        table = self._proportioning_table
+        table.setRowCount(len(rows))
+
+        for row_index, row in enumerate(rows):
+            values = [
+                row.get("group", "—"),
+                row.get("role", "—"),
+                row.get("from", "—"),
+                row.get("to", "—"),
+                row.get("flow", "—"),
+                row.get("basis", "—"),
+                row.get("status", "—"),
+            ]
+
+            for col_index, value in enumerate(values):
+                item = QTableWidgetItem(str(value))
+                item.setFlags(item.flags() & ~Qt.ItemIsEditable)
+                table.setItem(row_index, col_index, item)
+
+        self._fit_table_height(table, min_height=220, max_height=340)
         table.scrollToTop()
 
     def set_index_route_accumulator_rows(self, rows: list[dict]) -> None:
