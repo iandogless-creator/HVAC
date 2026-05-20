@@ -57,7 +57,9 @@ from HVAC.hydronics.pipes.pipe_authority_summary_v1 import (
 from HVAC.hydronics.proportioning.branch_proportioning_summary_v1 import (
     build_branch_proportioning_summary_v1,
 )
-
+from HVAC.hydronics.proportioning.proportioning_schematic_projection_v1 import (
+    build_proportioning_schematic_v1,
+)
 class HydronicsSchematicPanelAdapter:
     """
     GUI v3 — Hydronics Schematic Panel Adapter.
@@ -179,7 +181,10 @@ class HydronicsSchematicPanelAdapter:
         self._panel.set_proportioning_rows(
             self._build_proportioning_rows(proportioning_rows)
         )
-
+        proportioning_schematic = build_proportioning_schematic_v1(
+            self._project_state
+        )
+        self._panel.set_proportioning_schematic(proportioning_schematic)
         # --------------------------------------------------
         # Index route accumulator
         # --------------------------------------------------

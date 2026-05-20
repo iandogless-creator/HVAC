@@ -76,7 +76,9 @@ from HVAC.gui_v3.schematic.dto import (
     NodeHoverDTO,
     EdgeHoverDTO,
 )
-
+from HVAC.gui_v3.widgets.proportioning_schematic_widget_v1 import (
+    ProportioningSchematicWidgetV1,
+)
 
 # ======================================================================
 # Floating Inspector
@@ -572,14 +574,20 @@ class HydronicsSchematicPanel(QWidget):
             table=self._basic_hydronics_table,
             min_height=160,
         )
-        # --------------------------------------------------
-        #
 
         authority_layout.addStretch(1)
 
         # --------------------------------------------------
         # Proportioning tab
         # --------------------------------------------------
+        self._proportioning_schematic_widget = ProportioningSchematicWidgetV1(self)
+        self._add_section(
+            proportioning_layout,
+            title="Proportioning schematic",
+            table=self._proportioning_schematic_widget,
+            min_height=280,
+        )
+
         self._proportioning_table = self._make_table(
             columns=[
                 "Group",
@@ -600,6 +608,12 @@ class HydronicsSchematicPanel(QWidget):
         )
 
         proportioning_layout.addStretch(1)
+
+    def set_proportioning_schematic(self, schematic) -> None:
+        """
+        Observer-only proportioning schematic projection.
+        """
+        self._proportioning_schematic_widget.set_schematic(schematic)
 
     def _make_tab(self, title: str) -> QVBoxLayout:
         """
