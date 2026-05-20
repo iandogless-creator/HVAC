@@ -581,11 +581,25 @@ class HydronicsSchematicPanel(QWidget):
         # Proportioning tab
         # --------------------------------------------------
         self._proportioning_schematic_widget = ProportioningSchematicWidgetV1(self)
+
+        self._proportioning_schematic_scroll = QScrollArea(self)
+        self._proportioning_schematic_scroll.setWidgetResizable(False)
+        self._proportioning_schematic_scroll.setFrameShape(QFrame.NoFrame)
+        self._proportioning_schematic_scroll.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarAsNeeded
+        )
+        self._proportioning_schematic_scroll.setVerticalScrollBarPolicy(
+            Qt.ScrollBarAsNeeded
+        )
+        self._proportioning_schematic_scroll.setWidget(
+            self._proportioning_schematic_widget
+        )
+
         self._add_section(
             proportioning_layout,
             title="Proportioning schematic",
-            table=self._proportioning_schematic_widget,
-            min_height=280,
+            table=self._proportioning_schematic_scroll,
+            min_height=300,
         )
 
         self._proportioning_table = self._make_table(

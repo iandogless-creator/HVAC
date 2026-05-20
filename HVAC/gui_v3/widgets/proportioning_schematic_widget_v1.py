@@ -68,12 +68,12 @@ class ProportioningSchematicWidgetV1(QWidget):
         No interpretation beyond presentation layout.
         """
         self._schematic = schematic
-        self.update()
 
-    def clear(self) -> None:
-        self._schematic = None
-        self.update()
+        natural_width = self._natural_width()
+        self.setMinimumWidth(natural_width)
+        self.resize(max(self.width(), natural_width), self.height())
 
+        self.update()
     # ------------------------------------------------------------------
     # Paint
     # ------------------------------------------------------------------
@@ -161,6 +161,43 @@ class ProportioningSchematicWidgetV1(QWidget):
             )
 
         return boxes
+
+    def clear(self) -> None:
+        self._schematic = None
+        self.setMinimumWidth(620)
+        self.update()
+
+    def _natural_width(self) -> int:
+        """
+        Compute natural schematic width from node count/order.
+
+        This allows the parent scroll area to provide horizontal scrolling
+        instead of forcing the schematic to compress or clip.
+        """
+        if self._schematic is None:
+            return 620
+
+        nodes = list(getattr(self._schematic, "nodes", []) or [])
+
+        if not nodes:
+            return 620
+
+        max_order = 0
+
+        for node in nodes:
+            try:
+                order = int(getattr(node, "order", 0))
+            except (TypeError, ValueError):
+                order = 0
+
+            max_order = max(max_order, order)
+
+        margin_x = 24
+        node_w = 132
+        gap_x = 30
+
+        # +2 gives breathing room after the final node.
+        return int((margin_x * 2) + ((max_order + 2) * (node_w + gap_x)))
 
     # ------------------------------------------------------------------
     # Painting helpers
