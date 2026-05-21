@@ -391,24 +391,73 @@ class ProportioningSchematicWidgetV1(QWidget):
         painter.drawPolygon(QPolygonF(points))
 
     def _paint_edge_label(
-        self,
-        painter: QPainter,
-        start: QPointF,
-        end: QPointF,
-        label: str,
+            self,
+            painter: QPainter,
+            start: QPointF,
+            end: QPointF,
+            label: str,
     ) -> None:
+        """
+        Paint a readable flow label near an edge.
+
+        H-S4 visual rule:
+        • flow labels are important engineering projection values
+        • use dynamic width for normal engineering values
+        • cap width so abnormal text cannot dominate the schematic
+        """
         mid_x = (start.x() + end.x()) / 2.0
         mid_y = (start.y() + end.y()) / 2.0
-
-        rect = QRectF(mid_x - 42.0, mid_y - 18.0, 84.0, 16.0)
 
         painter.save()
 
         font = QFont()
-        font.setPointSize(7)
+        font.setPointSize(8)
         painter.setFont(font)
-        painter.setPen(QPen(Qt.darkGray))
-        painter.drawText(rect, Qt.AlignCenter, label)
+
+        metrics = painter.fontMetrics()
+
+        padding_x = 8.0
+        min_w = 96.0
+        max_w = 150.0
+
+        text_w = float(metrics.horizontalAdvance(label))
+        label_w = max(min_w, min(max_w, text_w + (padding_x * 2.0)))
+        label_h = 20.0
+
+        dx = end.x() - start.x()
+        dy = end.y() - start.y()
+
+        if abs(dx) >= abs(dy):
+            rect = QRectF(
+                mid_x - (label_w / 2.0),
+                mid_y - 26.0,
+                label_w,
+                label_h,
+            )
+        else:
+            rect = QRectF(
+                mid_x + 8.0,
+                mid_y - (label_h / 2.0),
+                label_w,
+                label_h,
+            )
+
+        painter.setPen(QPen(Qt.black))
+        painter.setBrush(QBrush(Qt.white))
+        painter.drawRoundedRect(rect, 4.0, 4.0)
+
+        text_rect = rect.adjusted(4.0, 0.0, -4.0, 0.0)
+        elided = metrics.elidedText(
+            label,
+            Qt.ElideRight,
+            int(text_rect.width()),
+        )
+
+        painter.drawText(
+            text_rect,
+            Qt.AlignCenter | Qt.AlignVCenter,
+            elided,
+        )
 
         painter.restore()
 
