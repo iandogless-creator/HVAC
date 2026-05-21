@@ -9,7 +9,7 @@ Timestamp: Tuesday 19 May 2026, 07:00 pm UK
 The Proportioning schematic is a read-only logic schematic showing how hydronic flow responsibility is distributed across:
 
 - Common main
-- - Selected index-route subleg
+- Selected index-route subleg
 - Non-index terminal subleg
 - No-emitter / unresolved
 
