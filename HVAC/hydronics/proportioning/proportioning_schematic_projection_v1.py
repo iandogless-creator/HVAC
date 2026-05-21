@@ -107,7 +107,7 @@ def build_proportioning_schematic_v1(project_state: Any) -> ProportioningSchemat
     )
 
     # --------------------------------------------------
-    # Selected index route spine
+    # Selected index-route subleg spine
     # --------------------------------------------------
     selected_rows = [
         row for row in summary_rows
@@ -135,7 +135,7 @@ def build_proportioning_schematic_v1(project_state: Any) -> ProportioningSchemat
                 role=NODE_ROLE_SELECTED_INDEX_ROUTE,
                 lane=0,
                 order=route_order,
-                status="Selected index route",
+                status="Selected index-route subleg",
             )
             route_order += 1
 
@@ -171,13 +171,13 @@ def build_proportioning_schematic_v1(project_state: Any) -> ProportioningSchemat
                 to_node_id=first_route_node_id,
                 role=EDGE_ROLE_SELECTED_INDEX_ROUTE,
                 flow_label="—",
-                basis="Selected index route entry",
+                basis="Selected index-route subleg entry",
                 status="Projection only",
             )
         )
 
     # --------------------------------------------------
-    # Non-index branch terminals
+    # Non-index terminal sublegs
     # --------------------------------------------------
     branch_rows = [
         row for row in summary_rows
@@ -194,7 +194,7 @@ def build_proportioning_schematic_v1(project_state: Any) -> ProportioningSchemat
             role=NODE_ROLE_NON_INDEX_BRANCH_TERMINAL,
             lane=-1,
             order=branch_index,
-            status="Non-index branch terminal",
+            status="Non-index terminal subleg",
         )
 
         edges.append(

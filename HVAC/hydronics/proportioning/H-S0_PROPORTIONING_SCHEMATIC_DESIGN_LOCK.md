@@ -9,8 +9,8 @@ Timestamp: Tuesday 19 May 2026, 07:00 pm UK
 The Proportioning schematic is a read-only logic schematic showing how hydronic flow responsibility is distributed across:
 
 - Common main
-- Selected index route
-- Non-index branch terminal
+- - Selected index-route subleg
+- Non-index terminal subleg
 - No-emitter / unresolved
 
 It is not a CAD pipe layout, not a pressure-loss model, and not a balancing calculation.
@@ -40,4 +40,4 @@ It does not answer:
 Use a simple left-to-right logic spine:
 
 ```text
-Boiler / Heat Source → Common main → Selected index route
+Boiler / Heat Source → Common main → Selected index-route
