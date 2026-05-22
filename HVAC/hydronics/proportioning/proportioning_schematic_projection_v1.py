@@ -44,6 +44,13 @@ def build_proportioning_schematic_v1(project_state: Any) -> ProportioningSchemat
     """
 
     summary_rows = build_branch_proportioning_summary_v1(project_state)
+    index_room_label = _resolve_index_room_label(project_state)
+
+    def _display_label(label: str) -> str:
+        if _is_index_label(label, index_room_label):
+            return f"{label} [INDEX]"
+
+        return label
 
     nodes_by_id: dict[str, ProportioningSchematicNodeV1] = {}
     edges: list[ProportioningSchematicEdgeV1] = []
@@ -158,7 +165,7 @@ def build_proportioning_schematic_v1(project_state: Any) -> ProportioningSchemat
         if from_node_id not in nodes_by_id:
             nodes_by_id[from_node_id] = ProportioningSchematicNodeV1(
                 node_id=from_node_id,
-                label=from_label,
+                label=_display_label(from_label),
                 role=NODE_ROLE_SELECTED_INDEX_ROUTE,
                 lane=0,
                 order=route_order,
@@ -169,7 +176,7 @@ def build_proportioning_schematic_v1(project_state: Any) -> ProportioningSchemat
         if to_node_id not in nodes_by_id:
             nodes_by_id[to_node_id] = ProportioningSchematicNodeV1(
                 node_id=to_node_id,
-                label=to_label,
+                label=_display_label(to_label),
                 role=NODE_ROLE_SELECTED_INDEX_ROUTE,
                 lane=0,
                 order=route_order,
@@ -195,8 +202,6 @@ def build_proportioning_schematic_v1(project_state: Any) -> ProportioningSchemat
         selected_entry_flow_label = (
             str(getattr(selected_rows[-1], "flow_label", "") or "—")
         )
-
-
 
     # --------------------------------------------------
     # Link common/main through common-side route nodes into
@@ -295,3 +300,38 @@ def _node_id(prefix: str, label: str) -> str:
     slug = slug.strip("-") or "unknown"
 
     return f"{prefix}-{slug}"
+
+def _resolve_index_room_label(project_state: Any) -> str | None:
+    """
+    Resolve the current index room label for display-only schematic notation.
+
+    This reads the existing assumed/basic index-route accumulator.
+    It does not calculate or validate a new index route.
+    """
+    try:
+        from HVAC.hydronics.routing.index_route_accumulator_v1 import (
+            build_index_route_accumulator_v1,
+        )
+
+        route = build_index_route_accumulator_v1(project_state)
+        label = getattr(route, "index_room_label", None)
+
+        if label:
+            return str(label)
+
+    except Exception:
+        pass
+
+    return None
+
+def _is_index_label(label: str, index_room_label: str | None) -> bool:
+    if not index_room_label:
+        return False
+
+    label = str(label).strip()
+    index_room_label = str(index_room_label).strip()
+
+    return (
+        label == index_room_label
+        or index_room_label.endswith(f" {label}")
+    )
