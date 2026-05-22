@@ -119,13 +119,13 @@ def build_branch_proportioning_summary_v1(project_state: Any) -> List[BranchProp
 
         rows.append(
             BranchProportioningRowV1(
-                group="Non-index branch terminals",
-                role="Non-index branch terminal",
+                group="Common-side route",
+                role="Common-side route node",
                 from_label=_room_label(rooms, room_id),
-                to_label="Common main / plant side",
+                to_label="Selected route entry",
                 flow_label=_room_flow_label(emitters, room_id),
-                basis="Emitter demand in room",
-                status="Local branch terminal flow only",
+                basis="Emitter demand before selected route",
+                status="Projection only",
             )
         )
 

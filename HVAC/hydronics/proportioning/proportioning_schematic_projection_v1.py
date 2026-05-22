@@ -122,7 +122,10 @@ def build_proportioning_schematic_v1(project_state: Any) -> ProportioningSchemat
     # --------------------------------------------------
     common_route_rows = [
         row for row in summary_rows
-        if getattr(row, "group", "") == "Non-index branch terminals"
+        if getattr(row, "group", "") in {
+            "Common-side route",
+            "Non-index branch terminals",
+        }
     ]
 
     common_route_node_ids: list[str] = []
@@ -193,24 +196,7 @@ def build_proportioning_schematic_v1(project_state: Any) -> ProportioningSchemat
             str(getattr(selected_rows[-1], "flow_label", "") or "—")
         )
 
-    # --------------------------------------------------
-    # Common-side route nodes
-    # --------------------------------------------------
-    #
-    # H-S4e rule:
-    # A room excluded from the selected index-route accumulator is not
-    # automatically a branch/subleg.
-    #
-    # In the current v1 projection, non-index terminal rows are treated as
-    # common-side route nodes before the selected index route entry.
-    #
-    # No split = route node.
-    # Split = subleg.
-    #
-    common_route_rows = [
-        row for row in summary_rows
-        if getattr(row, "group", "") == "Non-index branch terminals"
-    ]
+
 
     # --------------------------------------------------
     # Link common/main through common-side route nodes into
