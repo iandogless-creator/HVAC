@@ -66,7 +66,11 @@ def build_branch_proportioning_summary_v1(project_state: Any) -> List[BranchProp
     # --------------------------------------------------
     # Selected index route
     # --------------------------------------------------
+    # --------------------------------------------------
+    # Selected index route
+    # --------------------------------------------------
     index_route_room_ids = _resolve_index_route_room_ids(project_state)
+    heat_source_room_id = _resolve_heat_source_room_id(project_state)
 
     if index_route_room_ids:
         index_leg_flow_map = _index_route_leg_flow_map(project_state)
@@ -103,8 +107,14 @@ def build_branch_proportioning_summary_v1(project_state: Any) -> List[BranchProp
     # --------------------------------------------------
     # Non-index branch terminals
     # --------------------------------------------------
+    # --------------------------------------------------
+    # Non-index branch terminals
+    # --------------------------------------------------
     for room_id in sorted(room_ids_with_emitters):
         if room_id in index_route_set:
+            continue
+
+        if heat_source_room_id and room_id == heat_source_room_id:
             continue
 
         rows.append(
@@ -170,6 +180,38 @@ def _room_ids_with_emitters(emitters: dict) -> set[str]:
 
     return out
 
+def _resolve_heat_source_room_id(project_state: Any) -> Optional[str]:
+    """
+    Resolve the current boiler / heat-source room.
+
+    DEV fallback:
+    • reuse the existing basic index-route accumulator plant_room_id
+    • in the current DEV project this is R1
+
+    Meaning:
+    • this is the room/enclosure containing the boiler or heat source
+    • the user-facing room name may be Kitchen, Cupboard, Garage,
+      Utility, Plant Room, etc.
+    • do not infer this role from the room label
+
+    Future authority:
+    • project.hydronics.heat_source_room_id or equivalent
+    """
+    try:
+        from HVAC.hydronics.routing.index_route_accumulator_v1 import (
+            build_index_route_accumulator_v1,
+        )
+
+        route = build_index_route_accumulator_v1(project_state)
+        heat_source_room_id = getattr(route, "plant_room_id", None)
+
+        if heat_source_room_id:
+            return str(heat_source_room_id)
+
+    except Exception:
+        pass
+
+    return None
 
 def _room_label(rooms: dict, room_id: str) -> str:
     room = rooms.get(room_id)
@@ -223,6 +265,15 @@ def _resolve_index_route_room_ids(project_state: Any) -> List[str]:
                     room_ids.append(to_room_id)
 
         if room_ids:
+            heat_source_room_id = getattr(route, "plant_room_id", None)
+
+            if heat_source_room_id:
+                room_ids = [
+                    room_id
+                    for room_id in room_ids
+                    if room_id != str(heat_source_room_id)
+                ]
+
             return room_ids
 
     except Exception:

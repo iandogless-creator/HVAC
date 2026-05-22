@@ -117,7 +117,31 @@ def build_proportioning_schematic_v1(project_state: Any) -> ProportioningSchemat
     route_order = 2
 
     first_route_node_id: str | None = None
+    # --------------------------------------------------
+    # Common-side route nodes
+    # --------------------------------------------------
+    common_route_rows = [
+        row for row in summary_rows
+        if getattr(row, "group", "") == "Non-index branch terminals"
+    ]
 
+    common_route_node_ids: list[str] = []
+
+    for common_index, row in enumerate(common_route_rows, start=1):
+        label = str(getattr(row, "from_label", "") or "—")
+        node_id = _node_id("common-route", label)
+
+        common_route_node_ids.append(node_id)
+
+        nodes_by_id[node_id] = ProportioningSchematicNodeV1(
+            node_id=node_id,
+            label=label,
+            role=NODE_ROLE_COMMON_MAIN,
+            lane=0,
+            order=route_order,
+            status="Common-side route node",
+        )
+        route_order += 1
     for row_index, row in enumerate(selected_rows, start=1):
         from_label = str(getattr(row, "from_label", "") or "—")
         to_label = str(getattr(row, "to_label", "") or "—")
@@ -162,53 +186,56 @@ def build_proportioning_schematic_v1(project_state: Any) -> ProportioningSchemat
             )
         )
 
-    # Link common main to the first selected route node for visual continuity.
-    if first_route_node_id is not None:
-        edges.append(
-            ProportioningSchematicEdgeV1(
-                edge_id="edge-common-main-selected-route-entry",
-                from_node_id=common_main_id,
-                to_node_id=first_route_node_id,
-                role=EDGE_ROLE_SELECTED_INDEX_ROUTE,
-                flow_label="—",
-                basis="Selected index-route subleg entry",
-                status="Projection only",
-            )
+    selected_entry_flow_label = "—"
+
+    if selected_rows:
+        selected_entry_flow_label = (
+            str(getattr(selected_rows[-1], "flow_label", "") or "—")
         )
 
     # --------------------------------------------------
-    # Non-index terminal sublegs
+    # Common-side route nodes
     # --------------------------------------------------
-    branch_rows = [
+    #
+    # H-S4e rule:
+    # A room excluded from the selected index-route accumulator is not
+    # automatically a branch/subleg.
+    #
+    # In the current v1 projection, non-index terminal rows are treated as
+    # common-side route nodes before the selected index route entry.
+    #
+    # No split = route node.
+    # Split = subleg.
+    #
+    common_route_rows = [
         row for row in summary_rows
         if getattr(row, "group", "") == "Non-index branch terminals"
     ]
 
-    for branch_index, row in enumerate(branch_rows, start=1):
-        label = str(getattr(row, "from_label", "") or "—")
-        node_id = _node_id("branch", label)
+    # --------------------------------------------------
+    # Link common/main through common-side route nodes into
+    # the selected index-route entry.
+    # --------------------------------------------------
+    entry_chain = [common_main_id, *common_route_node_ids]
 
-        nodes_by_id[node_id] = ProportioningSchematicNodeV1(
-            node_id=node_id,
-            label=label,
-            role=NODE_ROLE_NON_INDEX_BRANCH_TERMINAL,
-            lane=-1,
-            order=branch_index,
-            status="Non-index terminal subleg",
-        )
+    if first_route_node_id is not None:
+        entry_chain.append(first_route_node_id)
 
+    for entry_index, (from_node_id, to_node_id) in enumerate(
+            zip(entry_chain, entry_chain[1:]),
+            start=1,
+    ):
         edges.append(
             ProportioningSchematicEdgeV1(
-                edge_id=f"edge-non-index-branch-terminal-{branch_index}",
-                from_node_id=node_id,
-                to_node_id=common_main_id,
-                role=EDGE_ROLE_NON_INDEX_BRANCH_TERMINAL,
-                flow_label=str(getattr(row, "flow_label", "—") or "—"),
-                basis=str(getattr(row, "basis", "") or ""),
-                status=str(getattr(row, "status", "") or ""),
+                edge_id=f"edge-common-main-selected-route-entry-{entry_index}",
+                from_node_id=from_node_id,
+                to_node_id=to_node_id,
+                role=EDGE_ROLE_SELECTED_INDEX_ROUTE,
+                flow_label=selected_entry_flow_label,
+                basis="Selected index route entry",
+                status="Projection only",
             )
         )
-
     # --------------------------------------------------
     # No-emitter / unresolved
     # --------------------------------------------------
@@ -253,7 +280,7 @@ def build_proportioning_schematic_v1(project_state: Any) -> ProportioningSchemat
         nodes=nodes,
         edges=tuple(edges),
         title="Proportioning schematic",
-        basis="Derived from H-R branch/proportioning summary",
+        basis="Derived from hydronic proportioning summary — route shown to calculated index point",
     )
 
 
