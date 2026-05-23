@@ -27,6 +27,7 @@ EDGE_ROLE_UNRESOLVED = "NO_EMITTER_UNRESOLVED"
 # DTOs
 # ======================================================================
 
+
 @dataclass(frozen=True, slots=True)
 class ProportioningSchematicNodeV1:
     """
@@ -41,7 +42,7 @@ class ProportioningSchematicNodeV1:
     lane: int
     order: int
     status: str = ""
-
+    is_index_node: bool = False
 
 @dataclass(frozen=True, slots=True)
 class ProportioningSchematicEdgeV1:

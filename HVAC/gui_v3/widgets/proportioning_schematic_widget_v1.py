@@ -11,7 +11,6 @@ from PySide6.QtCore import QPointF, QRectF, Qt
 from PySide6.QtGui import QBrush, QFont, QPainter, QPen, QPolygonF
 from PySide6.QtWidgets import QWidget
 
-
 # ======================================================================
 # Internal layout DTO
 # ======================================================================
@@ -22,7 +21,7 @@ class _NodeBox:
     label: str
     role: str
     rect: QRectF
-
+    is_index_node: bool = False
 
 # ======================================================================
 # ProportioningSchematicWidgetV1
@@ -158,6 +157,7 @@ class ProportioningSchematicWidgetV1(QWidget):
                 label=label,
                 role=role,
                 rect=rect,
+                is_index_node=getattr(node, "is_index_node", False),
             )
 
         return boxes
@@ -279,6 +279,46 @@ class ProportioningSchematicWidgetV1(QWidget):
             box.label,
         )
 
+        if getattr(box, "is_index_node", False):
+            self._paint_index_flag(painter, box.rect)
+        painter.restore()
+
+    def _paint_index_flag(self, painter: QPainter, rect: QRectF) -> None:
+        """
+        Paint a small reddish index flag attached to the node.
+
+        Display-only annotation:
+        - does not alter room label
+        - does not alter route authority
+        - marks current/selected index node
+        """
+
+        painter.save()
+
+        pole_x = rect.right() - 14.0
+        pole_y = rect.top() + 6.0
+        pole_h = 15.0
+        flag_w = 12.0
+        flag_h = 8.0
+
+        painter.setPen(QPen(Qt.darkRed, 1.0))
+        painter.setBrush(QBrush(Qt.darkRed))
+
+        painter.drawLine(
+            QPointF(pole_x, pole_y),
+            QPointF(pole_x, pole_y + pole_h),
+        )
+
+        flag = QPolygonF(
+            [
+                QPointF(pole_x, pole_y),
+                QPointF(pole_x + flag_w, pole_y + 3.0),
+                QPointF(pole_x, pole_y + flag_h),
+            ]
+        )
+
+        painter.drawPolygon(flag)
+
         painter.restore()
 
     def _paint_edges(
@@ -300,14 +340,23 @@ class ProportioningSchematicWidgetV1(QWidget):
             self._paint_edge(painter, edge, from_box, to_box)
 
     def _paint_edge(
-        self,
-        painter: QPainter,
-        edge: Any,
-        from_box: _NodeBox,
-        to_box: _NodeBox,
+            self,
+            painter: QPainter,
+            edge: Any,
+            from_box: _NodeBox,
+            to_box: _NodeBox,
     ) -> None:
         role = str(getattr(edge, "role", "") or "")
         flow_label = str(getattr(edge, "flow_label", "") or "")
+
+        if self._is_selected_route_entry_edge(edge):
+            self._paint_selected_route_entry_connector(
+                painter,
+                edge,
+                from_box,
+                to_box,
+            )
+            return
 
         start = self._edge_start(from_box.rect, to_box.rect)
         end = self._edge_end(from_box.rect, to_box.rect)
@@ -334,6 +383,100 @@ class ProportioningSchematicWidgetV1(QWidget):
             self._paint_edge_label(painter, start, end, flow_label)
 
         painter.restore()
+
+    def _is_selected_route_entry_edge(self, edge: Any) -> bool:
+        """
+        Return True only for the synthetic schematic connector from
+        common main into the selected index route.
+
+        This connector is projection/display only. It must not catch
+        ordinary selected-index-route legs or sublegs.
+        """
+        edge_id = str(getattr(edge, "edge_id", "") or "")
+
+        return edge_id == "edge-common-main-selected-route-entry"
+
+    def _paint_selected_route_entry_connector(
+        self,
+        painter: QPainter,
+        edge: Any,
+        from_box: _NodeBox,
+        to_box: _NodeBox,
+    ) -> None:
+        """
+        Paint the selected route entry as a schematic connector.
+
+        H-S4d visual rule:
+        • the connector shows that the selected index route is fed from
+          the common main
+        • it is not a CAD pipe route
+        • it is not a calculated branch attachment point
+        """
+        painter.save()
+
+        pen = QPen(Qt.darkGreen, 1.6)
+        painter.setPen(pen)
+
+        from_rect = from_box.rect
+        to_rect = to_box.rect
+
+        start = QPointF(from_rect.center().x(), from_rect.bottom())
+        drop_y = max(from_rect.bottom(), to_rect.bottom()) + 42.0
+
+        p1 = QPointF(start.x(), drop_y)
+        p2 = QPointF(to_rect.center().x(), drop_y)
+        end = QPointF(to_rect.center().x(), to_rect.bottom())
+
+        painter.drawLine(start, p1)
+        painter.drawLine(p1, p2)
+        painter.drawLine(p2, end)
+
+        # Draftsman-style schematic break marker on the connector.
+        break_x = (p1.x() + p2.x()) / 2.0
+        painter.drawLine(
+            QPointF(break_x - 10.0, drop_y - 4.0),
+            QPointF(break_x - 4.0, drop_y + 4.0),
+        )
+        painter.drawLine(
+            QPointF(break_x + 2.0, drop_y - 4.0),
+            QPointF(break_x + 8.0, drop_y + 4.0),
+        )
+
+        # Arrow into the selected route node from below.
+        self._paint_arrow_head(
+            painter,
+            QPointF(end.x(), end.y() + 16.0),
+            end,
+        )
+        flow_label = str(getattr(edge, "flow_label", "") or "")
+
+        if flow_label and flow_label != "—":
+            mid_x = (p1.x() + p2.x()) / 2.0
+
+            rect = QRectF(
+                mid_x - 48.0,
+                drop_y - 30.0,
+                96.0,
+                20.0,
+            )
+
+            painter.setPen(QPen(Qt.darkGray, 1.0))
+            painter.drawLine(
+                QPointF(rect.center().x(), rect.bottom()),
+                QPointF(mid_x, drop_y),
+            )
+
+            painter.setPen(QPen(Qt.black))
+            painter.setBrush(QBrush(Qt.white))
+            painter.drawRoundedRect(rect, 4.0, 4.0)
+            painter.drawText(
+                rect.adjusted(4.0, 0.0, -4.0, 0.0),
+                Qt.AlignCenter | Qt.AlignVCenter,
+                flow_label,
+            )
+
+        painter.restore()
+
 
     def _edge_start(self, from_rect: QRectF, to_rect: QRectF) -> QPointF:
         from_center = from_rect.center()
@@ -398,12 +541,12 @@ class ProportioningSchematicWidgetV1(QWidget):
             label: str,
     ) -> None:
         """
-        Paint a readable flow label near an edge.
+        Paint a readable flow callout near an edge.
 
-        H-S4 visual rule:
-        • flow labels are important engineering projection values
-        • use dynamic width for normal engineering values
-        • cap width so abnormal text cannot dominate the schematic
+        H-S4c visual rule:
+        • flow labels are callouts, not inline pipe text
+        • the callout points to the pipe section
+        • keep the drawing clean and avoid node overlap
         """
         mid_x = (start.x() + end.x()) / 2.0
         mid_y = (start.y() + end.y()) / 2.0
@@ -427,20 +570,32 @@ class ProportioningSchematicWidgetV1(QWidget):
         dx = end.x() - start.x()
         dy = end.y() - start.y()
 
+        # Horizontal pipe section:
+        # label above pipe, pointer down to pipe.
         if abs(dx) >= abs(dy):
             rect = QRectF(
                 mid_x - (label_w / 2.0),
-                mid_y - 26.0,
+                mid_y - 44.0,
                 label_w,
                 label_h,
             )
+            pointer_start = QPointF(rect.center().x(), rect.bottom())
+            pointer_end = QPointF(mid_x, mid_y - 2.0)
+
+        # Vertical / branch section:
+        # label to the side, pointer back to branch.
         else:
             rect = QRectF(
-                mid_x + 8.0,
+                mid_x + 12.0,
                 mid_y - (label_h / 2.0),
                 label_w,
                 label_h,
             )
+            pointer_start = QPointF(rect.left(), rect.center().y())
+            pointer_end = QPointF(mid_x + 2.0, mid_y)
+
+        painter.setPen(QPen(Qt.darkGray, 1.0))
+        painter.drawLine(pointer_start, pointer_end)
 
         painter.setPen(QPen(Qt.black))
         painter.setBrush(QBrush(Qt.white))

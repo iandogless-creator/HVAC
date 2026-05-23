@@ -46,15 +46,11 @@ def build_proportioning_schematic_v1(project_state: Any) -> ProportioningSchemat
     summary_rows = build_branch_proportioning_summary_v1(project_state)
     index_room_label = _resolve_index_room_label(project_state)
 
-    def _display_label(label: str) -> str:
-        if _is_index_label(label, index_room_label):
-            return f"{label} [INDEX]"
-
-        return label
+    def _is_index_node(label: str) -> bool:
+        return _is_index_label(label, index_room_label)
 
     nodes_by_id: dict[str, ProportioningSchematicNodeV1] = {}
     edges: list[ProportioningSchematicEdgeV1] = []
-
     # --------------------------------------------------
     # Fixed v1 anchor nodes
     # --------------------------------------------------
@@ -165,7 +161,8 @@ def build_proportioning_schematic_v1(project_state: Any) -> ProportioningSchemat
         if from_node_id not in nodes_by_id:
             nodes_by_id[from_node_id] = ProportioningSchematicNodeV1(
                 node_id=from_node_id,
-                label=_display_label(from_label),
+                label=from_label,
+                is_index_node=_is_index_node(from_label),
                 role=NODE_ROLE_SELECTED_INDEX_ROUTE,
                 lane=0,
                 order=route_order,
@@ -176,7 +173,8 @@ def build_proportioning_schematic_v1(project_state: Any) -> ProportioningSchemat
         if to_node_id not in nodes_by_id:
             nodes_by_id[to_node_id] = ProportioningSchematicNodeV1(
                 node_id=to_node_id,
-                label=_display_label(to_label),
+                label=to_label,
+                is_index_node=_is_index_node(to_label),
                 role=NODE_ROLE_SELECTED_INDEX_ROUTE,
                 lane=0,
                 order=route_order,
