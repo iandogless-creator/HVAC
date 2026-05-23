@@ -17,7 +17,7 @@ from HVAC.core.opening_schedule_v1 import RoomOpeningScheduleV1
 from HVAC.hydronics.models.basic_hydronic_sizing_intent_v1 import (
     BasicHydronicSizingIntentV1,
 )
-
+from HVAC.hydronics.topology.hydronic_topology_v1 import HydronicTopologyV1
 # ======================================================================
 # Hydronics emitter serialization
 # ======================================================================
@@ -102,6 +102,7 @@ class ProjectState:
     rooms: Dict[str, RoomStateV1] = field(default_factory=dict)
     environment: Optional[EnvironmentStateV1] = None
     boundary_segments: Dict[str, BoundarySegmentV1] = field(default_factory=dict)
+    hydronic_topology: Optional[HydronicTopologyV1] = None
 
     room_opening_schedules: Dict[str, RoomOpeningScheduleV1] = field(default_factory=dict)
     openings_by_surface: Dict[str, list[Any]] = field(default_factory=dict)
@@ -306,6 +307,12 @@ class ProjectState:
                 "valid": self.hydronics_valid,
                 "results": _json_safe(self.hydronics_results),
             },
+
+            "hydronic_topology": (
+                self.hydronic_topology.to_dict()
+                if self.hydronic_topology is not None
+                else None
+            ),
         }
 
     # ==================================================================
@@ -396,6 +403,10 @@ class ProjectState:
             str(k): str(v)
             for k, v in (data.get("surface_construction_map", {}) or {}).items()
         }
+        raw_hydronic_topology = data.get("hydronic_topology")
+
+        if isinstance(raw_hydronic_topology, dict):
+            instance.hydronic_topology = HydronicTopologyV1.from_dict(raw_hydronic_topology)
 
         # --------------------------------------------------
         # Construction library
