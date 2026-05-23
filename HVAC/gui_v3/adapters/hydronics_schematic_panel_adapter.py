@@ -60,6 +60,13 @@ from HVAC.hydronics.proportioning.branch_proportioning_summary_v1 import (
 from HVAC.hydronics.proportioning.proportioning_schematic_projection_v1 import (
     build_proportioning_schematic_v1,
 )
+from HVAC.hydronics.topology.leg_subleg_projection_v1 import (
+    build_leg_subleg_topology_v1,
+)
+from HVAC.hydronics.topology.dev_hydronic_topology_builder_v1 import (
+    DevHydronicTopologyBuilderV1,
+)
+
 class HydronicsSchematicPanelAdapter:
     """
     GUI v3 — Hydronics Schematic Panel Adapter.
@@ -81,15 +88,49 @@ class HydronicsSchematicPanelAdapter:
     """
 
     def __init__(
-        self,
-        *,
-        panel: HydronicsSchematicPanel,
-        project_state: ProjectState,
+            self,
+            *,
+            panel: HydronicsSchematicPanel,
+            project_state: ProjectState,
+            context: object | None = None,
     ) -> None:
         self._panel = panel
         self._project_state = project_state
+        self._context = context
+
+        self._subscribe_if_present("room_state_changed", self.refresh)
+        self._subscribe_if_present("project_state_changed", self.refresh)
 
         self.refresh()
+
+    def _subscribe_if_present(self, signal_name: str, callback) -> None:
+        """
+        Best-effort subscription to GuiProjectContext signals.
+
+        Keeps this adapter tolerant of context API shape.
+        """
+        context = getattr(self, "_context", None)
+        if context is None:
+            return
+
+        signal = getattr(context, signal_name, None)
+        if signal is None:
+            return
+
+        connect = getattr(signal, "connect", None)
+        if callable(connect):
+            try:
+                connect(lambda *args, **kwargs: callback())
+            except TypeError:
+                pass
+            return
+
+        subscribe = getattr(signal, "subscribe", None)
+        if callable(subscribe):
+            try:
+                subscribe(lambda *args, **kwargs: callback())
+            except TypeError:
+                pass
 
     def set_project_state(self, project_state: ProjectState) -> None:
         """
@@ -181,10 +222,27 @@ class HydronicsSchematicPanelAdapter:
         self._panel.set_proportioning_rows(
             self._build_proportioning_rows(proportioning_rows)
         )
+
+        if getattr(self._project_state, "hydronic_topology", None) is None:
+            DevHydronicTopologyBuilderV1.install_single_leg_on_project(
+                self._project_state,
+                overwrite=False,
+            )
         proportioning_schematic = build_proportioning_schematic_v1(
             self._project_state
         )
         self._panel.set_proportioning_schematic(proportioning_schematic)
+
+        # --------------------------------------------------
+        # Leg / subleg topology
+        # --------------------------------------------------
+        leg_subleg_topology = build_leg_subleg_topology_v1(
+            self._project_state
+        )
+        self._panel.set_leg_subleg_topology_rows(
+            self._build_leg_subleg_topology_rows(leg_subleg_topology)
+        )
+
         # --------------------------------------------------
         # Index route accumulator
         # --------------------------------------------------
@@ -315,6 +373,57 @@ class HydronicsSchematicPanelAdapter:
             )
 
         return out
+
+    def _build_leg_subleg_topology_rows(self, topology) -> list[dict]:
+        """
+        Convert H-T2 leg/subleg topology DTO into read-only panel rows.
+
+        Adapter responsibility:
+        • DTO → display dict only
+        • no pressure loss
+        • no pipe sizing
+        • no ProjectState mutation
+        """
+
+        nodes_by_id = {
+            getattr(node, "node_id", ""): node
+            for node in getattr(topology, "nodes", []) or []
+        }
+
+        out: list[dict] = []
+
+        for section in getattr(topology, "sections", []) or []:
+            from_node = nodes_by_id.get(getattr(section, "from_node_id", ""))
+            to_node = nodes_by_id.get(getattr(section, "to_node_id", ""))
+
+            flow = getattr(section, "flow_kg_s", None)
+            flow_label = "—" if flow is None else f"{float(flow):.4f} kg/s"
+
+            out.append(
+                {
+                    "section": str(getattr(section, "label", "") or getattr(section, "section_id", "")),
+                    "role": self._display_leg_subleg_role(
+                        getattr(section, "role", "")
+                    ),
+                    "from": str(getattr(from_node, "label", "") or getattr(section, "from_node_id", "")),
+                    "to": str(getattr(to_node, "label", "") or getattr(section, "to_node_id", "")),
+                    "flow": flow_label,
+                    "termination": str(getattr(section, "termination", "") or ""),
+                    "basis": str(getattr(section, "flow_basis", "") or ""),
+                }
+            )
+
+        return out
+
+    def _display_leg_subleg_role(self, role: str) -> str:
+        role_display = {
+            "COMMON_LEG": "Leg 1 / Common leg",
+            "SUBLEG_CIRCUIT": "Subleg circuit",
+            "TERMINAL_BRANCH": "Terminal/radiator branch",
+            "INTERMEDIATE_BRANCH": "Intermediate branch",
+        }
+
+        return role_display.get(str(role), str(role))
 
     def _build_pipe_size_suggestion_rows(self, suggestion) -> list[dict]:
         rows: list[dict] = []

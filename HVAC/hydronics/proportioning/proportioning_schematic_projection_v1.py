@@ -42,7 +42,11 @@ def build_proportioning_schematic_v1(project_state: Any) -> ProportioningSchemat
     • no pipe sizing
     • no balancing
     """
+    topology = getattr(project_state, "hydronic_topology", None)
+    topology = getattr(project_state, "hydronic_topology", None)
 
+    if topology is not None:
+        return _build_from_hydronic_topology(project_state, topology)
     summary_rows = build_branch_proportioning_summary_v1(project_state)
     index_room_label = _resolve_index_room_label(project_state)
 
@@ -271,7 +275,138 @@ def build_proportioning_schematic_v1(project_state: Any) -> ProportioningSchemat
         title="Proportioning schematic",
         basis="Derived from hydronic proportioning summary — route shown to calculated index point",
     )
+def _build_from_hydronic_topology(
+    project_state: Any,
+    topology: Any,
+) -> ProportioningSchematicV1:
+    """
+    Build schematic projection from HydronicTopologyV1 route authority.
 
+    Display/projection only:
+    - no pipe sizing
+    - no pressure loss
+    - no balancing
+    - no ProjectState mutation
+    """
+
+    rooms = getattr(project_state, "rooms", {}) or {}
+    intent = getattr(project_state, "basic_hydronic_sizing_intent", None)
+    index_room_id = getattr(intent, "index_room_id", None) if intent else None
+
+    nodes_by_id: dict[str, ProportioningSchematicNodeV1] = {}
+    edges: list[ProportioningSchematicEdgeV1] = []
+
+    heat_source_id = "heat-source"
+    common_main_id = "common-main"
+
+    nodes_by_id[heat_source_id] = ProportioningSchematicNodeV1(
+        node_id=heat_source_id,
+        label="Boiler / Heat Source",
+        role=NODE_ROLE_HEAT_SOURCE,
+        lane=0,
+        order=0,
+        status="Projection only",
+    )
+
+    nodes_by_id[common_main_id] = ProportioningSchematicNodeV1(
+        node_id=common_main_id,
+        label="Common main",
+        role=NODE_ROLE_COMMON_MAIN,
+        lane=0,
+        order=1,
+        status="Projection only",
+    )
+
+    edges.append(
+        ProportioningSchematicEdgeV1(
+            edge_id="edge-heat-source-common-main",
+            from_node_id=heat_source_id,
+            to_node_id=common_main_id,
+            role=EDGE_ROLE_COMMON_MAIN,
+            flow_label="—",
+            basis="Hydronic topology route authority",
+            status="Projection only",
+        )
+    )
+
+    legs = list(getattr(topology, "legs", []) or [])
+    first_leg = legs[0] if legs else None
+
+    route_room_ids = (
+        list(getattr(first_leg, "route_room_ids", []) or [])
+        if first_leg is not None
+        else []
+    )
+
+    if not index_room_id and first_leg is not None:
+        index_room_id = getattr(first_leg, "index_room_id", None)
+
+    previous_node_id = common_main_id
+    route_order = 2
+
+    for route_index, room_id in enumerate(route_room_ids, start=1):
+        room_id = str(room_id)
+        node_id = _node_id("route", room_id)
+        label = _room_route_label(rooms.get(room_id), room_id)
+
+        nodes_by_id[node_id] = ProportioningSchematicNodeV1(
+            node_id=node_id,
+            label=label,
+            role=NODE_ROLE_SELECTED_INDEX_ROUTE,
+            lane=0,
+            order=route_order,
+            status="Hydronic topology route node",
+            is_index_node=(room_id == index_room_id),
+        )
+
+        edges.append(
+            ProportioningSchematicEdgeV1(
+                edge_id=f"edge-topology-route-{route_index}",
+                from_node_id=previous_node_id,
+                to_node_id=node_id,
+                role=EDGE_ROLE_SELECTED_INDEX_ROUTE,
+                flow_label="—",
+                basis="Hydronic topology route authority",
+                status="Projection only",
+            )
+        )
+
+        previous_node_id = node_id
+        route_order += 1
+
+    return ProportioningSchematicV1(
+        nodes=tuple(
+            sorted(
+                nodes_by_id.values(),
+                key=lambda node: (node.lane, node.order, node.node_id),
+            )
+        ),
+        edges=tuple(edges),
+        title="Proportioning schematic",
+        basis="Derived from hydronic topology — route authority before Basic PS",
+    )
+
+
+def _room_route_label(room: Any, room_id: str) -> str:
+    """
+    Resolve schematic room label.
+
+    Keeps the schematic compact by stripping leading room notation such as:
+    'R2 Hall' -> 'Hall'
+    """
+
+    raw_label = getattr(room, "name", None) if room is not None else None
+    label = str(raw_label or room_id).strip()
+
+    parts = label.split(maxsplit=1)
+
+    if len(parts) == 2:
+        prefix = parts[0].strip()
+
+        if len(prefix) >= 2 and prefix[0].upper() == "R" and prefix[1:].isdigit():
+            return parts[1].strip()
+
+    return label
 
 # ======================================================================
 # Helpers
@@ -301,11 +436,31 @@ def _node_id(prefix: str, label: str) -> str:
 
 def _resolve_index_room_label(project_state: Any) -> str | None:
     """
-    Resolve the current index room label for display-only schematic notation.
+    Resolve the current index room label for schematic annotation.
 
-    This reads the existing assumed/basic index-route accumulator.
-    It does not calculate or validate a new index route.
+    Priority:
+    1. Basic Hydronics sizing intent index_room_id
+    2. Existing index-route accumulator fallback
     """
+
+    # --------------------------------------------------
+    # Preferred authority: Basic Hydronics sizing intent
+    # --------------------------------------------------
+    intent = getattr(project_state, "basic_hydronic_sizing_intent", None)
+    index_room_id = getattr(intent, "index_room_id", None) if intent else None
+
+    rooms = getattr(project_state, "rooms", {}) or {}
+
+    if index_room_id and index_room_id in rooms:
+        room = rooms[index_room_id]
+        label = getattr(room, "name", None)
+
+        if label:
+            return str(label).strip()
+
+    # --------------------------------------------------
+    # Fallback: existing accumulator route label
+    # --------------------------------------------------
     try:
         from HVAC.hydronics.routing.index_route_accumulator_v1 import (
             build_index_route_accumulator_v1,
@@ -315,10 +470,10 @@ def _resolve_index_room_label(project_state: Any) -> str | None:
         label = getattr(route, "index_room_label", None)
 
         if label:
-            return str(label)
+            return str(label).strip()
 
     except Exception:
-        pass
+        return None
 
     return None
 

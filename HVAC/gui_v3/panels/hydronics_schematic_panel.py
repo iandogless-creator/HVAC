@@ -550,6 +550,25 @@ class HydronicsSchematicPanel(QWidget):
             table=self._pipe_authority_summary_table,
             min_height=240,
         )
+        self._leg_subleg_topology_table = self._make_table(
+            columns=[
+                "Section",
+                "Role",
+                "From",
+                "To",
+                "Flow",
+                "Termination",
+                "Basis",
+            ],
+            stretch_columns={0, 1, 2, 3, 6},
+        )
+        self._add_section(
+            authority_layout,
+            title="Leg / subleg topology",
+            table=self._leg_subleg_topology_table,
+            min_height=220,
+        )
+
 
         self._basic_hydronics_table = self._make_table(
             columns=[
@@ -857,6 +876,38 @@ class HydronicsSchematicPanel(QWidget):
                 table.setItem(row_index, col_index, item)
 
         self._fit_table_height(table, min_height=240, max_height=340)
+        table.scrollToTop()
+
+    def set_leg_subleg_topology_rows(self, rows: list[dict]) -> None:
+        """
+        Observer-only leg/subleg topology projection.
+
+        Display only:
+        • no ProjectState access
+        • no pressure loss
+        • no pipe sizing
+        • no balancing
+        """
+        table = self._leg_subleg_topology_table
+        table.setRowCount(len(rows))
+
+        for row_index, row in enumerate(rows):
+            values = [
+                row.get("section", "—"),
+                row.get("role", "—"),
+                row.get("from", "—"),
+                row.get("to", "—"),
+                row.get("flow", "—"),
+                row.get("termination", "—"),
+                row.get("basis", "—"),
+            ]
+
+            for col_index, value in enumerate(values):
+                item = QTableWidgetItem(str(value))
+                item.setFlags(item.flags() & ~Qt.ItemIsEditable)
+                table.setItem(row_index, col_index, item)
+
+        self._fit_table_height(table, min_height=220, max_height=360)
         table.scrollToTop()
 
     def set_proportioning_rows(self, rows: list[dict]) -> None:

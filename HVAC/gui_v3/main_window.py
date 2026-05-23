@@ -383,21 +383,26 @@ class MainWindowV3(QMainWindow):
         self._dock_dev.show()
         self._dock_dev.raise_()
 
-
         # Adapters
         self._environment_panel_adapter = EnvironmentPanelAdapter(self._context, self._environment_panel)
         self._room_tree_panel_adapter = RoomTreePanelAdapter(panel=self._room_tree_panel, context=self._context)
         self._readiness_adapter = ProjectHeatLossReadinessAdapter(panel=self._heat_loss_panel, context=self._context)
         self._education_panel_adapter = EducationPanelAdapter(panel=self._education_panel, domain="heatloss", topic="overview", mode="standard")
-        self._hydronics_adapter = HydronicsSchematicPanelAdapter(panel=self._hydronics_panel, project_state=self._context.project_state)
         self._hydronic_control_adapter = HydronicControlPanelAdapter(
             panel=self._hydronic_control_panel,
             project_state=self._context.project_state,
             context=self._context,
             refresh_all=self._refresh_all_adapters,
         )
+
         self._basic_hydronics_adapter = BasicHydronicsPanelAdapter(
             panel=self._basic_hydronics_panel,
+            context=self._context,
+        )
+
+        self._hydronics_adapter = HydronicsSchematicPanelAdapter(
+            panel=self._hydronics_panel,
+            project_state=self._context.project_state,
             context=self._context,
         )
         self._geometry_adapter = GeometryMiniPanelAdapter(

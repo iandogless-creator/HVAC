@@ -53,7 +53,8 @@ class ProportioningSchematicWidgetV1(QWidget):
 
         self.setMinimumHeight(260)
         self.setMinimumWidth(620)
-        self.setMouseTracking(False)
+        self.setMouseTracking(True)
+        self._index_flag_rects: list[QRectF] = []
 
     # ------------------------------------------------------------------
     # Public API
@@ -95,7 +96,7 @@ class ProportioningSchematicWidgetV1(QWidget):
             return
 
         node_boxes = self._layout_nodes(nodes)
-
+        self._index_flag_rects.clear()
         self._paint_title(painter)
         self._paint_edges(painter, edges, node_boxes)
         self._paint_nodes(painter, node_boxes)
@@ -280,10 +281,11 @@ class ProportioningSchematicWidgetV1(QWidget):
         )
 
         if getattr(box, "is_index_node", False):
-            self._paint_index_flag(painter, box.rect)
+            flag_rect = self._paint_index_flag(painter, box.rect)
+            self._index_flag_rects.append(flag_rect)
         painter.restore()
 
-    def _paint_index_flag(self, painter: QPainter, rect: QRectF) -> None:
+    def _paint_index_flag(self, painter: QPainter, rect: QRectF) -> QRectF:
         """
         Paint a small reddish index flag attached to the node.
 
@@ -320,6 +322,13 @@ class ProportioningSchematicWidgetV1(QWidget):
         painter.drawPolygon(flag)
 
         painter.restore()
+
+        return QRectF(
+            pole_x - 4.0,
+            pole_y - 4.0,
+            flag_w + 10.0,
+            pole_h + 8.0,
+        )
 
     def _paint_edges(
         self,
@@ -615,6 +624,17 @@ class ProportioningSchematicWidgetV1(QWidget):
         )
 
         painter.restore()
+
+    def mouseMoveEvent(self, event) -> None:  # noqa: N802
+        pos = event.position()
+
+        for rect in self._index_flag_rects:
+            if rect.contains(pos):
+                self.setToolTip("Index route / current longest pressure-drop path")
+                return
+
+        self.setToolTip("")
+        super().mouseMoveEvent(event)
 
     def _paint_footer(self, painter: QPainter) -> None:
         basis = str(getattr(self._schematic, "basis", "") or "")
