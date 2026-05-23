@@ -62,6 +62,72 @@ class HydronicTopologyEditorV1:
                 return leg
 
         return None
+    @staticmethod
+    def move_room_up(
+        topology: HydronicTopologyV1,
+        leg_id: str,
+        room_id: str,
+    ) -> HydronicTopologyV1:
+        """
+        Move room_id one position earlier in the leg route.
+
+        If the room is already first, the route is unchanged.
+        """
+
+        leg = HydronicTopologyEditorV1.require_leg(topology, leg_id)
+        room_id = str(room_id)
+
+        if room_id not in leg.route_room_ids:
+            raise ValueError(
+                f"Cannot move room {room_id!r} up; "
+                f"room is not in leg {leg_id!r}"
+            )
+
+        index = leg.route_room_ids.index(room_id)
+
+        if index == 0:
+            return topology
+
+        leg.route_room_ids[index - 1], leg.route_room_ids[index] = (
+            leg.route_room_ids[index],
+            leg.route_room_ids[index - 1],
+        )
+
+        return topology
+
+    @staticmethod
+
+    def move_room_down(
+        topology: HydronicTopologyV1,
+        leg_id: str,
+        room_id: str,
+    ) -> HydronicTopologyV1:
+        """
+        Move room_id one position later in the leg route.
+
+        If the room is already terminal/last, the route is unchanged.
+        """
+
+        leg = HydronicTopologyEditorV1.require_leg(topology, leg_id)
+        room_id = str(room_id)
+
+        if room_id not in leg.route_room_ids:
+            raise ValueError(
+                f"Cannot move room {room_id!r} down; "
+                f"room is not in leg {leg_id!r}"
+            )
+
+        index = leg.route_room_ids.index(room_id)
+
+        if index >= len(leg.route_room_ids) - 1:
+            return topology
+
+        leg.route_room_ids[index], leg.route_room_ids[index + 1] = (
+            leg.route_room_ids[index + 1],
+            leg.route_room_ids[index],
+        )
+
+        return topology
 
     @staticmethod
     def require_leg(

@@ -72,8 +72,40 @@ def main() -> None:
 
     assert leg.route_room_ids == expected_route
     assert leg.index_room_id == "room-004"
+    HydronicTopologyEditorV1.move_room_up(
+        topology=topology,
+        leg_id="leg-001",
+        room_id="room-004",  # Lounge
+    )
 
-    print("\nOK — move_room_to_leg_terminal passed.")
+    print("\nAFTER — move Lounge up one position")
+    _print_leg(topology, "leg-001")
+
+    assert leg.route_room_ids == [
+        "room-002",
+        "room-003",
+        "room-005",
+        "room-004",
+        "room-006",
+    ]
+
+    HydronicTopologyEditorV1.move_room_down(
+        topology=topology,
+        leg_id="leg-001",
+        room_id="room-004",  # Lounge
+    )
+
+    print("\nAFTER — move Lounge down one position")
+    _print_leg(topology, "leg-001")
+
+    assert leg.route_room_ids == [
+        "room-002",
+        "room-003",
+        "room-005",
+        "room-006",
+        "room-004",
+    ]
+    print("\nOK — hydronic topology editor route movement passed.")
 
 
 if __name__ == "__main__":
