@@ -153,7 +153,12 @@ class BasicHydronicsPanelAdapter:
             total_index_length_m=payload.get("total_index_length_m"),
             nominal_pressure_gradient_Pa_per_m=payload.get(
                 "nominal_pressure_gradient_Pa_per_m"
-            )
+            ),
+            length_source=str(payload.get("length_source") or "unset"),
+            pressure_gradient_source=str(
+                payload.get("pressure_gradient_source") or "unset"
+            ),
+            notes=str(payload.get("notes") or ""),
         )
 
         # Hydronics assumptions changed. Existing calculated hydronics
