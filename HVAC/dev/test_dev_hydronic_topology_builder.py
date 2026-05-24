@@ -9,7 +9,9 @@ from HVAC.core.room_state import RoomStateV1
 from HVAC.hydronics.topology.dev_hydronic_topology_builder_v1 import (
     DevHydronicTopologyBuilderV1,
 )
-
+from HVAC.hydronics.topology.primary_subleg_helpers_v1 import (
+    primary_subleg_for_leg_id,
+)
 
 def _room(room_id: str, label: str) -> RoomStateV1:
     return RoomStateV1(
@@ -56,7 +58,24 @@ def main() -> None:
     print("\nall_route_room_ids =", topology.all_route_room_ids())
     print("contains room-001 =", topology.contains_room_id("room-001"))
     print("contains room-006 =", topology.contains_room_id("room-006"))
+    primary_subleg = primary_subleg_for_leg_id(topology, "leg-001")
 
+    print("\nPRIMARY SUBLEG")
+    print(f"subleg_id = {primary_subleg.subleg_id}")
+    print(f"label = {primary_subleg.label}")
+    print(f"route_room_ids = {primary_subleg.route_room_ids}")
+    print(f"index_room_id = {primary_subleg.index_room_id}")
+
+    assert primary_subleg.subleg_id == "leg-001-primary-subleg"
+    assert primary_subleg.label == "Primary subleg"
+    assert primary_subleg.route_room_ids == [
+        "room-002",
+        "room-003",
+        "room-004",
+        "room-005",
+        "room-006",
+    ]
+    assert primary_subleg.index_room_id == "room-006"
 
 if __name__ == "__main__":
     main()

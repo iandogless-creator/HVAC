@@ -8,9 +8,13 @@ from typing import Any
 
 from HVAC.hydronics.topology.hydronic_topology_v1 import (
     HydronicLegV1,
+    HydronicSublegV1,
     HydronicTopologyV1,
 )
-
+from HVAC.hydronics.topology.primary_subleg_helpers_v1 import (
+    PRIMARY_SUBLEG_LABEL,
+    primary_subleg_id_for_leg,
+)
 
 # ======================================================================
 # DEV Hydronic Topology Builder V1
@@ -80,15 +84,31 @@ class DevHydronicTopologyBuilderV1:
 
         index_room_id = route_room_ids[-1] if route_room_ids else None
 
+        primary_subleg = HydronicSublegV1(
+            subleg_id=primary_subleg_id_for_leg(leg_id),
+            label=PRIMARY_SUBLEG_LABEL,
+            origin_room_id="",
+            route_room_ids=list(route_room_ids),
+            index_room_id=index_room_id,
+            sublegs=[],
+        )
+
         return HydronicTopologyV1(
             heat_source_room_id=resolved_heat_source_room_id,
             legs=[
                 HydronicLegV1(
                     leg_id=leg_id,
                     label=leg_label,
-                    route_room_ids=route_room_ids,
+
+                    # H-S7 transitional compatibility:
+                    # Legs should not finally own rooms directly.
+                    # This mirror remains until all consumers read primary subleg.
+                    route_room_ids=list(route_room_ids),
                     index_room_id=index_room_id,
-                    sublegs=[],
+
+                    # H-S7 canonical route location:
+                    # the leg feeds a primary room-carrying subleg.
+                    sublegs=[primary_subleg],
                 )
             ],
         )
