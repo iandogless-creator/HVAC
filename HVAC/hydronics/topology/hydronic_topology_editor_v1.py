@@ -12,7 +12,11 @@ from HVAC.hydronics.topology.hydronic_topology_v1 import (
     HydronicSublegV1,
     HydronicTopologyV1,
 )
-
+from HVAC.hydronics.topology.primary_subleg_helpers_v1 import (
+    primary_route_room_ids_for_leg,
+    set_primary_index_room_id_for_leg,
+    set_primary_route_room_ids_for_leg,
+)
 
 # ======================================================================
 # HydronicTopologyEditorV1
@@ -62,72 +66,98 @@ class HydronicTopologyEditorV1:
                 return leg
 
         return None
+
     @staticmethod
     def move_room_up(
-        topology: HydronicTopologyV1,
-        leg_id: str,
-        room_id: str,
+            topology: HydronicTopologyV1,
+            leg_id: str,
+            room_id: str,
     ) -> HydronicTopologyV1:
         """
-        Move room_id one position earlier in the leg route.
+        Move room_id one position earlier in the leg's primary subleg route.
 
-        If the room is already first, the route is unchanged.
+        H-S7:
+        Legs do not finally own rooms directly.
+        This edits the primary subleg and mirrors to legacy leg.route_room_ids.
         """
 
-        leg = HydronicTopologyEditorV1.require_leg(topology, leg_id)
+        HydronicTopologyEditorV1.require_leg(topology, leg_id)
         room_id = str(room_id)
 
-        if room_id not in leg.route_room_ids:
+        route_room_ids = list(
+            primary_route_room_ids_for_leg(
+                topology=topology,
+                leg_id=leg_id,
+            )
+        )
+
+        if room_id not in route_room_ids:
             raise ValueError(
                 f"Cannot move room {room_id!r} up; "
-                f"room is not in leg {leg_id!r}"
+                f"room is not in primary subleg for leg {leg_id!r}"
             )
 
-        index = leg.route_room_ids.index(room_id)
+        index = route_room_ids.index(room_id)
 
         if index == 0:
             return topology
 
-        leg.route_room_ids[index - 1], leg.route_room_ids[index] = (
-            leg.route_room_ids[index],
-            leg.route_room_ids[index - 1],
+        route_room_ids[index - 1], route_room_ids[index] = (
+            route_room_ids[index],
+            route_room_ids[index - 1],
         )
 
-        return topology
+        return set_primary_route_room_ids_for_leg(
+            topology=topology,
+            leg_id=leg_id,
+            room_ids=route_room_ids,
+        )
 
     @staticmethod
-
     def move_room_down(
-        topology: HydronicTopologyV1,
-        leg_id: str,
-        room_id: str,
+            topology: HydronicTopologyV1,
+            leg_id: str,
+            room_id: str,
     ) -> HydronicTopologyV1:
         """
-        Move room_id one position later in the leg route.
+        Move room_id one position later in the leg's primary subleg route.
 
-        If the room is already terminal/last, the route is unchanged.
+        H-S7:
+        Legs do not finally own rooms directly.
+        This edits the primary subleg and mirrors to legacy leg.route_room_ids.
         """
 
-        leg = HydronicTopologyEditorV1.require_leg(topology, leg_id)
+        HydronicTopologyEditorV1.require_leg(topology, leg_id)
         room_id = str(room_id)
 
-        if room_id not in leg.route_room_ids:
-            raise ValueError(
-                f"Cannot move room {room_id!r} down; "
-                f"room is not in leg {leg_id!r}"
+        route_room_ids = list(
+            primary_route_room_ids_for_leg(
+                topology=topology,
+                leg_id=leg_id,
             )
-
-        index = leg.route_room_ids.index(room_id)
-
-        if index >= len(leg.route_room_ids) - 1:
-            return topology
-
-        leg.route_room_ids[index], leg.route_room_ids[index + 1] = (
-            leg.route_room_ids[index + 1],
-            leg.route_room_ids[index],
         )
 
-        return topology
+        if room_id not in route_room_ids:
+            raise ValueError(
+                f"Cannot move room {room_id!r} down; "
+                f"room is not in primary subleg for leg {leg_id!r}"
+            )
+
+        index = route_room_ids.index(room_id)
+
+        if index >= len(route_room_ids) - 1:
+            return topology
+
+        route_room_ids[index], route_room_ids[index + 1] = (
+            route_room_ids[index + 1],
+            route_room_ids[index],
+        )
+
+        return set_primary_route_room_ids_for_leg(
+            topology=topology,
+            leg_id=leg_id,
+            room_ids=route_room_ids,
+        )
 
     @staticmethod
     def require_leg(
@@ -150,41 +180,58 @@ class HydronicTopologyEditorV1:
     # ------------------------------------------------------------------
     @staticmethod
     def move_room_to_leg_terminal(
-        topology: HydronicTopologyV1,
-        leg_id: str,
-        room_id: str,
-        *,
-        set_index: bool = True,
+            topology: HydronicTopologyV1,
+            leg_id: str,
+            room_id: str,
+            *,
+            set_index: bool = True,
     ) -> HydronicTopologyV1:
         """
-        Move room_id to the terminal/end position of a leg route.
+        Move room_id to the terminal/end position of a leg's primary subleg.
 
-        If room_id already exists in the leg route, it is removed from its
-        current position and appended at the end.
+        H-S7:
+        Legs do not finally own rooms directly.
+        This edits the primary subleg and mirrors to legacy leg.route_room_ids.
 
-        If room_id is not already in the leg route, it is appended.
+        If room_id already exists in the primary subleg route, it is removed
+        from its current position and appended at the end.
 
-        By default, the leg index_room_id is also set to room_id.
+        If room_id is not already in the primary subleg route, it is appended.
+
+        By default, the primary subleg index_room_id is also set to room_id.
         """
 
+        HydronicTopologyEditorV1.require_leg(topology, leg_id)
         room_id = str(room_id)
-        leg = HydronicTopologyEditorV1.require_leg(topology, leg_id)
 
         HydronicTopologyEditorV1._reject_heat_source_room(
             topology=topology,
             room_id=room_id,
         )
 
-        leg.route_room_ids[:] = [
+        route_room_ids = [
             existing_room_id
-            for existing_room_id in leg.route_room_ids
+            for existing_room_id in primary_route_room_ids_for_leg(
+                topology=topology,
+                leg_id=leg_id,
+            )
             if existing_room_id != room_id
         ]
 
-        leg.route_room_ids.append(room_id)
+        route_room_ids.append(room_id)
+
+        set_primary_route_room_ids_for_leg(
+            topology=topology,
+            leg_id=leg_id,
+            room_ids=route_room_ids,
+        )
 
         if set_index:
-            leg.index_room_id = room_id
+            set_primary_index_room_id_for_leg(
+                topology=topology,
+                leg_id=leg_id,
+                room_id=room_id,
+            )
 
         return topology
 

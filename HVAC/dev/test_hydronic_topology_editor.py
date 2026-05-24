@@ -11,7 +11,9 @@ from HVAC.hydronics.topology.hydronic_topology_v1 import (
 from HVAC.hydronics.topology.hydronic_topology_editor_v1 import (
     HydronicTopologyEditorV1,
 )
-
+from HVAC.hydronics.topology.primary_subleg_helpers_v1 import (
+    primary_subleg_for_leg_id,
+)
 
 def _print_leg(topology: HydronicTopologyV1, leg_id: str) -> None:
     leg = HydronicTopologyEditorV1.require_leg(topology, leg_id)
@@ -97,7 +99,12 @@ def main() -> None:
 
     print("\nAFTER — move Lounge down one position")
     _print_leg(topology, "leg-001")
+    primary_subleg = primary_subleg_for_leg_id(topology, "leg-001")
 
+    assert primary_subleg.route_room_ids == leg.route_room_ids
+    assert primary_subleg.index_room_id == leg.index_room_id
+
+    print("\nOK — primary subleg mirrors legacy leg route/index.")
     assert leg.route_room_ids == [
         "room-002",
         "room-003",
