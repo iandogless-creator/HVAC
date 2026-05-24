@@ -82,7 +82,10 @@ from HVAC.gui_v3.panels.basic_hydronics_panel import BasicHydronicsPanel
 from HVAC.gui_v3.adapters.basic_hydronics_panel_adapter import (
     BasicHydronicsPanelAdapter,
 )
-
+from HVAC.gui_v3.panels.topology_arranger_panel import TopologyArrangerPanel
+from HVAC.gui_v3.adapters.topology_arranger_panel_adapter import (
+    TopologyArrangerPanelAdapter,
+)
 # ======================================================================
 # Main Window
 # ======================================================================
@@ -282,6 +285,11 @@ class MainWindowV3(QMainWindow):
             BasicHydronicsPanel(self),
         )
 
+        self._topology_arranger_panel = self._register_panel(
+            "topology_arranger",
+            TopologyArrangerPanel(),
+        )
+
         self._dev_panel = self._register_panel(
             "dev",
             DevSettingsPanel(self),
@@ -323,6 +331,11 @@ class MainWindowV3(QMainWindow):
         self._dock_heat_loss = self._mk_dock("Heat-Loss", "dock_heat_loss", self._heat_loss_panel)
         self._dock_education = self._mk_dock("Education", "dock_education", self._education_panel)
         self._dock_hydronics = self._mk_dock("Hydronics", "dock_hydronics", self._hydronics_panel)
+        self._dock_topology_arranger = self._mk_dock(
+            "Topology Arranger",
+            "dock_topology_arranger",
+            self._topology_arranger_panel,
+        )
         self._dock_hydronic_control = self._mk_dock(
             "Hydronic Control",
             "dock_hydronic_control",
@@ -375,6 +388,10 @@ class MainWindowV3(QMainWindow):
         self.tabifyDockWidget(self._dock_hydronics, self._dock_ach)
         self.tabifyDockWidget(self._dock_hydronics, self._dock_hydronic_control)
         self.tabifyDockWidget(self._dock_hydronics, self._dock_basic_hydronics)
+        self.tabifyDockWidget(
+            self._dock_hydronics,
+            self._dock_topology_arranger,
+        )
         self.tabifyDockWidget(self._dock_hydronics, self._dock_dev)
         self.tabifyDockWidget(self._dock_hydronics, self._dock_geometry)
         self.tabifyDockWidget(self._dock_hydronics, self._dock_ach)
@@ -399,7 +416,10 @@ class MainWindowV3(QMainWindow):
             panel=self._basic_hydronics_panel,
             context=self._context,
         )
-
+        self._topology_arranger_adapter = TopologyArrangerPanelAdapter(
+            panel=self._topology_arranger_panel,
+            context=self._context,
+        )
         self._hydronics_adapter = HydronicsSchematicPanelAdapter(
             panel=self._hydronics_panel,
             project_state=self._context.project_state,

@@ -12,6 +12,9 @@ from HVAC.hydronics.models.basic_hydronic_sizing_intent_v1 import (
     BasicHydronicSizingIntentV1,
 )
 from HVAC.core.room_identity import room_short_label
+from HVAC.hydronics.indexing.hydronic_index_intent_v1 import (
+    apply_basic_hydronic_sizing_payload_v1,
+)
 
 # ======================================================================
 # BasicHydronicsPanelAdapter
@@ -146,19 +149,12 @@ class BasicHydronicsPanelAdapter:
         if project is None:
             return
 
-        project.basic_hydronic_sizing_intent = BasicHydronicSizingIntentV1(
-            basis_mode=str(payload.get("basis_mode") or "INDEX_LENGTH"),
-            index_room_id=payload.get("index_room_id"),
-            index_emitter_id=payload.get("index_emitter_id"),
-            total_index_length_m=payload.get("total_index_length_m"),
-            nominal_pressure_gradient_Pa_per_m=payload.get(
-                "nominal_pressure_gradient_Pa_per_m"
-            ),
-            length_source=str(payload.get("length_source") or "unset"),
-            pressure_gradient_source=str(
-                payload.get("pressure_gradient_source") or "unset"
-            ),
-            notes=str(payload.get("notes") or ""),
+        apply_basic_hydronic_sizing_payload_v1(
+            project,
+            payload,
+            leg_id="leg-001",
+            update_topology_index=True,
+            move_to_terminal=False,
         )
 
         # Hydronics assumptions changed. Existing calculated hydronics

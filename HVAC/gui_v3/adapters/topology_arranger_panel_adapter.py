@@ -16,6 +16,15 @@ from HVAC.hydronics.topology.topology_arranger_projection_v1 import (
     build_topology_arranger_projection_v1,
 )
 
+from HVAC.hydronics.models.basic_hydronic_sizing_intent_v1 import (
+    BasicHydronicSizingIntentV1,
+)
+from HVAC.hydronics.topology.hydronic_topology_editor_v1 import (
+    HydronicTopologyEditorV1,
+)
+from HVAC.hydronics.indexing.hydronic_index_intent_v1 import (
+    set_hydronic_index_room_v1,
+)
 
 # ======================================================================
 # TopologyArrangerPanelAdapter
@@ -59,7 +68,10 @@ class TopologyArrangerPanelAdapter:
 
         self._subscribe_if_present("room_state_changed", self.refresh)
         self._subscribe_if_present("current_room_changed", self.refresh)
-
+        self._panel.move_up_requested.connect(self._on_move_up_requested)
+        self._panel.move_down_requested.connect(self._on_move_down_requested)
+        self._panel.make_terminal_requested.connect(self._on_make_terminal_requested)
+        self._panel.set_index_requested.connect(self._on_set_index_requested)
         self.refresh()
 
     # ------------------------------------------------------------------
@@ -182,4 +194,93 @@ class TopologyArrangerPanelAdapter:
             try:
                 subscribe(lambda *args, **kwargs: callback())
             except TypeError:
+                pass
+
+    def _on_move_up_requested(self, room_id: str) -> None:
+        project = self._context.project_state
+        if project is None:
+            return
+
+        self._ensure_dev_topology(project)
+
+        HydronicTopologyEditorV1.move_room_up(
+            topology=project.hydronic_topology,
+            leg_id=self._leg_id,
+            room_id=room_id,
+        )
+
+        self._notify_changed()
+        self.refresh()
+        self._panel.select_room_id(room_id)
+
+    def _on_move_down_requested(self, room_id: str) -> None:
+        project = self._context.project_state
+        if project is None:
+            return
+
+        self._ensure_dev_topology(project)
+
+        HydronicTopologyEditorV1.move_room_down(
+            topology=project.hydronic_topology,
+            leg_id=self._leg_id,
+            room_id=room_id,
+        )
+
+        self._notify_changed()
+        self.refresh()
+        self._panel.select_room_id(room_id)
+
+    def _on_make_terminal_requested(self, room_id: str) -> None:
+        project = self._context.project_state
+        if project is None:
+            return
+
+        self._ensure_dev_topology(project)
+
+        set_hydronic_index_room_v1(
+            project,
+            room_id,
+            leg_id=self._leg_id,
+            move_to_terminal=True,
+        )
+
+        self._notify_changed(room_id)
+        self.refresh()
+        self._panel.select_room_id(room_id)
+
+    def _on_set_index_requested(self, room_id: str) -> None:
+        project = self._context.project_state
+        if project is None:
+            return
+
+        self._ensure_dev_topology(project)
+
+        set_hydronic_index_room_v1(
+            project,
+            room_id,
+            leg_id=self._leg_id,
+            move_to_terminal=False,
+        )
+
+        self._notify_changed(room_id)
+        self.refresh()
+        self._panel.select_room_id(room_id)
+
+    @staticmethod
+    def _ensure_basic_hydronic_intent(project: Any) -> None:
+        if getattr(project, "basic_hydronic_sizing_intent", None) is not None:
+            return
+
+        project.basic_hydronic_sizing_intent = BasicHydronicSizingIntentV1()
+
+    def _notify_changed(self, room_id: str | None = None) -> None:
+        signal = getattr(self._context, "room_state_changed", None)
+
+        if signal is None:
+            return
+
+        for emitted_room_id in (room_id or "", ""):
+            try:
+                signal.emit(str(emitted_room_id))
+            except Exception:
                 pass
