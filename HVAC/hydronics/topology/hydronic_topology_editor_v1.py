@@ -272,8 +272,11 @@ class HydronicTopologyEditorV1:
                 f"room is not in leg {leg_id!r}"
             )
 
-        leg.index_room_id = room_id
-        return topology
+        return set_primary_index_room_id_for_leg(
+            topology=topology,
+            leg_id=leg_id,
+            room_id=room_id,
+        )
 
     # ------------------------------------------------------------------
     # Subleg lookup

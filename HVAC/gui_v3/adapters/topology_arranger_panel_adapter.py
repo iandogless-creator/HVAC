@@ -231,35 +231,50 @@ class TopologyArrangerPanelAdapter:
         self._panel.select_room_id(room_id)
 
     def _on_make_terminal_requested(self, room_id: str) -> None:
-        project = self._context.project_state
-        if project is None:
-            return
-
-        self._ensure_dev_topology(project)
-
-        set_hydronic_index_room_v1(
-            project,
-            room_id,
-            leg_id=self._leg_id,
+        self._apply_index_room_change(
+            room_id=room_id,
             move_to_terminal=True,
         )
 
-        self._notify_changed(room_id)
-        self.refresh()
-        self._panel.select_room_id(room_id)
-
     def _on_set_index_requested(self, room_id: str) -> None:
+        self._apply_index_room_change(
+            room_id=room_id,
+            move_to_terminal=False,
+        )
+
+    def _apply_index_room_change(
+            self,
+            *,
+            room_id: str,
+            move_to_terminal: bool,
+    ) -> None:
         project = self._context.project_state
         if project is None:
             return
 
+        room_id = str(room_id or "").strip()
+        if not room_id:
+            return
+
         self._ensure_dev_topology(project)
 
-        set_hydronic_index_room_v1(
+        result = set_hydronic_index_room_v1(
             project,
             room_id,
             leg_id=self._leg_id,
-            move_to_terminal=False,
+            move_to_terminal=move_to_terminal,
+        )
+
+        print(
+            "[TOPOLOGY ARRANGER INDEX]",
+            "room_id=",
+            result.index_room_id,
+            "emitter_id=",
+            result.index_emitter_id,
+            "move_to_terminal=",
+            move_to_terminal,
+            "status=",
+            result.status,
         )
 
         self._notify_changed(room_id)

@@ -15,6 +15,9 @@ from HVAC.core.room_identity import room_short_label
 from HVAC.hydronics.indexing.hydronic_index_intent_v1 import (
     apply_basic_hydronic_sizing_payload_v1,
 )
+from HVAC.hydronics.sizing.basic_ps_topology_sections_v1 import (
+    build_basic_ps_topology_sections_v1,
+)
 
 # ======================================================================
 # BasicHydronicsPanelAdapter
@@ -130,7 +133,7 @@ class BasicHydronicsPanelAdapter:
             emitter_options,
             selected_emitter_id=selected_emitter_id,
         )
-
+        self._refresh_basic_ps_sections(project)
         # --------------------------------------------------------------
         # Intent projection
         # --------------------------------------------------------------
@@ -140,6 +143,43 @@ class BasicHydronicsPanelAdapter:
         elif not self._has_primed_project:
             self._panel.prime_intent(None)
             self._has_primed_project = True
+
+    def _refresh_basic_ps_sections(self, project) -> None:
+        """
+        Refresh read-only Basic PS topology section rows.
+
+        This is H-S8-B display only:
+        topology + emitters + design water ΔT -> carried section rows.
+        """
+
+        if not hasattr(self._panel, "set_basic_ps_sections"):
+            return
+
+        try:
+            projection = build_basic_ps_topology_sections_v1(
+                project,
+                leg_id="leg-001",
+            )
+        except Exception:
+            self._panel.set_basic_ps_sections([])
+            return
+
+        rows: list[dict] = []
+
+        for section in projection.sections:
+            rows.append(
+                {
+                    "order": section.order,
+                    "from_label": section.from_label,
+                    "to_room_label": section.to_room_label,
+                    "carried_heat_W": section.carried_heat_W,
+                    "carried_flow_kg_s": section.carried_flow_kg_s,
+                    "is_index_room": section.is_index_room,
+                    "is_terminal": section.is_terminal,
+                }
+            )
+
+        self._panel.set_basic_ps_sections(rows)
 
     # ==================================================================
     # Intent commit

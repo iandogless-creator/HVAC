@@ -4,9 +4,9 @@
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import Optional, Any
 
-from PySide6.QtCore import Signal
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QWidget,
     QVBoxLayout,
@@ -19,6 +19,10 @@ from PySide6.QtWidgets import (
     QTextEdit,
     QPushButton,
     QGroupBox,
+    QTableWidget,
+    QTableWidgetItem,
+    QHeaderView,
+    QAbstractItemView,
 )
 
 
@@ -112,6 +116,41 @@ class BasicHydronicsPanel(QWidget):
         intent_layout.addRow("Gradient source:", self._pressure_gradient_source)
 
         root.addWidget(intent_box)
+
+        # --------------------------------------------------------------
+        # Basic PS topology section projection
+        # --------------------------------------------------------------
+        self._ps_sections_table = QTableWidget(0, 7)
+        self._ps_sections_table.setMinimumHeight(160)
+        self._ps_sections_table.setHorizontalHeaderLabels(
+            [
+                "Order",
+                "From",
+                "To",
+                "Q carried",
+                "Flow kg/s",
+                "Index",
+                "Terminal",
+            ]
+        )
+
+        self._ps_sections_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self._ps_sections_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self._ps_sections_table.setSelectionMode(QAbstractItemView.SingleSelection)
+        self._ps_sections_table.verticalHeader().setVisible(False)
+        self._ps_sections_table.setAlternatingRowColors(True)
+
+        ps_header = self._ps_sections_table.horizontalHeader()
+        ps_header.setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        ps_header.setSectionResizeMode(1, QHeaderView.Stretch)
+        ps_header.setSectionResizeMode(2, QHeaderView.Stretch)
+        ps_header.setSectionResizeMode(3, QHeaderView.ResizeToContents)
+        ps_header.setSectionResizeMode(4, QHeaderView.ResizeToContents)
+        ps_header.setSectionResizeMode(5, QHeaderView.ResizeToContents)
+        ps_header.setSectionResizeMode(6, QHeaderView.ResizeToContents)
+
+        root.addWidget(QLabel("Basic PS topology sections"))
+        root.addWidget(self._ps_sections_table)
 
         # --------------------------------------------------------------
         # Derived display group
@@ -261,6 +300,54 @@ class BasicHydronicsPanel(QWidget):
 
         self._refresh_local_derived_display()
 
+    def set_basic_ps_sections(self, rows: list[dict[str, Any]]) -> None:
+        """
+        Replace read-only Basic PS topology section rows.
+
+        Expected row keys:
+        - order
+        - from_label
+        - to_room_label
+        - carried_heat_W
+        - carried_flow_kg_s
+        - is_index_room
+        - is_terminal
+        """
+
+        self._ps_sections_table.setRowCount(0)
+
+        for row_data in rows:
+            row_index = self._ps_sections_table.rowCount()
+            self._ps_sections_table.insertRow(row_index)
+
+            order = row_data.get("order", "")
+            from_label = str(row_data.get("from_label", "") or "")
+            to_room_label = str(row_data.get("to_room_label", "") or "")
+            carried_heat_W = float(row_data.get("carried_heat_W") or 0.0)
+            carried_flow_kg_s = float(row_data.get("carried_flow_kg_s") or 0.0)
+            is_index_room = bool(row_data.get("is_index_room", False))
+            is_terminal = bool(row_data.get("is_terminal", False))
+
+            values = [
+                str(order),
+                from_label,
+                to_room_label,
+                f"{carried_heat_W:.1f} W",
+                f"{carried_flow_kg_s:.4f}",
+                "⚑" if is_index_room else "",
+                "Terminal" if is_terminal else "",
+            ]
+
+            for col, value in enumerate(values):
+                item = QTableWidgetItem(value)
+
+                if col in (0, 3, 4, 5, 6):
+                    item.setTextAlignment(Qt.AlignCenter)
+
+                self._ps_sections_table.setItem(row_index, col, item)
+
+        self._ps_sections_table.resizeRowsToContents()
+
     # ==================================================================
     # Display helpers
     # ==================================================================
@@ -317,6 +404,9 @@ class BasicHydronicsPanel(QWidget):
         }
 
         self.intent_committed.emit(payload)
+
+    def clear_basic_ps_sections(self) -> None:
+        self._ps_sections_table.setRowCount(0)
 
     # ==================================================================
     # Small helpers
