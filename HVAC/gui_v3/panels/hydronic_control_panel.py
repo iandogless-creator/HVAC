@@ -24,7 +24,7 @@ from PySide6.QtWidgets import (
 
 class HydronicControlPanel(QWidget):
     """
-    Hydronics H-E — Hydronic Control Panel shell.
+    Hydronics H-E — Hydronic Emitters Panel shell.
 
     Role
     ----
@@ -63,7 +63,7 @@ class HydronicControlPanel(QWidget):
     def _build_ui(self) -> None:
         root = QVBoxLayout(self)
 
-        title = QLabel("Hydronic control")
+        title = QLabel("Hydronic emitters")
         title.setStyleSheet("font-weight: 700; padding: 6px;")
         root.addWidget(title)
 
@@ -127,7 +127,7 @@ class HydronicControlPanel(QWidget):
 
         root.addLayout(button_row)
 
-        self._status = QLabel("Hydronic control shell ready.")
+        self._status = QLabel("Hydronic emitters ready.")
         self._status.setStyleSheet("color: #666; padding: 6px;")
         root.addWidget(self._status)
 

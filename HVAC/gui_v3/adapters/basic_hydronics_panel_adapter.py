@@ -18,6 +18,9 @@ from HVAC.hydronics.indexing.hydronic_index_intent_v1 import (
 from HVAC.hydronics.sizing.basic_ps_topology_sections_v1 import (
     build_basic_ps_topology_sections_v1,
 )
+from HVAC.hydronics.sizing.basic_ps_pipe_sizing_v1 import (
+    build_basic_ps_pipe_sizing_v1,
+)
 
 # ======================================================================
 # BasicHydronicsPanelAdapter
@@ -148,34 +151,45 @@ class BasicHydronicsPanelAdapter:
         """
         Refresh read-only Basic PS topology section rows.
 
-        This is H-S8-B display only:
-        topology + emitters + design water ΔT -> carried section rows.
+        H-S8-D:
+        topology + emitters + design water ΔT
+        -> carried section rows
+        -> first-pass Haaland pipe sizing rows.
         """
 
         if not hasattr(self._panel, "set_basic_ps_sections"):
             return
 
         try:
-            projection = build_basic_ps_topology_sections_v1(
+            sections_projection = build_basic_ps_topology_sections_v1(
                 project,
                 leg_id="leg-001",
             )
-        except Exception:
+
+            sizing_projection = build_basic_ps_pipe_sizing_v1(
+                sections_projection.sections,
+            )
+
+        except Exception as exc:
+            print("[BASIC PS SECTIONS ERROR]", repr(exc))
             self._panel.set_basic_ps_sections([])
             return
 
         rows: list[dict] = []
 
-        for section in projection.sections:
+        for result in sizing_projection.results:
             rows.append(
                 {
-                    "order": section.order,
-                    "from_label": section.from_label,
-                    "to_room_label": section.to_room_label,
-                    "carried_heat_W": section.carried_heat_W,
-                    "carried_flow_kg_s": section.carried_flow_kg_s,
-                    "is_index_room": section.is_index_room,
-                    "is_terminal": section.is_terminal,
+                    "order": result.order,
+                    "from_label": result.from_label,
+                    "to_room_label": result.to_room_label,
+                    "carried_heat_W": result.carried_heat_W,
+                    "carried_flow_kg_s": result.carried_flow_kg_s,
+                    "pipe_size_label": result.pipe_size_label,
+                    "velocity_m_s": result.velocity_m_s,
+                    "pressure_gradient_Pa_per_m": result.pressure_gradient_Pa_per_m,
+                    "is_index_room": result.is_index_room,
+                    "is_terminal": result.is_terminal,
                 }
             )
 

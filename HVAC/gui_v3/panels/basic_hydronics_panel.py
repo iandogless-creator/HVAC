@@ -120,7 +120,7 @@ class BasicHydronicsPanel(QWidget):
         # --------------------------------------------------------------
         # Basic PS topology section projection
         # --------------------------------------------------------------
-        self._ps_sections_table = QTableWidget(0, 7)
+        self._ps_sections_table = QTableWidget(0, 10)
         self._ps_sections_table.setMinimumHeight(160)
         self._ps_sections_table.setHorizontalHeaderLabels(
             [
@@ -129,6 +129,9 @@ class BasicHydronicsPanel(QWidget):
                 "To",
                 "Q carried",
                 "Flow kg/s",
+                "Pipe",
+                "v m/s",
+                "Pa/m",
                 "Index",
                 "Terminal",
             ]
@@ -148,6 +151,9 @@ class BasicHydronicsPanel(QWidget):
         ps_header.setSectionResizeMode(4, QHeaderView.ResizeToContents)
         ps_header.setSectionResizeMode(5, QHeaderView.ResizeToContents)
         ps_header.setSectionResizeMode(6, QHeaderView.ResizeToContents)
+        ps_header.setSectionResizeMode(7, QHeaderView.ResizeToContents)
+        ps_header.setSectionResizeMode(8, QHeaderView.ResizeToContents)
+        ps_header.setSectionResizeMode(9, QHeaderView.ResizeToContents)
 
         root.addWidget(QLabel("Basic PS topology sections"))
         root.addWidget(self._ps_sections_table)
@@ -325,6 +331,11 @@ class BasicHydronicsPanel(QWidget):
             to_room_label = str(row_data.get("to_room_label", "") or "")
             carried_heat_W = float(row_data.get("carried_heat_W") or 0.0)
             carried_flow_kg_s = float(row_data.get("carried_flow_kg_s") or 0.0)
+            pipe_size_label = str(row_data.get("pipe_size_label", "") or "")
+            velocity_m_s = float(row_data.get("velocity_m_s") or 0.0)
+            pressure_gradient_Pa_per_m = float(
+                row_data.get("pressure_gradient_Pa_per_m") or 0.0
+            )
             is_index_room = bool(row_data.get("is_index_room", False))
             is_terminal = bool(row_data.get("is_terminal", False))
 
@@ -334,6 +345,9 @@ class BasicHydronicsPanel(QWidget):
                 to_room_label,
                 f"{carried_heat_W:.1f} W",
                 f"{carried_flow_kg_s:.4f}",
+                pipe_size_label,
+                f"{velocity_m_s:.3f}",
+                f"{pressure_gradient_Pa_per_m:.1f}",
                 "⚑" if is_index_room else "",
                 "Terminal" if is_terminal else "",
             ]
@@ -341,7 +355,7 @@ class BasicHydronicsPanel(QWidget):
             for col, value in enumerate(values):
                 item = QTableWidgetItem(value)
 
-                if col in (0, 3, 4, 5, 6):
+                if col in (0, 3, 4, 5, 6, 7, 8, 9):
                     item.setTextAlignment(Qt.AlignCenter)
 
                 self._ps_sections_table.setItem(row_index, col, item)
