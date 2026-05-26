@@ -337,7 +337,7 @@ class MainWindowV3(QMainWindow):
             self._topology_arranger_panel,
         )
         self._dock_hydronic_control = self._mk_dock(
-            "Hydronic Control",
+            "Hydronic Emitters",
             "dock_hydronic_control",
             self._hydronic_control_panel,
         )
