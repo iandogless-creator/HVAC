@@ -220,9 +220,9 @@ class ProportioningSchematicWidgetV1(QWidget):
             getattr(
                 self._schematic,
                 "title",
-                "Proportioning schematic",
+                "Proportioning route — calculation trace: boiler → index",
             )
-            or "Proportioning schematic"
+            or "Proportioning route — calculation trace: boiler → index"
         )
 
         painter.save()

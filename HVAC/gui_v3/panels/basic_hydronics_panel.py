@@ -102,7 +102,7 @@ class BasicHydronicsPanel(QWidget):
         self._nominal_gradient = QDoubleSpinBox()
         self._nominal_gradient.setRange(0.0, 100000.0)
         self._nominal_gradient.setDecimals(2)
-        self._nominal_gradient.setSuffix(" Pa/m")
+        self._nominal_gradient.setSuffix(" Δp/m")
         intent_layout.addRow("Nominal Δp/m:", self._nominal_gradient)
 
         self._length_source = QComboBox()
@@ -131,7 +131,7 @@ class BasicHydronicsPanel(QWidget):
                 "Flow kg/s",
                 "Pipe",
                 "v m/s",
-                "Pa/m",
+                "Δp/m",
                 "Index",
                 "Terminal",
             ]
@@ -378,7 +378,7 @@ class BasicHydronicsPanel(QWidget):
 
         This is not real pressure-loss calculation.
         It merely previews the basic nominal allowance:
-            length × nominal Pa/m
+            length × nominal Δp/m
         """
         length = self._total_index_length.value()
         gradient = self._nominal_gradient.value()

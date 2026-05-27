@@ -272,7 +272,7 @@ def build_proportioning_schematic_v1(project_state: Any) -> ProportioningSchemat
     return ProportioningSchematicV1(
         nodes=nodes,
         edges=tuple(edges),
-        title="Proportioning schematic",
+        title="Proportioning route — calculation trace: boiler → index",
         basis="Derived from hydronic proportioning summary — route shown to calculated index point",
     )
 def _build_from_hydronic_topology(
@@ -382,7 +382,7 @@ def _build_from_hydronic_topology(
             )
         ),
         edges=tuple(edges),
-        title="Proportioning schematic",
+        title="Proportioning route — calculation trace: boiler → index",
         basis="Derived from hydronic topology — route authority before Basic PS",
     )
 

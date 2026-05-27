@@ -24,7 +24,7 @@ The panel is split into three tabs:
 Overview
     • Emitter demand summary
     • Index route accumulator
-    • Linear index route trace
+    • Basic overview — calculation trace: index → boiler
     • Index route pipe size suggestion
 
 Authority
@@ -194,7 +194,7 @@ class _CollapsibleSection(QWidget):
 
 class _IndexRouteStripWidget(QWidget):
     """
-    Linear index route trace.
+    Basic overview — calculation trace: index → boiler.
 
     Visual projection only:
     • no ProjectState access
@@ -465,7 +465,7 @@ class HydronicsSchematicPanel(QWidget):
         self._index_route_strip = _IndexRouteStripWidget(self)
         self._add_section(
             overview_layout,
-            title="Linear index route trace",
+            title="Basic overview — calculation trace: index → boiler",
             table=self._index_route_strip,
             min_height=170,
         )
@@ -616,7 +616,7 @@ class HydronicsSchematicPanel(QWidget):
 
         self._add_section(
             proportioning_layout,
-            title="Proportioning schematic",
+            title="Proportioning route — calculation trace: boiler → index",
             table=self._proportioning_schematic_scroll,
             min_height=300,
         )
