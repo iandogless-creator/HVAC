@@ -324,6 +324,13 @@ class _IndexRouteStripWidget(QWidget):
             painter.setPen(QPen(Qt.black))
             painter.drawText(rect, Qt.AlignCenter, label)
 
+            # H-S8-F:
+            # Basic overview trace is index → boiler.
+            # Therefore the first node is the Basic terminal/index target.
+            # Red flag is schematic-only; tables stay text-coloured.
+            if i == 0:
+                self._paint_index_flag(painter, rect)
+
         # --------------------------------------------------
         # Footer
         # --------------------------------------------------
@@ -352,6 +359,38 @@ class _IndexRouteStripWidget(QWidget):
                 footer,
             )
 
+    def _paint_index_flag(self, painter: QPainter, rect: QRectF) -> None:
+        """
+        Paint a small red schematic-only index flag.
+
+        H-S8-F visual rule:
+        • red flag is schematic-only
+        • red flag marks the Basic terminal/index target
+        • table index/terminal markers remain plain text
+        """
+        pole_x = rect.left() + 8.0
+        pole_y = rect.top() - 18.0
+        pole_h = 18.0
+        flag_w = 12.0
+        flag_h = 8.0
+
+        painter.setPen(QPen(Qt.darkRed, 1.4))
+        painter.drawLine(
+            QPointF(pole_x, pole_y),
+            QPointF(pole_x, pole_y + pole_h),
+        )
+
+        flag = QPolygonF(
+            [
+                QPointF(pole_x, pole_y),
+                QPointF(pole_x + flag_w, pole_y + 3.0),
+                QPointF(pole_x, pole_y + flag_h),
+            ]
+        )
+
+        painter.setPen(QPen(Qt.darkRed, 1.0))
+        painter.setBrush(QBrush(Qt.red))
+        painter.drawPolygon(flag)
 
 # ======================================================================
 # HydronicsSchematicPanel
