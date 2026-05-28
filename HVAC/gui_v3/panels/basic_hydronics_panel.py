@@ -82,7 +82,6 @@ class BasicHydronicsPanel(QWidget):
             [
                 "INDEX_LENGTH",
                 "BASIC_SECTIONS",
-                "ADVANCED_PROPORTIONING",
             ]
         )
         intent_layout.addRow("Basis mode:", self._basis_mode)
@@ -347,9 +346,14 @@ class BasicHydronicsPanel(QWidget):
         try:
             intent = intent or {}
 
+            basis_mode = str(intent.get("basis_mode") or "INDEX_LENGTH")
+
+            if basis_mode == "ADVANCED_PROPORTIONING":
+                basis_mode = "INDEX_LENGTH"
+
             self._set_combo_text(
                 self._basis_mode,
-                str(intent.get("basis_mode") or "INDEX_LENGTH"),
+                basis_mode,
             )
 
             self._set_optional_float(
