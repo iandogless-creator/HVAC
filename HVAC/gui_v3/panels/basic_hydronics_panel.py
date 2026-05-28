@@ -167,6 +167,23 @@ class BasicHydronicsPanel(QWidget):
 
         self._projection_tabs.addTab(sections_tab, "Sections")
 
+        pressure_preview_tab = QWidget()
+        pressure_preview_layout = QVBoxLayout(pressure_preview_tab)
+        pressure_preview_layout.setContentsMargins(0, 0, 0, 0)
+        pressure_preview_layout.addWidget(
+            QLabel("Pressure preview will appear here when section lengths are available.")
+        )
+
+        candidate_ranking_tab = QWidget()
+        candidate_ranking_layout = QVBoxLayout(candidate_ranking_tab)
+        candidate_ranking_layout.setContentsMargins(0, 0, 0, 0)
+        candidate_ranking_layout.addWidget(
+            QLabel("Candidate ranking will appear here when route Δp previews are complete.")
+        )
+
+        self._projection_tabs.addTab(pressure_preview_tab, "Pressure preview")
+        self._projection_tabs.addTab(candidate_ranking_tab, "Candidate ranking")
+
         root.addWidget(QLabel("Basic PS read-only projections"))
         root.addWidget(self._projection_tabs)
 
