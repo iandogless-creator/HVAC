@@ -56,6 +56,7 @@ class BasicHydronicsPanel(QWidget):
     """
 
     intent_committed = Signal(dict)
+    pass_to_proportioning_requested = Signal(dict)
 
     # ------------------------------------------------------------------
     # Construction
@@ -274,6 +275,9 @@ class BasicHydronicsPanel(QWidget):
         self._commit_button = QPushButton("Apply Basic Hydronics Intent")
         action_row.addWidget(self._commit_button)
 
+        self._pass_to_proportioning_button = QPushButton("Pass to Proportioning")
+        action_row.addWidget(self._pass_to_proportioning_button)
+
         root.addLayout(action_row)
         root.addStretch(1)
 
@@ -281,6 +285,9 @@ class BasicHydronicsPanel(QWidget):
         # Signals
         # --------------------------------------------------------------
         self._commit_button.clicked.connect(self._emit_commit)
+        self._pass_to_proportioning_button.clicked.connect(
+            self._emit_pass_to_proportioning
+        )
 
         self._total_index_length.valueChanged.connect(
             self._refresh_local_derived_display
@@ -616,11 +623,8 @@ class BasicHydronicsPanel(QWidget):
     # ==================================================================
     # Intent emission
     # ==================================================================
-    def _emit_commit(self) -> None:
-        if self._is_priming:
-            return
-
-        payload = {
+    def _current_intent_payload(self) -> dict:
+        return {
             "basis_mode": self._basis_mode.currentText(),
             "index_room_id": self._index_room.currentData(),
             "index_emitter_id": self._index_emitter.currentData(),
@@ -635,7 +639,26 @@ class BasicHydronicsPanel(QWidget):
             "notes": self._notes.toPlainText(),
         }
 
-        self.intent_committed.emit(payload)
+    def _emit_commit(self) -> None:
+        if self._is_priming:
+            return
+
+        self.intent_committed.emit(self._current_intent_payload())
+
+    def _emit_pass_to_proportioning(self) -> None:
+        """
+        Emit a Basic → Proportioning handoff request.
+
+        H-S8-L-B:
+        The panel does not perform proportioning or mutate topology.
+        It only emits the current Basic intent payload.
+        """
+        if self._is_priming:
+            return
+
+        self.pass_to_proportioning_requested.emit(
+            self._current_intent_payload()
+        )
 
     def clear_basic_ps_sections(self) -> None:
         self._ps_sections_table.setRowCount(0)
