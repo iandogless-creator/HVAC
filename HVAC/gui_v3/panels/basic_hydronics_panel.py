@@ -203,9 +203,37 @@ class BasicHydronicsPanel(QWidget):
         candidate_ranking_tab = QWidget()
         candidate_ranking_layout = QVBoxLayout(candidate_ranking_tab)
         candidate_ranking_layout.setContentsMargins(0, 0, 0, 0)
-        candidate_ranking_layout.addWidget(
-            QLabel("Candidate ranking will appear here when route Δp previews are complete.")
+
+        self._candidate_ranking_table = QTableWidget(0, 8)
+        self._candidate_ranking_table.setHorizontalHeaderLabels(
+            [
+                "Rank",
+                "Candidate",
+                "Leg",
+                "Subleg",
+                "Total length",
+                "Total Δp",
+                "Control",
+                "Status",
+            ]
         )
+        self._candidate_ranking_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self._candidate_ranking_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self._candidate_ranking_table.setSelectionMode(QAbstractItemView.SingleSelection)
+        self._candidate_ranking_table.verticalHeader().setVisible(False)
+        self._candidate_ranking_table.setAlternatingRowColors(True)
+
+        ranking_header = self._candidate_ranking_table.horizontalHeader()
+        ranking_header.setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        ranking_header.setSectionResizeMode(1, QHeaderView.Stretch)
+        ranking_header.setSectionResizeMode(2, QHeaderView.ResizeToContents)
+        ranking_header.setSectionResizeMode(3, QHeaderView.ResizeToContents)
+        ranking_header.setSectionResizeMode(4, QHeaderView.ResizeToContents)
+        ranking_header.setSectionResizeMode(5, QHeaderView.ResizeToContents)
+        ranking_header.setSectionResizeMode(6, QHeaderView.ResizeToContents)
+        ranking_header.setSectionResizeMode(7, QHeaderView.Stretch)
+
+        candidate_ranking_layout.addWidget(self._candidate_ranking_table)
 
         self._projection_tabs.addTab(pressure_preview_tab, "Pressure preview")
         self._projection_tabs.addTab(candidate_ranking_tab, "Candidate ranking")
@@ -482,6 +510,71 @@ class BasicHydronicsPanel(QWidget):
                     item.setTextAlignment(Qt.AlignCenter)
 
                 self._pressure_preview_table.setItem(row_index, col, item)
+
+    def set_candidate_ranking_rows(self, rows: list[dict[str, Any]]) -> None:
+        """
+        Replace read-only Basic PS candidate ranking rows.
+
+        Expected row keys:
+        - rank
+        - route_label
+        - leg_id
+        - subleg_id
+        - total_length_m
+        - total_pressure_drop_Pa
+        - is_controlling_index
+        - status
+        """
+
+        if not hasattr(self, "_candidate_ranking_table"):
+            return
+
+        self._candidate_ranking_table.setRowCount(0)
+
+        for row_data in rows:
+            row_index = self._candidate_ranking_table.rowCount()
+            self._candidate_ranking_table.insertRow(row_index)
+
+            rank = row_data.get("rank")
+            route_label = str(row_data.get("route_label", "") or "")
+            leg_id = str(row_data.get("leg_id", "") or "")
+            subleg_id = str(row_data.get("subleg_id", "") or "")
+
+            total_length_m = row_data.get("total_length_m")
+            total_pressure_drop_Pa = row_data.get("total_pressure_drop_Pa")
+            is_controlling = bool(row_data.get("is_controlling_index", False))
+            status = str(row_data.get("status", "") or "")
+
+            rank_text = "—" if rank is None else str(rank)
+            total_length_text = (
+                "—"
+                if total_length_m is None
+                else f"{float(total_length_m):.1f} m"
+            )
+            total_pressure_drop_text = (
+                "—"
+                if total_pressure_drop_Pa is None
+                else f"{float(total_pressure_drop_Pa):.1f} Pa"
+            )
+
+            values = [
+                rank_text,
+                route_label,
+                leg_id,
+                subleg_id,
+                total_length_text,
+                total_pressure_drop_text,
+                "Yes" if is_controlling else "",
+                status,
+            ]
+
+            for col, value in enumerate(values):
+                item = QTableWidgetItem(value)
+
+                if col in (0, 2, 3, 4, 5, 6):
+                    item.setTextAlignment(Qt.AlignCenter)
+
+                self._candidate_ranking_table.setItem(row_index, col, item)
 
     # ==================================================================
     # Display helpers

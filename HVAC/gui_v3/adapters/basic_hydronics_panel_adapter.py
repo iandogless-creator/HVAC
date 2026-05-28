@@ -190,7 +190,24 @@ class BasicHydronicsPanelAdapter:
 
             self._panel.set_pressure_preview_rows(pressure_rows)
         rows: list[dict] = []
+        if hasattr(self._panel, "set_candidate_ranking_rows"):
+            ranking_rows: list[dict] = []
 
+            for ranking_row in basic_ps_projection.route_ranking_projection.rows:
+                ranking_rows.append(
+                    {
+                        "rank": ranking_row.rank,
+                        "route_label": ranking_row.route_label,
+                        "leg_id": ranking_row.leg_id,
+                        "subleg_id": ranking_row.subleg_id,
+                        "total_length_m": ranking_row.total_length_m,
+                        "total_pressure_drop_Pa": ranking_row.total_pressure_drop_Pa,
+                        "is_controlling_index": ranking_row.is_controlling_index,
+                        "status": ranking_row.status,
+                    }
+                )
+
+            self._panel.set_candidate_ranking_rows(ranking_rows)
         for result in basic_ps_projection.pipe_sizing_projection.results:
             rows.append(
                 {
