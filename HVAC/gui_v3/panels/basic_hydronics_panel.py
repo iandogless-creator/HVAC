@@ -19,12 +19,12 @@ from PySide6.QtWidgets import (
     QTextEdit,
     QPushButton,
     QGroupBox,
+    QTabWidget,
     QTableWidget,
     QTableWidgetItem,
     QHeaderView,
     QAbstractItemView,
 )
-
 
 # ======================================================================
 # BasicHydronicsPanel
@@ -155,8 +155,20 @@ class BasicHydronicsPanel(QWidget):
         ps_header.setSectionResizeMode(8, QHeaderView.ResizeToContents)
         ps_header.setSectionResizeMode(9, QHeaderView.ResizeToContents)
 
-        root.addWidget(QLabel("Basic PS topology sections"))
-        root.addWidget(self._ps_sections_table)
+        # --------------------------------------------------------------
+        # Read-only Basic PS projection tabs
+        # --------------------------------------------------------------
+        self._projection_tabs = QTabWidget()
+
+        sections_tab = QWidget()
+        sections_layout = QVBoxLayout(sections_tab)
+        sections_layout.setContentsMargins(0, 0, 0, 0)
+        sections_layout.addWidget(self._ps_sections_table)
+
+        self._projection_tabs.addTab(sections_tab, "Sections")
+
+        root.addWidget(QLabel("Basic PS read-only projections"))
+        root.addWidget(self._projection_tabs)
 
         # --------------------------------------------------------------
         # Derived display group
