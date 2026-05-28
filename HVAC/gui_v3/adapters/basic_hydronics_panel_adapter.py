@@ -15,11 +15,8 @@ from HVAC.core.room_identity import room_short_label
 from HVAC.hydronics.indexing.hydronic_index_intent_v1 import (
     apply_basic_hydronic_sizing_payload_v1,
 )
-from HVAC.hydronics.sizing.basic_ps_topology_sections_v1 import (
-    build_basic_ps_topology_sections_v1,
-)
-from HVAC.hydronics.sizing.basic_ps_pipe_sizing_v1 import (
-    build_basic_ps_pipe_sizing_v1,
+from HVAC.hydronics.sizing.basic_ps_readonly_projection_v1 import (
+    build_basic_ps_readonly_projection_v1,
 )
 
 # ======================================================================
@@ -151,23 +148,24 @@ class BasicHydronicsPanelAdapter:
         """
         Refresh read-only Basic PS topology section rows.
 
-        H-S8-D:
-        topology + emitters + design water ΔT
-        -> carried section rows
-        -> first-pass Haaland pipe sizing rows.
+        H-S8-J:
+        Calls the composed read-only Basic PS projection path:
+
+        topology sections
+        -> first-pass Haaland pipe sizing
+        -> section Δp preview
+        -> route Δp ranking
+
+        The panel still displays the existing Basic PS section table only.
         """
 
         if not hasattr(self._panel, "set_basic_ps_sections"):
             return
 
         try:
-            sections_projection = build_basic_ps_topology_sections_v1(
+            basic_ps_projection = build_basic_ps_readonly_projection_v1(
                 project,
                 leg_id="leg-001",
-            )
-
-            sizing_projection = build_basic_ps_pipe_sizing_v1(
-                sections_projection.sections,
             )
 
         except Exception as exc:
@@ -177,7 +175,7 @@ class BasicHydronicsPanelAdapter:
 
         rows: list[dict] = []
 
-        for result in sizing_projection.results:
+        for result in basic_ps_projection.pipe_sizing_projection.results:
             rows.append(
                 {
                     "order": result.order,
