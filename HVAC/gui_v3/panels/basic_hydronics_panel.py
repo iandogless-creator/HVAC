@@ -170,9 +170,35 @@ class BasicHydronicsPanel(QWidget):
         pressure_preview_tab = QWidget()
         pressure_preview_layout = QVBoxLayout(pressure_preview_tab)
         pressure_preview_layout.setContentsMargins(0, 0, 0, 0)
-        pressure_preview_layout.addWidget(
-            QLabel("Pressure preview will appear here when section lengths are available.")
+
+        self._pressure_preview_table = QTableWidget(0, 7)
+        self._pressure_preview_table.setHorizontalHeaderLabels(
+            [
+                "Order",
+                "From",
+                "To",
+                "Δp/m",
+                "Length m",
+                "Section Δp",
+                "Status",
+            ]
         )
+        self._pressure_preview_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self._pressure_preview_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self._pressure_preview_table.setSelectionMode(QAbstractItemView.SingleSelection)
+        self._pressure_preview_table.verticalHeader().setVisible(False)
+        self._pressure_preview_table.setAlternatingRowColors(True)
+
+        pressure_header = self._pressure_preview_table.horizontalHeader()
+        pressure_header.setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        pressure_header.setSectionResizeMode(1, QHeaderView.Stretch)
+        pressure_header.setSectionResizeMode(2, QHeaderView.Stretch)
+        pressure_header.setSectionResizeMode(3, QHeaderView.ResizeToContents)
+        pressure_header.setSectionResizeMode(4, QHeaderView.ResizeToContents)
+        pressure_header.setSectionResizeMode(5, QHeaderView.ResizeToContents)
+        pressure_header.setSectionResizeMode(6, QHeaderView.Stretch)
+
+        pressure_preview_layout.addWidget(self._pressure_preview_table)
 
         candidate_ranking_tab = QWidget()
         candidate_ranking_layout = QVBoxLayout(candidate_ranking_tab)
@@ -390,6 +416,72 @@ class BasicHydronicsPanel(QWidget):
                 self._ps_sections_table.setItem(row_index, col, item)
 
         self._ps_sections_table.resizeRowsToContents()
+
+    def set_pressure_preview_rows(self, rows: list[dict[str, Any]]) -> None:
+        """
+        Replace read-only Basic PS pressure preview rows.
+
+        Expected row keys:
+        - order
+        - from_label
+        - to_room_label
+        - pressure_gradient_Pa_per_m
+        - section_length_m
+        - section_pressure_drop_Pa
+        - status
+        """
+
+        if not hasattr(self, "_pressure_preview_table"):
+            return
+
+        self._pressure_preview_table.setRowCount(0)
+
+        for row_data in rows:
+            row_index = self._pressure_preview_table.rowCount()
+            self._pressure_preview_table.insertRow(row_index)
+
+            order = row_data.get("order", "")
+            from_label = str(row_data.get("from_label", "") or "")
+            to_room_label = str(row_data.get("to_room_label", "") or "")
+
+            pressure_gradient = row_data.get("pressure_gradient_Pa_per_m")
+            section_length = row_data.get("section_length_m")
+            section_pressure_drop = row_data.get("section_pressure_drop_Pa")
+            status = str(row_data.get("status", "") or "")
+
+            gradient_text = (
+                "—"
+                if pressure_gradient is None
+                else f"{float(pressure_gradient):.1f}"
+            )
+            length_text = (
+                "—"
+                if section_length is None
+                else f"{float(section_length):.1f}"
+            )
+            pressure_drop_text = (
+                "—"
+                if section_pressure_drop is None
+                else f"{float(section_pressure_drop):.1f} Pa"
+            )
+
+            values = [
+                str(order),
+                from_label,
+                to_room_label,
+                gradient_text,
+                length_text,
+                pressure_drop_text,
+                status,
+            ]
+
+            for col, value in enumerate(values):
+                item = QTableWidgetItem(value)
+
+                if col in (0, 3, 4, 5):
+                    item.setTextAlignment(Qt.AlignCenter)
+
+                self._pressure_preview_table.setItem(row_index, col, item)
 
     # ==================================================================
     # Display helpers

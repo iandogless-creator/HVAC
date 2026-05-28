@@ -172,7 +172,23 @@ class BasicHydronicsPanelAdapter:
             print("[BASIC PS SECTIONS ERROR]", repr(exc))
             self._panel.set_basic_ps_sections([])
             return
+        if hasattr(self._panel, "set_pressure_preview_rows"):
+            pressure_rows: list[dict] = []
 
+            for preview_row in basic_ps_projection.pressure_preview_projection.rows:
+                pressure_rows.append(
+                    {
+                        "order": preview_row.order,
+                        "from_label": preview_row.from_label,
+                        "to_room_label": preview_row.to_room_label,
+                        "pressure_gradient_Pa_per_m": preview_row.pressure_gradient_Pa_per_m,
+                        "section_length_m": preview_row.section_length_m,
+                        "section_pressure_drop_Pa": preview_row.section_pressure_drop_Pa,
+                        "status": preview_row.status,
+                    }
+                )
+
+            self._panel.set_pressure_preview_rows(pressure_rows)
         rows: list[dict] = []
 
         for result in basic_ps_projection.pipe_sizing_projection.results:
