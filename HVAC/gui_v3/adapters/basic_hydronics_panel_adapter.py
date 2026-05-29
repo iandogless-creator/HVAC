@@ -72,9 +72,45 @@ class BasicHydronicsPanelAdapter:
 
     def _on_pass_to_proportioning_requested(self, payload: dict) -> None:
         """
-        H-S8-L-C:
-        Navigation-only Basic → Proportioning handoff.
+        H-S8-M:
+        Basic → Proportioning handoff.
+
+        Enforce index/terminal alignment before opening Proportioning.
+
+        Boundary:
+        - applies current Basic intent
+        - may move selected Basic index room to terminal
+        - refreshes topology-dependent GUI projections
+        - does not balance
+        - does not run second-pass pressure drop
+        - does not perform final proportioning
         """
+        project = self._context.project_state
+        if project is None:
+            return
+
+        payload = dict(payload or {})
+
+        result = apply_basic_hydronic_sizing_payload_v1(
+            project,
+            payload,
+            leg_id="leg-001",
+            update_topology_index=True,
+            move_to_terminal=True,
+        )
+
+        index_room_id = (
+                getattr(result, "index_room_id", None)
+                or payload.get("index_room_id")
+                or ""
+        )
+
+        self.refresh()
+
+        signal = getattr(self._context, "room_state_changed", None)
+        if signal is not None:
+            signal.emit(str(index_room_id))
+
         if hasattr(self._context, "request_pass_to_proportioning"):
             self._context.request_pass_to_proportioning(payload)
 
