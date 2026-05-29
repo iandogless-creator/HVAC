@@ -697,6 +697,30 @@ class HydronicsSchematicPanel(QWidget):
             min_height=300,
         )
 
+        self._proportioning_basic_ps_sections_table = self._make_table(
+            columns=[
+                "Order",
+                "From",
+                "To",
+                "Q carried",
+                "Flow kg/s",
+                "Pipe",
+                "v m/s",
+                "Δp/m",
+                "Length",
+                "Section Δp",
+                "Status",
+            ],
+            stretch_columns={1, 2, 10},
+        )
+
+        self._add_section(
+            proportioning_layout,
+            title="Received Basic PS sections — first-pass Haaland/Darcy only",
+            table=self._proportioning_basic_ps_sections_table,
+            min_height=180,
+        )
+
         self._proportioning_table = self._make_table(
             columns=[
                 "Group",
@@ -717,6 +741,45 @@ class HydronicsSchematicPanel(QWidget):
         )
 
         proportioning_layout.addStretch(1)
+
+    def set_proportioning_basic_ps_sections(self, rows: list[dict]) -> None:
+        """
+        Observer-only Basic PS section basis received by Proportioning.
+
+        Display only:
+        • no ProjectState access
+        • no pipe sizing
+        • no pressure-loss calculation
+        • no balancing
+        """
+        if not hasattr(self, "_proportioning_basic_ps_sections_table"):
+            return
+
+        table = self._proportioning_basic_ps_sections_table
+        table.setRowCount(len(rows))
+
+        for row_index, row in enumerate(rows):
+            values = [
+                row.get("order", "—"),
+                row.get("from", "—"),
+                row.get("to", "—"),
+                row.get("q_carried", "—"),
+                row.get("flow_kg_s", "—"),
+                row.get("pipe", "—"),
+                row.get("velocity_m_s", "—"),
+                row.get("dp_per_m", "—"),
+                row.get("length_m", "—"),
+                row.get("section_dp", "—"),
+                row.get("status", "—"),
+            ]
+
+            for col_index, value in enumerate(values):
+                item = QTableWidgetItem(str(value))
+                item.setFlags(item.flags() & ~Qt.ItemIsEditable)
+                table.setItem(row_index, col_index, item)
+
+        self._fit_table_height(table, min_height=180, max_height=300)
+        table.scrollToTop()
 
     def set_proportioning_readiness(self, readiness: dict) -> None:
         """

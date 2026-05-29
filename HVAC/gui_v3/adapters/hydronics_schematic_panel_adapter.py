@@ -69,6 +69,9 @@ from HVAC.hydronics.topology.dev_hydronic_topology_builder_v1 import (
 from HVAC.hydronics.proportioning.proportioning_readiness_v1 import (
     build_proportioning_readiness_v1,
 )
+from HVAC.hydronics.sizing.basic_ps_readonly_projection_v1 import (
+    build_basic_ps_readonly_projection_v1,
+)
 
 class HydronicsSchematicPanelAdapter:
     """
@@ -235,6 +238,27 @@ class HydronicsSchematicPanelAdapter:
                     "status": readiness.proportioning_status,
                 }
             )
+        # --------------------------------------------------
+        # Proportioning received Basic PS sections
+        # --------------------------------------------------
+        try:
+            basic_ps_projection = build_basic_ps_readonly_projection_v1(
+                self._project_state,
+                leg_id="leg-001",
+            )
+            received_basic_ps_rows = (
+                self._build_proportioning_basic_ps_sections(
+                    basic_ps_projection
+                )
+            )
+        except Exception as exc:
+            print("[PROPORTIONING BASIC PS SECTIONS ERROR]", repr(exc))
+            received_basic_ps_rows = []
+
+        if hasattr(self._panel, "set_proportioning_basic_ps_sections"):
+            self._panel.set_proportioning_basic_ps_sections(
+                received_basic_ps_rows
+            )
 
         # --------------------------------------------------
         # Branch / proportioning summary
@@ -324,6 +348,133 @@ class HydronicsSchematicPanelAdapter:
 
         dto = self._build_schematic_dto(snapshot)
         self._panel._set_schematic(dto)
+
+    def _build_proportioning_basic_ps_sections(self, projection) -> list[dict]:
+        """
+        Convert composed Basic PS read-only projection into rows displayed
+        on the Proportioning tab as received first-pass basis.
+
+        Display only:
+        - no ProjectState mutation
+        - no new pipe sizing
+        - no new pressure calculation
+        - no balancing
+        - no final proportioning
+        """
+        preview_by_section_id = {
+            getattr(row, "section_id", ""): row
+            for row in projection.pressure_preview_projection.rows
+        }
+
+        rows: list[dict] = []
+
+        for result in projection.pipe_sizing_projection.results:
+            section_id = getattr(result, "section_id", "")
+            preview = preview_by_section_id.get(section_id)
+
+            section_length_m = (
+                getattr(preview, "section_length_m", None)
+                if preview is not None
+                else None
+            )
+            section_pressure_drop_Pa = (
+                getattr(preview, "section_pressure_drop_Pa", None)
+                if preview is not None
+                else None
+            )
+            preview_status = (
+                getattr(preview, "status", "")
+                if preview is not None
+                else ""
+            )
+
+            status_parts = [
+                str(getattr(result, "status", "") or ""),
+                str(preview_status or ""),
+            ]
+            status = " / ".join(
+                part for part in status_parts if part and part != "—"
+            ) or "—"
+
+            rows.append(
+                {
+                    "order": getattr(result, "order", "—"),
+                    "from": getattr(result, "from_label", "—"),
+                    "to": getattr(result, "to_room_label", "—"),
+                    "q_carried": self._format_watts(
+                        getattr(result, "carried_heat_W", None)
+                    ),
+                    "flow_kg_s": self._format_kg_s(
+                        getattr(result, "carried_flow_kg_s", None)
+                    ),
+                    "pipe": str(getattr(result, "pipe_size_label", "") or "—"),
+                    "velocity_m_s": self._format_velocity(
+                        getattr(result, "velocity_m_s", None)
+                    ),
+                    "dp_per_m": self._format_dp_per_m(
+                        getattr(result, "pressure_gradient_Pa_per_m", None)
+                    ),
+                    "length_m": self._format_length(section_length_m),
+                    "section_dp": self._format_pa(section_pressure_drop_Pa),
+                    "status": status,
+                }
+            )
+
+        return rows
+
+    @staticmethod
+    def _format_watts(value: object) -> str:
+        try:
+            if value is None:
+                return "—"
+            return f"{float(value):.1f} W"
+        except (TypeError, ValueError):
+            return "—"
+
+    @staticmethod
+    def _format_kg_s(value: object) -> str:
+        try:
+            if value is None:
+                return "—"
+            return f"{float(value):.4f} kg/s"
+        except (TypeError, ValueError):
+            return "—"
+
+    @staticmethod
+    def _format_velocity(value: object) -> str:
+        try:
+            if value is None:
+                return "—"
+            return f"{float(value):.3f}"
+        except (TypeError, ValueError):
+            return "—"
+
+    @staticmethod
+    def _format_dp_per_m(value: object) -> str:
+        try:
+            if value is None:
+                return "—"
+            return f"{float(value):.1f}"
+        except (TypeError, ValueError):
+            return "—"
+
+    @staticmethod
+    def _format_length(value: object) -> str:
+        try:
+            if value is None:
+                return "Not set"
+            return f"{float(value):.2f} m"
+        except (TypeError, ValueError):
+            return "Not set"
+
+    @staticmethod
+    def _format_pa(value: object) -> str:
+        try:
+            if value is None:
+                return "—"
+            return f"{float(value):.1f} Pa"
+        except (TypeError, ValueError):
+            return "—"
 
     def _build_pipe_authority_summary_rows(self, summary) -> list[dict]:
         rows: list[dict] = []
