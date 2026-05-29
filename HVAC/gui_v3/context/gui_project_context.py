@@ -84,6 +84,15 @@ class GuiProjectContext(QObject):
     project_changed = Signal()
     surface_focus_changed = Signal(object)
     wall_wizard_requested = Signal(str)  # surface_id
+    pass_to_proportioning_requested = Signal(dict)
+
+    def request_pass_to_proportioning(self, payload: dict | None = None) -> None:
+        """
+        H-S8-L-C:
+        GUI-only navigation request from Basic Hydronics to Proportioning.
+        No engineering data is mutated here.
+        """
+        self.pass_to_proportioning_requested.emit(dict(payload or {}))
 
     # ------------------------------------------------------------------
     # Construction

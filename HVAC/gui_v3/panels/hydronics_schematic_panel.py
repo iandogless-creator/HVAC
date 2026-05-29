@@ -417,6 +417,24 @@ class HydronicsSchematicPanel(QWidget):
         self.setContextMenuPolicy(Qt.NoContextMenu)
         self.setMinimumSize(400, 260)
 
+    def select_proportioning_tab(self) -> None:
+        """
+        H-S8-L-C:
+        Select the read-only Proportioning tab.
+
+        Navigation only:
+        - no topology mutation
+        - no pressure calculation
+        - no proportioning execution
+        """
+        if not hasattr(self, "_tabs"):
+            return
+
+        for index in range(self._tabs.count()):
+            if self._tabs.tabText(index) == "Proportioning":
+                self._tabs.setCurrentIndex(index)
+                return
+
     # ------------------------------------------------------------------
     # Adapter ingress
     # ------------------------------------------------------------------
@@ -468,7 +486,8 @@ class HydronicsSchematicPanel(QWidget):
 
         overview_layout = self._make_tab("Overview")
         authority_layout = self._make_tab("Authority")
-        proportioning_layout = self._make_tab("Proportioning")
+        self._proportioning_tab = self._make_tab("Proportioning")
+        proportioning_layout = self._proportioning_tab
 
         # --------------------------------------------------
         # Overview tab

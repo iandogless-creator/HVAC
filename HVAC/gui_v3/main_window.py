@@ -416,6 +416,11 @@ class MainWindowV3(QMainWindow):
             panel=self._basic_hydronics_panel,
             context=self._context,
         )
+
+        if hasattr(self._context, "pass_to_proportioning_requested"):
+            self._context.pass_to_proportioning_requested.connect(
+                self._on_pass_to_proportioning_requested
+            )
         self._topology_arranger_adapter = TopologyArrangerPanelAdapter(
             panel=self._topology_arranger_panel,
             context=self._context,
@@ -1015,6 +1020,30 @@ class MainWindowV3(QMainWindow):
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
+    def _on_pass_to_proportioning_requested(self, payload: dict) -> None:
+        """
+        H-S8-L-C:
+        Navigation-only handoff from Basic Hydronics to the read-only
+        Hydronics Schematic > Proportioning view.
+
+        This does not run proportioning, mutate topology, or perform
+        second-pass pressure calculations.
+        """
+        if hasattr(self, "_dock_basic_hydronics"):
+            self._dock_basic_hydronics.hide()
+
+        if hasattr(self, "_dock_hydronics"):
+            self._dock_hydronics.show()
+            self._dock_hydronics.raise_()
+
+        if hasattr(self, "_hydronics_panel"):
+            panel = self._hydronics_panel
+
+            if hasattr(panel, "select_proportioning_tab"):
+                panel.select_proportioning_tab()
+
+            panel.raise_()
+
     def _mk_dock(self, title: str, name: str, widget: QWidget) -> QDockWidget:
         if name in self._docks:
             raise RuntimeError(f"Dock already exists: {name}")

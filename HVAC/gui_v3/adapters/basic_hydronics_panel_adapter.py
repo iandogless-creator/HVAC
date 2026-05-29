@@ -56,6 +56,10 @@ class BasicHydronicsPanelAdapter:
         self._context = context
 
         self._panel.intent_committed.connect(self._on_intent_committed)
+        if hasattr(self._panel, "pass_to_proportioning_requested"):
+            self._panel.pass_to_proportioning_requested.connect(
+                self._on_pass_to_proportioning_requested
+            )
 
         self._last_project_identity: int | None = None
         self._has_primed_project: bool = False
@@ -65,6 +69,14 @@ class BasicHydronicsPanelAdapter:
         self._subscribe_if_present("current_room_changed", self.refresh)
 
         self.refresh()
+
+    def _on_pass_to_proportioning_requested(self, payload: dict) -> None:
+        """
+        H-S8-L-C:
+        Navigation-only Basic → Proportioning handoff.
+        """
+        if hasattr(self._context, "request_pass_to_proportioning"):
+            self._context.request_pass_to_proportioning(payload)
 
     # ==================================================================
     # Refresh
