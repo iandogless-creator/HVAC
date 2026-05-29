@@ -66,6 +66,9 @@ from HVAC.hydronics.topology.leg_subleg_projection_v1 import (
 from HVAC.hydronics.topology.dev_hydronic_topology_builder_v1 import (
     DevHydronicTopologyBuilderV1,
 )
+from HVAC.hydronics.proportioning.proportioning_readiness_v1 import (
+    build_proportioning_readiness_v1,
+)
 
 class HydronicsSchematicPanelAdapter:
     """
@@ -212,6 +215,26 @@ class HydronicsSchematicPanelAdapter:
                 pipe_authority_summary
             )
         )
+
+        # --------------------------------------------------
+        # Proportioning readiness
+        # --------------------------------------------------
+        readiness = build_proportioning_readiness_v1(
+            self._project_state
+        )
+
+        if hasattr(self._panel, "set_proportioning_readiness"):
+            self._panel.set_proportioning_readiness(
+                {
+                    "index_room": readiness.index_room_label,
+                    "terminal_room": readiness.terminal_room_label,
+                    "terminal_alignment": readiness.terminal_alignment_status,
+                    "basis_mode": readiness.basis_mode,
+                    "total_index_length": readiness.total_index_length_label,
+                    "nominal_gradient": readiness.nominal_gradient_label,
+                    "status": readiness.proportioning_status,
+                }
+            )
 
         # --------------------------------------------------
         # Branch / proportioning summary

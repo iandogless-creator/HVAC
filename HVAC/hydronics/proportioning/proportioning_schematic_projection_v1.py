@@ -43,7 +43,6 @@ def build_proportioning_schematic_v1(project_state: Any) -> ProportioningSchemat
     • no balancing
     """
     topology = getattr(project_state, "hydronic_topology", None)
-    topology = getattr(project_state, "hydronic_topology", None)
 
     if topology is not None:
         return _build_from_hydronic_topology(project_state, topology)

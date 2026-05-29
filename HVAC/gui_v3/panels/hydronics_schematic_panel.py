@@ -655,6 +655,27 @@ class HydronicsSchematicPanel(QWidget):
         authority_layout.addStretch(1)
 
         # --------------------------------------------------
+        # Proportioning readiness
+        # --------------------------------------------------
+        # --------------------------------------------------
+        # Proportioning readiness
+        # --------------------------------------------------
+        self._proportioning_readiness_table = self._make_table(
+            columns=[
+                "Item",
+                "Value",
+            ],
+            stretch_columns={1},
+        )
+
+        self._add_section(
+            proportioning_layout,
+            title="Proportioning readiness — received from Basic",
+            table=self._proportioning_readiness_table,
+            min_height=170,
+        )
+
+        # --------------------------------------------------
         # Proportioning tab
         # --------------------------------------------------
         self._proportioning_schematic_widget = ProportioningSchematicWidgetV1(self)
@@ -699,6 +720,36 @@ class HydronicsSchematicPanel(QWidget):
         )
 
         proportioning_layout.addStretch(1)
+
+    def set_proportioning_readiness(self, readiness: dict) -> None:
+        """
+        Observer-only readiness/status projection for Proportioning.
+
+        No ProjectState access.
+        No calculation.
+        No mutation.
+        """
+        if not hasattr(self, "_proportioning_readiness_table"):
+            return
+
+        rows = [
+            ("Index room", readiness.get("index_room", "—")),
+            ("Terminal room", readiness.get("terminal_room", "—")),
+            ("Terminal alignment", readiness.get("terminal_alignment", "—")),
+            ("Basic basis", readiness.get("basis_mode", "—")),
+            ("Total index length", readiness.get("total_index_length", "—")),
+            ("Nominal Δp/m", readiness.get("nominal_gradient", "—")),
+            ("Proportioning status", readiness.get("status", "—")),
+        ]
+
+        table = self._proportioning_readiness_table
+        table.setRowCount(len(rows))
+
+        for row_index, (name, value) in enumerate(rows):
+            table.setItem(row_index, 0, QTableWidgetItem(str(name)))
+            table.setItem(row_index, 1, QTableWidgetItem(str(value)))
+
+        table.resizeColumnsToContents()
 
     def set_proportioning_schematic(self, schematic) -> None:
         """
