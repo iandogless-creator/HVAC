@@ -25,7 +25,7 @@ Overview
     • Emitter demand summary
     • Index route accumulator
     • Basic overview — calculation trace: index → boiler
-    • Index route pipe size suggestion
+   • Legacy route capacity suggestion — not Basic PS Haaland
 
 Authority
     • Hydronic skeleton
@@ -542,7 +542,7 @@ class HydronicsSchematicPanel(QWidget):
         )
         self._add_section(
             overview_layout,
-            title="Index route pipe size suggestion",
+            title="Legacy route capacity suggestion — not Basic PS Haaland",
             table=self._pipe_size_suggestion_table,
             min_height=140,
         )
@@ -654,9 +654,6 @@ class HydronicsSchematicPanel(QWidget):
 
         authority_layout.addStretch(1)
 
-        # --------------------------------------------------
-        # Proportioning readiness
-        # --------------------------------------------------
         # --------------------------------------------------
         # Proportioning readiness
         # --------------------------------------------------
