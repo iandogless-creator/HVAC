@@ -78,6 +78,8 @@ from HVAC.gui_v3.panels.hydronic_control_panel import HydronicControlPanel
 from HVAC.gui_v3.adapters.hydronic_control_panel_adapter import (
     HydronicControlPanelAdapter,
 )
+from HVAC.gui_v3.panels.local_k_panel import LocalKPanel
+from HVAC.gui_v3.adapters.local_k_panel_adapter import LocalKPanelAdapter
 from HVAC.gui_v3.panels.basic_hydronics_panel import BasicHydronicsPanel
 from HVAC.gui_v3.adapters.basic_hydronics_panel_adapter import (
     BasicHydronicsPanelAdapter,
@@ -284,7 +286,10 @@ class MainWindowV3(QMainWindow):
             "basic_hydronics",
             BasicHydronicsPanel(self),
         )
-
+        self._local_k_panel = self._register_panel(
+            "local_k",
+            LocalKPanel(self),
+        )
         self._topology_arranger_panel = self._register_panel(
             "topology_arranger",
             TopologyArrangerPanel(),
@@ -331,6 +336,11 @@ class MainWindowV3(QMainWindow):
         self._dock_heat_loss = self._mk_dock("Heat-Loss", "dock_heat_loss", self._heat_loss_panel)
         self._dock_education = self._mk_dock("Education", "dock_education", self._education_panel)
         self._dock_hydronics = self._mk_dock("Hydronics", "dock_hydronics", self._hydronics_panel)
+        self._dock_local_k = self._mk_dock(
+            "Local K / Fittings",
+            "dock_local_k",
+            self._local_k_panel,
+        )
         self._dock_topology_arranger = self._mk_dock(
             "Topology Arranger",
             "dock_topology_arranger",
@@ -365,12 +375,12 @@ class MainWindowV3(QMainWindow):
                 self._dock_hydronics,
                 self._dock_hydronic_control,
                 self._dock_basic_hydronics,
+                self._dock_local_k,
                 self._dock_dev,
                 self._dock_geometry,
                 self._dock_ach,
         ):
             self.addDockWidget(Qt.RightDockWidgetArea, d)
-
             self._dock_dev.show()
             self._dock_dev.raise_()
             self._dev_panel.raise_()
@@ -379,15 +389,11 @@ class MainWindowV3(QMainWindow):
         # Utility / DEV docks as tabs, not vertical clutter
         # --------------------------------------------------
 
-        self.addDockWidget(Qt.RightDockWidgetArea, self._dock_dev)
-        self.addDockWidget(Qt.RightDockWidgetArea, self._dock_geometry)
-        self.addDockWidget(Qt.RightDockWidgetArea, self._dock_ach)
-
-        self.tabifyDockWidget(self._dock_hydronics, self._dock_dev)
         self.tabifyDockWidget(self._dock_hydronics, self._dock_geometry)
         self.tabifyDockWidget(self._dock_hydronics, self._dock_ach)
         self.tabifyDockWidget(self._dock_hydronics, self._dock_hydronic_control)
         self.tabifyDockWidget(self._dock_hydronics, self._dock_basic_hydronics)
+        self.tabifyDockWidget(self._dock_basic_hydronics, self._dock_local_k)
         self.tabifyDockWidget(
             self._dock_hydronics,
             self._dock_topology_arranger,
@@ -414,6 +420,10 @@ class MainWindowV3(QMainWindow):
 
         self._basic_hydronics_adapter = BasicHydronicsPanelAdapter(
             panel=self._basic_hydronics_panel,
+            context=self._context,
+        )
+        self._local_k_adapter = LocalKPanelAdapter(
+            panel=self._local_k_panel,
             context=self._context,
         )
 
@@ -1013,6 +1023,9 @@ class MainWindowV3(QMainWindow):
 
         if hasattr(self, "_basic_hydronics_adapter"):
             self._basic_hydronics_adapter.refresh()
+
+        if hasattr(self, "_local_k_adapter"):
+            self._local_k_adapter.refresh()
 
         if hasattr(self, "_hydronic_control_adapter"):
             self._hydronic_control_adapter.refresh()
