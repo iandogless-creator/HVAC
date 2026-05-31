@@ -15,6 +15,10 @@ from PySide6.QtWidgets import (
     QDoubleSpinBox,
     QGroupBox,
 )
+from HVAC.hydronics.local_losses.local_k_intent_v1 import (
+    LocalKIntentV1,
+    LocalKSectionIntentV1,
+)
 
 
 class LocalKPanel(QWidget):
@@ -120,7 +124,7 @@ class LocalKPanel(QWidget):
 
         self._k_total_label = QLabel("0.00")
         self._local_dp_label = QLabel("0.0 Pa")
-        self._status_label = QLabel("Local K shell — not persisted")
+        self._status_label = QLabel("Local K intent — persisted per section")
 
         preview_layout.addRow("Straight length:", self._length_m)
         preview_layout.addRow("K total:", self._k_total_label)
@@ -175,6 +179,17 @@ class LocalKPanel(QWidget):
 
         self._is_priming = False
         self._load_current_section()
+
+    def set_section_values(
+            self,
+            section_values: dict[str, dict],
+    ) -> None:
+        """
+        Replace runtime section values with persisted values from ProjectState.
+        """
+        self._section_values = dict(section_values or {})
+        self._load_current_section()
+
     def _current_section_payload(self) -> dict:
         return {
             "bend_90_count": self._bend_90.value(),

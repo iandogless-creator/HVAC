@@ -17,6 +17,7 @@ from HVAC.core.opening_schedule_v1 import RoomOpeningScheduleV1
 from HVAC.hydronics.models.basic_hydronic_sizing_intent_v1 import (
     BasicHydronicSizingIntentV1,
 )
+from HVAC.hydronics.local_losses.local_k_intent_v1 import LocalKIntentV1
 from HVAC.hydronics.topology.hydronic_topology_v1 import HydronicTopologyV1
 # ======================================================================
 # Hydronics emitter serialization
@@ -133,6 +134,12 @@ class ProjectState:
     # Hydronics H-N3 — Basic first-pass sizing intent
     # ------------------------------------------------------------------
     basic_hydronic_sizing_intent: Optional[BasicHydronicSizingIntentV1] = None
+
+    # ------------------------------------------------------------------
+    # Hydronics H-S12-B — Local K / fittings intent
+    # ------------------------------------------------------------------
+    hydronic_local_k_intent: Optional[LocalKIntentV1] = None
+
     # ------------------------------------------------------------------
     # Execution override (temporary)
     # ------------------------------------------------------------------
@@ -303,6 +310,11 @@ class ProjectState:
                 if self.basic_hydronic_sizing_intent
                 else None
             ),
+            "hydronic_local_k_intent": (
+                self.hydronic_local_k_intent.to_dict()
+                if self.hydronic_local_k_intent
+                else None
+            ),
             "hydronics": {
                 "valid": self.hydronics_valid,
                 "results": _json_safe(self.hydronics_results),
@@ -366,6 +378,14 @@ class ProjectState:
                     raw_basic_hydronic_sizing_intent
                 )
             )
+
+        raw_hydronic_local_k_intent = data.get("hydronic_local_k_intent")
+
+        if isinstance(raw_hydronic_local_k_intent, dict):
+            instance.hydronic_local_k_intent = LocalKIntentV1.from_dict(
+                raw_hydronic_local_k_intent
+            )
+
         instance.boundary_segments = {
             seg_id: BoundarySegmentV1.from_dict(seg_data)
             for seg_id, seg_data in (data.get("boundary_segments", {}) or {}).items()

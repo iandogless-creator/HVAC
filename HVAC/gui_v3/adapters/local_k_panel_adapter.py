@@ -11,7 +11,10 @@ from HVAC.gui_v3.context.gui_project_context import GuiProjectContext
 from HVAC.hydronics.local_losses.local_k_section_projection_v1 import (
     build_local_k_section_projection_v1,
 )
-
+from HVAC.hydronics.local_losses.local_k_intent_v1 import (
+    LocalKIntentV1,
+    LocalKSectionIntentV1,
+)
 
 class LocalKPanelAdapter:
     """
@@ -53,7 +56,13 @@ class LocalKPanelAdapter:
 
     def refresh(self, *args: Any, **kwargs: Any) -> None:
         project = self._context.project_state
+        persisted_values: dict[str, dict] = {}
 
+        intent = getattr(project, "hydronic_local_k_intent", None)
+
+        if intent is not None:
+            for section_id, section in intent.sections.items():
+                persisted_values[section_id] = section.to_dict()
         if project is None:
             self._panel.set_sections([])
             return
@@ -97,19 +106,47 @@ class LocalKPanelAdapter:
 
     def _on_local_k_changed(self, payload: dict) -> None:
         """
-        H-S12-A:
-        Runtime-only Local K preview.
-
-        Persistence and schematic/proportioning propagation come later.
+        H-S12-B:
+        Persist Local K / fittings intent per Basic PS section_id.
         """
+        project = self._context.project_state
+
+        if project is None:
+            return
+
         section_id = str(payload.get("section_id") or "")
 
-        if section_id:
-            self._selected_section_id = section_id
+        if not section_id:
+            return
 
-        # Intentionally not persisted yet.
-        # Later H-S13 will write this payload into a ProjectState-owned
-        # Local K intent/schedule.
+        self._selected_section_id = section_id
+
+        intent = getattr(project, "hydronic_local_k_intent", None)
+
+        if intent is None:
+            intent = LocalKIntentV1()
+            project.hydronic_local_k_intent = intent
+
+        raw_length_m = payload.get("length_m")
+
+        intent.sections[section_id] = LocalKSectionIntentV1(
+            section_id=section_id,
+            bend_90_count=int(payload.get("bend_90_count") or 0),
+            bend_45_count=int(payload.get("bend_45_count") or 0),
+            tee_through_count=int(payload.get("tee_through_count") or 0),
+            tee_branch_count=int(payload.get("tee_branch_count") or 0),
+            isolation_valve_count=int(payload.get("isolation_valve_count") or 0),
+            trv_count=int(payload.get("trv_count") or 0),
+            lockshield_count=int(payload.get("lockshield_count") or 0),
+            misc_k=float(payload.get("misc_k") or 0.0),
+            length_m=(
+                None
+                if raw_length_m is None
+                else float(raw_length_m)
+            ),
+        )
+
+        project.hydronics_valid = False
 
     def _subscribe_if_present(self, signal_name: str, callback) -> None:
         signal = getattr(self._context, signal_name, None)
