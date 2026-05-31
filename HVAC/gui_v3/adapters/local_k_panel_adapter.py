@@ -96,6 +96,8 @@ class LocalKPanelAdapter:
                 }
             )
 
+        self._panel.set_section_values(persisted_values)
+
         self._panel.set_sections(
             rows,
             selected_section_id=self._selected_section_id,

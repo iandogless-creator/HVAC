@@ -177,8 +177,8 @@ class LocalKPanel(QWidget):
                     self._section_combo.setCurrentIndex(index)
                     break
 
+        self._load_current_section(emit=False)
         self._is_priming = False
-        self._load_current_section()
 
     def set_section_values(
             self,
@@ -188,7 +188,11 @@ class LocalKPanel(QWidget):
         Replace runtime section values with persisted values from ProjectState.
         """
         self._section_values = dict(section_values or {})
-        self._load_current_section()
+
+        was_priming = self._is_priming
+        self._is_priming = True
+        self._load_current_section(emit=False)
+        self._is_priming = was_priming
 
     def _current_section_payload(self) -> dict:
         return {
@@ -255,14 +259,16 @@ class LocalKPanel(QWidget):
         if section_id:
             self.section_changed.emit(section_id)
 
-    def _load_current_section(self) -> None:
+    def _load_current_section(self, *, emit: bool = True) -> None:
         row = self._section_combo.currentData() or {}
         section_id = str(row.get("section_id") or "")
 
         self._current_section_id = section_id
         self._load_current_section_basis(row)
         self._load_section_values(section_id)
-        self._emit_local_k_changed()
+
+        if emit and not self._is_priming:
+            self._emit_local_k_changed()
 
     def _load_current_section_basis(self, row: dict) -> None:
         self._pipe_label.setText(str(row.get("pipe", "—")))
