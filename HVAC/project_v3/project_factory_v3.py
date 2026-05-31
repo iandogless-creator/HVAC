@@ -11,6 +11,7 @@ from HVAC.project.project_state import ProjectState
 from HVAC.core.environment_state import EnvironmentStateV1
 from HVAC.core.room_state import RoomStateV1, RoomGeometryV1
 from HVAC.core.fabric_element import FabricElementV1
+from HVAC.core.construction_v1 import ConstructionV1
 
 class ProjectFactoryV3:
 
@@ -31,10 +32,22 @@ class ProjectFactoryV3:
         )
 
         # Default construction library
-        project.construction_library = {
-            "DEFAULT-WALL": 0.28,
-            "DEFAULT-WINDOW": 1.40,
-            "DEFAULT-ROOF": 0.18,
+        project.constructions = {
+            "DEFAULT-WALL": ConstructionV1(
+                construction_id="DEFAULT-WALL",
+                name="Default External Wall",
+                u_value_W_m2K=0.28,
+            ),
+            "DEFAULT-WINDOW": ConstructionV1(
+                construction_id="DEFAULT-WINDOW",
+                name="Default Window",
+                u_value_W_m2K=1.40,
+            ),
+            "DEFAULT-ROOF": ConstructionV1(
+                construction_id="DEFAULT-ROOF",
+                name="Default Roof",
+                u_value_W_m2K=0.18,
+            ),
         }
 
         return project
