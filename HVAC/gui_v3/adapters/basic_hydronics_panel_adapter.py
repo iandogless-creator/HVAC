@@ -210,6 +210,17 @@ class BasicHydronicsPanelAdapter:
         if not hasattr(self._panel, "set_basic_ps_sections"):
             return
 
+        if project is None or getattr(project, "hydronic_topology", None) is None:
+            self._panel.set_basic_ps_sections([])
+
+            if hasattr(self._panel, "set_pressure_preview_rows"):
+                self._panel.set_pressure_preview_rows([])
+
+            if hasattr(self._panel, "set_route_pressure_ranking_rows"):
+                self._panel.set_route_pressure_ranking_rows([])
+
+            return
+
         try:
             basic_ps_projection = build_basic_ps_readonly_projection_v1(
                 project,

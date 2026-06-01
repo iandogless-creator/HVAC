@@ -56,6 +56,11 @@ class LocalKPanelAdapter:
 
     def refresh(self, *args: Any, **kwargs: Any) -> None:
         project = self._context.project_state
+
+        if project is None:
+            self._panel.set_sections([])
+            return
+
         persisted_values: dict[str, dict] = {}
 
         intent = getattr(project, "hydronic_local_k_intent", None)
@@ -63,7 +68,9 @@ class LocalKPanelAdapter:
         if intent is not None:
             for section_id, section in intent.sections.items():
                 persisted_values[section_id] = section.to_dict()
-        if project is None:
+
+        if getattr(project, "hydronic_topology", None) is None:
+            self._panel.set_section_values(persisted_values)
             self._panel.set_sections([])
             return
 
@@ -76,6 +83,11 @@ class LocalKPanelAdapter:
             print("[LOCAL K SECTIONS ERROR]", repr(exc))
             self._panel.set_sections([])
             return
+
+        if hasattr(self._panel, "set_proportioning_basic_ps_sections"):
+            self._panel.set_proportioning_basic_ps_sections(
+                received_basic_ps_rows
+            )
 
         rows: list[dict] = []
 
