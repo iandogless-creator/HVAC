@@ -149,6 +149,28 @@ class LocalKPanelAdapter:
         )
 
         project.hydronics_valid = False
+        # H-S12-C:
+        # Local K intent affects downstream hydronic preview displays.
+        # Notify any panels/adapters observing project-level changes.
+        for signal_name in (
+            "project_state_changed",
+            "project_changed",
+            "room_state_changed",
+        ):
+            signal = getattr(self._context, signal_name, None)
+
+            if signal is None:
+                continue
+
+            emit = getattr(signal, "emit", None)
+            if callable(emit):
+                try:
+                    emit()
+                except TypeError:
+                    try:
+                        emit(project)
+                    except TypeError:
+                        pass
 
     def _subscribe_if_present(self, signal_name: str, callback) -> None:
         signal = getattr(self._context, signal_name, None)

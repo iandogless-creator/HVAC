@@ -708,6 +708,9 @@ class HydronicsSchematicPanel(QWidget):
                 "v m/s",
                 "Δp/m",
                 "Length",
+                "K",
+                "Local Δp",
+                "Straight Δp",
                 "Section Δp",
                 "Status",
             ],
@@ -716,7 +719,7 @@ class HydronicsSchematicPanel(QWidget):
 
         self._add_section(
             proportioning_layout,
-            title="Received Basic PS sections — first-pass Haaland/Darcy only",
+            title="Received Basic PS sections + Local K preview",
             table=self._proportioning_basic_ps_sections_table,
             min_height=180,
         )
@@ -769,6 +772,9 @@ class HydronicsSchematicPanel(QWidget):
                 row.get("velocity_m_s", "—"),
                 row.get("dp_per_m", "—"),
                 row.get("length_m", "—"),
+                row.get("k_total", "0.00"),
+                row.get("local_dp", "0.0 Pa"),
+                row.get("straight_dp", "—"),
                 row.get("section_dp", "—"),
                 row.get("status", "—"),
             ]

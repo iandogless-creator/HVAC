@@ -72,6 +72,12 @@ from HVAC.hydronics.proportioning.proportioning_readiness_v1 import (
 from HVAC.hydronics.sizing.basic_ps_readonly_projection_v1 import (
     build_basic_ps_readonly_projection_v1,
 )
+from HVAC.hydronics.local_losses.local_k_pressure_preview_v1 import (
+    build_local_k_pressure_preview_v1,
+)
+from HVAC.hydronics.local_losses.local_k_pressure_preview_v1 import (
+    build_local_k_pressure_preview_v1,
+)
 
 class HydronicsSchematicPanelAdapter:
     """
@@ -354,11 +360,13 @@ class HydronicsSchematicPanelAdapter:
         Convert composed Basic PS read-only projection into rows displayed
         on the Proportioning tab as received first-pass basis.
 
+        H-S12-C:
+        Also display persisted Local K preview values where present.
+
         Display only:
         - no ProjectState mutation
         - no new pipe sizing
-        - no new pressure calculation
-        - no balancing
+        - no final balancing
         - no final proportioning
         """
         preview_by_section_id = {
@@ -369,7 +377,7 @@ class HydronicsSchematicPanelAdapter:
         rows: list[dict] = []
 
         for result in projection.pipe_sizing_projection.results:
-            section_id = getattr(result, "section_id", "")
+            section_id = str(getattr(result, "section_id", "") or "")
             preview = preview_by_section_id.get(section_id)
 
             section_length_m = (
@@ -388,9 +396,33 @@ class HydronicsSchematicPanelAdapter:
                 else ""
             )
 
+            local_k_preview = build_local_k_pressure_preview_v1(
+                self._project_state,
+                section_id=section_id,
+                velocity_m_s=float(
+                    getattr(result, "velocity_m_s", 0.0) or 0.0
+                ),
+                pressure_gradient_Pa_per_m=float(
+                    getattr(result, "pressure_gradient_Pa_per_m", 0.0) or 0.0
+                ),
+            )
+
+            display_length_m = (
+                local_k_preview.length_m
+                if local_k_preview.length_m is not None
+                else section_length_m
+            )
+
+            display_section_dp = (
+                local_k_preview.section_total_pressure_drop_Pa
+                if local_k_preview.section_total_pressure_drop_Pa is not None
+                else section_pressure_drop_Pa
+            )
+
             status_parts = [
                 str(getattr(result, "status", "") or ""),
                 str(preview_status or ""),
+                str(local_k_preview.status or ""),
             ]
             status = " / ".join(
                 part for part in status_parts if part and part != "—"
@@ -414,8 +446,15 @@ class HydronicsSchematicPanelAdapter:
                     "dp_per_m": self._format_dp_per_m(
                         getattr(result, "pressure_gradient_Pa_per_m", None)
                     ),
-                    "length_m": self._format_length(section_length_m),
-                    "section_dp": self._format_pa(section_pressure_drop_Pa),
+                    "length_m": self._format_length(display_length_m),
+                    "k_total": f"{local_k_preview.k_total:.2f}",
+                    "local_dp": self._format_pa(
+                        local_k_preview.local_pressure_drop_Pa
+                    ),
+                    "straight_dp": self._format_pa(
+                        local_k_preview.straight_pressure_drop_Pa
+                    ),
+                    "section_dp": self._format_pa(display_section_dp),
                     "status": status,
                 }
             )
