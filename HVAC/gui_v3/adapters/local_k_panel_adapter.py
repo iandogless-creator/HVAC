@@ -84,10 +84,7 @@ class LocalKPanelAdapter:
             self._panel.set_sections([])
             return
 
-        if hasattr(self._panel, "set_proportioning_basic_ps_sections"):
-            self._panel.set_proportioning_basic_ps_sections(
-                received_basic_ps_rows
-            )
+
 
         rows: list[dict] = []
 
