@@ -106,6 +106,20 @@ class LocalKPanelAdapter:
     def _on_section_changed(self, section_id: str) -> None:
         self._selected_section_id = str(section_id or "")
 
+        if not self._selected_section_id:
+            return
+
+        signal = getattr(
+            self._context,
+            "hydronic_section_focus_requested",
+            None,
+        )
+
+        emit = getattr(signal, "emit", None)
+
+        if callable(emit):
+            emit(self._selected_section_id)
+
     def _on_local_k_changed(self, payload: dict) -> None:
         """
         H-S12-B:

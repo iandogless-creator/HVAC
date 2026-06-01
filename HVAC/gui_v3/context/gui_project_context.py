@@ -85,6 +85,7 @@ class GuiProjectContext(QObject):
     surface_focus_changed = Signal(object)
     wall_wizard_requested = Signal(str)  # surface_id
     pass_to_proportioning_requested = Signal(dict)
+    hydronic_section_focus_requested = Signal(str)  # section_id
 
     def request_pass_to_proportioning(self, payload: dict | None = None) -> None:
         """

@@ -112,7 +112,10 @@ class HydronicsSchematicPanelAdapter:
 
         self._subscribe_if_present("room_state_changed", self.refresh)
         self._subscribe_if_present("project_state_changed", self.refresh)
-
+        self._subscribe_arg_signal_if_present(
+            "hydronic_section_focus_requested",
+            self._on_hydronic_section_focus_requested,
+        )
         self.refresh()
 
     def _subscribe_if_present(self, signal_name: str, callback) -> None:
@@ -430,6 +433,7 @@ class HydronicsSchematicPanelAdapter:
 
             rows.append(
                 {
+                    "section_id": section_id,
                     "order": getattr(result, "order", "—"),
                     "from": getattr(result, "from_label", "—"),
                     "to": getattr(result, "to_room_label", "—"),
@@ -1007,6 +1011,33 @@ class HydronicsSchematicPanelAdapter:
             edges=edges,
             annotations=labels,
         )
+
+    def _subscribe_arg_signal_if_present(self, signal_name: str, callback) -> None:
+        """
+        Subscribe to a context signal while preserving emitted arguments.
+        Used for focus signals such as section_id.
+        """
+        context = getattr(self, "_context", None)
+        if context is None:
+            return
+
+        signal = getattr(context, signal_name, None)
+        if signal is None:
+            return
+
+        connect = getattr(signal, "connect", None)
+        if callable(connect):
+            try:
+                connect(callback)
+            except TypeError:
+                pass
+
+    def _on_hydronic_section_focus_requested(
+        self,
+        section_id: str,
+    ) -> None:
+        if hasattr(self._panel, "focus_proportioning_basic_ps_section"):
+            self._panel.focus_proportioning_basic_ps_section(section_id)
 
     # ------------------------------------------------------------------
     # Snapshot resolution (Phase B safe)

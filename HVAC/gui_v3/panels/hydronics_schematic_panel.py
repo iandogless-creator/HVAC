@@ -760,8 +760,15 @@ class HydronicsSchematicPanel(QWidget):
 
         table = self._proportioning_basic_ps_sections_table
         table.setRowCount(len(rows))
+        self._proportioning_basic_ps_section_row_by_id = {}
 
         for row_index, row in enumerate(rows):
+            section_id = str(row.get("section_id") or "")
+            if section_id:
+                self._proportioning_basic_ps_section_row_by_id[
+                    section_id
+                ] = row_index
+
             values = [
                 row.get("order", "—"),
                 row.get("from", "—"),
@@ -785,7 +792,40 @@ class HydronicsSchematicPanel(QWidget):
                 table.setItem(row_index, col_index, item)
 
         self._fit_table_height(table, min_height=180, max_height=300)
-        table.scrollToTop()
+        if not getattr(self, "_suppress_basic_ps_scroll_to_top", False):
+            table.scrollToTop()
+
+    def focus_proportioning_basic_ps_section(
+        self,
+        section_id: str,
+    ) -> None:
+        """
+        H-S13:
+        Highlight and scroll the Proportioning received Basic PS row
+        matching a Local K section selection.
+
+        Display/focus only. No engineering authority.
+        """
+        if not hasattr(self, "_proportioning_basic_ps_sections_table"):
+            return
+
+        table = self._proportioning_basic_ps_sections_table
+        row_map = getattr(
+            self,
+            "_proportioning_basic_ps_section_row_by_id",
+            {},
+        )
+
+        row_index = row_map.get(str(section_id or ""))
+
+        if row_index is None:
+            return
+
+        table.selectRow(row_index)
+
+        item = table.item(row_index, 0)
+        if item is not None:
+            table.scrollToItem(item)
 
     def set_proportioning_readiness(self, readiness: dict) -> None:
         """
