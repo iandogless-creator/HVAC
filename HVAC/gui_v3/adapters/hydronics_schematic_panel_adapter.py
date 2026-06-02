@@ -75,8 +75,8 @@ from HVAC.hydronics.sizing.basic_ps_readonly_projection_v1 import (
 from HVAC.hydronics.local_losses.local_k_pressure_preview_v1 import (
     build_local_k_pressure_preview_v1,
 )
-from HVAC.hydronics.local_losses.local_k_pressure_preview_v1 import (
-    build_local_k_pressure_preview_v1,
+from HVAC.hydronics.proportioning.route_pressure_accumulator_v1 import (
+    build_route_pressure_accumulator_v1,
 )
 
 class HydronicsSchematicPanelAdapter:
@@ -270,6 +270,30 @@ class HydronicsSchematicPanelAdapter:
             )
 
         # --------------------------------------------------
+        # H-S14 — Route Δp preview
+        # --------------------------------------------------
+        route_pressure_rows = []
+
+        if getattr(self._project_state, "hydronic_topology", None) is not None:
+            try:
+                route_pressure_projection = (
+                    build_route_pressure_accumulator_v1(
+                        self._project_state,
+                        leg_id="leg-001",
+                    )
+                )
+                route_pressure_rows = (
+                    self._build_route_pressure_preview_rows(
+                        route_pressure_projection
+                    )
+                )
+            except Exception as exc:
+                print("[ROUTE PRESSURE PREVIEW ERROR]", repr(exc))
+
+        if hasattr(self._panel, "set_route_pressure_preview_rows"):
+            self._panel.set_route_pressure_preview_rows(route_pressure_rows)
+
+        # --------------------------------------------------
         # Branch / proportioning summary
         # --------------------------------------------------
         proportioning_rows = build_branch_proportioning_summary_v1(
@@ -357,6 +381,32 @@ class HydronicsSchematicPanelAdapter:
 
         dto = self._build_schematic_dto(snapshot)
         self._panel._set_schematic(dto)
+
+    def _build_route_pressure_preview_rows(self, projection) -> list[dict]:
+        rows: list[dict] = []
+
+        for row in projection.rows:
+            rows.append(
+                {
+                    "route": getattr(row, "route_label", "—"),
+                    "sections": str(getattr(row, "section_count", "—")),
+                    "straight_dp": self._format_pa(
+                        getattr(row, "straight_pressure_drop_total_Pa", None)
+                    ),
+                    "local_dp": self._format_pa(
+                        getattr(row, "local_pressure_drop_total_Pa", None)
+                    ),
+                    "route_dp": self._format_pa(
+                        getattr(row, "route_pressure_drop_total_Pa", None)
+                    ),
+                    "complete": (
+                        "Yes" if getattr(row, "complete", False) else "No"
+                    ),
+                    "status": getattr(row, "status", "—"),
+                }
+            )
+
+        return rows
 
     def _build_proportioning_basic_ps_sections(self, projection) -> list[dict]:
         """

@@ -724,6 +724,32 @@ class HydronicsSchematicPanel(QWidget):
             min_height=180,
         )
 
+        # --------------------------------------------------
+        # H-S14 — Route Δp preview
+        # --------------------------------------------------
+        self._route_pressure_preview_table = self._make_table(
+            columns=[
+                "Route",
+                "Sections",
+                "Σ Straight Δp",
+                "Σ Local Δp",
+                "Σ Route Δp",
+                "Complete",
+                "Status",
+            ],
+            stretch_columns={0, 6},
+        )
+
+        self._add_section(
+            proportioning_layout,
+            title="Route Δp preview — Basic PS + Local K",
+            table=self._route_pressure_preview_table,
+            min_height=120,
+        )
+
+        # --------------------------------------------------
+        # Branch / proportioning summary
+        # --------------------------------------------------
         self._proportioning_table = self._make_table(
             columns=[
                 "Group",
@@ -736,6 +762,7 @@ class HydronicsSchematicPanel(QWidget):
             ],
             stretch_columns={0, 1, 2, 3, 5, 6},
         )
+
         self._add_section(
             proportioning_layout,
             title="Branch / proportioning summary",
@@ -744,7 +771,6 @@ class HydronicsSchematicPanel(QWidget):
         )
 
         proportioning_layout.addStretch(1)
-
     def set_proportioning_basic_ps_sections(self, rows: list[dict]) -> None:
         """
         Observer-only Basic PS section basis received by Proportioning.
@@ -826,6 +852,76 @@ class HydronicsSchematicPanel(QWidget):
         item = table.item(row_index, 0)
         if item is not None:
             table.scrollToItem(item)
+
+    def set_route_pressure_preview_rows(self, rows: list[dict]) -> None:
+        """
+        H-S14:
+        Display route-level Δp accumulation.
+
+        Display only:
+        • no ProjectState access
+        • no balancing
+        • no pump selection
+        """
+        if not hasattr(self, "_route_pressure_preview_table"):
+            return
+
+        table = self._route_pressure_preview_table
+        table.setRowCount(len(rows))
+
+        for row_index, row in enumerate(rows):
+            values = [
+                row.get("route", "—"),
+                row.get("sections", "—"),
+                row.get("straight_dp", "—"),
+                row.get("local_dp", "—"),
+                row.get("route_dp", "—"),
+                row.get("complete", "No"),
+                row.get("status", "—"),
+            ]
+
+            for col_index, value in enumerate(values):
+                item = QTableWidgetItem(str(value))
+                item.setFlags(item.flags() & ~Qt.ItemIsEditable)
+                table.setItem(row_index, col_index, item)
+
+        self._fit_table_height(table, min_height=120, max_height=180)
+        table.scrollToTop()
+
+    def set_route_pressure_preview_rows(self, rows: list[dict]) -> None:
+        """
+        H-S14:
+        Display route-level Δp accumulation.
+
+        Display only:
+        • no ProjectState access
+        • no balancing
+        • no pump selection
+        """
+        if not hasattr(self, "_route_pressure_preview_table"):
+            return
+
+        table = self._route_pressure_preview_table
+        table.setRowCount(len(rows))
+
+        for row_index, row in enumerate(rows):
+            values = [
+                row.get("route", "—"),
+                row.get("sections", "—"),
+                row.get("straight_dp", "—"),
+                row.get("local_dp", "—"),
+                row.get("route_dp", "—"),
+                row.get("complete", "No"),
+                row.get("status", "—"),
+            ]
+
+            for col_index, value in enumerate(values):
+                item = QTableWidgetItem(str(value))
+                item.setFlags(item.flags() & ~Qt.ItemIsEditable)
+                table.setItem(row_index, col_index, item)
+
+        self._fit_table_height(table, min_height=120, max_height=180)
+        table.scrollToTop()
 
     def set_proportioning_readiness(self, readiness: dict) -> None:
         """
