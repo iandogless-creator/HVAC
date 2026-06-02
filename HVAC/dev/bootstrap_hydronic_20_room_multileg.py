@@ -13,7 +13,10 @@ from HVAC.hydronics.topology.hydronic_topology_v1 import (
     HydronicLegV1,
     HydronicSublegV1,
 )
-
+from HVAC.hydronics.local_losses.local_k_intent_v1 import (
+    LocalKIntentV1,
+    LocalKSectionIntentV1,
+)
 
 def build_hydronic_20_room_multileg_project_v1() -> ProjectState:
     """
@@ -42,7 +45,7 @@ def build_hydronic_20_room_multileg_project_v1() -> ProjectState:
     _install_rooms(project)
     _install_emitters(project)
     _install_topology(project)
-
+    _install_local_k_intent(project)
     project.hydronics_valid = False
     return project
 
@@ -169,7 +172,73 @@ def _install_topology(project: ProjectState) -> None:
         heat_source_room_id="room-boiler",
         legs=[leg_001, leg_002],
     )
+def _install_local_k_intent(project: ProjectState) -> None:
+    """
+    H-S17-B:
+    Deterministic Local K / section length intent for the 20-room fixture.
 
+    Purpose:
+    - complete all route Δp previews
+    - make route ranking deterministic
+    - no balancing
+    - no pump selection
+    """
+    intent = LocalKIntentV1()
+
+    # section_id, length_m, bend_90, bend_45, tee_through, tee_branch, misc_k
+    section_specs = [
+        # Leg 1A common subleg — 6 sections
+        ("leg-001-primary-subleg-section-001", 5.0, 2, 0, 1, 1, 0.0),
+        ("leg-001-primary-subleg-section-002", 4.0, 1, 1, 1, 1, 0.0),
+        ("leg-001-primary-subleg-section-003", 4.5, 2, 0, 1, 0, 0.0),
+        ("leg-001-primary-subleg-section-004", 3.5, 1, 1, 1, 0, 0.0),
+        ("leg-001-primary-subleg-section-005", 3.0, 1, 0, 1, 0, 0.0),
+        ("leg-001-primary-subleg-section-006", 2.5, 1, 0, 0, 0, 0.0),
+
+        # Leg 1B branch subleg — deliberately longer/fittier
+        ("leg-001-subleg-b-section-001", 6.0, 3, 1, 1, 1, 0.0),
+        ("leg-001-subleg-b-section-002", 5.5, 2, 1, 1, 0, 0.0),
+        ("leg-001-subleg-b-section-003", 5.0, 2, 0, 1, 0, 0.0),
+        ("leg-001-subleg-b-section-004", 4.5, 1, 1, 0, 0, 0.0),
+
+        # Leg 2A common subleg — heavier load, moderate lengths
+        ("leg-002-primary-subleg-section-001", 5.0, 2, 0, 1, 1, 0.0),
+        ("leg-002-primary-subleg-section-002", 4.5, 2, 1, 1, 1, 0.0),
+        ("leg-002-primary-subleg-section-003", 4.0, 1, 1, 1, 0, 0.0),
+        ("leg-002-primary-subleg-section-004", 3.5, 1, 0, 1, 0, 0.0),
+        ("leg-002-primary-subleg-section-005", 3.0, 1, 0, 0, 0, 0.0),
+
+        # Leg 2B branch subleg — intended strong controlling candidate
+        ("leg-002-subleg-b-section-001", 7.0, 3, 1, 1, 1, 0.0),
+        ("leg-002-subleg-b-section-002", 6.0, 3, 1, 1, 0, 0.0),
+        ("leg-002-subleg-b-section-003", 5.5, 2, 1, 1, 0, 0.0),
+        ("leg-002-subleg-b-section-004", 5.0, 2, 0, 1, 0, 0.0),
+        ("leg-002-subleg-b-section-005", 4.5, 1, 1, 0, 0, 0.0),
+    ]
+
+    for (
+        section_id,
+        length_m,
+        bend_90_count,
+        bend_45_count,
+        tee_through_count,
+        tee_branch_count,
+        misc_k,
+    ) in section_specs:
+        intent.sections[section_id] = LocalKSectionIntentV1(
+            section_id=section_id,
+            bend_90_count=bend_90_count,
+            bend_45_count=bend_45_count,
+            tee_through_count=tee_through_count,
+            tee_branch_count=tee_branch_count,
+            isolation_valve_count=0,
+            trv_count=0,
+            lockshield_count=0,
+            misc_k=float(misc_k),
+            length_m=float(length_m),
+        )
+
+    project.hydronic_local_k_intent = intent
 
 if __name__ == "__main__":
     ps = build_hydronic_20_room_multileg_project_v1()

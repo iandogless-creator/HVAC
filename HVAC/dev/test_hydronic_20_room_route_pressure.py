@@ -20,6 +20,12 @@ def main() -> None:
     print("Routes:", len(projection.rows))
 
     for row in projection.rows:
+        route_dp = (
+            "—"
+            if row.route_pressure_drop_total_Pa is None
+            else f"{row.route_pressure_drop_total_Pa:.1f} Pa"
+        )
+
         print(
             row.rank,
             row.route_id,
@@ -27,7 +33,7 @@ def main() -> None:
             "sections=",
             row.section_count,
             "route_dp=",
-            row.route_pressure_drop_total_Pa,
+            route_dp,
             "complete=",
             row.complete,
             "controlling=",
