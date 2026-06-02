@@ -91,6 +91,26 @@ class BasicHydronicsPanelAdapter:
 
         payload = dict(payload or {})
 
+        topology = getattr(project, "hydronic_topology", None)
+        heat_source_room_id = str(
+            getattr(topology, "heat_source_room_id", "") or ""
+        )
+
+        requested_room_id = str(
+            payload.get("index_room_id")
+            or payload.get("room_id")
+            or payload.get("selected_room_id")
+            or ""
+        )
+
+        if requested_room_id and requested_room_id == heat_source_room_id:
+            print(
+                "[PASS TO PROPORTIONING IGNORED] "
+                f"Heat-source room cannot be index route terminal: "
+                f"{requested_room_id!r}"
+            )
+            return
+
         result = apply_basic_hydronic_sizing_payload_v1(
             project,
             payload,
