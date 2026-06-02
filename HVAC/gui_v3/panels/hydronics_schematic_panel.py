@@ -530,15 +530,17 @@ class HydronicsSchematicPanel(QWidget):
 
         self._pipe_size_suggestion_table = self._make_table(
             columns=[
-                "Sec",
-                "From",
-                "To",
-                "Flow",
-                "Size",
-                "Capacity",
+                "Rank",
+                "Route",
+                "Sections",
+                "Σ Straight Δp",
+                "Σ Local Δp",
+                "Σ Route Δp",
+                "Complete",
+                "Controlling",
                 "Status",
             ],
-            stretch_columns={1, 2},
+            stretch_columns={1, 8},
         )
         self._add_section(
             overview_layout,
@@ -729,15 +731,17 @@ class HydronicsSchematicPanel(QWidget):
         # --------------------------------------------------
         self._route_pressure_preview_table = self._make_table(
             columns=[
+                "Rank",
                 "Route",
                 "Sections",
                 "Σ Straight Δp",
                 "Σ Local Δp",
                 "Σ Route Δp",
                 "Complete",
+                "Controlling",
                 "Status",
             ],
-            stretch_columns={0, 6},
+            stretch_columns={1, 8},
         )
 
         self._add_section(
@@ -871,47 +875,14 @@ class HydronicsSchematicPanel(QWidget):
 
         for row_index, row in enumerate(rows):
             values = [
+                row.get("rank", "—"),
                 row.get("route", "—"),
                 row.get("sections", "—"),
                 row.get("straight_dp", "—"),
                 row.get("local_dp", "—"),
                 row.get("route_dp", "—"),
                 row.get("complete", "No"),
-                row.get("status", "—"),
-            ]
-
-            for col_index, value in enumerate(values):
-                item = QTableWidgetItem(str(value))
-                item.setFlags(item.flags() & ~Qt.ItemIsEditable)
-                table.setItem(row_index, col_index, item)
-
-        self._fit_table_height(table, min_height=120, max_height=180)
-        table.scrollToTop()
-
-    def set_route_pressure_preview_rows(self, rows: list[dict]) -> None:
-        """
-        H-S14:
-        Display route-level Δp accumulation.
-
-        Display only:
-        • no ProjectState access
-        • no balancing
-        • no pump selection
-        """
-        if not hasattr(self, "_route_pressure_preview_table"):
-            return
-
-        table = self._route_pressure_preview_table
-        table.setRowCount(len(rows))
-
-        for row_index, row in enumerate(rows):
-            values = [
-                row.get("route", "—"),
-                row.get("sections", "—"),
-                row.get("straight_dp", "—"),
-                row.get("local_dp", "—"),
-                row.get("route_dp", "—"),
-                row.get("complete", "No"),
+                row.get("controlling", "No"),
                 row.get("status", "—"),
             ]
 

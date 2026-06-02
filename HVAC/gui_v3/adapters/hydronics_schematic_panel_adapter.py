@@ -389,6 +389,11 @@ class HydronicsSchematicPanelAdapter:
             rows.append(
                 {
                     "route": getattr(row, "route_label", "—"),
+                    "rank": (
+                        "—"
+                        if getattr(row, "rank", None) is None
+                        else str(getattr(row, "rank"))
+                    ),
                     "sections": str(getattr(row, "section_count", "—")),
                     "straight_dp": self._format_pa(
                         getattr(row, "straight_pressure_drop_total_Pa", None)
@@ -399,8 +404,23 @@ class HydronicsSchematicPanelAdapter:
                     "route_dp": self._format_pa(
                         getattr(row, "route_pressure_drop_total_Pa", None)
                     ),
+                    "rank": (
+                        "—"
+                        if getattr(row, "rank", None) is None
+                        else str(getattr(row, "rank"))
+                    ),
+                    "controlling": (
+                        "Yes"
+                        if getattr(row, "is_controlling_candidate", False)
+                        else "No"
+                    ),
                     "complete": (
                         "Yes" if getattr(row, "complete", False) else "No"
+                    ),
+                    "controlling": (
+                        "Yes"
+                        if getattr(row, "is_controlling_candidate", False)
+                        else "No"
                     ),
                     "status": getattr(row, "status", "—"),
                 }

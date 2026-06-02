@@ -38,6 +38,8 @@ class RoutePressureAccumulatorRowV1:
     local_pressure_drop_total_Pa: float
     route_pressure_drop_total_Pa: float | None
     complete: bool
+    rank: int | None
+    is_controlling_candidate: bool
     sections: tuple[RoutePressureSectionContributionV1, ...]
     status: str
 
@@ -134,9 +136,11 @@ def build_route_pressure_accumulator_v1(
         local_pressure_drop_total_Pa=local_total,
         route_pressure_drop_total_Pa=route_total if complete else None,
         complete=complete,
+        rank=1 if complete else None,
+        is_controlling_candidate=complete,
         sections=tuple(contributions),
         status=(
-            "Route Δp preview only — not final balancing"
+            "Controlling route candidate — preview only"
             if complete
             else "Incomplete — one or more section lengths not set"
         ),
