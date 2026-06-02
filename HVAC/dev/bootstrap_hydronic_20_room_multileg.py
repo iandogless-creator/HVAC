@@ -122,7 +122,7 @@ def _install_topology(project: ProjectState) -> None:
         sublegs=[
             HydronicSublegV1(
                 subleg_id="leg-001-primary-subleg",
-                label="Leg 1A Primary subleg",
+                label="Leg 1A Common subleg",
                 origin_room_id="common-main",
                 route_room_ids=list(l1a_rooms),
                 index_room_id=l1a_rooms[-1],
@@ -148,7 +148,7 @@ def _install_topology(project: ProjectState) -> None:
         sublegs=[
             HydronicSublegV1(
                 subleg_id="leg-002-primary-subleg",
-                label="Leg 2A Primary subleg",
+                label="Leg 2A Common subleg",
                 origin_room_id="common-main",
                 route_room_ids=list(l2a_rooms),
                 index_room_id=l2a_rooms[-1],
