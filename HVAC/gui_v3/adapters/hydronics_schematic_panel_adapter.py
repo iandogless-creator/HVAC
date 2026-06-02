@@ -279,7 +279,6 @@ class HydronicsSchematicPanelAdapter:
                 route_pressure_projection = (
                     build_route_pressure_accumulator_v1(
                         self._project_state,
-                        leg_id="leg-001",
                     )
                 )
                 route_pressure_rows = (

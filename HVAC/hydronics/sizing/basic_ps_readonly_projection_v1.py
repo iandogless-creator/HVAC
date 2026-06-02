@@ -63,6 +63,7 @@ def build_basic_ps_readonly_projection_v1(
     project_state: Any,
     *,
     leg_id: str = "leg-001",
+    subleg_id: str | None = None,
     section_lengths_m: dict[str, float] | None = None,
 ) -> BasicPSReadonlyProjectionV1:
     """
@@ -81,6 +82,7 @@ def build_basic_ps_readonly_projection_v1(
     sections_projection = build_basic_ps_topology_sections_v1(
         project_state,
         leg_id=leg_id,
+        subleg_id=subleg_id,
     )
 
     pipe_sizing_projection = build_basic_ps_pipe_sizing_v1(

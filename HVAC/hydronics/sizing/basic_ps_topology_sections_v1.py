@@ -72,6 +72,7 @@ def build_basic_ps_topology_sections_v1(
     project_state: Any,
     *,
     leg_id: str = "leg-001",
+    subleg_id: str | None = None,
     design_delta_t_K: float | None = None,
 ) -> BasicPSTopologySectionsProjectionV1:
     """
@@ -104,7 +105,14 @@ def build_basic_ps_topology_sections_v1(
         raise TypeError("ProjectState.hydronic_topology is not HydronicTopologyV1")
 
     leg = HydronicTopologyEditorV1.require_leg(topology, leg_id)
-    primary_subleg = primary_subleg_for_leg_id(topology, leg_id)
+
+    if subleg_id:
+        primary_subleg = HydronicTopologyEditorV1.require_subleg(
+            topology,
+            str(subleg_id),
+        )
+    else:
+        primary_subleg = primary_subleg_for_leg_id(topology, leg_id)
 
     resolved_delta_t_K = _resolve_design_delta_t_K(
         project_state=project_state,
