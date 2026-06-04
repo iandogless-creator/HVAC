@@ -81,6 +81,9 @@ from HVAC.hydronics.proportioning.route_pressure_accumulator_v1 import (
 from HVAC.hydronics.proportioning.route_proportioning_shortfall_preview_v1 import (
     build_route_proportioning_shortfall_preview_v1,
 )
+from HVAC.hydronics.proportioning.circuit_return_path_comparison_v1 import (
+    build_circuit_return_path_comparison_v1,
+)
 
 class HydronicsSchematicPanelAdapter:
     """
@@ -315,6 +318,30 @@ class HydronicsSchematicPanelAdapter:
             self._panel.set_route_shortfall_preview_rows(route_shortfall_rows)
 
         # --------------------------------------------------
+        # H-S19-H — Direct vs reverse return comparison
+        # --------------------------------------------------
+        return_path_comparison_rows = []
+
+        if getattr(self._project_state, "hydronic_topology", None) is not None:
+            try:
+                return_path_comparison_projection = (
+                    build_circuit_return_path_comparison_v1(
+                        self._project_state,
+                    )
+                )
+                return_path_comparison_rows = (
+                    self._build_return_path_comparison_rows(
+                        return_path_comparison_projection
+                    )
+                )
+            except Exception as exc:
+                print("[RETURN PATH COMPARISON ERROR]", repr(exc))
+
+        if hasattr(self._panel, "set_return_path_comparison_rows"):
+            self._panel.set_return_path_comparison_rows(
+                return_path_comparison_rows
+            )
+        # --------------------------------------------------
         # Branch / proportioning summary
         # --------------------------------------------------
         proportioning_rows = build_branch_proportioning_summary_v1(
@@ -403,38 +430,50 @@ class HydronicsSchematicPanelAdapter:
         dto = self._build_schematic_dto(snapshot)
         self._panel._set_schematic(dto)
 
-    def _build_route_pressure_preview_rows(self, projection) -> list[dict]:
+    def _build_return_path_comparison_rows(self, projection) -> list[dict]:
         rows: list[dict] = []
 
-        for row in projection.rows:
+        for row in getattr(projection, "rows", ()) or ():
             rows.append(
                 {
                     "route": getattr(row, "route_label", "—"),
-                    "sections": str(getattr(row, "section_count", "—")),
-                    "sections": str(getattr(row, "section_count", "—")),
-                    "straight_dp": self._format_pa(
-                        getattr(row, "straight_pressure_drop_total_Pa", None)
-                    ),
-                    "local_dp": self._format_pa(
-                        getattr(row, "local_pressure_drop_total_Pa", None)
-                    ),
-                    "route_dp": self._format_pa(
-                        getattr(row, "route_pressure_drop_total_Pa", None)
-                    ),
-                    "rank": (
+                    "room": getattr(row, "room_id", "—"),
+                    "emitter": getattr(row, "emitter_id", "—") or "—",
+                    "direct_rank": (
                         "—"
-                        if getattr(row, "rank", None) is None
-                        else str(getattr(row, "rank"))
+                        if getattr(row, "direct_rank", None) is None
+                        else str(getattr(row, "direct_rank"))
                     ),
-                    "controlling": (
+                    "direct_total_dp": self._format_pa(
+                        getattr(row, "direct_total_dp_Pa", None)
+                    ),
+                    "direct_controlling": (
                         "Yes"
-                        if getattr(row, "is_controlling_candidate", False)
+                        if getattr(row, "controlling_direct", False)
                         else "No"
                     ),
-                    "complete": (
-                        "Yes" if getattr(row, "complete", False) else "No"
+                    "reverse_rank": (
+                        "—"
+                        if getattr(row, "reverse_return_rank", None) is None
+                        else str(getattr(row, "reverse_return_rank"))
                     ),
-
+                    "reverse_total_dp": self._format_pa(
+                        getattr(row, "reverse_return_total_dp_Pa", None)
+                    ),
+                    "reverse_controlling": (
+                        "Yes"
+                        if getattr(
+                            row,
+                            "controlling_reverse_return",
+                            False,
+                        )
+                        else "No"
+                    ),
+                    "rr_suitability": getattr(
+                        row,
+                        "rr_suitability_status",
+                        "—",
+                    ),
                     "status": getattr(row, "status", "—"),
                 }
             )

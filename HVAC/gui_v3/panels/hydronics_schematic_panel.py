@@ -773,6 +773,34 @@ class HydronicsSchematicPanel(QWidget):
             table=self._route_shortfall_preview_table,
             min_height=120,
         )
+
+        # --------------------------------------------------
+        # H-S19-H — Direct vs reverse return comparison
+        # --------------------------------------------------
+        self._return_path_comparison_table = self._make_table(
+            columns=[
+                "Route",
+                "Room",
+                "Emitter",
+                "F+R Rank",
+                "F+R Δp",
+                "F+R Ctrl",
+                "F+RR Rank",
+                "F+RR Δp",
+                "F+RR Ctrl",
+                "RR suitability",
+                "Status",
+            ],
+            stretch_columns={0, 1, 2, 9, 10},
+        )
+
+        self._add_section(
+            proportioning_layout,
+            title="Direct vs reverse return circuit comparison — preview only",
+            table=self._return_path_comparison_table,
+            min_height=180,
+        )
+
         # --------------------------------------------------
         # Branch / proportioning summary
         # --------------------------------------------------
@@ -797,6 +825,7 @@ class HydronicsSchematicPanel(QWidget):
         )
 
         proportioning_layout.addStretch(1)
+
     def set_proportioning_basic_ps_sections(self, rows: list[dict]) -> None:
         """
         Observer-only Basic PS section basis received by Proportioning.
@@ -914,6 +943,47 @@ class HydronicsSchematicPanel(QWidget):
                 table.setItem(row_index, col_index, item)
 
         self._fit_table_height(table, min_height=120, max_height=180)
+        table.scrollToTop()
+
+    def set_return_path_comparison_rows(self, rows: list[dict]) -> None:
+        """
+        H-S19-H:
+        Display direct-return vs reverse-return circuit comparison.
+
+        Display only:
+        • no ProjectState access
+        • no balancing
+        • no pump selection
+        • no pipe resizing
+        • no committed return arrangement
+        """
+        if not hasattr(self, "_return_path_comparison_table"):
+            return
+
+        table = self._return_path_comparison_table
+        table.setRowCount(len(rows))
+
+        for row_index, row in enumerate(rows):
+            values = [
+                row.get("route", "—"),
+                row.get("room", "—"),
+                row.get("emitter", "—"),
+                row.get("direct_rank", "—"),
+                row.get("direct_total_dp", "—"),
+                row.get("direct_controlling", "No"),
+                row.get("reverse_rank", "—"),
+                row.get("reverse_total_dp", "—"),
+                row.get("reverse_controlling", "No"),
+                row.get("rr_suitability", "—"),
+                row.get("status", "—"),
+            ]
+
+            for col_index, value in enumerate(values):
+                item = QTableWidgetItem(str(value))
+                item.setFlags(item.flags() & ~Qt.ItemIsEditable)
+                table.setItem(row_index, col_index, item)
+
+        self._fit_table_height(table, min_height=180, max_height=260)
         table.scrollToTop()
 
     def set_route_shortfall_preview_rows(self, rows: list[dict]) -> None:
