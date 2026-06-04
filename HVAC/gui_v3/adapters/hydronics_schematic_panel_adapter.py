@@ -430,6 +430,42 @@ class HydronicsSchematicPanelAdapter:
         dto = self._build_schematic_dto(snapshot)
         self._panel._set_schematic(dto)
 
+    def _build_route_pressure_preview_rows(self, projection) -> list[dict]:
+        rows: list[dict] = []
+
+        for row in getattr(projection, "rows", ()) or ():
+            rows.append(
+                {
+                    "rank": (
+                        "—"
+                        if getattr(row, "rank", None) is None
+                        else str(getattr(row, "rank"))
+                    ),
+                    "route": getattr(row, "route_label", "—"),
+                    "sections": str(getattr(row, "section_count", "—")),
+                    "straight_dp": self._format_pa(
+                        getattr(row, "straight_pressure_drop_total_Pa", None)
+                    ),
+                    "local_dp": self._format_pa(
+                        getattr(row, "local_pressure_drop_total_Pa", None)
+                    ),
+                    "route_dp": self._format_pa(
+                        getattr(row, "route_pressure_drop_total_Pa", None)
+                    ),
+                    "complete": (
+                        "Yes" if getattr(row, "complete", False) else "No"
+                    ),
+                    "controlling": (
+                        "Yes"
+                        if getattr(row, "is_controlling_candidate", False)
+                        else "No"
+                    ),
+                    "status": getattr(row, "status", "—"),
+                }
+            )
+
+        return rows
+
     def _build_return_path_comparison_rows(self, projection) -> list[dict]:
         rows: list[dict] = []
 
@@ -610,25 +646,6 @@ class HydronicsSchematicPanelAdapter:
                     ),
                     "section_dp": self._format_pa(display_section_dp),
                     "status": status,
-                }
-            )
-
-        return rows
-
-    def _build_route_shortfall_preview_rows(self, preview) -> list[dict]:
-        rows: list[dict] = []
-
-        for row in getattr(preview, "rows", []) or []:
-            rows.append(
-                {
-                    "rank": "" if row.rank is None else str(row.rank),
-                    "route": row.route_label,
-                    "route_dp": self._format_pa(row.route_dp_Pa),
-                    "controlling_dp": self._format_pa(row.controlling_dp_Pa),
-                    "shortfall_dp": self._format_pa(row.shortfall_dp_Pa),
-                    "action": row.action,
-                    "status": row.status,
-                    "controlling": bool(row.controlling),
                 }
             )
 
