@@ -12,6 +12,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any
+from HVAC.hydronics.sizing.basic_ps_topology_sections_v1 import (
+    build_basic_ps_topology_sections_v1,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -86,8 +89,18 @@ def build_circuit_return_path_comparison_v1(
             )
 
             room_ids = _subleg_room_ids(subleg)
+            flow_sections_by_room = _flow_section_ids_by_room(
+                project_state,
+                leg_id=leg_id,
+                subleg_id=subleg_id,
+            )
 
             for room_id in room_ids:
+                flow_section_ids = flow_sections_by_room.get(
+                    str(room_id),
+                    (),
+                )
+
                 emitter_id = _find_emitter_id_for_room(
                     emitters,
                     room_id=str(room_id),
@@ -99,7 +112,7 @@ def build_circuit_return_path_comparison_v1(
                         emitter_id=emitter_id,
                         route_id=f"{leg_id}:{subleg_id}",
                         route_label=subleg_label,
-                        flow_section_ids=(),
+                        flow_section_ids=flow_section_ids,
                         direct_return_section_ids=(),
                         reverse_return_section_ids=(),
                         flow_dp_Pa=None,
@@ -112,8 +125,9 @@ def build_circuit_return_path_comparison_v1(
                         controlling_direct=False,
                         controlling_reverse_return=False,
                         status=(
-                            "Return path comparison shell — "
-                            "flow/return section paths not modelled yet"
+                            "Flow path ready — return paths not modelled yet"
+                            if flow_section_ids
+                            else "Missing flow path — return paths not modelled yet"
                         ),
                     )
                 )
@@ -140,6 +154,52 @@ def _find_emitter_id_for_room(
             return str(getattr(emitter, "emitter_id", "") or emitter_key)
 
     return ""
+
+def _flow_section_ids_by_room(
+    project_state: Any,
+    *,
+    leg_id: str,
+    subleg_id: str,
+) -> dict[str, tuple[str, ...]]:
+    """
+    Build flow-side section paths for each room in a subleg.
+
+    For a subleg route:
+        room-001 -> section-001
+        room-002 -> section-001, section-002
+        room-003 -> section-001, section-002, section-003
+
+    This is the F path only.
+    Direct return and reverse return paths are deliberately deferred.
+    """
+    try:
+        projection = build_basic_ps_topology_sections_v1(
+            project_state,
+            leg_id=leg_id,
+            subleg_id=subleg_id,
+        )
+    except Exception:
+        return {}
+
+    sections = sorted(
+        tuple(getattr(projection, "sections", ()) or ()),
+        key=lambda section: int(getattr(section, "order", 0) or 0),
+    )
+
+    result: dict[str, tuple[str, ...]] = {}
+    accumulated: list[str] = []
+
+    for section in sections:
+        section_id = str(getattr(section, "section_id", "") or "")
+        to_room_id = str(getattr(section, "to_room_id", "") or "")
+
+        if not section_id or not to_room_id:
+            continue
+
+        accumulated.append(section_id)
+        result[to_room_id] = tuple(accumulated)
+
+    return result
 
 def _subleg_room_ids(subleg: Any) -> tuple[str, ...]:
     """
