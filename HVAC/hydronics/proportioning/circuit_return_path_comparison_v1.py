@@ -113,7 +113,7 @@ def build_circuit_return_path_comparison_v1(
                         route_id=f"{leg_id}:{subleg_id}",
                         route_label=subleg_label,
                         flow_section_ids=flow_section_ids,
-                        direct_return_section_ids=(),
+                        direct_return_section_ids=tuple(reversed(flow_section_ids)),
                         reverse_return_section_ids=(),
                         flow_dp_Pa=None,
                         direct_return_dp_Pa=None,
@@ -125,7 +125,7 @@ def build_circuit_return_path_comparison_v1(
                         controlling_direct=False,
                         controlling_reverse_return=False,
                         status=(
-                            "Flow path ready — return paths not modelled yet"
+                            "Flow + direct return path ready — reverse return not modelled yet"
                             if flow_section_ids
                             else "Missing flow path — return paths not modelled yet"
                         ),
