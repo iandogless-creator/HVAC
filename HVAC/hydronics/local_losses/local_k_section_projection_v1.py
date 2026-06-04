@@ -48,13 +48,12 @@ class LocalKSectionProjectionV1:
     status: str = "Local K section projection"
 
 
-def build_basic_ps_topology_sections_v1(
+def build_local_k_section_projection_v1(
     project_state: Any,
     *,
     leg_id: str = "leg-001",
     subleg_id: str | None = None,
-    design_delta_t_K: float | None = None,
-) -> BasicPSTopologySectionsProjectionV1:
+) -> LocalKSectionProjectionV1:
     """
     Build Local K section choices from the Basic PS read-only projection.
 
