@@ -49,6 +49,10 @@ def main() -> None:
             f"rr_status={row.rr_suitability_status} "
             f"direct_total={row.direct_total_dp_Pa} "
             f"reverse_total={row.reverse_return_total_dp_Pa} "
+            f"direct_rank={row.direct_rank or '-'} "
+            f"rr_rank={row.reverse_return_rank or '-'} "
+            f"direct_ctrl={row.controlling_direct} "
+            f"rr_ctrl={row.controlling_reverse_return} "
             f"{row.status}"
         )
 

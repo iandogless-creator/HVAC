@@ -10,7 +10,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any
 from HVAC.hydronics.sizing.basic_ps_topology_sections_v1 import (
     build_basic_ps_topology_sections_v1,
@@ -207,11 +207,13 @@ def build_circuit_return_path_comparison_v1(
                     )
                 )
 
+    ranked_rows = _rank_circuit_pressure_totals_v1(tuple(rows))
+
     return CircuitReturnPathComparisonProjectionV1(
-        rows=tuple(rows),
+        rows=ranked_rows,
         status=(
-            "Circuit return path comparison shell ready"
-            if rows
+            "Circuit return path comparison ready"
+            if ranked_rows
             else "No room-carrying hydronic circuits found"
         ),
     )
@@ -475,3 +477,80 @@ def _add_optional_dp(
         return None
 
     return float(first) + float(second)
+
+def _rank_circuit_pressure_totals_v1(
+    rows: tuple[CircuitReturnPathComparisonRowV1, ...],
+) -> tuple[CircuitReturnPathComparisonRowV1, ...]:
+    """
+    Rank direct-return and reverse-return circuit totals separately.
+
+    Controlling circuit = highest total pressure drop.
+
+    Preview-only:
+    - no balancing
+    - no valve authority
+    - no pump selection
+    - no committed return arrangement
+    """
+    direct_rank_by_key = _rank_rows_by_total_dp(
+        rows,
+        total_attr="direct_total_dp_Pa",
+    )
+
+    reverse_rank_by_key = _rank_rows_by_total_dp(
+        rows,
+        total_attr="reverse_return_total_dp_Pa",
+    )
+
+    ranked: list[CircuitReturnPathComparisonRowV1] = []
+
+    for row in rows:
+        row_key = _circuit_row_key(row)
+
+        direct_rank = direct_rank_by_key.get(row_key)
+        reverse_rank = reverse_rank_by_key.get(row_key)
+
+        ranked.append(
+            replace(
+                row,
+                direct_rank=direct_rank,
+                reverse_return_rank=reverse_rank,
+                controlling_direct=(direct_rank == 1),
+                controlling_reverse_return=(reverse_rank == 1),
+            )
+        )
+
+    return tuple(ranked)
+
+
+def _rank_rows_by_total_dp(
+    rows: tuple[CircuitReturnPathComparisonRowV1, ...],
+    *,
+    total_attr: str,
+) -> dict[str, int]:
+    complete_rows = [
+        row
+        for row in rows
+        if getattr(row, total_attr, None) is not None
+    ]
+
+    sorted_rows = sorted(
+        complete_rows,
+        key=lambda row: float(getattr(row, total_attr) or 0.0),
+        reverse=True,
+    )
+
+    return {
+        _circuit_row_key(row): rank
+        for rank, row in enumerate(sorted_rows, start=1)
+    }
+
+
+def _circuit_row_key(row: CircuitReturnPathComparisonRowV1) -> str:
+    return "|".join(
+        (
+            str(row.route_id),
+            str(row.room_id),
+            str(row.emitter_id),
+        )
+    )
