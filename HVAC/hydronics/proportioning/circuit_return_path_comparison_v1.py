@@ -15,7 +15,15 @@ from typing import Any
 from HVAC.hydronics.sizing.basic_ps_topology_sections_v1 import (
     build_basic_ps_topology_sections_v1,
 )
-
+from HVAC.hydronics.local_losses.local_k_pressure_preview_v1 import (
+    build_local_k_pressure_preview_v1,
+)
+from HVAC.hydronics.sizing.basic_ps_readonly_projection_v1 import (
+    build_basic_ps_readonly_projection_v1,
+)
+from HVAC.hydronics.proportioning.route_pressure_accumulator_v1 import (
+    build_route_pressure_accumulator_v1,
+)
 
 @dataclass(frozen=True, slots=True)
 class CircuitReturnPathComparisonRowV1:
@@ -97,6 +105,7 @@ def build_circuit_return_path_comparison_v1(
             )
 
             room_ids = _subleg_room_ids(subleg)
+
             flow_sections_by_room = _flow_section_ids_by_room(
                 project_state,
                 leg_id=leg_id,
@@ -108,6 +117,13 @@ def build_circuit_return_path_comparison_v1(
                 leg_id=leg_id,
                 subleg_id=subleg_id,
             )
+
+            section_dp_by_id = _section_total_dp_by_id(
+                project_state,
+                leg_id=leg_id,
+                subleg_id=subleg_id,
+            )
+
             rr_suitability = _appraise_reverse_return_suitability_v1(
                 subleg,
                 room_ids=room_ids,
@@ -119,10 +135,39 @@ def build_circuit_return_path_comparison_v1(
                     (),
                 )
 
+                direct_return_section_ids = tuple(
+                    reversed(flow_section_ids)
+                )
+
                 reverse_return_section_ids = (
                     reverse_return_sections_by_room.get(str(room_id), ())
                     if rr_suitability.code == "ordered-subleg"
                     else ()
+                )
+
+                flow_dp_Pa = _sum_section_dp(
+                    section_dp_by_id,
+                    flow_section_ids,
+                )
+
+                direct_return_dp_Pa = _sum_section_dp(
+                    section_dp_by_id,
+                    direct_return_section_ids,
+                )
+
+                reverse_return_dp_Pa = _sum_section_dp(
+                    section_dp_by_id,
+                    reverse_return_section_ids,
+                )
+
+                direct_total_dp_Pa = _add_optional_dp(
+                    flow_dp_Pa,
+                    direct_return_dp_Pa,
+                )
+
+                reverse_return_total_dp_Pa = _add_optional_dp(
+                    flow_dp_Pa,
+                    reverse_return_dp_Pa,
                 )
 
                 emitter_id = _find_emitter_id_for_room(
@@ -137,13 +182,13 @@ def build_circuit_return_path_comparison_v1(
                         route_id=f"{leg_id}:{subleg_id}",
                         route_label=subleg_label,
                         flow_section_ids=flow_section_ids,
-                        direct_return_section_ids=tuple(reversed(flow_section_ids)),
+                        direct_return_section_ids=direct_return_section_ids,
                         reverse_return_section_ids=reverse_return_section_ids,
-                        flow_dp_Pa=None,
-                        direct_return_dp_Pa=None,
-                        reverse_return_dp_Pa=None,
-                        direct_total_dp_Pa=None,
-                        reverse_return_total_dp_Pa=None,
+                        flow_dp_Pa=flow_dp_Pa,
+                        direct_return_dp_Pa=direct_return_dp_Pa,
+                        reverse_return_dp_Pa=reverse_return_dp_Pa,
+                        direct_total_dp_Pa=direct_total_dp_Pa,
+                        reverse_return_total_dp_Pa=reverse_return_total_dp_Pa,
                         direct_rank=None,
                         reverse_return_rank=None,
                         rr_suitability_code=rr_suitability.code,
@@ -355,3 +400,78 @@ def _reverse_return_section_ids_by_room(
         )
 
     return result
+
+def _section_total_dp_by_id(
+    project_state: Any,
+    *,
+    leg_id: str,
+    subleg_id: str,
+) -> dict[str, float | None]:
+    """
+    Build section_id -> section total Δp lookup.
+
+    Uses the existing H-S17 route pressure accumulator because it already
+    composes Basic PS + Local K pressure preview into per-section totals.
+
+    Preview-only.
+    """
+    try:
+        projection = build_route_pressure_accumulator_v1(
+            project_state,
+            leg_id=leg_id,
+            subleg_id=subleg_id,
+        )
+    except Exception:
+        return {}
+
+    result: dict[str, float | None] = {}
+
+    for route_row in getattr(projection, "rows", ()) or ():
+        for section in getattr(route_row, "sections", ()) or ():
+            section_id = str(getattr(section, "section_id", "") or "")
+
+            if not section_id:
+                continue
+
+            value = getattr(section, "section_total_pressure_drop_Pa", None)
+
+            if value is None:
+                result[section_id] = None
+                continue
+
+            try:
+                result[section_id] = float(value)
+            except (TypeError, ValueError):
+                result[section_id] = None
+
+    return result
+
+def _sum_section_dp(
+        section_dp_by_id: dict[str, float | None],
+        section_ids: tuple[str, ...],
+) -> float | None:
+    """
+    Sum section Δp values for a path.
+
+    Returns None if any required section Δp is missing.
+    """
+    total = 0.0
+
+    for section_id in section_ids:
+        value = section_dp_by_id.get(section_id)
+
+        if value is None:
+            return None
+
+        total += float(value)
+
+    return total
+
+def _add_optional_dp(
+        first: float | None,
+        second: float | None,
+) -> float | None:
+    if first is None or second is None:
+        return None
+
+    return float(first) + float(second)
