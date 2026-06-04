@@ -39,6 +39,8 @@ def main() -> None:
             f"emitter={row.emitter_id or '-'} "
             f"flow={flow} "
             f"direct={direct} "
+            f"rr_code={row.rr_suitability_code} "
+            f"rr_status={row.rr_suitability_status} "
             f"direct_total={row.direct_total_dp_Pa} "
             f"reverse_total={row.reverse_return_total_dp_Pa} "
             f"{row.status}"

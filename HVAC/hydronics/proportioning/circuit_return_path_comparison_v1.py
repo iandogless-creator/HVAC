@@ -28,6 +28,9 @@ class CircuitReturnPathComparisonRowV1:
     direct_return_section_ids: tuple[str, ...]
     reverse_return_section_ids: tuple[str, ...]
 
+    rr_suitability_code: str
+    rr_suitability_status: str
+
     flow_dp_Pa: float | None
     direct_return_dp_Pa: float | None
     reverse_return_dp_Pa: float | None
@@ -43,6 +46,11 @@ class CircuitReturnPathComparisonRowV1:
 
     status: str
 
+@dataclass(frozen=True, slots=True)
+class ReverseReturnSuitabilityV1:
+    suitable: bool
+    code: str
+    status: str
 
 @dataclass(frozen=True, slots=True)
 class CircuitReturnPathComparisonProjectionV1:
@@ -95,6 +103,11 @@ def build_circuit_return_path_comparison_v1(
                 subleg_id=subleg_id,
             )
 
+            rr_suitability = _appraise_reverse_return_suitability_v1(
+                subleg,
+                room_ids=room_ids,
+            )
+
             for room_id in room_ids:
                 flow_section_ids = flow_sections_by_room.get(
                     str(room_id),
@@ -122,6 +135,8 @@ def build_circuit_return_path_comparison_v1(
                         reverse_return_total_dp_Pa=None,
                         direct_rank=None,
                         reverse_return_rank=None,
+                        rr_suitability_code=rr_suitability.code,
+                        rr_suitability_status=rr_suitability.status,
                         controlling_direct=False,
                         controlling_reverse_return=False,
                         status=(
@@ -238,3 +253,42 @@ def _subleg_room_ids(subleg: Any) -> tuple[str, ...]:
             return tuple(result)
 
     return ()
+
+def _appraise_reverse_return_suitability_v1(
+    subleg: Any,
+    *,
+    room_ids: tuple[str, ...],
+) -> ReverseReturnSuitabilityV1:
+    """
+    H-S19-D:
+    Appraise whether reverse return is suitable for this ordered group.
+
+    This does not generate reverse-return paths.
+    It only classifies whether RR comparison is meaningful.
+
+    v1 principle:
+    - reverse return is valid for an appraised ordered group;
+    - nested sublegs/branches are not automatically rejected;
+    - nested/grouped routes require separate appraisal unless explicitly handled.
+    """
+    if len(room_ids) < 2:
+        return ReverseReturnSuitabilityV1(
+            suitable=False,
+            code="single-emitter-not-useful",
+            status="RR unavailable — single emitter group",
+        )
+
+    nested_sublegs = tuple(getattr(subleg, "sublegs", ()) or ())
+
+    if nested_sublegs:
+        return ReverseReturnSuitabilityV1(
+            suitable=False,
+            code="nested-subleg-requires-separate-appraisal",
+            status="RR requires appraisal — nested subleg/grouped route",
+        )
+
+    return ReverseReturnSuitabilityV1(
+        suitable=True,
+        code="ordered-subleg",
+        status="RR comparable — ordered subleg",
+    )
