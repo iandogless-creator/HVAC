@@ -496,6 +496,7 @@ class HydronicsSchematicPanel(QWidget):
             columns=["Room", "Heat Load", "Emitter", "Output", "Status"],
             stretch_columns={0},
         )
+
         self._add_section(
             overview_layout,
             title="Emitter demand summary",
@@ -750,7 +751,28 @@ class HydronicsSchematicPanel(QWidget):
             table=self._route_pressure_preview_table,
             min_height=120,
         )
+        # --------------------------------------------------
+        # H-S18 — Route Δp shortfall preview
+        # --------------------------------------------------
+        self._route_shortfall_preview_table = self._make_table(
+            columns=[
+                "Rank",
+                "Route",
+                "Route Δp",
+                "Controlling Δp",
+                "Δp Shortfall",
+                "Action",
+                "Status",
+            ],
+            stretch_columns={1, 5, 6},
+        )
 
+        self._add_section(
+            proportioning_layout,
+            title="Route Δp shortfall preview — proportioning comparison",
+            table=self._route_shortfall_preview_table,
+            min_height=120,
+        )
         # --------------------------------------------------
         # Branch / proportioning summary
         # --------------------------------------------------
@@ -893,6 +915,43 @@ class HydronicsSchematicPanel(QWidget):
 
         self._fit_table_height(table, min_height=120, max_height=180)
         table.scrollToTop()
+
+    def set_route_shortfall_preview_rows(self, rows: list[dict]) -> None:
+        """
+        H-S18:
+        Display route-level Δp shortfall to the controlling route.
+
+        Display only:
+        • no ProjectState access
+        • no balancing valve settings
+        • no pump selection
+        • no pipe resizing
+        """
+        if not hasattr(self, "_route_shortfall_preview_table"):
+            return
+
+        table = self._route_shortfall_preview_table
+        table.setRowCount(len(rows))
+
+        for row_index, row in enumerate(rows):
+            values = [
+                row.get("rank", "—"),
+                row.get("route", "—"),
+                row.get("route_dp", "—"),
+                row.get("controlling_dp", "—"),
+                row.get("shortfall_dp", "—"),
+                row.get("action", "—"),
+                row.get("status", "—"),
+            ]
+
+            for col_index, value in enumerate(values):
+                item = QTableWidgetItem(str(value))
+                item.setFlags(item.flags() & ~Qt.ItemIsEditable)
+                table.setItem(row_index, col_index, item)
+
+        self._fit_table_height(table, min_height=120, max_height=180)
+        table.scrollToTop()
+
 
     def set_proportioning_readiness(self, readiness: dict) -> None:
         """

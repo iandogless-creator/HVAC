@@ -78,6 +78,9 @@ from HVAC.hydronics.local_losses.local_k_pressure_preview_v1 import (
 from HVAC.hydronics.proportioning.route_pressure_accumulator_v1 import (
     build_route_pressure_accumulator_v1,
 )
+from HVAC.hydronics.proportioning.route_proportioning_shortfall_preview_v1 import (
+    build_route_proportioning_shortfall_preview_v1,
+)
 
 class HydronicsSchematicPanelAdapter:
     """
@@ -271,8 +274,10 @@ class HydronicsSchematicPanelAdapter:
 
         # --------------------------------------------------
         # H-S14 — Route Δp preview
+        # H-S18 — Route Δp shortfall preview
         # --------------------------------------------------
         route_pressure_rows = []
+        route_shortfall_rows = []
 
         if getattr(self._project_state, "hydronic_topology", None) is not None:
             try:
@@ -281,16 +286,33 @@ class HydronicsSchematicPanelAdapter:
                         self._project_state,
                     )
                 )
+
                 route_pressure_rows = (
                     self._build_route_pressure_preview_rows(
                         route_pressure_projection
                     )
                 )
+
+                shortfall_preview = (
+                    build_route_proportioning_shortfall_preview_v1(
+                        route_pressure_projection
+                    )
+                )
+
+                route_shortfall_rows = (
+                    self._build_route_shortfall_preview_rows(
+                        shortfall_preview
+                    )
+                )
+
             except Exception as exc:
-                print("[ROUTE PRESSURE PREVIEW ERROR]", repr(exc))
+                print("[ROUTE PRESSURE / SHORTFALL PREVIEW ERROR]", repr(exc))
 
         if hasattr(self._panel, "set_route_pressure_preview_rows"):
             self._panel.set_route_pressure_preview_rows(route_pressure_rows)
+
+        if hasattr(self._panel, "set_route_shortfall_preview_rows"):
+            self._panel.set_route_shortfall_preview_rows(route_shortfall_rows)
 
         # --------------------------------------------------
         # Branch / proportioning summary
@@ -388,11 +410,7 @@ class HydronicsSchematicPanelAdapter:
             rows.append(
                 {
                     "route": getattr(row, "route_label", "—"),
-                    "rank": (
-                        "—"
-                        if getattr(row, "rank", None) is None
-                        else str(getattr(row, "rank"))
-                    ),
+                    "sections": str(getattr(row, "section_count", "—")),
                     "sections": str(getattr(row, "section_count", "—")),
                     "straight_dp": self._format_pa(
                         getattr(row, "straight_pressure_drop_total_Pa", None)
@@ -416,11 +434,35 @@ class HydronicsSchematicPanelAdapter:
                     "complete": (
                         "Yes" if getattr(row, "complete", False) else "No"
                     ),
-                    "controlling": (
-                        "Yes"
-                        if getattr(row, "is_controlling_candidate", False)
-                        else "No"
+
+                    "status": getattr(row, "status", "—"),
+                }
+            )
+
+        return rows
+
+    def _build_route_shortfall_preview_rows(self, preview) -> list[dict]:
+        rows: list[dict] = []
+
+        for row in getattr(preview, "rows", []) or []:
+            rows.append(
+                {
+                    "rank": (
+                        "—"
+                        if getattr(row, "rank", None) is None
+                        else str(getattr(row, "rank"))
                     ),
+                    "route": getattr(row, "route_label", "—"),
+                    "route_dp": self._format_pa(
+                        getattr(row, "route_dp_Pa", None)
+                    ),
+                    "controlling_dp": self._format_pa(
+                        getattr(row, "controlling_dp_Pa", None)
+                    ),
+                    "shortfall_dp": self._format_pa(
+                        getattr(row, "shortfall_dp_Pa", None)
+                    ),
+                    "action": getattr(row, "action", "—"),
                     "status": getattr(row, "status", "—"),
                 }
             )
@@ -529,6 +571,25 @@ class HydronicsSchematicPanelAdapter:
                     ),
                     "section_dp": self._format_pa(display_section_dp),
                     "status": status,
+                }
+            )
+
+        return rows
+
+    def _build_route_shortfall_preview_rows(self, preview) -> list[dict]:
+        rows: list[dict] = []
+
+        for row in getattr(preview, "rows", []) or []:
+            rows.append(
+                {
+                    "rank": "" if row.rank is None else str(row.rank),
+                    "route": row.route_label,
+                    "route_dp": self._format_pa(row.route_dp_Pa),
+                    "controlling_dp": self._format_pa(row.controlling_dp_Pa),
+                    "shortfall_dp": self._format_pa(row.shortfall_dp_Pa),
+                    "action": row.action,
+                    "status": row.status,
+                    "controlling": bool(row.controlling),
                 }
             )
 
