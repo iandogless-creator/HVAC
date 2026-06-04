@@ -125,7 +125,7 @@ def build_circuit_return_path_comparison_v1(
                         controlling_direct=False,
                         controlling_reverse_return=False,
                         status=(
-                            "Flow + direct return path ready — reverse return not modelled yet"
+                            "Flow + direct return path ready — reverse return requires appraisal"
                             if flow_section_ids
                             else "Missing flow path — return paths not modelled yet"
                         ),

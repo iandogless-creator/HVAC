@@ -26,6 +26,11 @@ def main() -> None:
 
     for row in projection.rows:
         flow = ",".join(row.flow_section_ids) if row.flow_section_ids else "-"
+        direct = (
+            ",".join(row.direct_return_section_ids)
+            if row.direct_return_section_ids
+            else "-"
+        )
 
         print(
             f"{row.route_id} "
@@ -33,6 +38,7 @@ def main() -> None:
             f"room={row.room_id} "
             f"emitter={row.emitter_id or '-'} "
             f"flow={flow} "
+            f"direct={direct} "
             f"direct_total={row.direct_total_dp_Pa} "
             f"reverse_total={row.reverse_return_total_dp_Pa} "
             f"{row.status}"
