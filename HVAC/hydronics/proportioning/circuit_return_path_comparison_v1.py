@@ -103,6 +103,11 @@ def build_circuit_return_path_comparison_v1(
                 subleg_id=subleg_id,
             )
 
+            reverse_return_sections_by_room = _reverse_return_section_ids_by_room(
+                project_state,
+                leg_id=leg_id,
+                subleg_id=subleg_id,
+            )
             rr_suitability = _appraise_reverse_return_suitability_v1(
                 subleg,
                 room_ids=room_ids,
@@ -112,6 +117,12 @@ def build_circuit_return_path_comparison_v1(
                 flow_section_ids = flow_sections_by_room.get(
                     str(room_id),
                     (),
+                )
+
+                reverse_return_section_ids = (
+                    reverse_return_sections_by_room.get(str(room_id), ())
+                    if rr_suitability.code == "ordered-subleg"
+                    else ()
                 )
 
                 emitter_id = _find_emitter_id_for_room(
@@ -127,7 +138,7 @@ def build_circuit_return_path_comparison_v1(
                         route_label=subleg_label,
                         flow_section_ids=flow_section_ids,
                         direct_return_section_ids=tuple(reversed(flow_section_ids)),
-                        reverse_return_section_ids=(),
+                        reverse_return_section_ids=reverse_return_section_ids,
                         flow_dp_Pa=None,
                         direct_return_dp_Pa=None,
                         reverse_return_dp_Pa=None,
@@ -140,9 +151,13 @@ def build_circuit_return_path_comparison_v1(
                         controlling_direct=False,
                         controlling_reverse_return=False,
                         status=(
-                            "Flow + direct return path ready — reverse return requires appraisal"
-                            if flow_section_ids
-                            else "Missing flow path — return paths not modelled yet"
+                            "Flow + direct + reverse return paths ready"
+                            if reverse_return_section_ids
+                            else (
+                                "Flow + direct return path ready — reverse return not generated"
+                                if flow_section_ids
+                                else "Missing flow path — return paths not modelled yet"
+                            )
                         ),
                     )
                 )
@@ -292,3 +307,51 @@ def _appraise_reverse_return_suitability_v1(
         code="ordered-subleg",
         status="RR comparable — ordered subleg",
     )
+
+def _reverse_return_section_ids_by_room(
+    project_state: Any,
+    *,
+    leg_id: str,
+    subleg_id: str,
+) -> dict[str, tuple[str, ...]]:
+    """
+    Build provisional reverse-return section paths for each room.
+
+    For an ordered subleg route:
+        room-001 -> section-001, section-002, section-003
+        room-002 -> section-002, section-003
+        room-003 -> section-003
+
+    This is only a path-ID comparison scaffold.
+    It does not yet create separate physical return pipe DTOs.
+    It must only be used after RR suitability appraisal says the group is comparable.
+    """
+    try:
+        projection = build_basic_ps_topology_sections_v1(
+            project_state,
+            leg_id=leg_id,
+            subleg_id=subleg_id,
+        )
+    except Exception:
+        return {}
+
+    sections = sorted(
+        tuple(getattr(projection, "sections", ()) or ()),
+        key=lambda section: int(getattr(section, "order", 0) or 0),
+    )
+
+    result: dict[str, tuple[str, ...]] = {}
+
+    for index, section in enumerate(sections):
+        to_room_id = str(getattr(section, "to_room_id", "") or "")
+
+        if not to_room_id:
+            continue
+
+        result[to_room_id] = tuple(
+            str(getattr(item, "section_id", "") or "")
+            for item in sections[index:]
+            if str(getattr(item, "section_id", "") or "")
+        )
+
+    return result

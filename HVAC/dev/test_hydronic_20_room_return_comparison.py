@@ -31,6 +31,11 @@ def main() -> None:
             if row.direct_return_section_ids
             else "-"
         )
+        reverse = (
+            ",".join(row.reverse_return_section_ids)
+            if row.reverse_return_section_ids
+            else "-"
+        )
 
         print(
             f"{row.route_id} "
@@ -39,6 +44,7 @@ def main() -> None:
             f"emitter={row.emitter_id or '-'} "
             f"flow={flow} "
             f"direct={direct} "
+            f"reverse={reverse} "
             f"rr_code={row.rr_suitability_code} "
             f"rr_status={row.rr_suitability_status} "
             f"direct_total={row.direct_total_dp_Pa} "
