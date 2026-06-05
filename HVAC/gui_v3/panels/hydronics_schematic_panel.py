@@ -494,6 +494,28 @@ class HydronicsSchematicPanel(QWidget):
         self._proportioned_tab = self._make_tab("Proportioned")
         proportioned_layout = self._proportioned_tab
         # --------------------------------------------------
+        # H-S19-J — DEV common-main / leg / subleg topology
+        # --------------------------------------------------
+        self._common_main_leg_subleg_table = self._make_table(
+            columns=[
+                "Common main",
+                "Leg",
+                "Subleg",
+                "Role",
+                "Rooms",
+                "Status",
+            ],
+            stretch_columns={1, 2, 4, 5},
+        )
+
+        self._add_section(
+            proportioning_layout,
+            title="DEV common-main / leg / subleg schematic — preview only",
+            table=self._common_main_leg_subleg_table,
+            min_height=160,
+        )
+
+        # --------------------------------------------------
         # H-S20-A — Proportioned tab shell
         # --------------------------------------------------
         self._proportioned_status_table = self._make_table(
@@ -916,6 +938,41 @@ class HydronicsSchematicPanel(QWidget):
         self._fit_table_height(table, min_height=180, max_height=300)
         if not getattr(self, "_suppress_basic_ps_scroll_to_top", False):
             table.scrollToTop()
+
+    def set_common_main_leg_subleg_rows(self, rows: list[dict]) -> None:
+        """
+        H-S19-J:
+        Display DEV common-main / leg / subleg topology.
+
+        Display only:
+        • no ProjectState access
+        • no balancing
+        • no pump selection
+        • no committed return arrangement
+        """
+        if not hasattr(self, "_common_main_leg_subleg_table"):
+            return
+
+        table = self._common_main_leg_subleg_table
+        table.setRowCount(len(rows))
+
+        for row_index, row in enumerate(rows):
+            values = [
+                row.get("common_main", "Common main"),
+                row.get("leg", "—"),
+                row.get("subleg", "—"),
+                row.get("role", "—"),
+                row.get("rooms", "—"),
+                row.get("status", "—"),
+            ]
+
+            for col_index, value in enumerate(values):
+                item = QTableWidgetItem(str(value))
+                item.setFlags(item.flags() & ~Qt.ItemIsEditable)
+                table.setItem(row_index, col_index, item)
+
+        self._fit_table_height(table, min_height=160, max_height=240)
+        table.scrollToTop()
 
     def focus_proportioning_basic_ps_section(
         self,

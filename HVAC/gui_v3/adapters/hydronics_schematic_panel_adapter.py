@@ -370,7 +370,25 @@ class HydronicsSchematicPanelAdapter:
         self._panel.set_leg_subleg_topology_rows(
             self._build_leg_subleg_topology_rows(leg_subleg_topology)
         )
+        # --------------------------------------------------
+        # H-S19-J — DEV common-main / leg / subleg topology
+        # --------------------------------------------------
+        common_main_leg_subleg_rows = []
 
+        if getattr(self._project_state, "hydronic_topology", None) is not None:
+            try:
+                common_main_leg_subleg_rows = (
+                    self._build_common_main_leg_subleg_rows(
+                        self._project_state.hydronic_topology
+                    )
+                )
+            except Exception as exc:
+                print("[COMMON MAIN / LEG / SUBLEG ERROR]", repr(exc))
+
+        if hasattr(self._panel, "set_common_main_leg_subleg_rows"):
+            self._panel.set_common_main_leg_subleg_rows(
+                common_main_leg_subleg_rows
+            )
         # --------------------------------------------------
         # Index route accumulator
         # --------------------------------------------------
@@ -483,6 +501,11 @@ class HydronicsSchematicPanelAdapter:
                     "direct_total_dp": self._format_pa(
                         getattr(row, "direct_total_dp_Pa", None)
                     ),
+                    "direct_total_dp_raw": getattr(
+                        row,
+                        "direct_total_dp_Pa",
+                        None,
+                    ),
                     "direct_controlling": (
                         "Yes"
                         if getattr(row, "controlling_direct", False)
@@ -495,6 +518,11 @@ class HydronicsSchematicPanelAdapter:
                     ),
                     "reverse_total_dp": self._format_pa(
                         getattr(row, "reverse_return_total_dp_Pa", None)
+                    ),
+                    "reverse_total_dp_raw": getattr(
+                        row,
+                        "reverse_return_total_dp_Pa",
+                        None,
                     ),
                     "reverse_controlling": (
                         "Yes"
@@ -650,6 +678,96 @@ class HydronicsSchematicPanelAdapter:
             )
 
         return rows
+    def _build_common_main_leg_subleg_rows(self, topology) -> list[dict]:
+        rows: list[dict] = []
+
+        for leg in getattr(topology, "legs", []) or []:
+            leg_id = str(getattr(leg, "leg_id", "") or "")
+            leg_label = str(
+                getattr(leg, "label", None)
+                or getattr(leg, "name", None)
+                or leg_id
+                or "—"
+            )
+
+            for subleg in getattr(leg, "sublegs", []) or []:
+                subleg_id = str(getattr(subleg, "subleg_id", "") or "")
+                subleg_label = str(
+                    getattr(subleg, "label", None)
+                    or getattr(subleg, "name", None)
+                    or subleg_id
+                    or "—"
+                )
+
+                room_ids = self._subleg_room_ids_for_display(subleg)
+                rooms_label = " → ".join(room_ids) if room_ids else "—"
+
+                rows.append(
+                    {
+                        "common_main": "Common main",
+                        "leg": leg_label,
+                        "subleg": subleg_label,
+                        "role": self._subleg_role_label(subleg),
+                        "rooms": rooms_label,
+                        "status": (
+                            "DEV topology preview — common main feeds leg; "
+                            "subleg carries rooms"
+                        ),
+                    }
+                )
+
+        return rows
+
+    @staticmethod
+    def _subleg_room_ids_for_display(subleg) -> list[str]:
+        for field_name in (
+            "route_room_ids",
+            "room_ids",
+            "rooms",
+            "room_sequence",
+            "terminal_room_ids",
+        ):
+            value = getattr(subleg, field_name, None)
+
+            if not value:
+                continue
+
+            result: list[str] = []
+
+            for item in value:
+                if isinstance(item, str):
+                    result.append(item)
+                else:
+                    room_id = (
+                        getattr(item, "room_id", None)
+                        or getattr(item, "id", None)
+                    )
+                    if room_id:
+                        result.append(str(room_id))
+
+            if result:
+                return result
+
+        return []
+
+    @staticmethod
+    def _subleg_role_label(subleg) -> str:
+        subleg_id = str(getattr(subleg, "subleg_id", "") or "").lower()
+        label = str(
+            getattr(subleg, "label", None)
+            or getattr(subleg, "name", None)
+            or ""
+        ).lower()
+
+        source_text = f"{subleg_id} {label}"
+
+        if "primary" in source_text or "common" in source_text:
+            return "Common subleg"
+
+        if "branch" in source_text or "subleg-b" in source_text:
+            return "Branch subleg"
+
+        return "Subleg"
 
     @staticmethod
     def _format_watts(value: object) -> str:
