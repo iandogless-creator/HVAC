@@ -85,6 +85,11 @@ from HVAC.hydronics.proportioning.circuit_return_path_comparison_v1 import (
     build_circuit_return_path_comparison_v1,
 )
 
+from HVAC.gui_v3.widgets.common_main_leg_subleg_schematic_widget_v1 import (
+    CommonMainLegSublegRouteV1,
+    CommonMainLegSublegSchematicV1,
+)
+
 class HydronicsSchematicPanelAdapter:
     """
     GUI v3 — Hydronics Schematic Panel Adapter.
@@ -389,6 +394,24 @@ class HydronicsSchematicPanelAdapter:
             self._panel.set_common_main_leg_subleg_rows(
                 common_main_leg_subleg_rows
             )
+
+        common_main_leg_subleg_schematic = None
+
+        if getattr(self._project_state, "hydronic_topology", None) is not None:
+            try:
+                common_main_leg_subleg_schematic = (
+                    self._build_common_main_leg_subleg_schematic(
+                        self._project_state.hydronic_topology
+                    )
+                )
+            except Exception as exc:
+                print("[COMMON MAIN / LEG / SUBLEG SCHEMATIC ERROR]", repr(exc))
+
+        if hasattr(self._panel, "set_common_main_leg_subleg_schematic"):
+            self._panel.set_common_main_leg_subleg_schematic(
+                common_main_leg_subleg_schematic
+            )
+
         # --------------------------------------------------
         # Index route accumulator
         # --------------------------------------------------
@@ -447,6 +470,61 @@ class HydronicsSchematicPanelAdapter:
 
         dto = self._build_schematic_dto(snapshot)
         self._panel._set_schematic(dto)
+
+    def _build_common_main_leg_subleg_schematic(
+        self,
+        topology,
+    ) -> CommonMainLegSublegSchematicV1:
+        routes: list[CommonMainLegSublegRouteV1] = []
+
+        for leg in getattr(topology, "legs", []) or []:
+            leg_id = str(getattr(leg, "leg_id", "") or "")
+            leg_label = str(
+                getattr(leg, "label", None)
+                or getattr(leg, "name", None)
+                or leg_id
+                or "Leg"
+            )
+
+            for subleg in getattr(leg, "sublegs", []) or []:
+                subleg_id = str(getattr(subleg, "subleg_id", "") or "")
+                raw_subleg_label = str(
+                    getattr(subleg, "label", None)
+                    or getattr(subleg, "name", None)
+                    or subleg_id
+                    or "—"
+                )
+
+                subleg_label = self._display_subleg_label(
+                    raw_subleg_label
+                )
+
+                subleg_label = self._display_subleg_label(raw_subleg_label)
+
+                room_labels = tuple(
+                    self._subleg_room_ids_for_display(subleg)
+                )
+
+                routes.append(
+                    CommonMainLegSublegRouteV1(
+                        leg_id=leg_id,
+                        leg_label=leg_label,
+                        subleg_id=subleg_id,
+                        subleg_label=subleg_label,
+                        role=self._subleg_role_label(subleg),
+                        room_labels=room_labels,
+                    )
+                )
+
+        return CommonMainLegSublegSchematicV1(
+            heat_source_label="Boiler / Heat Source",
+            common_main_label="Common main",
+            routes=tuple(routes),
+            status=(
+                "DEV topology schematic preview only — common main feeds legs; "
+                "legs feed sublegs; sublegs carry rooms"
+            ),
+        )
 
     def _build_route_pressure_preview_rows(self, projection) -> list[dict]:
         rows: list[dict] = []
@@ -678,6 +756,7 @@ class HydronicsSchematicPanelAdapter:
             )
 
         return rows
+
     def _build_common_main_leg_subleg_rows(self, topology) -> list[dict]:
         rows: list[dict] = []
 
@@ -692,12 +771,14 @@ class HydronicsSchematicPanelAdapter:
 
             for subleg in getattr(leg, "sublegs", []) or []:
                 subleg_id = str(getattr(subleg, "subleg_id", "") or "")
-                subleg_label = str(
+                raw_subleg_label = str(
                     getattr(subleg, "label", None)
                     or getattr(subleg, "name", None)
                     or subleg_id
                     or "—"
                 )
+
+                subleg_label = self._display_subleg_label(raw_subleg_label)
 
                 room_ids = self._subleg_room_ids_for_display(subleg)
                 rooms_label = " → ".join(room_ids) if room_ids else "—"
@@ -762,12 +843,30 @@ class HydronicsSchematicPanelAdapter:
         source_text = f"{subleg_id} {label}"
 
         if "primary" in source_text or "common" in source_text:
-            return "Common subleg"
+            return "Common"
 
         if "branch" in source_text or "subleg-b" in source_text:
-            return "Branch subleg"
+            return "Branch"
 
         return "Subleg"
+
+    @staticmethod
+    def _display_subleg_label(label: str) -> str:
+        text = str(label or "")
+
+        replacements = {
+            "Leg 1A Common subleg": "Subleg 1A",
+            "Leg 1B Branch subleg": "Subleg 1B",
+            "Leg 2A Common subleg": "Subleg 2A",
+            "Leg 2B Branch subleg": "Subleg 2B",
+            "Leg 3A Common subleg": "Subleg 3A",
+            "Leg 3B Branch subleg": "Subleg 3B",
+        }
+
+        for old, new in replacements.items():
+            text = text.replace(old, new)
+
+        return text
 
     @staticmethod
     def _format_watts(value: object) -> str:
@@ -1343,6 +1442,36 @@ class HydronicsSchematicPanelAdapter:
         if hasattr(self._panel, "focus_proportioning_basic_ps_section"):
             self._panel.focus_proportioning_basic_ps_section(section_id)
 
+    @staticmethod
+    def _short_subleg_label(subleg_id: str, label: str) -> str:
+        source = f"{subleg_id} {label}".lower()
+
+        if "1a" in source or "primary" in source and "leg-001" in source:
+            return "Subleg 1A"
+        if "1b" in source or "subleg-b" in source and "leg-001" in source:
+            return "Subleg 1B"
+        if "2a" in source or "primary" in source and "leg-002" in source:
+            return "Subleg 2A"
+        if "2b" in source or "subleg-b" in source and "leg-002" in source:
+            return "Subleg 2B"
+
+        return label.replace("Leg", "Subleg")
+
+    @staticmethod
+    def _display_subleg_label(label: str) -> str:
+        text = str(label or "")
+
+        replacements = {
+            "Leg 1A Common subleg": "Subleg 1A",
+            "Leg 1B Branch subleg": "Subleg 1B",
+            "Leg 2A Common subleg": "Subleg 2A",
+            "Leg 2B Branch subleg": "Subleg 2B",
+        }
+
+        for old, new in replacements.items():
+            text = text.replace(old, new)
+
+        return text
     # ------------------------------------------------------------------
     # Snapshot resolution (Phase B safe)
     # ------------------------------------------------------------------

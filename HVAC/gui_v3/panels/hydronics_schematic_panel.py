@@ -81,6 +81,9 @@ from HVAC.gui_v3.schematic.dto import (
 from HVAC.gui_v3.widgets.proportioning_schematic_widget_v1 import (
     ProportioningSchematicWidgetV1,
 )
+from HVAC.gui_v3.widgets.common_main_leg_subleg_schematic_widget_v1 import (
+    CommonMainLegSublegSchematicWidgetV1,
+)
 
 # ======================================================================
 # Floating Inspector
@@ -516,6 +519,35 @@ class HydronicsSchematicPanel(QWidget):
         )
 
         # --------------------------------------------------
+        # H-S19-K — DEV common-main / leg / subleg drawn schematic
+        # --------------------------------------------------
+        self._common_main_leg_subleg_schematic_widget = (
+            CommonMainLegSublegSchematicWidgetV1(self)
+        )
+
+        self._common_main_leg_subleg_schematic_scroll = QScrollArea(self)
+        self._common_main_leg_subleg_schematic_scroll.setWidgetResizable(False)
+        self._common_main_leg_subleg_schematic_scroll.setFrameShape(
+            QFrame.NoFrame
+        )
+        self._common_main_leg_subleg_schematic_scroll.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarAsNeeded
+        )
+        self._common_main_leg_subleg_schematic_scroll.setVerticalScrollBarPolicy(
+            Qt.ScrollBarAsNeeded
+        )
+        self._common_main_leg_subleg_schematic_scroll.setWidget(
+            self._common_main_leg_subleg_schematic_widget
+        )
+
+        self._add_section(
+            proportioning_layout,
+            title="DEV common-main / leg / subleg drawn schematic — preview only",
+            table=self._common_main_leg_subleg_schematic_scroll,
+            min_height=380,
+        )
+
+        # --------------------------------------------------
         # H-S20-A — Proportioned tab shell
         # --------------------------------------------------
         self._proportioned_status_table = self._make_table(
@@ -938,6 +970,24 @@ class HydronicsSchematicPanel(QWidget):
         self._fit_table_height(table, min_height=180, max_height=300)
         if not getattr(self, "_suppress_basic_ps_scroll_to_top", False):
             table.scrollToTop()
+
+    def set_common_main_leg_subleg_schematic(self, schematic) -> None:
+        """
+        H-S19-K:
+        Display DEV common-main / leg / subleg schematic.
+
+        Display only:
+        • no ProjectState access
+        • no pump
+        • no balancing
+        • no committed return arrangement
+        """
+        if not hasattr(self, "_common_main_leg_subleg_schematic_widget"):
+            return
+
+        self._common_main_leg_subleg_schematic_widget.set_schematic(
+            schematic
+        )
 
     def set_common_main_leg_subleg_rows(self, rows: list[dict]) -> None:
         """
