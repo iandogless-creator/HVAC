@@ -53,6 +53,8 @@ from PySide6.QtGui import (
     QBrush,
     QFont,
     QPolygonF,
+    QColor,
+    QBrush,
 )
 
 from PySide6.QtWidgets import (
@@ -484,11 +486,50 @@ class HydronicsSchematicPanel(QWidget):
         self._tabs = QTabWidget(self)
         outer_layout.addWidget(self._tabs)
 
-        overview_layout = self._make_tab("Overview")
+        overview_layout = self._make_tab("Basic Overview")
         authority_layout = self._make_tab("Authority")
         self._proportioning_tab = self._make_tab("Proportioning")
         proportioning_layout = self._proportioning_tab
 
+        self._proportioned_tab = self._make_tab("Proportioned")
+        proportioned_layout = self._proportioned_tab
+        # --------------------------------------------------
+        # H-S20-A — Proportioned tab shell
+        # --------------------------------------------------
+        self._proportioned_status_table = self._make_table(
+            columns=[
+                "Item",
+                "Status",
+            ],
+            stretch_columns={1},
+        )
+
+        self._add_section(
+            proportioned_layout,
+            title="Proportioned system — final output",
+            table=self._proportioned_status_table,
+            min_height=120,
+        )
+
+        self.set_proportioned_status(
+            [
+                {
+                    "item": "Proportioned system",
+                    "status": (
+                        "No proportioned system committed yet — "
+                        "use the Proportioning tab for preview calculations"
+                    ),
+                },
+                {
+                    "item": "Final schematic",
+                    "status": "Not available until proportioning is committed",
+                },
+                {
+                    "item": "Final pipe schedule",
+                    "status": "Not available until proportioning is committed",
+                },
+            ]
+        )
         # --------------------------------------------------
         # Overview tab
         # --------------------------------------------------
@@ -977,13 +1018,70 @@ class HydronicsSchematicPanel(QWidget):
                 row.get("rr_suitability", "—"),
                 row.get("status", "—"),
             ]
+            direct_dp = self._try_float(row.get("direct_total_dp_raw", None))
+            reverse_dp = self._try_float(row.get("reverse_total_dp_raw", None))
+
+            comparison_is_clear = False
+            direct_is_lower = False
+            reverse_is_lower = False
+
+            if direct_dp is not None and reverse_dp is not None:
+                delta_percent = self._delta_percent(direct_dp, reverse_dp)
+
+                if delta_percent > self._RETURN_COMPARISON_TOLERANCE_PERCENT:
+                    comparison_is_clear = True
+                    direct_is_lower = direct_dp < reverse_dp
+                    reverse_is_lower = reverse_dp < direct_dp
+
+            for col_index, value in enumerate(values):
+                item = QTableWidgetItem(str(value))
+                item.setFlags(item.flags() & ~Qt.ItemIsEditable)
+                if comparison_is_clear:
+                    if col_index == 4:
+                        if direct_is_lower:
+                            item.setForeground(QBrush(QColor(0, 120, 0)))
+                        else:
+                            item.setForeground(QBrush(QColor(190, 110, 0)))
+
+                    elif col_index == 7:
+                        if reverse_is_lower:
+                            item.setForeground(QBrush(QColor(0, 120, 0)))
+                        else:
+                            item.setForeground(QBrush(QColor(190, 110, 0)))
+                table.setItem(row_index, col_index, item)
+
+
+        self._fit_table_height(table, min_height=180, max_height=260)
+        table.scrollToTop()
+
+    def set_proportioned_status(self, rows: list[dict]) -> None:
+        """
+        H-S20-A:
+        Display future final-output status for the Proportioned tab.
+
+        Display only:
+        • no ProjectState access
+        • no preview calculations
+        • no final proportioning commit
+        """
+        if not hasattr(self, "_proportioned_status_table"):
+            return
+
+        table = self._proportioned_status_table
+        table.setRowCount(len(rows))
+
+        for row_index, row in enumerate(rows):
+            values = [
+                row.get("item", "—"),
+                row.get("status", "—"),
+            ]
 
             for col_index, value in enumerate(values):
                 item = QTableWidgetItem(str(value))
                 item.setFlags(item.flags() & ~Qt.ItemIsEditable)
                 table.setItem(row_index, col_index, item)
 
-        self._fit_table_height(table, min_height=180, max_height=260)
+        self._fit_table_height(table, min_height=120, max_height=180)
         table.scrollToTop()
 
     def set_route_shortfall_preview_rows(self, rows: list[dict]) -> None:
@@ -1479,6 +1577,26 @@ class HydronicsSchematicPanel(QWidget):
                 Qt.AlignCenter,
                 node.id,
             )
+
+    _RETURN_COMPARISON_TOLERANCE_PERCENT = 5.0
+
+    @staticmethod
+    def _try_float(value: object) -> float | None:
+        try:
+            if value is None:
+                return None
+            return float(value)
+        except (TypeError, ValueError):
+            return None
+
+    @staticmethod
+    def _delta_percent(a: float, b: float) -> float:
+        reference = max(abs(a), abs(b))
+
+        if reference <= 0.0:
+            return 0.0
+
+        return abs(a - b) / reference * 100.0
 
     def _paint_edges(
         self,
