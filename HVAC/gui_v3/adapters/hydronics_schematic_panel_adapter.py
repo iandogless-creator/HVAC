@@ -472,22 +472,26 @@ class HydronicsSchematicPanelAdapter:
         self._panel._set_schematic(dto)
 
     def _build_common_main_leg_subleg_schematic(
-        self,
-        topology,
+            self,
+            topology,
     ) -> CommonMainLegSublegSchematicV1:
         routes: list[CommonMainLegSublegRouteV1] = []
 
         for leg in getattr(topology, "legs", []) or []:
             leg_id = str(getattr(leg, "leg_id", "") or "")
-            leg_label = str(
+
+            raw_leg_label = str(
                 getattr(leg, "label", None)
                 or getattr(leg, "name", None)
                 or leg_id
                 or "Leg"
             )
 
+            leg_label = self._display_leg_label(raw_leg_label)
+
             for subleg in getattr(leg, "sublegs", []) or []:
                 subleg_id = str(getattr(subleg, "subleg_id", "") or "")
+
                 raw_subleg_label = str(
                     getattr(subleg, "label", None)
                     or getattr(subleg, "name", None)
@@ -498,8 +502,6 @@ class HydronicsSchematicPanelAdapter:
                 subleg_label = self._display_subleg_label(
                     raw_subleg_label
                 )
-
-                subleg_label = self._display_subleg_label(raw_subleg_label)
 
                 room_labels = tuple(
                     self._subleg_room_ids_for_display(subleg)
@@ -517,7 +519,7 @@ class HydronicsSchematicPanelAdapter:
                 )
 
         return CommonMainLegSublegSchematicV1(
-            heat_source_label="Boiler / Heat Source",
+            heat_source_label="Boiler",
             common_main_label="Common main",
             routes=tuple(routes),
             status=(
@@ -762,12 +764,14 @@ class HydronicsSchematicPanelAdapter:
 
         for leg in getattr(topology, "legs", []) or []:
             leg_id = str(getattr(leg, "leg_id", "") or "")
-            leg_label = str(
+            raw_leg_label = str(
                 getattr(leg, "label", None)
                 or getattr(leg, "name", None)
                 or leg_id
-                or "—"
+                or "Leg"
             )
+
+            leg_label = self._display_leg_label(raw_leg_label)
 
             for subleg in getattr(leg, "sublegs", []) or []:
                 subleg_id = str(getattr(subleg, "subleg_id", "") or "")
@@ -1466,6 +1470,21 @@ class HydronicsSchematicPanelAdapter:
             "Leg 1B Branch subleg": "Subleg 1B",
             "Leg 2A Common subleg": "Subleg 2A",
             "Leg 2B Branch subleg": "Subleg 2B",
+        }
+
+        for old, new in replacements.items():
+            text = text.replace(old, new)
+
+        return text
+
+    @staticmethod
+    def _display_leg_label(label: str) -> str:
+        text = str(label or "")
+
+        replacements = {
+            "Heating Leg 1": "Leg 1",
+            "Heating Leg 2": "Leg 2",
+            "Heating Leg 3": "Leg 3",
         }
 
         for old, new in replacements.items():

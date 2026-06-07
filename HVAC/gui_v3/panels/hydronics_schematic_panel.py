@@ -1007,6 +1007,9 @@ class HydronicsSchematicPanel(QWidget):
         table.setRowCount(len(rows))
 
         for row_index, row in enumerate(rows):
+            subleg_id = str(row.get("subleg_id", "") or "")
+            if subleg_id:
+                self._common_main_leg_subleg_row_by_subleg_id[subleg_id] = row_index
             values = [
                 row.get("common_main", "Common main"),
                 row.get("leg", "—"),
@@ -1110,8 +1113,9 @@ class HydronicsSchematicPanel(QWidget):
 
         table = self._return_path_comparison_table
         table.setRowCount(len(rows))
-
+        self._return_path_focus_by_row = {}
         for row_index, row in enumerate(rows):
+
             values = [
                 row.get("route", "—"),
                 row.get("room", "—"),
@@ -1125,9 +1129,18 @@ class HydronicsSchematicPanel(QWidget):
                 row.get("rr_suitability", "—"),
                 row.get("status", "—"),
             ]
+            self._return_path_focus_by_row[row_index] = {
+                "leg_id": row.get("leg_id", ""),
+                "subleg_id": row.get("subleg_id", ""),
+                "room_id": row.get("room_id", ""),
+                "emitter_id": row.get("emitter_id", ""),
+            }
+
             direct_dp = self._try_float(row.get("direct_total_dp_raw", None))
             reverse_dp = self._try_float(row.get("reverse_total_dp_raw", None))
-
+            self._return_path_comparison_table.itemSelectionChanged.connect(
+                self._on_return_path_comparison_selection_changed
+            )
             comparison_is_clear = False
             direct_is_lower = False
             reverse_is_lower = False
@@ -1160,6 +1173,42 @@ class HydronicsSchematicPanel(QWidget):
 
         self._fit_table_height(table, min_height=180, max_height=260)
         table.scrollToTop()
+
+    def _on_return_path_comparison_selection_changed(self) -> None:
+        table = self._return_path_comparison_table
+        selected = table.selectedItems()
+
+        if not selected:
+            return
+
+        row_index = selected[0].row()
+        focus = getattr(self, "_return_path_focus_by_row", {}).get(row_index)
+
+        if not focus:
+            return
+
+        self._focus_common_main_leg_subleg_row(focus)
+
+    def _focus_common_main_leg_subleg_row(self, focus: dict) -> None:
+        if not hasattr(self, "_common_main_leg_subleg_table"):
+            return
+
+        subleg_id = str(focus.get("subleg_id", "") or "")
+        row_index = getattr(
+            self,
+            "_common_main_leg_subleg_row_by_subleg_id",
+            {},
+        ).get(subleg_id)
+
+        if row_index is None:
+            return
+
+        table = self._common_main_leg_subleg_table
+        table.selectRow(row_index)
+
+        item = table.item(row_index, 0)
+        if item is not None:
+            table.scrollToItem(item)
 
     def set_proportioned_status(self, rows: list[dict]) -> None:
         """
