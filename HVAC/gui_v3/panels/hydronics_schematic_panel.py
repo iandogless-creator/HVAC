@@ -54,7 +54,6 @@ from PySide6.QtGui import (
     QFont,
     QPolygonF,
     QColor,
-    QBrush,
 )
 
 from PySide6.QtWidgets import (
@@ -68,6 +67,7 @@ from PySide6.QtWidgets import (
     QToolButton,
     QScrollArea,
     QTabWidget,
+    QAbstractItemView,
 )
 
 from HVAC.gui_v3.schematic.dto import (
@@ -215,7 +215,7 @@ class _IndexRouteStripWidget(QWidget):
         self._link_labels: list[str] = []
         self._excluded: list[str] = []
         self._basis: str = ""
-
+        self._focus: dict[str, str] = {}
         self.setMinimumHeight(170)
 
     def set_route(
@@ -413,7 +413,8 @@ class HydronicsSchematicPanel(QWidget):
         self._schematic: Optional[HydronicsSchematicDTO] = None
 
         # Floating inspector.
-        self._inspector = _HoverInspector(self)
+        self._return_path_focus_by_row: dict[int, dict[str, str]] = {}
+        self._common_main_leg_subleg_row_by_subleg_id: dict[str, int] = {}
 
         self._build_ui()
         self.render_empty_state()
@@ -491,13 +492,20 @@ class HydronicsSchematicPanel(QWidget):
 
         overview_layout = self._make_tab("Basic Overview")
         authority_layout = self._make_tab("Authority")
+
         self._proportioning_tab = self._make_tab("Proportioning")
         proportioning_layout = self._proportioning_tab
 
         self._proportioned_tab = self._make_tab("Proportioned")
         proportioned_layout = self._proportioned_tab
+
+        # ==================================================
+        # Proportioning tab — immediate DEV work area
+        # ==================================================
+
         # --------------------------------------------------
-        # H-S19-J — DEV common-main / leg / subleg topology
+        # H-S19-J — DEV common-main / leg / subleg topology table
+        # Create now, add lower down after schematic + comparison.
         # --------------------------------------------------
         self._common_main_leg_subleg_table = self._make_table(
             columns=[
@@ -511,12 +519,11 @@ class HydronicsSchematicPanel(QWidget):
             stretch_columns={1, 2, 4, 5},
         )
 
-        self._add_section(
-            proportioning_layout,
-            title="DEV common-main / leg / subleg schematic — preview only",
-            table=self._common_main_leg_subleg_table,
-            min_height=160,
-        )
+        self._common_main_leg_subleg_table.setStyleSheet("""
+    QTableWidget::item:selected {
+        background-color: rgb(255, 238, 210);
+    }
+    """)
 
         # --------------------------------------------------
         # H-S19-K — DEV common-main / leg / subleg drawn schematic
@@ -527,9 +534,7 @@ class HydronicsSchematicPanel(QWidget):
 
         self._common_main_leg_subleg_schematic_scroll = QScrollArea(self)
         self._common_main_leg_subleg_schematic_scroll.setWidgetResizable(False)
-        self._common_main_leg_subleg_schematic_scroll.setFrameShape(
-            QFrame.NoFrame
-        )
+        self._common_main_leg_subleg_schematic_scroll.setFrameShape(QFrame.NoFrame)
         self._common_main_leg_subleg_schematic_scroll.setHorizontalScrollBarPolicy(
             Qt.ScrollBarAsNeeded
         )
@@ -545,11 +550,49 @@ class HydronicsSchematicPanel(QWidget):
             title="DEV common-main / leg / subleg drawn schematic — preview only",
             table=self._common_main_leg_subleg_schematic_scroll,
             min_height=380,
+            expanded=True,
         )
 
         # --------------------------------------------------
-        # H-S20-A — Proportioned tab shell
+        # H-S19-H / H-S19-L — Direct vs reverse return comparison
+        # Immediate working table below schematic.
         # --------------------------------------------------
+        self._return_path_comparison_table = self._make_table(
+            columns=[
+                "Route",
+                "Room",
+                "Emitter",
+                "F+R Rank",
+                "F+R Δp",
+                "F+R Ctrl",
+                "F+RR Rank",
+                "F+RR Δp",
+                "F+RR Ctrl",
+                "RR suitability",
+                "Status",
+            ],
+            stretch_columns={0, 1, 2, 9, 10},
+        )
+
+        self._return_path_comparison_table.setSelectionMode(
+            QAbstractItemView.NoSelection
+        )
+
+        self._return_path_comparison_table.cellClicked.connect(
+            self._on_return_path_comparison_cell_clicked
+        )
+
+        self._add_section(
+            proportioning_layout,
+            title="Direct vs reverse return circuit comparison — preview only",
+            table=self._return_path_comparison_table,
+            min_height=180,
+            expanded=True,
+        )
+
+        # ==================================================
+        # H-S20-A — Proportioned tab shell
+        # ==================================================
         self._proportioned_status_table = self._make_table(
             columns=[
                 "Item",
@@ -584,9 +627,10 @@ class HydronicsSchematicPanel(QWidget):
                 },
             ]
         )
-        # --------------------------------------------------
+
+        # ==================================================
         # Overview tab
-        # --------------------------------------------------
+        # ==================================================
         self._emitter_demand_table = self._make_table(
             columns=["Room", "Heat Load", "Emitter", "Output", "Status"],
             stretch_columns={0},
@@ -609,6 +653,7 @@ class HydronicsSchematicPanel(QWidget):
             ],
             stretch_columns={1, 2},
         )
+
         self._add_section(
             overview_layout,
             title="Index route accumulator",
@@ -617,6 +662,7 @@ class HydronicsSchematicPanel(QWidget):
         )
 
         self._index_route_strip = _IndexRouteStripWidget(self)
+
         self._add_section(
             overview_layout,
             title="Basic overview — calculation trace: index → boiler",
@@ -638,6 +684,7 @@ class HydronicsSchematicPanel(QWidget):
             ],
             stretch_columns={1, 8},
         )
+
         self._add_section(
             overview_layout,
             title="Legacy route capacity suggestion — not Basic PS Haaland",
@@ -647,13 +694,14 @@ class HydronicsSchematicPanel(QWidget):
 
         overview_layout.addStretch(1)
 
-        # --------------------------------------------------
+        # ==================================================
         # Authority tab
-        # --------------------------------------------------
+        # ==================================================
         self._hydronic_skeleton_table = self._make_table(
             columns=["Leg", "From", "To", "Type", "Length"],
             stretch_columns={1, 2},
         )
+
         self._add_section(
             authority_layout,
             title="Hydronic skeleton",
@@ -673,6 +721,7 @@ class HydronicsSchematicPanel(QWidget):
             ],
             stretch_columns={1, 2},
         )
+
         self._add_section(
             authority_layout,
             title="Pipe-run intent",
@@ -692,6 +741,7 @@ class HydronicsSchematicPanel(QWidget):
             ],
             stretch_columns={1, 2, 3},
         )
+
         self._pipe_authority_summary_table.setColumnWidth(0, 150)
         self._pipe_authority_summary_table.setColumnWidth(1, 160)
         self._pipe_authority_summary_table.setColumnWidth(2, 180)
@@ -706,6 +756,7 @@ class HydronicsSchematicPanel(QWidget):
             table=self._pipe_authority_summary_table,
             min_height=240,
         )
+
         self._leg_subleg_topology_table = self._make_table(
             columns=[
                 "Section",
@@ -718,13 +769,13 @@ class HydronicsSchematicPanel(QWidget):
             ],
             stretch_columns={0, 1, 2, 3, 6},
         )
+
         self._add_section(
             authority_layout,
             title="Leg / subleg topology",
             table=self._leg_subleg_topology_table,
             min_height=220,
         )
-
 
         self._basic_hydronics_table = self._make_table(
             columns=[
@@ -743,6 +794,7 @@ class HydronicsSchematicPanel(QWidget):
             ],
             stretch_columns={0},
         )
+
         self._add_section(
             authority_layout,
             title="Basic hydronics worksheet",
@@ -751,6 +803,10 @@ class HydronicsSchematicPanel(QWidget):
         )
 
         authority_layout.addStretch(1)
+
+        # ==================================================
+        # Proportioning tab — lower diagnostic/detail area
+        # ==================================================
 
         # --------------------------------------------------
         # Proportioning readiness
@@ -768,10 +824,11 @@ class HydronicsSchematicPanel(QWidget):
             title="Proportioning readiness — received from Basic",
             table=self._proportioning_readiness_table,
             min_height=170,
+            expanded=False,
         )
 
         # --------------------------------------------------
-        # Proportioning tab
+        # Proportioning route schematic
         # --------------------------------------------------
         self._proportioning_schematic_widget = ProportioningSchematicWidgetV1(self)
 
@@ -793,8 +850,12 @@ class HydronicsSchematicPanel(QWidget):
             title="Proportioning route — calculation trace: boiler → index",
             table=self._proportioning_schematic_scroll,
             min_height=300,
+            expanded=False,
         )
 
+        # --------------------------------------------------
+        # Received Basic PS sections + Local K preview
+        # --------------------------------------------------
         self._proportioning_basic_ps_sections_table = self._make_table(
             columns=[
                 "Order",
@@ -820,6 +881,7 @@ class HydronicsSchematicPanel(QWidget):
             title="Received Basic PS sections + Local K preview",
             table=self._proportioning_basic_ps_sections_table,
             min_height=180,
+            expanded=False,
         )
 
         # --------------------------------------------------
@@ -845,7 +907,9 @@ class HydronicsSchematicPanel(QWidget):
             title="Route Δp preview — Basic PS + Local K",
             table=self._route_pressure_preview_table,
             min_height=120,
+            expanded=False,
         )
+
         # --------------------------------------------------
         # H-S18 — Route Δp shortfall preview
         # --------------------------------------------------
@@ -867,33 +931,18 @@ class HydronicsSchematicPanel(QWidget):
             title="Route Δp shortfall preview — proportioning comparison",
             table=self._route_shortfall_preview_table,
             min_height=120,
+            expanded=False,
         )
 
         # --------------------------------------------------
-        # H-S19-H — Direct vs reverse return comparison
+        # H-S19-J — DEV common-main / leg / subleg topology evidence
         # --------------------------------------------------
-        self._return_path_comparison_table = self._make_table(
-            columns=[
-                "Route",
-                "Room",
-                "Emitter",
-                "F+R Rank",
-                "F+R Δp",
-                "F+R Ctrl",
-                "F+RR Rank",
-                "F+RR Δp",
-                "F+RR Ctrl",
-                "RR suitability",
-                "Status",
-            ],
-            stretch_columns={0, 1, 2, 9, 10},
-        )
-
         self._add_section(
             proportioning_layout,
-            title="Direct vs reverse return circuit comparison — preview only",
-            table=self._return_path_comparison_table,
-            min_height=180,
+            title="DEV common-main / leg / subleg topology — preview only",
+            table=self._common_main_leg_subleg_table,
+            min_height=160,
+            expanded=False,
         )
 
         # --------------------------------------------------
@@ -917,6 +966,7 @@ class HydronicsSchematicPanel(QWidget):
             title="Branch / proportioning summary",
             table=self._proportioning_table,
             min_height=220,
+            expanded=False,
         )
 
         proportioning_layout.addStretch(1)
@@ -1005,7 +1055,12 @@ class HydronicsSchematicPanel(QWidget):
 
         table = self._common_main_leg_subleg_table
         table.setRowCount(len(rows))
-
+        self._common_main_leg_subleg_table.setStyleSheet("""
+        QTableWidget::item:selected {
+            background-color: rgb(255, 238, 210);
+            color: rgb(20, 20, 20);
+        }
+        """)
         for row_index, row in enumerate(rows):
             subleg_id = str(row.get("subleg_id", "") or "")
             if subleg_id:
@@ -1109,13 +1164,15 @@ class HydronicsSchematicPanel(QWidget):
         • no committed return arrangement
         """
         if not hasattr(self, "_return_path_comparison_table"):
+            self._return_path_focus_by_row = {}
             return
 
         table = self._return_path_comparison_table
+
         table.setRowCount(len(rows))
         self._return_path_focus_by_row = {}
-        for row_index, row in enumerate(rows):
 
+        for row_index, row in enumerate(rows):
             values = [
                 row.get("route", "—"),
                 row.get("room", "—"),
@@ -1129,18 +1186,17 @@ class HydronicsSchematicPanel(QWidget):
                 row.get("rr_suitability", "—"),
                 row.get("status", "—"),
             ]
+
             self._return_path_focus_by_row[row_index] = {
-                "leg_id": row.get("leg_id", ""),
-                "subleg_id": row.get("subleg_id", ""),
-                "room_id": row.get("room_id", ""),
-                "emitter_id": row.get("emitter_id", ""),
+                "leg_id": str(row.get("leg_id", "") or ""),
+                "subleg_id": str(row.get("subleg_id", "") or ""),
+                "room_id": str(row.get("room_id", "") or ""),
+                "emitter_id": str(row.get("emitter_id", "") or ""),
             }
 
             direct_dp = self._try_float(row.get("direct_total_dp_raw", None))
             reverse_dp = self._try_float(row.get("reverse_total_dp_raw", None))
-            self._return_path_comparison_table.itemSelectionChanged.connect(
-                self._on_return_path_comparison_selection_changed
-            )
+
             comparison_is_clear = False
             direct_is_lower = False
             reverse_is_lower = False
@@ -1156,6 +1212,7 @@ class HydronicsSchematicPanel(QWidget):
             for col_index, value in enumerate(values):
                 item = QTableWidgetItem(str(value))
                 item.setFlags(item.flags() & ~Qt.ItemIsEditable)
+
                 if comparison_is_clear:
                     if col_index == 4:
                         if direct_is_lower:
@@ -1168,47 +1225,166 @@ class HydronicsSchematicPanel(QWidget):
                             item.setForeground(QBrush(QColor(0, 120, 0)))
                         else:
                             item.setForeground(QBrush(QColor(190, 110, 0)))
-                table.setItem(row_index, col_index, item)
 
+                table.setItem(row_index, col_index, item)
 
         self._fit_table_height(table, min_height=180, max_height=260)
         table.scrollToTop()
 
-    def _on_return_path_comparison_selection_changed(self) -> None:
-        table = self._return_path_comparison_table
-        selected = table.selectedItems()
+    def _on_return_path_comparison_cell_clicked(
+            self,
+            row_index: int,
+            column_index: int,
+    ) -> None:
+        """
+        H-S19-L:
+        Manual click focus for the return comparison table.
 
-        if not selected:
-            return
+        Uses cellClicked instead of Qt row selection so the pale focus
+        background does not override F+R / F+RR green/orange text colours.
+        """
+        focus = getattr(
+            self,
+            "_return_path_focus_by_row",
+            {},
+        ).get(row_index, {}) or {}
 
-        row_index = selected[0].row()
-        focus = getattr(self, "_return_path_focus_by_row", {}).get(row_index)
-
-        if not focus:
-            return
-
+        self._focus_return_path_comparison_row(row_index)
         self._focus_common_main_leg_subleg_row(focus)
 
-    def _focus_common_main_leg_subleg_row(self, focus: dict) -> None:
-        if not hasattr(self, "_common_main_leg_subleg_table"):
+    def _on_return_path_comparison_selection_changed(self) -> None:
+        table = getattr(self, "_return_path_comparison_table", None)
+        if table is None:
             return
 
-        subleg_id = str(focus.get("subleg_id", "") or "")
-        row_index = getattr(
+        selection_model = table.selectionModel()
+        if selection_model is None:
+            return
+
+        selected_rows = selection_model.selectedRows()
+
+        if not selected_rows:
+            self._clear_return_path_comparison_table_focus()
+            self._clear_common_main_leg_subleg_table_focus()
+
+            schematic = getattr(
+                self,
+                "_common_main_leg_subleg_schematic_widget",
+                None,
+            )
+            if schematic is not None and hasattr(schematic, "set_focus"):
+                schematic.set_focus(None)
+
+            return
+
+        row_index = selected_rows[0].row()
+        focus = getattr(
             self,
-            "_common_main_leg_subleg_row_by_subleg_id",
+            "_return_path_focus_by_row",
             {},
-        ).get(subleg_id)
+        ).get(row_index, {}) or {}
+        self._focus_return_path_comparison_row(row_index)
+        self._focus_common_main_leg_subleg_row(focus)
 
-        if row_index is None:
+    def _clear_return_path_comparison_table_focus(self) -> None:
+        table = getattr(self, "_return_path_comparison_table", None)
+        if table is None:
             return
 
-        table = self._common_main_leg_subleg_table
-        table.selectRow(row_index)
+        for r in range(table.rowCount()):
+            for c in range(table.columnCount()):
+                item = table.item(r, c)
+                if item is not None:
+                    item.setBackground(QBrush())
 
-        item = table.item(row_index, 0)
-        if item is not None:
-            table.scrollToItem(item)
+    def _focus_return_path_comparison_row(self, row_index: int) -> None:
+        table = getattr(self, "_return_path_comparison_table", None)
+        if table is None:
+            return
+
+        self._clear_return_path_comparison_table_focus()
+
+        if row_index < 0 or row_index >= table.rowCount():
+            return
+
+        focus_brush = QBrush(QColor(255, 238, 210))  # pale orange focus only
+
+        for c in range(table.columnCount()):
+            item = table.item(row_index, c)
+            if item is not None:
+                item.setBackground(focus_brush)
+
+    def _focus_common_main_leg_subleg_row(self, focus: dict) -> None:
+        topology_table = getattr(self, "_common_main_leg_subleg_table", None)
+        schematic = getattr(
+            self,
+            "_common_main_leg_subleg_schematic_widget",
+            None,
+        )
+
+        leg_id = str((focus or {}).get("leg_id", "") or "")
+        subleg_id = str((focus or {}).get("subleg_id", "") or "")
+        room_id = str((focus or {}).get("room_id", "") or "")
+
+        if topology_table is not None:
+            topology_table.clearSelection()
+            self._clear_common_main_leg_subleg_table_focus()
+
+            focus_brush = QBrush(QColor(255, 238, 210))  # pale orange table focus
+            text_brush = QBrush(QColor(20, 20, 20))  # dark readable text
+
+            matched_row = -1
+
+            for r in range(topology_table.rowCount()):
+                row_matches = False
+
+                for c in range(topology_table.columnCount()):
+                    item = topology_table.item(r, c)
+                    if item is None:
+                        continue
+
+                    item_text = item.text().strip()
+
+                    if subleg_id and item_text == subleg_id:
+                        row_matches = True
+                        break
+
+                    if room_id and room_id in item_text:
+                        row_matches = True
+                        break
+
+                    if leg_id and item_text == leg_id:
+                        row_matches = True
+                        break
+
+                if row_matches:
+                    matched_row = r
+                    break
+
+            if matched_row >= 0:
+                topology_table.selectRow(matched_row)
+
+                for c in range(topology_table.columnCount()):
+                    item = topology_table.item(matched_row, c)
+                    if item is not None:
+                        item.setBackground(focus_brush)
+                        item.setForeground(text_brush)
+
+                first_item = topology_table.item(matched_row, 0)
+                if first_item is not None:
+                    topology_table.scrollToItem(
+                        first_item,
+                        QAbstractItemView.PositionAtCenter,
+                    )
+
+        if schematic is not None and hasattr(schematic, "set_focus"):
+            schematic.set_focus(
+                {
+                    "leg_id": leg_id,
+                    "subleg_id": subleg_id,
+                    "room_id": room_id,
+                }
+            )
 
     def set_proportioned_status(self, rows: list[dict]) -> None:
         """
@@ -1306,6 +1482,34 @@ class HydronicsSchematicPanel(QWidget):
             table.setItem(row_index, 1, QTableWidgetItem(str(value)))
 
         table.resizeColumnsToContents()
+
+    def _clear_return_path_comparison_table_focus(self) -> None:
+        table = getattr(self, "_return_path_comparison_table", None)
+        if table is None:
+            return
+
+        for r in range(table.rowCount()):
+            for c in range(table.columnCount()):
+                item = table.item(r, c)
+                if item is not None:
+                    item.setBackground(QBrush())
+
+    def _focus_return_path_comparison_row(self, row_index: int) -> None:
+        table = getattr(self, "_return_path_comparison_table", None)
+        if table is None:
+            return
+
+        self._clear_return_path_comparison_table_focus()
+
+        if row_index < 0 or row_index >= table.rowCount():
+            return
+
+        focus_brush = QBrush(QColor(255, 238, 210))  # pale orange focus
+
+        for c in range(table.columnCount()):
+            item = table.item(row_index, c)
+            if item is not None:
+                item.setBackground(focus_brush)
 
     def set_proportioning_schematic(self, schematic) -> None:
         """
@@ -1754,6 +1958,14 @@ class HydronicsSchematicPanel(QWidget):
 
         return abs(a - b) / reference * 100.0
 
+    def set_focus(self, focus: dict | None) -> None:
+        self._focus = {
+            "leg_id": str((focus or {}).get("leg_id", "") or ""),
+            "subleg_id": str((focus or {}).get("subleg_id", "") or ""),
+            "room_id": str((focus or {}).get("room_id", "") or ""),
+        }
+        self.update()
+
     def _paint_edges(
         self,
         painter: QPainter,
@@ -1890,6 +2102,18 @@ class HydronicsSchematicPanel(QWidget):
             lines.append(f"Δp: {hover.dp_pa:.0f} Pa")
 
         return "<br>".join(lines)
+
+    def _clear_common_main_leg_subleg_table_focus(self) -> None:
+        table = getattr(self, "_common_main_leg_subleg_table", None)
+        if table is None:
+            return
+
+        for r in range(table.rowCount()):
+            for c in range(table.columnCount()):
+                item = table.item(r, c)
+                if item is not None:
+                    item.setBackground(QBrush())
+                    item.setForeground(QBrush())
 
     # ------------------------------------------------------------------
     # Mouse hover handling

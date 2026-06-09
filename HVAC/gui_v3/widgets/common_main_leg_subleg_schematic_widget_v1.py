@@ -50,6 +50,8 @@ class CommonMainLegSublegSchematicWidgetV1(QWidget):
         super().__init__(parent)
         self._schematic: CommonMainLegSublegSchematicV1 | None = None
         self.setMinimumSize(1100, 360)
+        self._focus: dict[str, str] = {}
+
 
     def set_schematic(
         self,
@@ -91,6 +93,16 @@ class CommonMainLegSublegSchematicWidgetV1(QWidget):
             "No hydronic topology available",
         )
 
+    def set_focus(self, focus: dict | None) -> None:
+        """
+        DEV visual focus only.
+
+        Does not mutate ProjectState.
+        Does not commit a return arrangement.
+        """
+        self._focus = dict(focus or {})
+        self.update()
+
     def _draw_schematic(
             self,
             painter: QPainter,
@@ -100,6 +112,9 @@ class CommonMainLegSublegSchematicWidgetV1(QWidget):
 
         grouped_routes: list[tuple[str, str, list[CommonMainLegSublegRouteV1]]] = []
         by_leg: dict[str, tuple[str, list[CommonMainLegSublegRouteV1]]] = {}
+
+        focused_subleg_id = str(self._focus.get("subleg_id", "") or "")
+        focused_room_id = str(self._focus.get("room_id", "") or "")
 
         for route in routes:
             leg_id = str(route.leg_id or "")
@@ -229,11 +244,28 @@ class CommonMainLegSublegSchematicWidgetV1(QWidget):
 
             for subleg_index, route in enumerate(leg_routes):
                 subleg_y = leg_y + (subleg_index - offset) * subleg_gap
+
                 subleg_rect = QRectF(
                     x_subleg,
                     subleg_y - subleg_h / 2,
                     subleg_w,
                     subleg_h,
+                )
+
+                is_focused_subleg = (
+                        bool(focused_subleg_id)
+                        and str(route.subleg_id) == focused_subleg_id
+                )
+
+                subleg_border = (
+                    QColor(30, 95, 190)
+                    if is_focused_subleg
+                    else QColor(90, 135, 90)
+                )
+                subleg_fill = (
+                    QColor(232, 242, 255)
+                    if is_focused_subleg
+                    else QColor(242, 252, 242)
                 )
 
                 # Leg to subleg connector.
@@ -247,18 +279,15 @@ class CommonMainLegSublegSchematicWidgetV1(QWidget):
                     2,
                 )
 
-                role = route.role
-                status_note = ""
-
-                if "branch" in str(role).lower():
-                    status_note = "\nTBD"
+                role = str(route.role or "")
+                status_note = "\nTBD" if "branch" in role.lower() else ""
 
                 self._draw_box(
                     painter,
                     subleg_rect,
                     f"{route.subleg_label}\n{role}{status_note}",
-                    border=QColor(90, 135, 90),
-                    fill=QColor(242, 252, 242),
+                    border=subleg_border,
+                    fill=subleg_fill,
                     text_colour=QColor(45, 90, 45),
                     bold=True,
                 )
@@ -279,14 +308,17 @@ class CommonMainLegSublegSchematicWidgetV1(QWidget):
                     x_rooms,
                     subleg_y,
                     route.room_labels,
+                    focused_room_id=focused_room_id,
                 )
 
     def _draw_room_chain(
-        self,
-        painter: QPainter,
-        x_start: float,
-        y: float,
-        room_labels: Iterable[str],
+            self,
+            painter: QPainter,
+            x_start: float,
+            y: float,
+            room_labels: Iterable[str],
+            *,
+            focused_room_id: str = "",
     ) -> None:
         x = x_start
         room_w = 74
@@ -294,7 +326,8 @@ class CommonMainLegSublegSchematicWidgetV1(QWidget):
         gap = 16
 
         labels = tuple(room_labels)
-
+        focused_subleg_id = str(self._focus.get("subleg_id", "") or "")
+        focused_room_id = str(self._focus.get("room_id", "") or "")
         if not labels:
             self._draw_box(
                 painter,
@@ -322,13 +355,30 @@ class CommonMainLegSublegSchematicWidgetV1(QWidget):
                     1,
                 )
 
+            is_focused_room = (
+                    bool(focused_room_id)
+                    and str(label) == focused_room_id
+            )
+
+            room_border = (
+                QColor(30, 95, 190)
+                if is_focused_room
+                else QColor(120, 145, 120)
+            )
+            room_fill = (
+                QColor(232, 242, 255)
+                if is_focused_room
+                else QColor(250, 255, 250)
+            )
+
             self._draw_box(
                 painter,
                 rect,
                 label,
-                border=QColor(120, 145, 120),
-                fill=QColor(250, 255, 250),
+                border=room_border,
+                fill=room_fill,
                 text_colour=QColor(55, 80, 55),
+                bold=is_focused_room,
             )
 
             previous_right = rect.right()

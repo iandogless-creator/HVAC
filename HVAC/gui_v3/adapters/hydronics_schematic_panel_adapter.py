@@ -17,6 +17,7 @@ read-only schematic DTO.
 """
 
 from __future__ import annotations
+from PySide6.QtGui import QColor, QBrush
 
 from HVAC.project.project_state import ProjectState
 from HVAC.gui_v3.panels.hydronics_schematic_panel import HydronicsSchematicPanel
@@ -568,8 +569,47 @@ class HydronicsSchematicPanelAdapter:
         rows: list[dict] = []
 
         for row in getattr(projection, "rows", ()) or ():
+            route_id = str(getattr(row, "route_id", "") or "")
+            route_parts = route_id.split(":", 1)
+
+            leg_id = str(
+                getattr(row, "leg_id", None)
+                or (route_parts[0] if route_parts else "")
+                or ""
+            )
+
+            subleg_id = str(
+                getattr(row, "subleg_id", None)
+                or (route_parts[1] if len(route_parts) > 1 else "")
+                or ""
+            )
+
+            room_id = str(getattr(row, "room_id", "") or "")
+            emitter_id = str(getattr(row, "emitter_id", "") or "")
+            route_id = str(getattr(row, "route_id", "") or "")
+            route_parts = route_id.split(":", 1)
+
+            leg_id = str(
+                getattr(row, "leg_id", None)
+                or (route_parts[0] if route_parts else "")
+                or ""
+            )
+
+            subleg_id = str(
+                getattr(row, "subleg_id", None)
+                or (route_parts[1] if len(route_parts) > 1 else "")
+                or ""
+            )
+
+            room_id = str(getattr(row, "room_id", "") or "")
+            emitter_id = str(getattr(row, "emitter_id", "") or "")
             rows.append(
                 {
+                    "route_id": route_id,
+                    "leg_id": leg_id,
+                    "subleg_id": subleg_id,
+                    "room_id": room_id,
+                    "emitter_id": emitter_id,
                     "route": getattr(row, "route_label", "—"),
                     "room": getattr(row, "room_id", "—"),
                     "emitter": getattr(row, "emitter_id", "—") or "—",
@@ -578,6 +618,7 @@ class HydronicsSchematicPanelAdapter:
                         if getattr(row, "direct_rank", None) is None
                         else str(getattr(row, "direct_rank"))
                     ),
+
                     "direct_total_dp": self._format_pa(
                         getattr(row, "direct_total_dp_Pa", None)
                     ),
@@ -796,7 +837,7 @@ class HydronicsSchematicPanelAdapter:
                         "rooms": rooms_label,
                         "status": (
                             "DEV topology preview — common main feeds leg; "
-                            "subleg carries rooms"
+                            "leg feeds sublegs; sublegs carry rooms"
                         ),
                     }
                 )
@@ -806,11 +847,11 @@ class HydronicsSchematicPanelAdapter:
     @staticmethod
     def _subleg_room_ids_for_display(subleg) -> list[str]:
         for field_name in (
-            "route_room_ids",
-            "room_ids",
-            "rooms",
-            "room_sequence",
-            "terminal_room_ids",
+                "route_room_ids",
+                "room_ids",
+                "rooms",
+                "room_sequence",
+                "terminal_room_ids",
         ):
             value = getattr(subleg, field_name, None)
 
@@ -824,8 +865,8 @@ class HydronicsSchematicPanelAdapter:
                     result.append(item)
                 else:
                     room_id = (
-                        getattr(item, "room_id", None)
-                        or getattr(item, "id", None)
+                            getattr(item, "room_id", None)
+                            or getattr(item, "id", None)
                     )
                     if room_id:
                         result.append(str(room_id))
@@ -1438,6 +1479,18 @@ class HydronicsSchematicPanelAdapter:
                 connect(callback)
             except TypeError:
                 pass
+
+    def _clear_common_main_leg_subleg_table_focus(self) -> None:
+        if not hasattr(self, "_common_main_leg_subleg_table"):
+            return
+
+        table = self._common_main_leg_subleg_table
+
+        for row in range(table.rowCount()):
+            for col in range(table.columnCount()):
+                item = table.item(row, col)
+                if item is not None:
+                    item.setBackground(QBrush())
 
     def _on_hydronic_section_focus_requested(
         self,
