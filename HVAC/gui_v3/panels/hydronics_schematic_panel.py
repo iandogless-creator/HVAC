@@ -532,6 +532,10 @@ class HydronicsSchematicPanel(QWidget):
             CommonMainLegSublegSchematicWidgetV1(self)
         )
 
+        self._common_main_leg_subleg_schematic_widget.set_focus_callback(
+            self._on_common_main_leg_subleg_schematic_focus_requested
+        )
+
         self._common_main_leg_subleg_schematic_scroll = QScrollArea(self)
         self._common_main_leg_subleg_schematic_scroll.setWidgetResizable(False)
         self._common_main_leg_subleg_schematic_scroll.setFrameShape(QFrame.NoFrame)
@@ -971,6 +975,23 @@ class HydronicsSchematicPanel(QWidget):
 
         proportioning_layout.addStretch(1)
 
+    def _on_common_main_leg_subleg_schematic_focus_requested(
+            self,
+            focus: dict,
+    ) -> None:
+        """
+        H-S19-M:
+        Receive room/subleg focus from DEV schematic click.
+
+        Focus only:
+        • no ProjectState mutation
+        • no committed return arrangement
+        • no balancing
+        • no pipe resizing
+        """
+        self._focus_common_main_leg_subleg_row(focus)
+        self._focus_return_path_comparison_row_by_focus(focus)
+
     def set_proportioning_basic_ps_sections(self, rows: list[dict]) -> None:
         """
         Observer-only Basic PS section basis received by Proportioning.
@@ -1151,6 +1172,45 @@ class HydronicsSchematicPanel(QWidget):
         self._fit_table_height(table, min_height=120, max_height=180)
         table.scrollToTop()
 
+    def _focus_return_path_comparison_row_by_focus(self, focus: dict) -> None:
+        """
+        H-S19-M:
+        Focus the Direct vs reverse return comparison row from a schematic
+        focus payload.
+
+        Focus only:
+        • no ProjectState mutation
+        • no committed return arrangement
+        • no balancing
+        • no pipe resizing
+        """
+        table = getattr(self, "_return_path_comparison_table", None)
+        if table is None:
+            return
+
+        wanted_room_id = str((focus or {}).get("room_id", "") or "")
+        wanted_subleg_id = str((focus or {}).get("subleg_id", "") or "")
+
+        if not wanted_room_id and not wanted_subleg_id:
+            self._clear_return_path_comparison_table_focus()
+            return
+
+        row_map = getattr(self, "_return_path_focus_by_row", {}) or {}
+
+        for row_index, row_focus in row_map.items():
+            row_room_id = str((row_focus or {}).get("room_id", "") or "")
+            row_subleg_id = str((row_focus or {}).get("subleg_id", "") or "")
+
+            if wanted_room_id and row_room_id == wanted_room_id:
+                self._focus_return_path_comparison_row(row_index)
+                return
+
+            if wanted_subleg_id and row_subleg_id == wanted_subleg_id:
+                self._focus_return_path_comparison_row(row_index)
+                return
+
+        self._clear_return_path_comparison_table_focus()
+
     def set_return_path_comparison_rows(self, rows: list[dict]) -> None:
         """
         H-S19-H:
@@ -1307,12 +1367,19 @@ class HydronicsSchematicPanel(QWidget):
         if row_index < 0 or row_index >= table.rowCount():
             return
 
-        focus_brush = QBrush(QColor(255, 238, 210))  # pale orange focus only
+        focus_brush = QBrush(QColor(255, 238, 210))  # pale orange focus
 
         for c in range(table.columnCount()):
             item = table.item(row_index, c)
             if item is not None:
                 item.setBackground(focus_brush)
+
+        first_item = table.item(row_index, 0)
+        if first_item is not None:
+            table.scrollToItem(
+                first_item,
+                QAbstractItemView.PositionAtCenter,
+            )
 
     def _focus_common_main_leg_subleg_row(self, focus: dict) -> None:
         topology_table = getattr(self, "_common_main_leg_subleg_table", None)
@@ -1493,23 +1560,6 @@ class HydronicsSchematicPanel(QWidget):
                 item = table.item(r, c)
                 if item is not None:
                     item.setBackground(QBrush())
-
-    def _focus_return_path_comparison_row(self, row_index: int) -> None:
-        table = getattr(self, "_return_path_comparison_table", None)
-        if table is None:
-            return
-
-        self._clear_return_path_comparison_table_focus()
-
-        if row_index < 0 or row_index >= table.rowCount():
-            return
-
-        focus_brush = QBrush(QColor(255, 238, 210))  # pale orange focus
-
-        for c in range(table.columnCount()):
-            item = table.item(row_index, c)
-            if item is not None:
-                item.setBackground(focus_brush)
 
     def set_proportioning_schematic(self, schematic) -> None:
         """
@@ -1958,6 +2008,32 @@ class HydronicsSchematicPanel(QWidget):
 
         return abs(a - b) / reference * 100.0
 
+    def mousePressEvent(self, event) -> None:  # noqa: N802
+        """
+        H-S19-M:
+        Schematic click focus.
+
+        Clicking a drawn room sends a focus payload back to the panel.
+        Display/focus only; no engineering authority.
+        """
+        if event.button() != Qt.LeftButton:
+            event.ignore()
+            return
+
+        pos = event.position()
+
+        for rect, focus in reversed(self._room_hit_rects):
+            if rect.contains(pos):
+                self.set_focus(focus)
+
+                if self._focus_callback is not None:
+                    self._focus_callback(dict(focus))
+
+                event.accept()
+                return
+
+        event.ignore()
+
     def set_focus(self, focus: dict | None) -> None:
         self._focus = {
             "leg_id": str((focus or {}).get("leg_id", "") or ""),
@@ -2120,33 +2196,6 @@ class HydronicsSchematicPanel(QWidget):
     # ------------------------------------------------------------------
 
     def mouseMoveEvent(self, event) -> None:  # noqa: N802
-        if self._schematic is None:
-            self._inspector.hide_payload()
-            event.ignore()
-            return
-
-        pos = event.position().toPoint()
-        global_pos = event.globalPosition().toPoint()
-
-        for node in self._schematic.nodes:
-            dx = pos.x() - node.x
-            dy = pos.y() - node.y
-            if dx * dx + dy * dy < 12 * 12 and node.hover:
-                self._inspector.show_payload(
-                    self._format_node_hover(node.hover),
-                    global_pos,
-                )
-                return
-
-        for edge in self._schematic.edges:
-            if edge.hover:
-                self._inspector.show_payload(
-                    self._format_edge_hover(edge.hover),
-                    global_pos,
-                )
-                return
-
-        self._inspector.hide_payload()
         event.ignore()
 
     def render_empty_state(self) -> None:

@@ -52,6 +52,45 @@ class CommonMainLegSublegSchematicWidgetV1(QWidget):
         self.setMinimumSize(1100, 360)
         self._focus: dict[str, str] = {}
 
+        self._focus_callback = None
+        self._room_hit_rects: list[tuple[QRectF, dict[str, str]]] = []
+
+    def set_focus_callback(self, callback) -> None:
+        """
+        H-S19-M:
+        Register a panel callback for schematic click focus.
+
+        Display/focus only.
+        No ProjectState access.
+        No engineering mutation.
+        """
+        self._focus_callback = callback
+
+    def mousePressEvent(self, event) -> None:  # noqa: N802
+        """
+        H-S19-M:
+        Schematic click focus.
+
+        Clicking a drawn room sends a focus payload back to the panel.
+        Display/focus only; no engineering authority.
+        """
+        if event.button() != Qt.LeftButton:
+            event.ignore()
+            return
+
+        pos = event.position()
+
+        for rect, focus in reversed(self._room_hit_rects):
+            if rect.contains(pos):
+                self.set_focus(focus)
+
+                if self._focus_callback is not None:
+                    self._focus_callback(dict(focus))
+
+                event.accept()
+                return
+
+        event.ignore()
 
     def set_schematic(
         self,
@@ -74,6 +113,7 @@ class CommonMainLegSublegSchematicWidgetV1(QWidget):
         self.resize(size)
 
     def paintEvent(self, event) -> None:  # noqa: N802
+        self._room_hit_rects = []
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing, True)
 
@@ -109,7 +149,7 @@ class CommonMainLegSublegSchematicWidgetV1(QWidget):
             schematic: CommonMainLegSublegSchematicV1,
     ) -> None:
         routes = tuple(schematic.routes)
-
+        self._room_hit_rects = []
         grouped_routes: list[tuple[str, str, list[CommonMainLegSublegRouteV1]]] = []
         by_leg: dict[str, tuple[str, list[CommonMainLegSublegRouteV1]]] = {}
 
@@ -252,21 +292,27 @@ class CommonMainLegSublegSchematicWidgetV1(QWidget):
                     subleg_h,
                 )
 
+                route_leg_id = str(getattr(route, "leg_id", "") or leg_id or "")
+                route_subleg_id = str(getattr(route, "subleg_id", "") or "")
+
+                room_labels = list(
+                    getattr(route, "room_labels", None)
+                    or getattr(route, "rooms", None)
+                    or []
+                )
+
                 is_focused_subleg = (
                         bool(focused_subleg_id)
-                        and str(route.subleg_id) == focused_subleg_id
+                        and route_subleg_id == focused_subleg_id
                 )
 
                 subleg_border = (
-                    QColor(30, 95, 190)
+                    QColor(190, 115, 35)  # orange focus border
                     if is_focused_subleg
                     else QColor(90, 135, 90)
                 )
-                subleg_fill = (
-                    QColor(232, 242, 255)
-                    if is_focused_subleg
-                    else QColor(242, 252, 242)
-                )
+
+                subleg_fill = QColor(242, 252, 242)  # no focus infill
 
                 # Leg to subleg connector.
                 self._draw_line(
@@ -275,8 +321,8 @@ class CommonMainLegSublegSchematicWidgetV1(QWidget):
                     leg_y,
                     subleg_rect.left(),
                     subleg_y,
-                    QColor(95, 120, 95),
-                    2,
+                    QColor(190, 115, 35) if is_focused_subleg else QColor(95, 120, 95),
+                    3 if is_focused_subleg else 2,
                 )
 
                 role = str(route.role or "")
@@ -299,90 +345,107 @@ class CommonMainLegSublegSchematicWidgetV1(QWidget):
                     subleg_y,
                     x_rooms,
                     subleg_y,
-                    QColor(120, 120, 120),
-                    1,
+                    QColor(190, 115, 35) if is_focused_subleg else QColor(120, 120, 120),
+                    3 if is_focused_subleg else 1,
                 )
 
                 self._draw_room_chain(
                     painter,
+                    room_labels,
                     x_rooms,
                     subleg_y,
-                    route.room_labels,
+                    leg_id=route_leg_id,
+                    subleg_id=route_subleg_id,
                     focused_room_id=focused_room_id,
                 )
 
     def _draw_room_chain(
             self,
             painter: QPainter,
-            x_start: float,
-            y: float,
-            room_labels: Iterable[str],
+            rooms: list,
+            start_x: int,
+            start_y: int,
             *,
+            leg_id: str = "",
+            subleg_id: str = "",
             focused_room_id: str = "",
     ) -> None:
-        x = x_start
+        x = start_x
         room_w = 74
         room_h = 34
         gap = 16
 
-        labels = tuple(room_labels)
-        focused_subleg_id = str(self._focus.get("subleg_id", "") or "")
-        focused_room_id = str(self._focus.get("room_id", "") or "")
+        labels = tuple(rooms or [])
+
         if not labels:
             self._draw_box(
                 painter,
-                QRectF(x, y - room_h / 2, room_w, room_h),
+                QRectF(x, start_y - room_h / 2, room_w, room_h),
                 "No rooms",
-                border=QColor(130, 130, 130),
-                fill=QColor(245, 245, 245),
-                text_colour=QColor(90, 90, 90),
+                border=QColor(120, 120, 120),
+                fill=QColor(248, 255, 248),
+                text_colour=QColor(20, 20, 20),
+                bold=False,
             )
             return
 
-        previous_right = None
-
         for label in labels:
-            rect = QRectF(x, y - room_h / 2, room_w, room_h)
+            room_id = str(label or "").strip()
 
-            if previous_right is not None:
-                self._draw_line(
-                    painter,
-                    previous_right,
-                    y,
-                    rect.left(),
-                    y,
-                    QColor(120, 120, 120),
-                    1,
-                )
+            room_rect = QRectF(
+                x,
+                start_y - room_h / 2,
+                room_w,
+                room_h,
+            )
 
-            is_focused_room = (
-                    bool(focused_room_id)
-                    and str(label) == focused_room_id
+            is_focused_room = bool(
+                focused_room_id
+                and room_id
+                and room_id == focused_room_id
             )
 
             room_border = (
-                QColor(30, 95, 190)
+                QColor(190, 115, 35)  # orange focus border
                 if is_focused_room
-                else QColor(120, 145, 120)
+                else QColor(110, 135, 110)
             )
-            room_fill = (
-                QColor(232, 242, 255)
-                if is_focused_room
-                else QColor(250, 255, 250)
-            )
+
+            room_fill = QColor(248, 255, 248)  # no focus infill
+            room_text_colour = QColor(20, 20, 20)  # dark text
 
             self._draw_box(
                 painter,
-                rect,
-                label,
+                room_rect,
+                room_id,
                 border=room_border,
                 fill=room_fill,
-                text_colour=QColor(55, 80, 55),
-                bold=is_focused_room,
+                text_colour=room_text_colour,
+                bold=False,
             )
 
-            previous_right = rect.right()
+            if is_focused_room:
+                painter.save()
+                painter.setRenderHint(QPainter.Antialiasing)
+                painter.setPen(QPen(QColor(190, 115, 35), 3))
+                painter.setBrush(Qt.NoBrush)
+                painter.drawRoundedRect(room_rect, 8, 8)
+                painter.restore()
+
+            if room_id:
+                self._room_hit_rects.append(
+                    (
+                        QRectF(room_rect),
+                        {
+                            "leg_id": str(leg_id or ""),
+                            "subleg_id": str(subleg_id or ""),
+                            "room_id": room_id,
+                        },
+                    )
+                )
+
             x += room_w + gap
+
 
     @staticmethod
     def _draw_box(
