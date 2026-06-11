@@ -85,7 +85,10 @@ from HVAC.gui_v3.widgets.proportioning_schematic_widget_v1 import (
 from HVAC.gui_v3.widgets.common_main_leg_subleg_schematic_widget_v1 import (
     CommonMainLegSublegSchematicWidgetV1,
 )
-
+from HVAC.hydronics.proportioning.proportioning_input_snapshot_v1 import (
+    ProportioningInputSnapshotV1,
+    build_proportioning_input_snapshot_v1,
+)
 # ======================================================================
 # Floating Inspector
 # ======================================================================
@@ -409,7 +412,11 @@ class HydronicsSchematicPanel(QWidget):
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
-
+        self._proportioning_snapshot_section_rows: list[dict] = []
+        self._proportioning_snapshot_route_rows: list[dict] = []
+        self._proportioning_snapshot_shortfall_rows: list[dict] = []
+        self._proportioning_snapshot_return_comparison_rows: list[dict] = []
+        self._proportioning_input_snapshot: ProportioningInputSnapshotV1 | None = None
         # Current schematic DTO, retained for old drawn-schematic path.
         self._schematic: Optional[HydronicsSchematicDTO] = None
 
@@ -500,7 +507,48 @@ class HydronicsSchematicPanel(QWidget):
 
         self._proportioned_tab = self._make_tab("Proportioned")
         proportioned_layout = self._proportioned_tab
+        # --------------------------------------------------
+        # H-S20-A2 — Proportioning input snapshot summary
+        # --------------------------------------------------
+        self._proportioning_input_snapshot_card = QFrame(self)
+        self._proportioning_input_snapshot_card.setFrameShape(QFrame.StyledPanel)
+        self._proportioning_input_snapshot_card.setMinimumHeight(62)
+        self._proportioning_input_snapshot_card.setMaximumHeight(82)
 
+        snapshot_layout = QGridLayout(self._proportioning_input_snapshot_card)
+        snapshot_layout.setContentsMargins(8, 6, 8, 6)
+        snapshot_layout.setHorizontalSpacing(16)
+        snapshot_layout.setVerticalSpacing(3)
+
+        self._snapshot_title_label = QLabel(
+            "Proportioning input snapshot — read-only basis",
+            self._proportioning_input_snapshot_card,
+        )
+        self._snapshot_title_label.setStyleSheet("font-weight: 600;")
+
+        self._snapshot_status_label = QLabel("Status: Snapshot empty", self._proportioning_input_snapshot_card)
+        self._snapshot_sections_label = QLabel("Sections: 0", self._proportioning_input_snapshot_card)
+        self._snapshot_routes_label = QLabel("Routes: 0", self._proportioning_input_snapshot_card)
+        self._snapshot_returns_label = QLabel("Return comparisons: 0", self._proportioning_input_snapshot_card)
+        self._snapshot_warnings_label = QLabel("Warnings: —", self._proportioning_input_snapshot_card)
+        self._snapshot_warnings_label.setWordWrap(True)
+
+        snapshot_layout.addWidget(self._snapshot_title_label, 0, 0, 1, 4)
+        snapshot_layout.addWidget(self._snapshot_status_label, 1, 0)
+        snapshot_layout.addWidget(self._snapshot_sections_label, 1, 1)
+        snapshot_layout.addWidget(self._snapshot_routes_label, 1, 2)
+        snapshot_layout.addWidget(self._snapshot_returns_label, 1, 3)
+        snapshot_layout.addWidget(self._snapshot_warnings_label, 2, 0, 1, 4)
+
+        self._add_section(
+            proportioning_layout,
+            title="Proportioning input snapshot — read-only basis",
+            table=self._proportioning_input_snapshot_card,
+            min_height=82,
+            expanded=True,
+        )
+
+        self._refresh_proportioning_input_snapshot()
         # ==================================================
         # Proportioning tab — immediate DEV work area
         # ==================================================
@@ -1031,6 +1079,78 @@ class HydronicsSchematicPanel(QWidget):
 
         proportioning_layout.addStretch(1)
 
+    def _refresh_proportioning_input_snapshot(self) -> None:
+        """
+        H-S20-A2:
+        Build the read-only proportioning input snapshot from current
+        workbench rows.
+
+        Authority boundary:
+        • no ProjectState mutation
+        • no balancing
+        • no pump selection
+        • no pipe resizing
+        • no committed return arrangement
+        """
+        snapshot = build_proportioning_input_snapshot_v1(
+            section_rows=getattr(
+                self,
+                "_proportioning_snapshot_section_rows",
+                [],
+            ),
+            route_rows=getattr(
+                self,
+                "_proportioning_snapshot_route_rows",
+                [],
+            ),
+            shortfall_rows=getattr(
+                self,
+                "_proportioning_snapshot_shortfall_rows",
+                [],
+            ),
+            return_comparison_rows=getattr(
+                self,
+                "_proportioning_snapshot_return_comparison_rows",
+                [],
+            ),
+        )
+
+        self._proportioning_input_snapshot = snapshot
+        self._set_proportioning_input_snapshot_summary(snapshot)
+
+    def _set_proportioning_input_snapshot_summary(
+            self,
+            snapshot: ProportioningInputSnapshotV1 | None,
+    ) -> None:
+        """
+        H-S20-A2:
+        Display compact read-only snapshot status.
+        """
+        if not hasattr(self, "_snapshot_status_label"):
+            return
+
+        if snapshot is None:
+            self._snapshot_status_label.setText("Status: Snapshot empty")
+            self._snapshot_sections_label.setText("Sections: 0")
+            self._snapshot_routes_label.setText("Routes: 0")
+            self._snapshot_returns_label.setText("Return comparisons: 0")
+            self._snapshot_warnings_label.setText("Warnings: —")
+            return
+
+        self._snapshot_status_label.setText(f"Status: {snapshot.status}")
+        self._snapshot_sections_label.setText(f"Sections: {len(snapshot.sections)}")
+        self._snapshot_routes_label.setText(f"Routes: {len(snapshot.routes)}")
+        self._snapshot_returns_label.setText(
+            f"Return comparisons: {len(snapshot.return_comparisons)}"
+        )
+
+        if snapshot.warnings:
+            self._snapshot_warnings_label.setText(
+                "Warnings: " + " | ".join(snapshot.warnings)
+            )
+        else:
+            self._snapshot_warnings_label.setText("Warnings: none")
+
     def _on_common_main_leg_subleg_schematic_focus_requested(
             self,
             focus: dict,
@@ -1071,6 +1191,10 @@ class HydronicsSchematicPanel(QWidget):
         """
         if not hasattr(self, "_proportioning_basic_ps_sections_table"):
             return
+        self._proportioning_snapshot_section_rows = [
+            dict(row)
+            for row in (rows or [])
+        ]
 
         table = self._proportioning_basic_ps_sections_table
         table.setRowCount(len(rows))
@@ -1104,8 +1228,9 @@ class HydronicsSchematicPanel(QWidget):
                 item = QTableWidgetItem(str(value))
                 item.setFlags(item.flags() & ~Qt.ItemIsEditable)
                 table.setItem(row_index, col_index, item)
-
+        self._refresh_proportioning_input_snapshot()
         self._fit_table_height(table, min_height=180, max_height=300)
+
         if not getattr(self, "_suppress_basic_ps_scroll_to_top", False):
             table.scrollToTop()
 
@@ -1270,19 +1395,18 @@ class HydronicsSchematicPanel(QWidget):
 
     def set_route_pressure_preview_rows(self, rows: list[dict]) -> None:
         """
-        H-S14:
-        Display route-level Δp accumulation.
-
-        Display only:
-        • no ProjectState access
-        • no balancing
-        • no pump selection
+        Display route-level pressure preview rows.
         """
         if not hasattr(self, "_route_pressure_preview_table"):
+            self._proportioning_snapshot_route_rows = []
             return
 
+        self._proportioning_snapshot_route_rows = [
+            dict(row)
+            for row in (rows or [])
+        ]
+
         table = self._route_pressure_preview_table
-        table.setRowCount(len(rows))
 
         for row_index, row in enumerate(rows):
             values = [
@@ -1304,6 +1428,7 @@ class HydronicsSchematicPanel(QWidget):
 
         self._fit_table_height(table, min_height=120, max_height=180)
         table.scrollToTop()
+        self._refresh_proportioning_input_snapshot()
 
     def _focus_return_path_comparison_row_by_focus(
             self,
@@ -1365,7 +1490,10 @@ class HydronicsSchematicPanel(QWidget):
         if not hasattr(self, "_return_path_comparison_table"):
             self._return_path_focus_by_row = {}
             return
-
+        self._proportioning_snapshot_return_comparison_rows = [
+            dict(row)
+            for row in (rows or [])
+        ]
         table = self._return_path_comparison_table
 
         table.setRowCount(len(rows))
@@ -1432,6 +1560,7 @@ class HydronicsSchematicPanel(QWidget):
 
         self._fit_table_height(table, min_height=180, max_height=260)
         table.scrollToTop()
+        self._refresh_proportioning_input_snapshot()
 
     def _on_return_path_comparison_cell_clicked(
             self,
@@ -1649,17 +1778,16 @@ class HydronicsSchematicPanel(QWidget):
 
     def set_route_shortfall_preview_rows(self, rows: list[dict]) -> None:
         """
-        H-S18:
         Display route-level Δp shortfall to the controlling route.
-
-        Display only:
-        • no ProjectState access
-        • no balancing valve settings
-        • no pump selection
-        • no pipe resizing
         """
         if not hasattr(self, "_route_shortfall_preview_table"):
+            self._proportioning_snapshot_shortfall_rows = []
             return
+
+        self._proportioning_snapshot_shortfall_rows = [
+            dict(row)
+            for row in (rows or [])
+        ]
 
         table = self._route_shortfall_preview_table
         table.setRowCount(len(rows))
@@ -1682,7 +1810,7 @@ class HydronicsSchematicPanel(QWidget):
 
         self._fit_table_height(table, min_height=120, max_height=180)
         table.scrollToTop()
-
+        self._refresh_proportioning_input_snapshot()
 
     def set_proportioning_readiness(self, readiness: dict) -> None:
         """

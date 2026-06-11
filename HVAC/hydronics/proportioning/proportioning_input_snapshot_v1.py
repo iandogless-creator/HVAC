@@ -195,7 +195,12 @@ def build_proportioning_input_snapshot_v1(
                 straight_dp_sum=_text(row, "straight_dp_sum", "sum_straight_dp"),
                 local_dp_sum=_text(row, "local_dp_sum", "sum_local_dp"),
                 route_dp_sum=_text(row, "route_dp_sum", "sum_route_dp"),
-                shortfall_pa=_text(shortfall, "shortfall_pa", "shortfall"),
+                shortfall_pa=_text(
+                    shortfall,
+                    "shortfall_pa",
+                    "shortfall_dp",
+                    "shortfall",
+                ),
                 complete=_text(row, "complete"),
                 controlling=_text(row, "controlling"),
                 status=_text(row, "status"),
