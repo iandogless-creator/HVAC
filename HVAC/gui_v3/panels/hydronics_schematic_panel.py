@@ -68,6 +68,7 @@ from PySide6.QtWidgets import (
     QScrollArea,
     QTabWidget,
     QAbstractItemView,
+    QGridLayout,
 )
 
 from HVAC.gui_v3.schematic.dto import (
@@ -414,6 +415,7 @@ class HydronicsSchematicPanel(QWidget):
 
         # Floating inspector.
         self._return_path_focus_by_row: dict[int, dict[str, str]] = {}
+        self._return_path_row_data_by_row: dict[int, dict] = {}
         self._common_main_leg_subleg_row_by_subleg_id: dict[str, int] = {}
 
         self._build_ui()
@@ -556,6 +558,60 @@ class HydronicsSchematicPanel(QWidget):
             min_height=380,
             expanded=True,
         )
+        # --------------------------------------------------
+        # H-S19-N-A — Current proportioning focus summary
+        # --------------------------------------------------
+        self._current_proportioning_focus_card = QFrame(self)
+        self._current_proportioning_focus_card.setFrameShape(QFrame.StyledPanel)
+        self._current_proportioning_focus_card.setMinimumHeight(72)
+        self._current_proportioning_focus_card.setMaximumHeight(96)
+
+        focus_layout = QGridLayout(self._current_proportioning_focus_card)
+        focus_layout.setContentsMargins(8, 6, 8, 6)
+        focus_layout.setHorizontalSpacing(16)
+        focus_layout.setVerticalSpacing(3)
+
+        self._current_focus_title_label = QLabel(
+            "Current focus — DEV preview only",
+            self._current_proportioning_focus_card,
+        )
+        self._current_focus_title_label.setStyleSheet("font-weight: 600;")
+
+        self._current_focus_route_label = QLabel("Route: —", self._current_proportioning_focus_card)
+        self._current_focus_room_label = QLabel("Room: —", self._current_proportioning_focus_card)
+        self._current_focus_emitter_label = QLabel("Emitter: —", self._current_proportioning_focus_card)
+
+        self._current_focus_direct_dp_label = QLabel("F+R Δp: —", self._current_proportioning_focus_card)
+        self._current_focus_reverse_dp_label = QLabel("F+RR Δp: —", self._current_proportioning_focus_card)
+        self._current_focus_lower_label = QLabel("Lower: —", self._current_proportioning_focus_card)
+
+        self._current_focus_status_label = QLabel(
+            "Click a schematic room or F+R / F+RR comparison row",
+            self._current_proportioning_focus_card,
+        )
+        self._current_focus_status_label.setWordWrap(True)
+
+        focus_layout.addWidget(self._current_focus_title_label, 0, 0, 1, 3)
+
+        focus_layout.addWidget(self._current_focus_route_label, 1, 0)
+        focus_layout.addWidget(self._current_focus_room_label, 1, 1)
+        focus_layout.addWidget(self._current_focus_emitter_label, 1, 2)
+
+        focus_layout.addWidget(self._current_focus_direct_dp_label, 2, 0)
+        focus_layout.addWidget(self._current_focus_reverse_dp_label, 2, 1)
+        focus_layout.addWidget(self._current_focus_lower_label, 2, 2)
+
+        focus_layout.addWidget(self._current_focus_status_label, 3, 0, 1, 3)
+
+        self._add_section(
+            proportioning_layout,
+            title="Current proportioning focus — DEV preview only",
+            table=self._current_proportioning_focus_card,
+            min_height=96,
+            expanded=True,
+        )
+
+        self._set_current_proportioning_focus_summary({})
 
         # --------------------------------------------------
         # H-S19-H / H-S19-L — Direct vs reverse return comparison
@@ -980,7 +1036,7 @@ class HydronicsSchematicPanel(QWidget):
             focus: dict,
     ) -> None:
         """
-        H-S19-M:
+        H-S19-M / H-S19-N-A:
         Receive room/subleg focus from DEV schematic click.
 
         Focus only:
@@ -990,7 +1046,18 @@ class HydronicsSchematicPanel(QWidget):
         • no pipe resizing
         """
         self._focus_common_main_leg_subleg_row(focus)
-        self._focus_return_path_comparison_row_by_focus(focus)
+
+        row_index = self._focus_return_path_comparison_row_by_focus(focus)
+        row_data = {}
+
+        if row_index is not None:
+            row_data = getattr(
+                self,
+                "_return_path_row_data_by_row",
+                {},
+            ).get(row_index, {}) or {}
+
+        self._set_current_proportioning_focus_summary(row_data)
 
     def set_proportioning_basic_ps_sections(self, rows: list[dict]) -> None:
         """
@@ -1041,6 +1108,72 @@ class HydronicsSchematicPanel(QWidget):
         self._fit_table_height(table, min_height=180, max_height=300)
         if not getattr(self, "_suppress_basic_ps_scroll_to_top", False):
             table.scrollToTop()
+
+    def _set_current_proportioning_focus_summary(self, row: dict | None) -> None:
+        """
+        H-S19-N-A:
+        Display the current proportioning focus summary.
+
+        Display only:
+        • no ProjectState mutation
+        • no committed return arrangement
+        • no balancing
+        • no pump selection
+        • no pipe resizing
+        """
+        if not hasattr(self, "_current_focus_route_label"):
+            return
+
+        row = row or {}
+
+        if not row:
+            self._current_focus_route_label.setText("Route: —")
+            self._current_focus_room_label.setText("Room: —")
+            self._current_focus_emitter_label.setText("Emitter: —")
+            self._current_focus_direct_dp_label.setText("F+R Δp: —")
+            self._current_focus_reverse_dp_label.setText("F+RR Δp: —")
+            self._current_focus_lower_label.setText("Lower: —")
+            self._current_focus_status_label.setText(
+                "Click a schematic room or F+R / F+RR comparison row"
+            )
+            return
+
+        direct_dp = str(row.get("direct_total_dp", "—") or "—")
+        reverse_dp = str(row.get("reverse_total_dp", "—") or "—")
+
+        lower = "—"
+        direct_raw = self._try_float(row.get("direct_total_dp_raw", None))
+        reverse_raw = self._try_float(row.get("reverse_total_dp_raw", None))
+
+        if direct_raw is not None and reverse_raw is not None:
+            delta_percent = self._delta_percent(direct_raw, reverse_raw)
+            if delta_percent <= self._RETURN_COMPARISON_TOLERANCE_PERCENT:
+                lower = "Similar / within tolerance"
+            elif direct_raw < reverse_raw:
+                lower = "F+R"
+            elif reverse_raw < direct_raw:
+                lower = "F+RR"
+
+        self._current_focus_route_label.setText(
+            f"Route: {str(row.get('route', '—') or '—')}"
+        )
+        self._current_focus_room_label.setText(
+            f"Room: {str(row.get('room', '—') or '—')}"
+        )
+        self._current_focus_emitter_label.setText(
+            f"Emitter: {str(row.get('emitter', '—') or '—')}"
+        )
+
+        self._current_focus_direct_dp_label.setText(f"F+R Δp: {direct_dp}")
+        self._current_focus_reverse_dp_label.setText(f"F+RR Δp: {reverse_dp}")
+        self._current_focus_lower_label.setText(f"Lower: {lower}")
+
+        status = str(row.get("status", "—") or "—")
+        suitability = str(row.get("rr_suitability", "—") or "—")
+
+        self._current_focus_status_label.setText(
+            f"{suitability} | {status} | DEV preview only — no arrangement committed"
+        )
 
     def set_common_main_leg_subleg_schematic(self, schematic) -> None:
         """
@@ -1172,44 +1305,50 @@ class HydronicsSchematicPanel(QWidget):
         self._fit_table_height(table, min_height=120, max_height=180)
         table.scrollToTop()
 
-    def _focus_return_path_comparison_row_by_focus(self, focus: dict) -> None:
+    def _focus_return_path_comparison_row_by_focus(
+            self,
+            focus: dict,
+    ) -> int | None:
         """
-        H-S19-M:
+        H-S19-M / H-S19-N-A:
         Focus the Direct vs reverse return comparison row from a schematic
         focus payload.
 
-        Focus only:
-        • no ProjectState mutation
-        • no committed return arrangement
-        • no balancing
-        • no pipe resizing
+        Returns the matched row index when found.
         """
         table = getattr(self, "_return_path_comparison_table", None)
         if table is None:
-            return
+            return None
 
         wanted_room_id = str((focus or {}).get("room_id", "") or "")
         wanted_subleg_id = str((focus or {}).get("subleg_id", "") or "")
 
         if not wanted_room_id and not wanted_subleg_id:
             self._clear_return_path_comparison_table_focus()
-            return
+            return None
 
         row_map = getattr(self, "_return_path_focus_by_row", {}) or {}
 
-        for row_index, row_focus in row_map.items():
-            row_room_id = str((row_focus or {}).get("room_id", "") or "")
-            row_subleg_id = str((row_focus or {}).get("subleg_id", "") or "")
+        # Pass 1: exact room match first.
+        if wanted_room_id:
+            for row_index, row_focus in row_map.items():
+                row_room_id = str((row_focus or {}).get("room_id", "") or "")
 
-            if wanted_room_id and row_room_id == wanted_room_id:
-                self._focus_return_path_comparison_row(row_index)
-                return
+                if row_room_id == wanted_room_id:
+                    self._focus_return_path_comparison_row(row_index)
+                    return int(row_index)
 
-            if wanted_subleg_id and row_subleg_id == wanted_subleg_id:
-                self._focus_return_path_comparison_row(row_index)
-                return
+        # Pass 2: subleg fallback only if no exact room match was found.
+        if wanted_subleg_id:
+            for row_index, row_focus in row_map.items():
+                row_subleg_id = str((row_focus or {}).get("subleg_id", "") or "")
+
+                if row_subleg_id == wanted_subleg_id:
+                    self._focus_return_path_comparison_row(row_index)
+                    return int(row_index)
 
         self._clear_return_path_comparison_table_focus()
+        return None
 
     def set_return_path_comparison_rows(self, rows: list[dict]) -> None:
         """
@@ -1231,6 +1370,7 @@ class HydronicsSchematicPanel(QWidget):
 
         table.setRowCount(len(rows))
         self._return_path_focus_by_row = {}
+        self._return_path_row_data_by_row = {}
 
         for row_index, row in enumerate(rows):
             values = [
@@ -1253,6 +1393,8 @@ class HydronicsSchematicPanel(QWidget):
                 "room_id": str(row.get("room_id", "") or ""),
                 "emitter_id": str(row.get("emitter_id", "") or ""),
             }
+
+            self._return_path_row_data_by_row[row_index] = dict(row)
 
             direct_dp = self._try_float(row.get("direct_total_dp_raw", None))
             reverse_dp = self._try_float(row.get("reverse_total_dp_raw", None))
@@ -1296,6 +1438,28 @@ class HydronicsSchematicPanel(QWidget):
             row_index: int,
             column_index: int,
     ) -> None:
+        """
+        H-S19-L / H-S19-N-A:
+        Manual click focus for the return comparison table.
+
+        Uses cellClicked instead of Qt row selection so the pale focus
+        background does not override F+R / F+RR green/orange text colours.
+        """
+        focus = getattr(
+            self,
+            "_return_path_focus_by_row",
+            {},
+        ).get(row_index, {}) or {}
+
+        row_data = getattr(
+            self,
+            "_return_path_row_data_by_row",
+            {},
+        ).get(row_index, {}) or {}
+
+        self._focus_return_path_comparison_row(row_index)
+        self._focus_common_main_leg_subleg_row(focus)
+        self._set_current_proportioning_focus_summary(row_data)
         """
         H-S19-L:
         Manual click focus for the return comparison table.
