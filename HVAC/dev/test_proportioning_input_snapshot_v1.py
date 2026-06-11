@@ -26,7 +26,7 @@ def main() -> None:
                 "route_id": "leg-001:leg-001-primary-subleg",
                 "route": "Leg 1A Common subleg",
                 "sections": "5",
-                "route_dp_sum": "7654.1 Pa",
+                "route_dp": "7654.1 Pa",
                 "complete": "Yes",
                 "controlling": "Yes",
                 "status": "Route Δp preview ready",

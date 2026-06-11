@@ -89,6 +89,10 @@ from HVAC.hydronics.proportioning.proportioning_input_snapshot_v1 import (
     ProportioningInputSnapshotV1,
     build_proportioning_input_snapshot_v1,
 )
+from HVAC.hydronics.proportioning.proportioning_readiness_gate_v1 import (
+    ProportioningReadinessGateV1,
+    evaluate_proportioning_readiness_v1,
+)
 # ======================================================================
 # Floating Inspector
 # ======================================================================
@@ -417,6 +421,7 @@ class HydronicsSchematicPanel(QWidget):
         self._proportioning_snapshot_shortfall_rows: list[dict] = []
         self._proportioning_snapshot_return_comparison_rows: list[dict] = []
         self._proportioning_input_snapshot: ProportioningInputSnapshotV1 | None = None
+        self._proportioning_readiness_gate: ProportioningReadinessGateV1 | None = None
         # Current schematic DTO, retained for old drawn-schematic path.
         self._schematic: Optional[HydronicsSchematicDTO] = None
 
@@ -507,13 +512,14 @@ class HydronicsSchematicPanel(QWidget):
 
         self._proportioned_tab = self._make_tab("Proportioned")
         proportioned_layout = self._proportioned_tab
+
         # --------------------------------------------------
-        # H-S20-A2 — Proportioning input snapshot summary
+        # H-S20-A2 / H-S20-B — Proportioning input snapshot summary
         # --------------------------------------------------
         self._proportioning_input_snapshot_card = QFrame(self)
         self._proportioning_input_snapshot_card.setFrameShape(QFrame.StyledPanel)
-        self._proportioning_input_snapshot_card.setMinimumHeight(62)
-        self._proportioning_input_snapshot_card.setMaximumHeight(82)
+        self._proportioning_input_snapshot_card.setMinimumHeight(86)
+        self._proportioning_input_snapshot_card.setMaximumHeight(118)
 
         snapshot_layout = QGridLayout(self._proportioning_input_snapshot_card)
         snapshot_layout.setContentsMargins(8, 6, 8, 6)
@@ -526,32 +532,60 @@ class HydronicsSchematicPanel(QWidget):
         )
         self._snapshot_title_label.setStyleSheet("font-weight: 600;")
 
-        self._snapshot_status_label = QLabel("Status: Snapshot empty", self._proportioning_input_snapshot_card)
-        self._snapshot_sections_label = QLabel("Sections: 0", self._proportioning_input_snapshot_card)
-        self._snapshot_routes_label = QLabel("Routes: 0", self._proportioning_input_snapshot_card)
-        self._snapshot_returns_label = QLabel("Return comparisons: 0", self._proportioning_input_snapshot_card)
-        self._snapshot_warnings_label = QLabel("Warnings: —", self._proportioning_input_snapshot_card)
+        self._snapshot_status_label = QLabel(
+            "Status: Snapshot empty",
+            self._proportioning_input_snapshot_card,
+        )
+        self._snapshot_sections_label = QLabel(
+            "Sections: 0",
+            self._proportioning_input_snapshot_card,
+        )
+        self._snapshot_routes_label = QLabel(
+            "Routes: 0",
+            self._proportioning_input_snapshot_card,
+        )
+        self._snapshot_returns_label = QLabel(
+            "Return comparisons: 0",
+            self._proportioning_input_snapshot_card,
+        )
+
+        self._snapshot_readiness_label = QLabel(
+            "Readiness: Not ready for proportioning",
+            self._proportioning_input_snapshot_card,
+        )
+
+        self._snapshot_warnings_label = QLabel(
+            "Warnings: —",
+            self._proportioning_input_snapshot_card,
+        )
         self._snapshot_warnings_label.setWordWrap(True)
 
+        self._snapshot_blockers_label = QLabel(
+            "Blockers: —",
+            self._proportioning_input_snapshot_card,
+        )
+        self._snapshot_blockers_label.setWordWrap(True)
+
         snapshot_layout.addWidget(self._snapshot_title_label, 0, 0, 1, 4)
+
         snapshot_layout.addWidget(self._snapshot_status_label, 1, 0)
         snapshot_layout.addWidget(self._snapshot_sections_label, 1, 1)
         snapshot_layout.addWidget(self._snapshot_routes_label, 1, 2)
         snapshot_layout.addWidget(self._snapshot_returns_label, 1, 3)
-        snapshot_layout.addWidget(self._snapshot_warnings_label, 2, 0, 1, 4)
+
+        snapshot_layout.addWidget(self._snapshot_readiness_label, 2, 0, 1, 4)
+        snapshot_layout.addWidget(self._snapshot_warnings_label, 3, 0, 1, 4)
+        snapshot_layout.addWidget(self._snapshot_blockers_label, 4, 0, 1, 4)
 
         self._add_section(
             proportioning_layout,
             title="Proportioning input snapshot — read-only basis",
             table=self._proportioning_input_snapshot_card,
-            min_height=82,
+            min_height=118,
             expanded=True,
         )
 
         self._refresh_proportioning_input_snapshot()
-        # ==================================================
-        # Proportioning tab — immediate DEV work area
-        # ==================================================
 
         # --------------------------------------------------
         # H-S19-J — DEV common-main / leg / subleg topology table
@@ -1116,11 +1150,16 @@ class HydronicsSchematicPanel(QWidget):
         )
 
         self._proportioning_input_snapshot = snapshot
-        self._set_proportioning_input_snapshot_summary(snapshot)
+
+        gate = evaluate_proportioning_readiness_v1(snapshot)
+        self._proportioning_readiness_gate = gate
+
+        self._set_proportioning_input_snapshot_summary(snapshot, gate)
 
     def _set_proportioning_input_snapshot_summary(
             self,
             snapshot: ProportioningInputSnapshotV1 | None,
+            gate: ProportioningReadinessGateV1 | None = None,
     ) -> None:
         """
         H-S20-A2:
@@ -1135,6 +1174,8 @@ class HydronicsSchematicPanel(QWidget):
             self._snapshot_routes_label.setText("Routes: 0")
             self._snapshot_returns_label.setText("Return comparisons: 0")
             self._snapshot_warnings_label.setText("Warnings: —")
+            self._snapshot_readiness_label.setText("Readiness: Not ready for proportioning")
+            self._snapshot_blockers_label.setText("Blockers: No proportioning input snapshot is available")
             return
 
         self._snapshot_status_label.setText(f"Status: {snapshot.status}")
@@ -1150,6 +1191,21 @@ class HydronicsSchematicPanel(QWidget):
             )
         else:
             self._snapshot_warnings_label.setText("Warnings: none")
+
+        if gate is None:
+            self._snapshot_readiness_label.setText(
+                "Readiness: Not ready for proportioning"
+            )
+            self._snapshot_blockers_label.setText("Blockers: —")
+        else:
+            self._snapshot_readiness_label.setText(f"Readiness: {gate.status}")
+
+            if gate.blockers:
+                self._snapshot_blockers_label.setText(
+                    "Blockers: " + " | ".join(gate.blockers)
+                )
+            else:
+                self._snapshot_blockers_label.setText("Blockers: none")
 
     def _on_common_main_leg_subleg_schematic_focus_requested(
             self,

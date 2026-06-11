@@ -192,9 +192,26 @@ def build_proportioning_input_snapshot_v1(
                 route_id=_text(row, "route_id"),
                 route_label=_text(row, "route", "route_label"),
                 sections=_text(row, "sections"),
-                straight_dp_sum=_text(row, "straight_dp_sum", "sum_straight_dp"),
-                local_dp_sum=_text(row, "local_dp_sum", "sum_local_dp"),
-                route_dp_sum=_text(row, "route_dp_sum", "sum_route_dp"),
+                straight_dp_sum=_text(
+                    row,
+                    "straight_dp_sum",
+                    "sum_straight_dp",
+                    "straight_dp",
+                ),
+                local_dp_sum=_text(
+                    row,
+                    "local_dp_sum",
+                    "sum_local_dp",
+                    "local_dp",
+                ),
+                route_dp_sum=_text(
+                    row,
+                    "route_dp_sum",
+                    "sum_route_dp",
+                    "route_dp",
+                    "route_total_dp",
+                    "total_dp",
+                ),
                 shortfall_pa=_text(
                     shortfall,
                     "shortfall_pa",
@@ -206,7 +223,6 @@ def build_proportioning_input_snapshot_v1(
                 status=_text(row, "status"),
             )
         )
-
     return_comparisons = [
         ProportioningInputReturnComparisonV1(
             route=_text(row, "route"),
