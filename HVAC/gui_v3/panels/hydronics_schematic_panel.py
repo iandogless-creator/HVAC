@@ -93,6 +93,10 @@ from HVAC.hydronics.proportioning.proportioning_readiness_gate_v1 import (
     ProportioningReadinessGateV1,
     evaluate_proportioning_readiness_v1,
 )
+from HVAC.hydronics.proportioning.preliminary_route_balancing_requirement_v1 import (
+    PreliminaryRouteBalancingPreviewV1,
+    build_preliminary_route_balancing_preview_v1,
+)
 # ======================================================================
 # Floating Inspector
 # ======================================================================
@@ -422,6 +426,9 @@ class HydronicsSchematicPanel(QWidget):
         self._proportioning_snapshot_return_comparison_rows: list[dict] = []
         self._proportioning_input_snapshot: ProportioningInputSnapshotV1 | None = None
         self._proportioning_readiness_gate: ProportioningReadinessGateV1 | None = None
+        self._preliminary_route_balancing_preview: (
+                PreliminaryRouteBalancingPreviewV1 | None
+        ) = None
         # Current schematic DTO, retained for old drawn-schematic path.
         self._schematic: Optional[HydronicsSchematicDTO] = None
 
@@ -576,7 +583,30 @@ class HydronicsSchematicPanel(QWidget):
         snapshot_layout.addWidget(self._snapshot_readiness_label, 2, 0, 1, 4)
         snapshot_layout.addWidget(self._snapshot_warnings_label, 3, 0, 1, 4)
         snapshot_layout.addWidget(self._snapshot_blockers_label, 4, 0, 1, 4)
+        # --------------------------------------------------
+        # H-S20-C — Preliminary route balancing requirement
+        # --------------------------------------------------
+        self._preliminary_route_balancing_table = self._make_table(
+            columns=[
+                "Route",
+                "Sections",
+                "Route Δp",
+                "Controlling Δp",
+                "Shortfall",
+                "Required added resistance",
+                "Controlling",
+                "Status",
+            ],
+            stretch_columns={0, 7},
+        )
 
+        self._add_section(
+            proportioning_layout,
+            title="Preliminary route balancing requirement — preview only",
+            table=self._preliminary_route_balancing_table,
+            min_height=150,
+            expanded=False,
+        )
         self._add_section(
             proportioning_layout,
             title="Proportioning input snapshot — read-only basis",
@@ -1155,6 +1185,64 @@ class HydronicsSchematicPanel(QWidget):
         self._proportioning_readiness_gate = gate
 
         self._set_proportioning_input_snapshot_summary(snapshot, gate)
+
+        preview = build_preliminary_route_balancing_preview_v1(snapshot)
+        self._preliminary_route_balancing_preview = preview
+        self._set_preliminary_route_balancing_preview(preview)
+
+    def _set_preliminary_route_balancing_preview(
+            self,
+            preview: PreliminaryRouteBalancingPreviewV1 | None,
+    ) -> None:
+        """
+        H-S20-C:
+        Display preliminary route balancing requirement preview.
+
+        Preview only:
+        • no ProjectState mutation
+        • no balancing valve selection
+        • no pump selection
+        • no pipe resizing
+        • no committed return arrangement
+        """
+        table = getattr(self, "_preliminary_route_balancing_table", None)
+        if table is None:
+            return
+
+        if preview is None:
+            table.setRowCount(0)
+            return
+
+        rows = list(preview.rows or [])
+        table.setRowCount(len(rows))
+
+        for row_index, row in enumerate(rows):
+            values = [
+                row.route_label or "—",
+                row.sections or "—",
+                row.route_dp or "—",
+                row.controlling_route_dp or "—",
+                row.shortfall_dp or "—",
+                row.required_added_resistance_dp or "—",
+                row.controlling or "No",
+                row.status or preview.status or "—",
+            ]
+
+            for col_index, value in enumerate(values):
+                item = QTableWidgetItem(str(value))
+                item.setFlags(item.flags() & ~Qt.ItemIsEditable)
+
+                if col_index == 6 and str(value).strip().lower() in (
+                        "yes",
+                        "true",
+                        "1",
+                ):
+                    item.setForeground(QBrush(QColor(190, 110, 0)))
+
+                table.setItem(row_index, col_index, item)
+
+        self._fit_table_height(table, min_height=120, max_height=190)
+        table.scrollToTop()
 
     def _set_proportioning_input_snapshot_summary(
             self,
