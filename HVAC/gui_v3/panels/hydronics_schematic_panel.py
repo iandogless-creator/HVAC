@@ -599,20 +599,26 @@ class HydronicsSchematicPanel(QWidget):
             ],
             stretch_columns={0, 7},
         )
-
+        self._preliminary_route_balancing_table.setSelectionMode(
+            QAbstractItemView.NoSelection
+        )
+        self._preliminary_route_balancing_table.setFocusPolicy(Qt.NoFocus)
+        self._preliminary_route_balancing_table.cellClicked.connect(
+            self._on_preliminary_route_balancing_cell_clicked
+        )
         self._add_section(
             proportioning_layout,
             title="Preliminary route balancing requirement — preview only",
             table=self._preliminary_route_balancing_table,
             min_height=150,
-            expanded=False,
+            expanded=True,
         )
         self._add_section(
             proportioning_layout,
             title="Proportioning input snapshot — read-only basis",
             table=self._proportioning_input_snapshot_card,
             min_height=118,
-            expanded=True,
+            expanded=False,
         )
 
         self._refresh_proportioning_input_snapshot()
@@ -667,7 +673,7 @@ class HydronicsSchematicPanel(QWidget):
             proportioning_layout,
             title="DEV common-main / leg / subleg drawn schematic — preview only",
             table=self._common_main_leg_subleg_schematic_scroll,
-            min_height=380,
+            min_height=300,
             expanded=True,
         )
         # --------------------------------------------------
@@ -1215,8 +1221,17 @@ class HydronicsSchematicPanel(QWidget):
 
         rows = list(preview.rows or [])
         table.setRowCount(len(rows))
+        self._preliminary_route_balancing_focus_by_row = {}
 
         for row_index, row in enumerate(rows):
+            self._preliminary_route_balancing_focus_by_row[row_index] = {
+                "route_id": str(row.route_id or ""),
+                "route": str(row.route_label or ""),
+                "leg_id": str(getattr(row, "leg_id", "") or ""),
+                "subleg_id": str(getattr(row, "subleg_id", "") or ""),
+                "room_id": "",
+                "emitter_id": "",
+            }
             values = [
                 row.route_label or "—",
                 row.sections or "—",
@@ -1238,8 +1253,10 @@ class HydronicsSchematicPanel(QWidget):
                         "1",
                 ):
                     item.setForeground(QBrush(QColor(190, 110, 0)))
-
+                if col_index == 6 and str(value).strip().lower() in ("yes", "true", "1"):
+                    item.setForeground(QBrush(QColor(190, 110, 0)))
                 table.setItem(row_index, col_index, item)
+
 
         self._fit_table_height(table, min_height=120, max_height=190)
         table.scrollToTop()
@@ -1294,6 +1311,55 @@ class HydronicsSchematicPanel(QWidget):
                 )
             else:
                 self._snapshot_blockers_label.setText("Blockers: none")
+
+    def _on_preliminary_route_balancing_cell_clicked(
+            self,
+            row_index: int,
+            column_index: int,
+    ) -> None:
+        """
+        H-S20-D:
+        Manual focus from preliminary route balancing preview.
+
+        Focus/link only:
+        • no ProjectState mutation
+        • no balancing valve selection
+        • no pump selection
+        • no pipe resizing
+        • no committed return arrangement
+        """
+        focus = getattr(
+            self,
+            "_preliminary_route_balancing_focus_by_row",
+            {},
+        ).get(row_index, {}) or {}
+
+        self._focus_preliminary_route_balancing_row(row_index)
+
+        comparison_row_index = self._focus_return_path_comparison_row_by_focus(focus)
+
+        row_data = {}
+        comparison_focus = {}
+
+        if comparison_row_index is not None:
+            row_data = getattr(
+                self,
+                "_return_path_row_data_by_row",
+                {},
+            ).get(comparison_row_index, {}) or {}
+
+            comparison_focus = getattr(
+                self,
+                "_return_path_focus_by_row",
+                {},
+            ).get(comparison_row_index, {}) or {}
+
+        if comparison_focus:
+            self._focus_common_main_leg_subleg_row(comparison_focus)
+        else:
+            self._focus_common_main_leg_subleg_row(focus)
+
+        self._set_current_proportioning_focus_summary(row_data)
 
     def _on_common_main_leg_subleg_schematic_focus_requested(
             self,
@@ -1579,11 +1645,15 @@ class HydronicsSchematicPanel(QWidget):
             focus: dict,
     ) -> int | None:
         """
-        H-S19-M / H-S19-N-A:
-        Focus the Direct vs reverse return comparison row from a schematic
-        focus payload.
+        H-S19-M / H-S19-N-A / H-S20-D:
+        Focus the Direct vs reverse return comparison row from a
+        room/subleg/route focus payload.
 
-        Returns the matched row index when found.
+        Match order:
+        1. exact room
+        2. exact subleg
+        3. exact route_id
+        4. route-label match, allowing heating-leg prefixes
         """
         table = getattr(self, "_return_path_comparison_table", None)
         if table is None:
@@ -1591,28 +1661,43 @@ class HydronicsSchematicPanel(QWidget):
 
         wanted_room_id = str((focus or {}).get("room_id", "") or "")
         wanted_subleg_id = str((focus or {}).get("subleg_id", "") or "")
+        wanted_route_id = str((focus or {}).get("route_id", "") or "")
+        wanted_route = str((focus or {}).get("route", "") or "")
 
-        if not wanted_room_id and not wanted_subleg_id:
+        if (
+                not wanted_room_id
+                and not wanted_subleg_id
+                and not wanted_route_id
+                and not wanted_route
+        ):
             self._clear_return_path_comparison_table_focus()
             return None
 
         row_map = getattr(self, "_return_path_focus_by_row", {}) or {}
 
-        # Pass 1: exact room match first.
         if wanted_room_id:
             for row_index, row_focus in row_map.items():
-                row_room_id = str((row_focus or {}).get("room_id", "") or "")
-
-                if row_room_id == wanted_room_id:
+                if str((row_focus or {}).get("room_id", "") or "") == wanted_room_id:
                     self._focus_return_path_comparison_row(row_index)
                     return int(row_index)
 
-        # Pass 2: subleg fallback only if no exact room match was found.
         if wanted_subleg_id:
             for row_index, row_focus in row_map.items():
-                row_subleg_id = str((row_focus or {}).get("subleg_id", "") or "")
+                if str((row_focus or {}).get("subleg_id", "") or "") == wanted_subleg_id:
+                    self._focus_return_path_comparison_row(row_index)
+                    return int(row_index)
 
-                if row_subleg_id == wanted_subleg_id:
+        if wanted_route_id:
+            for row_index, row_focus in row_map.items():
+                if str((row_focus or {}).get("route_id", "") or "") == wanted_route_id:
+                    self._focus_return_path_comparison_row(row_index)
+                    return int(row_index)
+
+        if wanted_route:
+            for row_index, row_focus in row_map.items():
+                row_route = str((row_focus or {}).get("route", "") or "")
+
+                if self._route_label_matches(wanted_route, row_route):
                     self._focus_return_path_comparison_row(row_index)
                     return int(row_index)
 
@@ -1660,6 +1745,8 @@ class HydronicsSchematicPanel(QWidget):
             ]
 
             self._return_path_focus_by_row[row_index] = {
+                "route": str(row.get("route", "") or ""),
+                "route_id": str(row.get("route_id", "") or ""),
                 "leg_id": str(row.get("leg_id", "") or ""),
                 "subleg_id": str(row.get("subleg_id", "") or ""),
                 "room_id": str(row.get("room_id", "") or ""),
@@ -1706,17 +1793,44 @@ class HydronicsSchematicPanel(QWidget):
         table.scrollToTop()
         self._refresh_proportioning_input_snapshot()
 
+    def _route_label_matches(self, wanted: str, candidate: str) -> bool:
+        """
+        Match route labels where one view may include the heating-leg prefix.
+
+        Example:
+            wanted:    "Heating Leg 2 / Leg 2B Branch subleg"
+            candidate: "Leg 2B Branch subleg"
+        """
+        wanted_text = str(wanted or "").strip().lower()
+        candidate_text = str(candidate or "").strip().lower()
+
+        if not wanted_text or not candidate_text:
+            return False
+
+        return (
+                wanted_text == candidate_text
+                or wanted_text in candidate_text
+                or candidate_text in wanted_text
+        )
+
     def _on_return_path_comparison_cell_clicked(
             self,
             row_index: int,
             column_index: int,
     ) -> None:
         """
-        H-S19-L / H-S19-N-A:
+        H-S19-L / H-S19-N-A / H-S20-D:
         Manual click focus for the return comparison table.
 
         Uses cellClicked instead of Qt row selection so the pale focus
         background does not override F+R / F+RR green/orange text colours.
+
+        Focus/link only:
+        • no ProjectState mutation
+        • no balancing valve selection
+        • no pump selection
+        • no pipe resizing
+        • no committed return arrangement
         """
         focus = getattr(
             self,
@@ -1732,22 +1846,8 @@ class HydronicsSchematicPanel(QWidget):
 
         self._focus_return_path_comparison_row(row_index)
         self._focus_common_main_leg_subleg_row(focus)
+        self._focus_preliminary_route_balancing_row_by_focus(focus)
         self._set_current_proportioning_focus_summary(row_data)
-        """
-        H-S19-L:
-        Manual click focus for the return comparison table.
-
-        Uses cellClicked instead of Qt row selection so the pale focus
-        background does not override F+R / F+RR green/orange text colours.
-        """
-        focus = getattr(
-            self,
-            "_return_path_focus_by_row",
-            {},
-        ).get(row_index, {}) or {}
-
-        self._focus_return_path_comparison_row(row_index)
-        self._focus_common_main_leg_subleg_row(focus)
 
     def _on_return_path_comparison_selection_changed(self) -> None:
         table = getattr(self, "_return_path_comparison_table", None)
@@ -2614,6 +2714,43 @@ class HydronicsSchematicPanel(QWidget):
             lines.append(f"Δp: {hover.dp_pa:.0f} Pa")
 
         return "<br>".join(lines)
+
+    def _clear_preliminary_route_balancing_table_focus(self) -> None:
+        table = getattr(self, "_preliminary_route_balancing_table", None)
+        if table is None:
+            return
+
+        table.clearSelection()
+
+        for r in range(table.rowCount()):
+            for c in range(table.columnCount()):
+                item = table.item(r, c)
+                if item is not None:
+                    item.setBackground(QBrush())
+
+    def _focus_preliminary_route_balancing_row(self, row_index: int) -> None:
+        table = getattr(self, "_preliminary_route_balancing_table", None)
+        if table is None:
+            return
+
+        self._clear_preliminary_route_balancing_table_focus()
+
+        if row_index < 0 or row_index >= table.rowCount():
+            return
+
+        focus_brush = QBrush(QColor(255, 238, 210))  # pale orange focus only
+
+        for c in range(table.columnCount()):
+            item = table.item(row_index, c)
+            if item is not None:
+                item.setBackground(focus_brush)
+
+        first_item = table.item(row_index, 0)
+        if first_item is not None:
+            table.scrollToItem(
+                first_item,
+                QAbstractItemView.PositionAtCenter,
+            )
 
     def _clear_common_main_leg_subleg_table_focus(self) -> None:
         table = getattr(self, "_common_main_leg_subleg_table", None)
