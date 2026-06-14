@@ -97,6 +97,11 @@ from HVAC.hydronics.proportioning.preliminary_route_balancing_requirement_v1 imp
     PreliminaryRouteBalancingPreviewV1,
     build_preliminary_route_balancing_preview_v1,
 )
+from HVAC.hydronics.proportioning.balancing_point_assumption_v1 import (
+    BalancingPointAssumptionV1,
+    get_default_balancing_point_assumption_v1,
+)
+
 # ======================================================================
 # Floating Inspector
 # ======================================================================
@@ -429,6 +434,9 @@ class HydronicsSchematicPanel(QWidget):
         self._preliminary_route_balancing_preview: (
                 PreliminaryRouteBalancingPreviewV1 | None
         ) = None
+        self._balancing_point_assumption: BalancingPointAssumptionV1 = (
+            get_default_balancing_point_assumption_v1()
+        )
         # Current schematic DTO, retained for old drawn-schematic path.
         self._schematic: Optional[HydronicsSchematicDTO] = None
 
@@ -599,13 +607,16 @@ class HydronicsSchematicPanel(QWidget):
             ],
             stretch_columns={0, 7},
         )
+
         self._preliminary_route_balancing_table.setSelectionMode(
             QAbstractItemView.NoSelection
         )
         self._preliminary_route_balancing_table.setFocusPolicy(Qt.NoFocus)
+
         self._preliminary_route_balancing_table.cellClicked.connect(
             self._on_preliminary_route_balancing_cell_clicked
         )
+
         self._add_section(
             proportioning_layout,
             title="Preliminary route balancing requirement — preview only",
@@ -613,6 +624,72 @@ class HydronicsSchematicPanel(QWidget):
             min_height=150,
             expanded=True,
         )
+
+        # --------------------------------------------------
+        # H-S20-E — Balancing point assumption
+        # --------------------------------------------------
+        self._balancing_point_assumption_card = QFrame(self)
+        self._balancing_point_assumption_card.setFrameShape(QFrame.StyledPanel)
+        self._balancing_point_assumption_card.setMinimumHeight(48)
+        self._balancing_point_assumption_card.setMaximumHeight(64)
+
+        balancing_point_layout = QGridLayout(
+            self._balancing_point_assumption_card
+        )
+        balancing_point_layout.setContentsMargins(8, 4, 8, 4)
+        balancing_point_layout.setHorizontalSpacing(16)
+        balancing_point_layout.setVerticalSpacing(2)
+
+        self._balancing_point_title_label = QLabel(
+            "Balancing point assumption — v1 preview only",
+            self._balancing_point_assumption_card,
+        )
+        self._balancing_point_title_label.setStyleSheet("font-weight: 600;")
+
+        self._balancing_point_scope_label = QLabel(
+            "Scope: route/subleg",
+            self._balancing_point_assumption_card,
+        )
+        self._balancing_point_location_label = QLabel(
+            "Application: route/subleg balancing point",
+            self._balancing_point_assumption_card,
+        )
+        self._balancing_point_status_label = QLabel(
+            "No valve selected | no room-level control | no ProjectState mutation",
+            self._balancing_point_assumption_card,
+        )
+
+        balancing_point_layout.addWidget(
+            self._balancing_point_title_label,
+            0,
+            0,
+            1,
+            3,
+        )
+        balancing_point_layout.addWidget(
+            self._balancing_point_scope_label,
+            1,
+            0,
+        )
+        balancing_point_layout.addWidget(
+            self._balancing_point_location_label,
+            1,
+            1,
+        )
+        balancing_point_layout.addWidget(
+            self._balancing_point_status_label,
+            1,
+            2,
+        )
+
+        self._add_section(
+            proportioning_layout,
+            title="Balancing point assumption — v1 preview only",
+            table=self._balancing_point_assumption_card,
+            min_height=64,
+            expanded=True,
+        )
+
         self._add_section(
             proportioning_layout,
             title="Proportioning input snapshot — read-only basis",
@@ -620,8 +697,6 @@ class HydronicsSchematicPanel(QWidget):
             min_height=118,
             expanded=False,
         )
-
-        self._refresh_proportioning_input_snapshot()
 
         # --------------------------------------------------
         # H-S19-J — DEV common-main / leg / subleg topology table
