@@ -101,6 +101,13 @@ from HVAC.hydronics.proportioning.balancing_point_assumption_v1 import (
     BalancingPointAssumptionV1,
     get_default_balancing_point_assumption_v1,
 )
+from HVAC.hydronics.proportioning.preliminary_balancing_resistance_basis_v1 import (
+    PreliminaryBalancingResistanceBasisV1,
+    build_preliminary_balancing_resistance_basis_v1,
+)
+from HVAC.hydronics.proportioning.section_route_identity_v1 import (
+    enrich_basic_ps_section_rows_with_route_identity_v1,
+)
 
 # ======================================================================
 # Floating Inspector
@@ -437,6 +444,9 @@ class HydronicsSchematicPanel(QWidget):
         self._balancing_point_assumption: BalancingPointAssumptionV1 = (
             get_default_balancing_point_assumption_v1()
         )
+        self._preliminary_balancing_resistance_basis: (
+                PreliminaryBalancingResistanceBasisV1 | None
+        ) = None
         # Current schematic DTO, retained for old drawn-schematic path.
         self._schematic: Optional[HydronicsSchematicDTO] = None
 
@@ -644,6 +654,36 @@ class HydronicsSchematicPanel(QWidget):
             "Balancing point assumption — v1 preview only",
             self._balancing_point_assumption_card,
         )
+        # --------------------------------------------------
+        # H-S20-F — Preliminary balancing resistance basis
+        # --------------------------------------------------
+        self._preliminary_balancing_resistance_table = self._make_table(
+            columns=[
+                "Route",
+                "Sections",
+                "Flow kg/s",
+                "Required added Δp",
+                "Resistance basis",
+                "Controlling",
+                "Status",
+            ],
+            stretch_columns={0, 4, 6},
+        )
+
+        self._preliminary_balancing_resistance_table.setSelectionMode(
+            QAbstractItemView.NoSelection
+        )
+        self._preliminary_balancing_resistance_table.setFocusPolicy(Qt.NoFocus)
+
+        self._add_section(
+            proportioning_layout,
+            title="Preliminary balancing resistance basis — preview only",
+            table=self._preliminary_balancing_resistance_table,
+            min_height=130,
+            expanded=True,
+        )
+
+
         self._balancing_point_title_label.setStyleSheet("font-weight: 600;")
 
         self._balancing_point_scope_label = QLabel(
@@ -1270,6 +1310,67 @@ class HydronicsSchematicPanel(QWidget):
         preview = build_preliminary_route_balancing_preview_v1(snapshot)
         self._preliminary_route_balancing_preview = preview
         self._set_preliminary_route_balancing_preview(preview)
+        resistance_basis = build_preliminary_balancing_resistance_basis_v1(
+            snapshot=snapshot,
+            balancing_preview=preview,
+        )
+        self._preliminary_balancing_resistance_basis = resistance_basis
+        self._set_preliminary_balancing_resistance_basis(resistance_basis)
+
+    def _set_preliminary_balancing_resistance_basis(
+            self,
+            basis: PreliminaryBalancingResistanceBasisV1 | None,
+    ) -> None:
+        """
+        H-S20-F:
+        Display preliminary route/subleg balancing resistance basis.
+
+        Preview only:
+        • no ProjectState mutation
+        • no valve selection
+        • no Kv/Kvs selection
+        • no lockshield setting
+        • no pump selection
+        • no pipe resizing
+        • no committed return arrangement
+        """
+        table = getattr(self, "_preliminary_balancing_resistance_table", None)
+        if table is None:
+            return
+
+        if basis is None:
+            table.setRowCount(0)
+            return
+
+        rows = list(basis.rows or [])
+        table.setRowCount(len(rows))
+
+        for row_index, row in enumerate(rows):
+            values = [
+                row.route_label or "—",
+                row.sections or "—",
+                row.flow_kg_s or "—",
+                row.required_added_dp or "—",
+                row.resistance_pa_per_kg_s2 or "—",
+                row.controlling or "No",
+                row.status or basis.status or "—",
+            ]
+
+            for col_index, value in enumerate(values):
+                item = QTableWidgetItem(str(value))
+                item.setFlags(item.flags() & ~Qt.ItemIsEditable)
+
+                if col_index == 5 and str(value).strip().lower() in (
+                        "yes",
+                        "true",
+                        "1",
+                ):
+                    item.setForeground(QBrush(QColor(190, 110, 0)))
+
+                table.setItem(row_index, col_index, item)
+
+        self._fit_table_height(table, min_height=110, max_height=170)
+        table.scrollToTop()
 
     def _set_preliminary_route_balancing_preview(
             self,
@@ -1482,10 +1583,14 @@ class HydronicsSchematicPanel(QWidget):
         """
         if not hasattr(self, "_proportioning_basic_ps_sections_table"):
             return
-        self._proportioning_snapshot_section_rows = [
-            dict(row)
-            for row in (rows or [])
-        ]
+        self._proportioning_snapshot_section_rows = (
+            enrich_basic_ps_section_rows_with_route_identity_v1(
+                [
+                    dict(row)
+                    for row in (rows or [])
+                ]
+            )
+        )
 
         table = self._proportioning_basic_ps_sections_table
         table.setRowCount(len(rows))
