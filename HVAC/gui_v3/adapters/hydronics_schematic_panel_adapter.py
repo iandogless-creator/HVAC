@@ -336,6 +336,13 @@ class HydronicsSchematicPanelAdapter:
             self._panel.set_route_pressure_preview_rows(route_pressure_rows)
 
         if hasattr(self._panel, "set_route_shortfall_preview_rows"):
+            self._panel.set_route_shortfall_preview_rows(route_shortfall_rows)
+
+        # --------------------------------------------------
+        # H-S19-H — Direct vs reverse return comparison
+        # --------------------------------------------------
+        return_path_comparison_rows = []
+
         # --------------------------------------------------
         # H-S19-H — Direct vs reverse return comparison
         # --------------------------------------------------
@@ -578,52 +585,8 @@ class HydronicsSchematicPanelAdapter:
                 list(getattr(leg, "sublegs", ()) or ()),
             )
 
-        def _sort_key(item: tuple[str, str]) -> tuple[str, int, str]:
-            leg_id, subleg_id = item
-            is_branch = 0 if "primary-subleg" in subleg_id else 1
-            return (leg_id, is_branch, subleg_id)
-
-        unique_specs = sorted(set(specs), key=_sort_key)
-
-        if unique_specs:
-            return unique_specs
-
-        # Safe fallback for older/incomplete topology.
-        return [("leg-001", "leg-001-primary-subleg")]
-
-        def add_subleg_tree(leg_id: str, sublegs: list) -> None:
-            for subleg in sublegs or []:
-                subleg_id = str(getattr(subleg, "subleg_id", "") or "")
-                room_ids = list(getattr(subleg, "route_room_ids", ()) or ())
-
-                if leg_id and subleg_id and room_ids:
-                    specs.append((leg_id, subleg_id))
-
-                child_sublegs = list(getattr(subleg, "sublegs", ()) or ())
-                if child_sublegs:
-                    add_subleg_tree(leg_id, child_sublegs)
-
-        for leg in list(getattr(topology, "legs", ()) or ()):
-            leg_id = str(getattr(leg, "leg_id", "") or "")
-            add_subleg_tree(
-                leg_id,
-                list(getattr(leg, "sublegs", ()) or ()),
-            )
-
-        def _sort_key(item: tuple[str, str]) -> tuple[str, int, str]:
-            leg_id, subleg_id = item
-            is_branch = 0 if "primary-subleg" in subleg_id else 1
-            return (leg_id, is_branch, subleg_id)
-
-        unique_specs = sorted(set(specs), key=_sort_key)
-
-        if unique_specs:
-            return unique_specs
-
-        # Safe fallback for older/incomplete topology.
-        return [("leg-001", "leg-001-primary-subleg")]
-
-        # Deterministic order: leg-001 primary, leg-001 branch, leg-002 primary...
+        # Deterministic order:
+        # leg-001 primary, leg-001 branch, leg-002 primary, leg-002 branch...
         def _sort_key(item: tuple[str, str]) -> tuple[str, int, str]:
             leg_id, subleg_id = item
             is_branch = 0 if "primary-subleg" in subleg_id else 1
