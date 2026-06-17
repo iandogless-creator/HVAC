@@ -25,6 +25,7 @@ class ProportioningInputSectionV1:
     to_label: str = ""
 
     route_id: str = ""
+    route_label: str = ""
     leg_id: str = ""
     subleg_id: str = ""
     room_id: str = ""
@@ -157,6 +158,7 @@ def build_proportioning_input_snapshot_v1(
             from_label=_text(row, "from", "from_label"),
             to_label=_text(row, "to", "to_label"),
             route_id=_text(row, "route_id"),
+            route_label=_text(row, "route", "route_label"),
             leg_id=_text(row, "leg_id"),
             subleg_id=_text(row, "subleg_id"),
             room_id=_text(row, "room_id"),

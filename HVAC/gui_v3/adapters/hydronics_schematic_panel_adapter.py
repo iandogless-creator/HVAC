@@ -260,18 +260,34 @@ class HydronicsSchematicPanelAdapter:
                 }
             )
         # --------------------------------------------------
-        # Proportioning received Basic PS sections
+        # H-S20-F2 — Proportioning received Basic PS sections
+        # Route-aware section-flow basis for all known sublegs.
+        #
+        # Preview/input basis only:
+        # - no balancing
+        # - no valve selection
+        # - no pump sizing
+        # - no pipe resizing
+        # - branch take-off remains TBA
         # --------------------------------------------------
+        received_basic_ps_rows = []
+
         try:
-            basic_ps_projection = build_basic_ps_readonly_projection_v1(
-                self._project_state,
-                leg_id="leg-001",
-            )
-            received_basic_ps_rows = (
-                self._build_proportioning_basic_ps_sections(
+            route_specs = self._build_basic_ps_route_specs_for_proportioning()
+
+            for leg_id, subleg_id in route_specs:
+                basic_ps_projection = build_basic_ps_readonly_projection_v1(
+                    self._project_state,
+                    leg_id=leg_id,
+                    subleg_id=subleg_id,
+                )
+
+                built_rows = self._build_proportioning_basic_ps_sections(
                     basic_ps_projection
                 )
-            )
+
+                received_basic_ps_rows.extend(built_rows)
+
         except Exception as exc:
             print("[PROPORTIONING BASIC PS SECTIONS ERROR]", repr(exc))
             received_basic_ps_rows = []
@@ -280,7 +296,6 @@ class HydronicsSchematicPanelAdapter:
             self._panel.set_proportioning_basic_ps_sections(
                 received_basic_ps_rows
             )
-
         # --------------------------------------------------
         # H-S14 — Route Δp preview
         # H-S18 — Route Δp shortfall preview
@@ -321,8 +336,6 @@ class HydronicsSchematicPanelAdapter:
             self._panel.set_route_pressure_preview_rows(route_pressure_rows)
 
         if hasattr(self._panel, "set_route_shortfall_preview_rows"):
-            self._panel.set_route_shortfall_preview_rows(route_shortfall_rows)
-
         # --------------------------------------------------
         # H-S19-H — Direct vs reverse return comparison
         # --------------------------------------------------
@@ -528,6 +541,101 @@ class HydronicsSchematicPanelAdapter:
                 "legs feed sublegs; sublegs carry rooms"
             ),
         )
+
+    def _build_basic_ps_route_specs_for_proportioning(self) -> list[tuple[str, str]]:
+        """
+        H-S20-F2:
+        Build route-aware Basic PS projection specs for Proportioning.
+
+        Preview/input basis only:
+        - no balancing
+        - no valve selection
+        - no pump sizing
+        - no pipe resizing
+        - branch take-off position remains TBA
+        """
+        project_state = self._project_state
+        topology = getattr(project_state, "hydronic_topology", None)
+
+        specs: list[tuple[str, str]] = []
+
+        def add_subleg_tree(leg_id: str, sublegs: list) -> None:
+            for subleg in sublegs or []:
+                subleg_id = str(getattr(subleg, "subleg_id", "") or "")
+                room_ids = list(getattr(subleg, "route_room_ids", ()) or ())
+
+                if leg_id and subleg_id and room_ids:
+                    specs.append((leg_id, subleg_id))
+
+                child_sublegs = list(getattr(subleg, "sublegs", ()) or ())
+                if child_sublegs:
+                    add_subleg_tree(leg_id, child_sublegs)
+
+        for leg in list(getattr(topology, "legs", ()) or ()):
+            leg_id = str(getattr(leg, "leg_id", "") or "")
+            add_subleg_tree(
+                leg_id,
+                list(getattr(leg, "sublegs", ()) or ()),
+            )
+
+        def _sort_key(item: tuple[str, str]) -> tuple[str, int, str]:
+            leg_id, subleg_id = item
+            is_branch = 0 if "primary-subleg" in subleg_id else 1
+            return (leg_id, is_branch, subleg_id)
+
+        unique_specs = sorted(set(specs), key=_sort_key)
+
+        if unique_specs:
+            return unique_specs
+
+        # Safe fallback for older/incomplete topology.
+        return [("leg-001", "leg-001-primary-subleg")]
+
+        def add_subleg_tree(leg_id: str, sublegs: list) -> None:
+            for subleg in sublegs or []:
+                subleg_id = str(getattr(subleg, "subleg_id", "") or "")
+                room_ids = list(getattr(subleg, "route_room_ids", ()) or ())
+
+                if leg_id and subleg_id and room_ids:
+                    specs.append((leg_id, subleg_id))
+
+                child_sublegs = list(getattr(subleg, "sublegs", ()) or ())
+                if child_sublegs:
+                    add_subleg_tree(leg_id, child_sublegs)
+
+        for leg in list(getattr(topology, "legs", ()) or ()):
+            leg_id = str(getattr(leg, "leg_id", "") or "")
+            add_subleg_tree(
+                leg_id,
+                list(getattr(leg, "sublegs", ()) or ()),
+            )
+
+        def _sort_key(item: tuple[str, str]) -> tuple[str, int, str]:
+            leg_id, subleg_id = item
+            is_branch = 0 if "primary-subleg" in subleg_id else 1
+            return (leg_id, is_branch, subleg_id)
+
+        unique_specs = sorted(set(specs), key=_sort_key)
+
+        if unique_specs:
+            return unique_specs
+
+        # Safe fallback for older/incomplete topology.
+        return [("leg-001", "leg-001-primary-subleg")]
+
+        # Deterministic order: leg-001 primary, leg-001 branch, leg-002 primary...
+        def _sort_key(item: tuple[str, str]) -> tuple[str, int, str]:
+            leg_id, subleg_id = item
+            is_branch = 0 if "primary-subleg" in subleg_id else 1
+            return (leg_id, is_branch, subleg_id)
+
+        unique_specs = sorted(set(specs), key=_sort_key)
+
+        if unique_specs:
+            return unique_specs
+
+        # Safe fallback for older/incomplete topology.
+        return [("leg-001", "leg-001-primary-subleg")]
 
     def _build_route_pressure_preview_rows(self, projection) -> list[dict]:
         rows: list[dict] = []
@@ -765,9 +873,31 @@ class HydronicsSchematicPanelAdapter:
             status = " / ".join(
                 part for part in status_parts if part and part != "—"
             ) or "—"
+            route_label = (
+                f"{projection.sections_projection.leg_label} / "
+                f"{projection.sections_projection.subleg_label}"
+            )
 
+            leg_id = str(getattr(result, "leg_id", "") or "")
+            subleg_id = str(getattr(result, "subleg_id", "") or "")
+
+            subleg_role = (
+                "common"
+                if "primary-subleg" in subleg_id
+                else "branch"
+                if "subleg" in subleg_id
+                else ""
+            )
+
+            takeoff_status = "TBA" if subleg_role == "branch" else ""
             rows.append(
                 {
+                    "leg_id": leg_id,
+                    "subleg_id": subleg_id,
+                    "route_id": subleg_id,
+                    "route": route_label,
+                    "subleg_role": subleg_role,
+                    "takeoff_status": takeoff_status,
                     "section_id": section_id,
                     "order": getattr(result, "order", "—"),
                     "from": getattr(result, "from_label", "—"),

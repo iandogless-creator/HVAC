@@ -1308,6 +1308,7 @@ class HydronicsSchematicPanel(QWidget):
         self._set_proportioning_input_snapshot_summary(snapshot, gate)
 
         preview = build_preliminary_route_balancing_preview_v1(snapshot)
+
         self._preliminary_route_balancing_preview = preview
         self._set_preliminary_route_balancing_preview(preview)
         resistance_basis = build_preliminary_balancing_resistance_basis_v1(
@@ -1583,6 +1584,7 @@ class HydronicsSchematicPanel(QWidget):
         """
         if not hasattr(self, "_proportioning_basic_ps_sections_table"):
             return
+
         self._proportioning_snapshot_section_rows = (
             enrich_basic_ps_section_rows_with_route_identity_v1(
                 [
@@ -1803,6 +1805,7 @@ class HydronicsSchematicPanel(QWidget):
         ]
 
         table = self._route_pressure_preview_table
+        table.setRowCount(len(rows))
 
         for row_index, row in enumerate(rows):
             values = [
@@ -2316,10 +2319,11 @@ class HydronicsSchematicPanel(QWidget):
             for row in (rows or [])
         ]
 
-        table = self._route_shortfall_preview_table
+        table = self._route_pressure_preview_table
         table.setRowCount(len(rows))
 
         for row_index, row in enumerate(rows):
+
             values = [
                 row.get("rank", "—"),
                 row.get("route", "—"),

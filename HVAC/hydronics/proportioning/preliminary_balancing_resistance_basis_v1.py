@@ -107,6 +107,25 @@ def _route_label_matches(wanted: str, candidate: str) -> bool:
     )
 
 
+def _ids_match(left: str, right: str) -> bool:
+    left = str(left or "").strip()
+    right = str(right or "").strip()
+
+    if not left or not right:
+        return False
+
+    if left == right:
+        return True
+
+    if left.endswith(":" + right):
+        return True
+
+    if right.endswith(":" + left):
+        return True
+
+    return False
+
+
 def _section_matches_route(
     *,
     section_route_id: str,
@@ -115,10 +134,13 @@ def _section_matches_route(
     route_id: str,
     route_label: str,
 ) -> bool:
-    if route_id and section_route_id and route_id == section_route_id:
+    if _ids_match(section_route_id, route_id):
         return True
 
-    if route_id and section_subleg_id and route_id.endswith(section_subleg_id):
+    if _ids_match(section_subleg_id, route_id):
+        return True
+
+    if _ids_match(section_route_id, section_subleg_id):
         return True
 
     if route_label and section_route_label:
@@ -146,9 +168,14 @@ def _route_flow_kg_s_from_snapshot(
     matched_flows: list[float] = []
 
     for section in snapshot.sections:
-        section_route_id = str(section.route_id or "")
-        section_subleg_id = str(section.subleg_id or "")
-        section_route_label = str(section.to_label or "")
+        section_route_id = str(getattr(section, "route_id", "") or "")
+        section_subleg_id = str(getattr(section, "subleg_id", "") or "")
+
+        section_route_label = (
+                str(getattr(section, "route_label", "") or "")
+                or str(getattr(section, "route", "") or "")
+                or str(getattr(section, "to_label", "") or "")
+        )
 
         if not _section_matches_route(
             section_route_id=section_route_id,
