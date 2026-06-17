@@ -675,6 +675,10 @@ class HydronicsSchematicPanel(QWidget):
         )
         self._preliminary_balancing_resistance_table.setFocusPolicy(Qt.NoFocus)
 
+        self._preliminary_balancing_resistance_table.cellClicked.connect(
+            self._on_preliminary_balancing_resistance_cell_clicked
+        )
+
         self._add_section(
             proportioning_layout,
             title="Preliminary balancing resistance basis — preview only",
@@ -1340,13 +1344,31 @@ class HydronicsSchematicPanel(QWidget):
             return
 
         if basis is None:
+            self._preliminary_balancing_resistance_focus_by_row = {}
             table.setRowCount(0)
             return
 
         rows = list(basis.rows or [])
+        self._preliminary_balancing_resistance_focus_by_row = {}
         table.setRowCount(len(rows))
 
         for row_index, row in enumerate(rows):
+            route_label = str(getattr(row, "route_label", "") or "")
+            route_id = str(getattr(row, "route_id", "") or "")
+            leg_id = str(getattr(row, "leg_id", "") or "")
+            subleg_id = str(getattr(row, "subleg_id", "") or "")
+
+            if not route_id and subleg_id:
+                route_id = subleg_id
+
+            self._preliminary_balancing_resistance_focus_by_row[row_index] = {
+                "route": route_label,
+                "route_label": route_label,
+                "route_id": route_id,
+                "leg_id": leg_id,
+                "subleg_id": subleg_id,
+            }
+
             values = [
                 row.route_label or "—",
                 row.sections or "—",
@@ -1489,6 +1511,137 @@ class HydronicsSchematicPanel(QWidget):
             else:
                 self._snapshot_blockers_label.setText("Blockers: none")
 
+    def _on_preliminary_balancing_resistance_cell_clicked(
+            self,
+            row_index: int,
+            column_index: int,
+    ) -> None:
+        """
+        H-S20-G:
+        Manual focus from preliminary balancing resistance basis.
+
+        Focus/link only:
+        • no ProjectState mutation
+        • no balancing valve selection
+        • no Kv/Kvs selection
+        • no lockshield setting
+        • no pump selection
+        • no pipe resizing
+        """
+        focus = getattr(
+            self,
+            "_preliminary_balancing_resistance_focus_by_row",
+            {},
+        ).get(row_index, {}) or {}
+
+        self._focus_preliminary_balancing_resistance_row(row_index)
+        self._focus_preliminary_route_balancing_row_by_focus(focus)
+
+        comparison_row_index = self._focus_return_path_comparison_row_by_focus(focus)
+
+        row_data = {}
+        comparison_focus = {}
+
+        if comparison_row_index is not None:
+            row_data = getattr(
+                self,
+                "_return_path_row_data_by_row",
+                {},
+            ).get(comparison_row_index, {}) or {}
+
+            comparison_focus = getattr(
+                self,
+                "_return_path_focus_by_row",
+                {},
+            ).get(comparison_row_index, {}) or {}
+
+        if comparison_focus:
+            self._focus_common_main_leg_subleg_row(comparison_focus)
+        else:
+            self._focus_common_main_leg_subleg_row(focus)
+
+        self._set_current_proportioning_focus_summary(row_data)
+
+    def _clear_preliminary_balancing_resistance_table_focus(self) -> None:
+        table = getattr(self, "_preliminary_balancing_resistance_table", None)
+        if table is None:
+            return
+
+        for r in range(table.rowCount()):
+            for c in range(table.columnCount()):
+                item = table.item(r, c)
+                if item is not None:
+                    item.setBackground(QBrush())
+
+    def _focus_preliminary_balancing_resistance_row(
+            self,
+            row_index: int,
+    ) -> None:
+        table = getattr(self, "_preliminary_balancing_resistance_table", None)
+        if table is None:
+            return
+
+        self._clear_preliminary_balancing_resistance_table_focus()
+
+        if row_index < 0 or row_index >= table.rowCount():
+            return
+
+        focus_brush = QBrush(QColor(255, 238, 210))  # pale orange focus only
+
+        for c in range(table.columnCount()):
+            item = table.item(row_index, c)
+            if item is not None:
+                item.setBackground(focus_brush)
+
+        first_item = table.item(row_index, 0)
+        if first_item is not None:
+            table.scrollToItem(
+                first_item,
+                QAbstractItemView.PositionAtCenter,
+            )
+
+    def _focus_preliminary_balancing_resistance_row_by_focus(
+            self,
+            focus: dict,
+    ) -> int | None:
+        """
+        H-S20-G:
+        Focus the balancing resistance-basis row from a route/subleg focus payload.
+        """
+        wanted_subleg_id = str((focus or {}).get("subleg_id", "") or "")
+        wanted_route_id = str((focus or {}).get("route_id", "") or "")
+        wanted_route = str((focus or {}).get("route", "") or "")
+
+        row_map = getattr(
+            self,
+            "_preliminary_balancing_resistance_focus_by_row",
+            {},
+        ) or {}
+
+        if wanted_subleg_id:
+            for row_index, row_focus in row_map.items():
+                row_subleg_id = str((row_focus or {}).get("subleg_id", "") or "")
+                if row_subleg_id == wanted_subleg_id:
+                    self._focus_preliminary_balancing_resistance_row(row_index)
+                    return int(row_index)
+
+        if wanted_route_id:
+            for row_index, row_focus in row_map.items():
+                row_route_id = str((row_focus or {}).get("route_id", "") or "")
+                if row_route_id == wanted_route_id:
+                    self._focus_preliminary_balancing_resistance_row(row_index)
+                    return int(row_index)
+
+        if wanted_route:
+            for row_index, row_focus in row_map.items():
+                row_route = str((row_focus or {}).get("route", "") or "")
+                if self._route_label_matches(wanted_route, row_route):
+                    self._focus_preliminary_balancing_resistance_row(row_index)
+                    return int(row_index)
+
+        self._clear_preliminary_balancing_resistance_table_focus()
+        return None
+
     def _on_preliminary_route_balancing_cell_clicked(
             self,
             row_index: int,
@@ -1512,6 +1665,7 @@ class HydronicsSchematicPanel(QWidget):
         ).get(row_index, {}) or {}
 
         self._focus_preliminary_route_balancing_row(row_index)
+        self._focus_preliminary_balancing_resistance_row_by_focus(focus)
 
         comparison_row_index = self._focus_return_path_comparison_row_by_focus(focus)
 
@@ -1570,6 +1724,7 @@ class HydronicsSchematicPanel(QWidget):
             balancing_focus["route"] = str(row_data.get("route") or "")
 
         self._focus_preliminary_route_balancing_row_by_focus(balancing_focus)
+        self._focus_preliminary_balancing_resistance_row_by_focus(balancing_focus)
         self._set_current_proportioning_focus_summary(row_data)
 
     def set_proportioning_basic_ps_sections(self, rows: list[dict]) -> None:
@@ -1887,7 +2042,7 @@ class HydronicsSchematicPanel(QWidget):
                 row_route = str((row_focus or {}).get("route", "") or "")
 
                 if self._route_label_matches(wanted_route, row_route):
-                    self._focus_preliminary_route_balancing_row(row_index)
+                    self._focus_return_path_comparison_row(row_index)
                     return int(row_index)
 
         self._clear_return_path_comparison_table_focus()
@@ -2036,6 +2191,7 @@ class HydronicsSchematicPanel(QWidget):
         self._focus_return_path_comparison_row(row_index)
         self._focus_common_main_leg_subleg_row(focus)
         self._focus_preliminary_route_balancing_row_by_focus(focus)
+        self._focus_preliminary_balancing_resistance_row_by_focus(focus)
         self._set_current_proportioning_focus_summary(row_data)
 
     def _on_return_path_comparison_selection_changed(self) -> None:
