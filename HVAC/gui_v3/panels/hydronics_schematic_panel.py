@@ -2132,54 +2132,6 @@ class HydronicsSchematicPanel(QWidget):
         self._clear_preliminary_route_balancing_table_focus()
         return None
 
-    def _focus_preliminary_route_balancing_row_by_focus(
-            self,
-            focus: dict,
-    ) -> int | None:
-        """
-        H-S20-D:
-        Focus the preliminary route balancing row from a route/subleg focus payload.
-
-        Focus/link only:
-        • no ProjectState mutation
-        • no balancing valve selection
-        • no pump selection
-        • no pipe resizing
-        • no committed return arrangement
-        """
-        wanted_subleg_id = str((focus or {}).get("subleg_id", "") or "")
-        wanted_route_id = str((focus or {}).get("route_id", "") or "")
-        wanted_route = str((focus or {}).get("route", "") or "")
-
-        row_map = getattr(
-            self,
-            "_preliminary_route_balancing_focus_by_row",
-            {},
-        ) or {}
-
-        if wanted_subleg_id:
-            for row_index, row_focus in row_map.items():
-                row_subleg_id = str((row_focus or {}).get("subleg_id", "") or "")
-                if row_subleg_id == wanted_subleg_id:
-                    self._focus_preliminary_route_balancing_row(row_index)
-                    return int(row_index)
-
-        if wanted_route_id:
-            for row_index, row_focus in row_map.items():
-                row_route_id = str((row_focus or {}).get("route_id", "") or "")
-                if row_route_id == wanted_route_id:
-                    self._focus_preliminary_route_balancing_row(row_index)
-                    return int(row_index)
-
-        if wanted_route:
-            for row_index, row_focus in row_map.items():
-                row_route = str((row_focus or {}).get("route", "") or "")
-                if self._route_label_matches(wanted_route, row_route):
-                    self._focus_preliminary_route_balancing_row(row_index)
-                    return int(row_index)
-
-        self._clear_preliminary_route_balancing_table_focus()
-        return None
     def _focus_return_path_comparison_row(self, row_index: int) -> None:
         table = getattr(self, "_return_path_comparison_table", None)
         if table is None:
@@ -2372,17 +2324,6 @@ class HydronicsSchematicPanel(QWidget):
             table.setItem(row_index, 1, QTableWidgetItem(str(value)))
 
         table.resizeColumnsToContents()
-
-    def _clear_return_path_comparison_table_focus(self) -> None:
-        table = getattr(self, "_return_path_comparison_table", None)
-        if table is None:
-            return
-
-        for r in range(table.rowCount()):
-            for c in range(table.columnCount()):
-                item = table.item(r, c)
-                if item is not None:
-                    item.setBackground(QBrush())
 
     def set_proportioning_schematic(self, schematic) -> None:
         """
