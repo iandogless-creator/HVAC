@@ -1345,11 +1345,13 @@ class HydronicsSchematicPanel(QWidget):
 
         if basis is None:
             self._preliminary_balancing_resistance_focus_by_row = {}
+            self._preliminary_balancing_resistance_row_data_by_row = {}
             table.setRowCount(0)
             return
 
         rows = list(basis.rows or [])
         self._preliminary_balancing_resistance_focus_by_row = {}
+        self._preliminary_balancing_resistance_row_data_by_row = {}
         table.setRowCount(len(rows))
 
         for row_index, row in enumerate(rows):
@@ -1367,6 +1369,23 @@ class HydronicsSchematicPanel(QWidget):
                 "route_id": route_id,
                 "leg_id": leg_id,
                 "subleg_id": subleg_id,
+            }
+
+            self._preliminary_balancing_resistance_row_data_by_row[row_index] = {
+                "source": "preliminary_resistance_basis",
+                "route": route_label,
+                "route_label": route_label,
+                "route_id": route_id,
+                "leg_id": leg_id,
+                "subleg_id": subleg_id,
+                "sections": str(getattr(row, "sections", "") or "—"),
+                "flow_kg_s": str(getattr(row, "flow_kg_s", "") or "—"),
+                "required_added_dp": str(getattr(row, "required_added_dp", "") or "—"),
+                "resistance_basis": str(
+                    getattr(row, "resistance_pa_per_kg_s2", "") or "—"
+                ),
+                "controlling": str(getattr(row, "controlling", "") or "No"),
+                "status": str(getattr(row, "status", "") or basis.status or "—"),
             }
 
             values = [
@@ -1415,22 +1434,58 @@ class HydronicsSchematicPanel(QWidget):
             return
 
         if preview is None:
+            self._preliminary_route_balancing_focus_by_row = {}
+            self._preliminary_route_balancing_row_data_by_row = {}
             table.setRowCount(0)
             return
 
         rows = list(preview.rows or [])
         table.setRowCount(len(rows))
         self._preliminary_route_balancing_focus_by_row = {}
+        self._preliminary_route_balancing_row_data_by_row = {}
 
         for row_index, row in enumerate(rows):
+            route_label = str(getattr(row, "route_label", "") or "")
+            route_id = str(getattr(row, "route_id", "") or "")
+            leg_id = str(getattr(row, "leg_id", "") or "")
+            subleg_id = str(getattr(row, "subleg_id", "") or "")
+
+            required_added_dp = (
+                str(getattr(row, "required_added_resistance", "") or "")
+                or str(getattr(row, "required_added_dp", "") or "")
+                or str(getattr(row, "required_added_resistance_dp", "") or "")
+                or str(getattr(row, "shortfall", "") or "")
+                or "—"
+            )
+
             self._preliminary_route_balancing_focus_by_row[row_index] = {
-                "route_id": str(row.route_id or ""),
-                "route": str(row.route_label or ""),
-                "leg_id": str(getattr(row, "leg_id", "") or ""),
-                "subleg_id": str(getattr(row, "subleg_id", "") or ""),
+                "route_id": route_id,
+                "route": route_label,
+                "route_label": route_label,
+                "leg_id": leg_id,
+                "subleg_id": subleg_id,
                 "room_id": "",
                 "emitter_id": "",
             }
+
+            self._preliminary_route_balancing_row_data_by_row[row_index] = {
+                "source": "preliminary_route_balancing",
+                "route": route_label,
+                "route_label": route_label,
+                "route_id": route_id,
+                "leg_id": leg_id,
+                "subleg_id": subleg_id,
+                "sections": str(getattr(row, "sections", "") or "—"),
+                "route_dp": str(getattr(row, "route_dp", "") or "—"),
+                "controlling_route_dp": str(
+                    getattr(row, "controlling_route_dp", "") or "—"
+                ),
+                "shortfall": str(getattr(row, "shortfall", "") or "—"),
+                "required_added_dp": required_added_dp,
+                "controlling": str(getattr(row, "controlling", "") or "No"),
+                "status": str(getattr(row, "status", "") or "—"),
+            }
+
             values = [
                 row.route_label or "—",
                 row.sections or "—",
@@ -1560,7 +1615,9 @@ class HydronicsSchematicPanel(QWidget):
         else:
             self._focus_common_main_leg_subleg_row(focus)
 
-        self._set_current_proportioning_focus_summary(row_data)
+        self._set_current_proportioning_route_focus_summary(
+            self._preliminary_route_focus_summary_from_focus(focus)
+        )
 
     def _clear_preliminary_balancing_resistance_table_focus(self) -> None:
         table = getattr(self, "_preliminary_balancing_resistance_table", None)
@@ -1690,7 +1747,9 @@ class HydronicsSchematicPanel(QWidget):
         else:
             self._focus_common_main_leg_subleg_row(focus)
 
-        self._set_current_proportioning_focus_summary(row_data)
+        self._set_current_proportioning_route_focus_summary(
+            self._preliminary_route_focus_summary_from_focus(focus)
+        )
 
     def _on_common_main_leg_subleg_schematic_focus_requested(
             self,
@@ -1786,6 +1845,138 @@ class HydronicsSchematicPanel(QWidget):
 
         if not getattr(self, "_suppress_basic_ps_scroll_to_top", False):
             table.scrollToTop()
+
+    def _preliminary_focus_row_matches(
+            self,
+            focus: dict,
+            row: dict,
+    ) -> bool:
+        wanted_subleg_id = str((focus or {}).get("subleg_id", "") or "")
+        wanted_route_id = str((focus or {}).get("route_id", "") or "")
+        wanted_route = (
+            str((focus or {}).get("route", "") or "")
+            or str((focus or {}).get("route_label", "") or "")
+        )
+
+        row_subleg_id = str((row or {}).get("subleg_id", "") or "")
+        row_route_id = str((row or {}).get("route_id", "") or "")
+        row_route = (
+            str((row or {}).get("route", "") or "")
+            or str((row or {}).get("route_label", "") or "")
+        )
+
+        if wanted_subleg_id and row_subleg_id == wanted_subleg_id:
+            return True
+
+        if wanted_route_id and row_route_id == wanted_route_id:
+            return True
+
+        if wanted_route and row_route:
+            return self._route_label_matches(wanted_route, row_route)
+
+        return False
+
+    def _preliminary_route_focus_summary_from_focus(
+            self,
+            focus: dict,
+    ) -> dict:
+        """
+        H-S20-H:
+        Build a route/subleg summary row from the preliminary balancing tables.
+
+        Display only:
+        • no ProjectState mutation
+        • no valve selection
+        • no Kv/Kvs
+        • no lockshield setting
+        • no pump selection
+        • no pipe resizing
+        """
+        summary: dict = {}
+
+        route_rows = getattr(
+            self,
+            "_preliminary_route_balancing_row_data_by_row",
+            {},
+        ) or {}
+
+        resistance_rows = getattr(
+            self,
+            "_preliminary_balancing_resistance_row_data_by_row",
+            {},
+        ) or {}
+
+        for row in route_rows.values():
+            if self._preliminary_focus_row_matches(focus, row):
+                summary.update(dict(row))
+                break
+
+        for row in resistance_rows.values():
+            if self._preliminary_focus_row_matches(focus, row):
+                resistance_row = dict(row)
+
+                for key, value in resistance_row.items():
+                    if key in ("flow_kg_s", "resistance_basis"):
+                        summary[key] = value
+                    elif not summary.get(key) or summary.get(key) == "—":
+                        summary[key] = value
+
+                break
+
+        if not summary:
+            summary = dict(focus or {})
+            summary.setdefault("source", "preliminary_route_focus")
+
+        return summary
+
+    def _set_current_proportioning_route_focus_summary(
+            self,
+            row: dict | None,
+    ) -> None:
+        """
+        H-S20-H:
+        Display route/subleg balancing focus in the Current Focus card.
+
+        This is separate from the room/emitter F+R vs F+RR focus summary.
+        """
+        if not hasattr(self, "_current_focus_route_label"):
+            return
+
+        row = row or {}
+
+        route = (
+            str(row.get("route", "") or "")
+            or str(row.get("route_label", "") or "")
+            or "—"
+        )
+        sections = str(row.get("sections", "—") or "—")
+        flow = str(row.get("flow_kg_s", "—") or "—")
+        route_dp = str(row.get("route_dp", "—") or "—")
+        required_added_dp = str(row.get("required_added_dp", "—") or "—")
+        resistance_basis = str(row.get("resistance_basis", "—") or "—")
+        controlling = str(row.get("controlling", "—") or "—")
+        status = str(row.get("status", "—") or "—")
+
+        self._current_focus_route_label.setText(f"Route: {route}")
+        self._current_focus_room_label.setText(
+            "Scope: route/subleg balancing point"
+        )
+        self._current_focus_emitter_label.setText(
+            f"Sections: {sections} | Flow: {flow}"
+        )
+        self._current_focus_direct_dp_label.setText(
+            f"Route Δp: {route_dp}"
+        )
+        self._current_focus_reverse_dp_label.setText(
+            f"Required added Δp: {required_added_dp}"
+        )
+        self._current_focus_lower_label.setText(
+            f"Resistance basis: {resistance_basis}"
+        )
+        self._current_focus_status_label.setText(
+            f"{status} | Controlling: {controlling} | "
+            "DEV preview only — no valve selected"
+        )
 
     def _set_current_proportioning_focus_summary(self, row: dict | None) -> None:
         """
