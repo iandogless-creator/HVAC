@@ -286,6 +286,19 @@ class HydronicsSchematicPanelAdapter:
                     basic_ps_projection
                 )
 
+                flow_basis_text = _hydronic_mass_flow_basis_text(
+                    self._project_state,
+                    basic_ps_projection,
+                )
+
+                for row in built_rows:
+                    status = str(row.get("status", "") or "")
+                    row["status"] = (
+                        f"{status} | {flow_basis_text}"
+                        if status
+                        else flow_basis_text
+                    )
+
                 received_basic_ps_rows.extend(built_rows)
 
         except Exception as exc:
@@ -1735,3 +1748,36 @@ class HydronicsSchematicPanelAdapter:
             return f"{float(value):.5f} kg/s"
         except (TypeError, ValueError):
             return "—"
+
+
+def _hydronic_mass_flow_basis_text(project_state, projection) -> str:
+    """
+    H-S21-C — Display-only hydronic mass-flow basis text.
+
+    Source temperatures live on Environment.
+    Derived ΔT is calculated at use sites and not stored.
+    """
+    env = getattr(project_state, "environment", None)
+
+    flow_temp_c = getattr(env, "design_flow_temp_c", None) if env is not None else None
+    return_temp_c = (
+        getattr(env, "design_return_temp_c", None) if env is not None else None
+    )
+
+    delta_t_k = getattr(
+        getattr(projection, "sections_projection", None),
+        "design_delta_t_K",
+        None,
+    )
+
+    if flow_temp_c is not None and return_temp_c is not None and delta_t_k is not None:
+        return (
+            "Mass-flow basis: Environment "
+            f"{float(flow_temp_c):.1f}/{float(return_temp_c):.1f} °C "
+            f"ΔT {float(delta_t_k):.1f} K"
+        )
+
+    if delta_t_k is not None:
+        return f"Mass-flow basis: ΔT {float(delta_t_k):.1f} K"
+
+    return "Mass-flow basis: —"

@@ -239,6 +239,13 @@ class BasicHydronicsPanel(QWidget):
         self._projection_tabs.addTab(candidate_ranking_tab, "Candidate ranking")
 
         root.addWidget(QLabel("Basic PS read-only projections"))
+
+        self._basic_ps_flow_basis_label = QLabel(
+            "Hydronic mass-flow basis: —"
+        )
+        self._basic_ps_flow_basis_label.setWordWrap(True)
+        root.addWidget(self._basic_ps_flow_basis_label)
+
         root.addWidget(self._projection_tabs)
 
         # --------------------------------------------------------------
@@ -399,6 +406,20 @@ class BasicHydronicsPanel(QWidget):
             self._is_priming = False
 
         self._refresh_local_derived_display()
+
+    def set_basic_ps_flow_basis(self, text: str) -> None:
+        """
+        Display the read-only hydronic mass-flow basis used by Basic PS.
+
+        H-S21-C:
+        This is display only. Derived ΔT is not stored here.
+        """
+        if not hasattr(self, "_basic_ps_flow_basis_label"):
+            return
+
+        self._basic_ps_flow_basis_label.setText(
+            text or "Hydronic mass-flow basis: —"
+        )
 
     def set_basic_ps_sections(self, rows: list[dict[str, Any]]) -> None:
         """

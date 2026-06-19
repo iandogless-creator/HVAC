@@ -233,6 +233,9 @@ class BasicHydronicsPanelAdapter:
         if project is None or getattr(project, "hydronic_topology", None) is None:
             self._panel.set_basic_ps_sections([])
 
+            if hasattr(self._panel, "set_basic_ps_flow_basis"):
+                self._panel.set_basic_ps_flow_basis("Hydronic mass-flow basis: —")
+
             if hasattr(self._panel, "set_pressure_preview_rows"):
                 self._panel.set_pressure_preview_rows([])
 
@@ -247,9 +250,18 @@ class BasicHydronicsPanelAdapter:
                 leg_id="leg-001",
             )
 
+            if hasattr(self._panel, "set_basic_ps_flow_basis"):
+                self._panel.set_basic_ps_flow_basis(
+                    _basic_ps_flow_basis_text(project, basic_ps_projection)
+                )
+
         except Exception as exc:
             print("[BASIC PS SECTIONS ERROR]", repr(exc))
             self._panel.set_basic_ps_sections([])
+
+            if hasattr(self._panel, "set_basic_ps_flow_basis"):
+                self._panel.set_basic_ps_flow_basis("Hydronic mass-flow basis: —")
+
             return
         if hasattr(self._panel, "set_pressure_preview_rows"):
             pressure_rows: list[dict] = []
@@ -423,3 +435,39 @@ class BasicHydronicsPanelAdapter:
                 signal.emit("")
             except Exception:
                 pass
+
+
+def _basic_ps_flow_basis_text(project, projection) -> str:
+    """
+    H-S21-C — Display-only hydronic mass-flow basis.
+
+    Source temperatures live on Environment.
+    Derived ΔT is calculated at use sites and not stored.
+    """
+    env = getattr(project, "environment", None)
+
+    flow_temp_c = getattr(env, "design_flow_temp_c", None) if env is not None else None
+    return_temp_c = (
+        getattr(env, "design_return_temp_c", None) if env is not None else None
+    )
+
+    delta_t_k = getattr(
+        getattr(projection, "sections_projection", None),
+        "design_delta_t_K",
+        None,
+    )
+
+    if flow_temp_c is not None and return_temp_c is not None and delta_t_k is not None:
+        return (
+            "Hydronic mass-flow basis: Environment flow/return "
+            f"{float(flow_temp_c):.1f} / {float(return_temp_c):.1f} °C "
+            f"→ ΔT {float(delta_t_k):.1f} K"
+        )
+
+    if delta_t_k is not None:
+        return (
+            "Hydronic mass-flow basis: "
+            f"ΔT {float(delta_t_k):.1f} K"
+        )
+
+    return "Hydronic mass-flow basis: —"
