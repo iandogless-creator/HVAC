@@ -201,14 +201,22 @@ def _resolve_design_delta_t_K(
     """
     Resolve heating water design ΔT.
 
-    Temporary H-S8-A rule:
-    - explicit argument wins;
-    - otherwise try basic hydronic intent fields if they exist later;
-    - otherwise use 20 K as a conventional radiator design placeholder.
+    H-S21-B rule:
+    - explicit argument wins for tests/dev probes;
+    - otherwise derive from Environment source inputs:
+        design_flow_temp_c - design_return_temp_c;
+    - otherwise fall back to legacy basic hydronic intent fields;
+    - otherwise use 20 K as the legacy placeholder.
+
+    Derived ΔT is not stored on ProjectState.
     """
 
     if explicit_delta_t_K is not None:
         return float(explicit_delta_t_K)
+
+    environment_delta_t_K = _environment_design_delta_t_K(project_state)
+    if environment_delta_t_K is not None:
+        return environment_delta_t_K
 
     intent = getattr(project_state, "basic_hydronic_sizing_intent", None)
 
@@ -223,6 +231,36 @@ def _resolve_design_delta_t_K(
             return float(value)
 
     return 20.0
+
+
+def _environment_design_delta_t_K(project_state: Any) -> float | None:
+    """
+    Derive hydronic design ΔT from Environment source temperatures.
+
+    Source fields:
+    - environment.design_flow_temp_c
+    - environment.design_return_temp_c
+    """
+
+    env = getattr(project_state, "environment", None)
+    if env is None:
+        return None
+
+    flow_temp_c = getattr(env, "design_flow_temp_c", None)
+    return_temp_c = getattr(env, "design_return_temp_c", None)
+
+    if flow_temp_c is None or return_temp_c is None:
+        return None
+
+    try:
+        delta_t_K = float(flow_temp_c) - float(return_temp_c)
+    except (TypeError, ValueError):
+        return None
+
+    if delta_t_K <= 0.0:
+        return None
+
+    return delta_t_K
 
 
 def _room_label(room: Any, room_id: str) -> str:
