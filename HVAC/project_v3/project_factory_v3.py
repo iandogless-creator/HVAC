@@ -29,6 +29,8 @@ class ProjectFactoryV3:
             default_internal_temp_C=21.0,
             default_room_height_m=2.4,
             default_ach=0.5,
+            design_flow_temp_c=75.0,
+            design_return_temp_c=65.0,
         )
 
         # Default construction library

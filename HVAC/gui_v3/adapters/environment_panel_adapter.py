@@ -32,6 +32,8 @@ class EnvironmentPanelAdapter:
         panel.default_internal_temp_changed.connect(self._on_default_internal_temp_changed)
         panel.default_height_changed.connect(self._on_default_height_changed)
         panel.default_ach_changed.connect(self._on_default_ach_changed)
+        panel.design_flow_temp_changed.connect(self._on_design_flow_temp_changed)
+        panel.design_return_temp_changed.connect(self._on_design_return_temp_changed)
 
     # ------------------------------------------------------------------
     # Observer refresh
@@ -62,6 +64,14 @@ class EnvironmentPanelAdapter:
 
         self._panel.set_default_ach(
             getattr(env, "default_ach", None)
+        )
+
+        self._panel.set_design_flow_temp(
+            getattr(env, "design_flow_temp_c", None)
+        )
+
+        self._panel.set_design_return_temp(
+            getattr(env, "design_return_temp_c", None)
         )
 
     # ------------------------------------------------------------------
@@ -133,4 +143,22 @@ class EnvironmentPanelAdapter:
 
         self._mark_dirty()
 
+        self._context.environment_changed.emit()
+
+    # ------------------------------------------------------------------
+    # H-S21-A — Hydronic design source inputs
+    # ------------------------------------------------------------------
+
+    def _on_design_flow_temp_changed(self, value: float) -> None:
+        env = self._ensure_env()
+        env.design_flow_temp_c = value
+
+        # Hydronic design temperatures do not affect fabric heat-loss.
+        self._context.environment_changed.emit()
+
+    def _on_design_return_temp_changed(self, value: float) -> None:
+        env = self._ensure_env()
+        env.design_return_temp_c = value
+
+        # Hydronic design temperatures do not affect fabric heat-loss.
         self._context.environment_changed.emit()

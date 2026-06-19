@@ -47,6 +47,10 @@ class EnvironmentPanel(QWidget):
     default_height_changed = Signal(float)
     default_ach_changed = Signal(float)
 
+    # H-S21-A — Hydronic design source inputs
+    design_flow_temp_changed = Signal(float)
+    design_return_temp_changed = Signal(float)
+
     # ------------------------------------------------------------------
     # Construction
     # ------------------------------------------------------------------
@@ -102,6 +106,28 @@ class EnvironmentPanel(QWidget):
         self._ach_input.setMinimumWidth(110)
         self._ach_input.valueChanged.connect(self.default_ach_changed.emit)
 
+        # H-S21-A — Hydronic design flow temperature
+        self._design_flow_temp_input = QDoubleSpinBox(self)
+        self._design_flow_temp_input.setRange(20.0, 95.0)
+        self._design_flow_temp_input.setDecimals(1)
+        self._design_flow_temp_input.setSingleStep(0.5)
+        self._design_flow_temp_input.setMinimumWidth(110)
+        self._design_flow_temp_input.setValue(75.0)
+        self._design_flow_temp_input.valueChanged.connect(
+            self.design_flow_temp_changed.emit
+        )
+
+        # H-S21-A — Hydronic design return temperature
+        self._design_return_temp_input = QDoubleSpinBox(self)
+        self._design_return_temp_input.setRange(20.0, 90.0)
+        self._design_return_temp_input.setDecimals(1)
+        self._design_return_temp_input.setSingleStep(0.5)
+        self._design_return_temp_input.setMinimumWidth(110)
+        self._design_return_temp_input.setValue(65.0)
+        self._design_return_temp_input.valueChanged.connect(
+            self.design_return_temp_changed.emit
+        )
+
         # --------------------------------------------------
         # Top form (Te only)
         # --------------------------------------------------
@@ -128,6 +154,30 @@ class EnvironmentPanel(QWidget):
         form_defaults.addRow("Default ACH", self._ach_input)
         root.addLayout(form_defaults)
 
+        # --------------------------------------------------
+        # Hydronic design defaults
+        # --------------------------------------------------
+        sep_hydronic = QFrame(self)
+        sep_hydronic.setFrameShape(QFrame.HLine)
+        sep_hydronic.setFrameShadow(QFrame.Sunken)
+        root.addWidget(sep_hydronic)
+
+        hydronic_header = QLabel("Hydronic design defaults")
+        hydronic_header.setStyleSheet("font-weight: 600;")
+        root.addWidget(hydronic_header)
+
+        form_hydronic = QFormLayout()
+        form_hydronic.setLabelAlignment(Qt.AlignLeft)
+        form_hydronic.addRow(
+            "Design flow temperature (°C)",
+            self._design_flow_temp_input,
+        )
+        form_hydronic.addRow(
+            "Design return temperature (°C)",
+            self._design_return_temp_input,
+        )
+        root.addLayout(form_hydronic)
+
         root.addStretch(1)
 
     # ------------------------------------------------------------------
@@ -152,3 +202,13 @@ class EnvironmentPanel(QWidget):
         self._ach_input.blockSignals(True)
         self._ach_input.setValue(value if value is not None else 0.0)
         self._ach_input.blockSignals(False)
+
+    def set_design_flow_temp(self, value: Optional[float]) -> None:
+        self._design_flow_temp_input.blockSignals(True)
+        self._design_flow_temp_input.setValue(value if value is not None else 75.0)
+        self._design_flow_temp_input.blockSignals(False)
+
+    def set_design_return_temp(self, value: Optional[float]) -> None:
+        self._design_return_temp_input.blockSignals(True)
+        self._design_return_temp_input.setValue(value if value is not None else 65.0)
+        self._design_return_temp_input.blockSignals(False)
