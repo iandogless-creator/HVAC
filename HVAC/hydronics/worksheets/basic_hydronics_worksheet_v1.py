@@ -113,11 +113,24 @@ def build_basic_hydronics_worksheet_v1(
 
     rows: list[BasicHydronicsWorksheetRoomRowV1] = []
 
+    environment_flow_temp_C, environment_return_temp_C = (
+        _environment_flow_return_temps(project)
+    )
+
     for demand in demand_rows:
         emitters = _emitters_for_room(project, demand.room_id)
 
-        flow_temp_C = _common_optional_float(emitters, "flow_temp_C")
-        return_temp_C = _common_optional_float(emitters, "return_temp_C")
+        if (
+            environment_flow_temp_C is not None
+            and environment_return_temp_C is not None
+        ):
+            flow_temp_C = environment_flow_temp_C
+            return_temp_C = environment_return_temp_C
+        else:
+            # Legacy fallback only: emitter-level temperatures are no longer
+            # the primary v1 authority when Environment values are available.
+            flow_temp_C = _common_optional_float(emitters, "flow_temp_C")
+            return_temp_C = _common_optional_float(emitters, "return_temp_C")
 
         water_delta_t_K = _water_delta_t_K(
             flow_temp_C=flow_temp_C,
@@ -220,6 +233,40 @@ def _build_index_summary(
 # ======================================================================
 # Helpers
 # ======================================================================
+
+def _environment_flow_return_temps(
+    project: ProjectState,
+) -> tuple[Optional[float], Optional[float]]:
+    """
+    Resolve worksheet hydronic flow/return source temperatures.
+
+    H-S22-A:
+    Environment is the project-level authority when populated.
+
+    Returns:
+        (flow_temp_C, return_temp_C), or (None, None) if unavailable/invalid.
+    """
+    environment = getattr(project, "environment", None)
+    if environment is None:
+        return None, None
+
+    flow_temp_C = getattr(environment, "design_flow_temp_c", None)
+    return_temp_C = getattr(environment, "design_return_temp_c", None)
+
+    if flow_temp_C is None or return_temp_C is None:
+        return None, None
+
+    try:
+        flow = float(flow_temp_C)
+        ret = float(return_temp_C)
+    except (TypeError, ValueError):
+        return None, None
+
+    if flow <= ret:
+        return None, None
+
+    return flow, ret
+
 
 def _emitters_for_room(
     project: ProjectState,
