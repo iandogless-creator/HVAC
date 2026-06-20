@@ -12,6 +12,9 @@ from HVAC.core.room_identity import room_short_label
 from HVAC.hydronics.adapters.room_emitter_demand_adapter_v1 import (
     RoomEmitterDemandAdapterV1,
 )
+from HVAC.hydronics.design_conditions.hydronic_design_temperature_basis_v1 import (
+    resolve_hydronic_design_temperature_basis_v1,
+)
 
 
 # ======================================================================
@@ -240,32 +243,18 @@ def _environment_flow_return_temps(
     """
     Resolve worksheet hydronic flow/return source temperatures.
 
-    H-S22-A:
-    Environment is the project-level authority when populated.
+    H-S23-C:
+    Use the shared Environment hydronic design-temperature basis.
 
     Returns:
         (flow_temp_C, return_temp_C), or (None, None) if unavailable/invalid.
     """
-    environment = getattr(project, "environment", None)
-    if environment is None:
+    basis = resolve_hydronic_design_temperature_basis_v1(project)
+
+    if not basis.is_resolved:
         return None, None
 
-    flow_temp_C = getattr(environment, "design_flow_temp_c", None)
-    return_temp_C = getattr(environment, "design_return_temp_c", None)
-
-    if flow_temp_C is None or return_temp_C is None:
-        return None, None
-
-    try:
-        flow = float(flow_temp_C)
-        ret = float(return_temp_C)
-    except (TypeError, ValueError):
-        return None, None
-
-    if flow <= ret:
-        return None, None
-
-    return flow, ret
+    return basis.flow_temp_c, basis.return_temp_c
 
 
 def _emitters_for_room(
