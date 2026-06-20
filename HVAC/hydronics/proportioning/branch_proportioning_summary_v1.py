@@ -123,7 +123,7 @@ def build_branch_proportioning_summary_v1(project_state: Any) -> List[BranchProp
                 role="Common-side route node",
                 from_label=_room_label(rooms, room_id),
                 to_label="Selected route entry",
-                flow_label=_room_flow_label(emitters, room_id),
+                flow_label=_room_flow_label(project_state, emitters, room_id),
                 basis="Emitter demand before selected route",
                 status="Projection only",
             )
@@ -138,7 +138,7 @@ def build_branch_proportioning_summary_v1(project_state: Any) -> List[BranchProp
             role="Common main",
             from_label="Boiler / Heat Source",
             to_label="Common main / first branch",
-            flow_label=_total_flow_label(emitters),
+            flow_label=_total_flow_label(project_state, emitters),
             basis="Sum of active emitter design flows where available",
             status="Projection only",
         )
@@ -304,7 +304,7 @@ def _resolve_index_route_room_ids(project_state: Any) -> List[str]:
     room_ids = list(reversed(list(rooms.keys())))
     return [room_id for room_id in room_ids if room_id != "room-006"]
 
-def _room_flow_label(emitters: dict, room_id: str) -> str:
+def _room_flow_label(project_state: Any, emitters: dict, room_id: str) -> str:
     total = 0.0
     found = False
 
@@ -312,7 +312,7 @@ def _room_flow_label(emitters: dict, room_id: str) -> str:
         if getattr(emitter, "room_id", None) != room_id:
             continue
 
-        value = _emitter_flow_kg_s(emitter)
+        value = _emitter_flow_kg_s(project_state, emitter)
         if value is None:
             continue
 
@@ -325,12 +325,12 @@ def _room_flow_label(emitters: dict, room_id: str) -> str:
     return f"{total:.4f} kg/s"
 
 
-def _total_flow_label(emitters: dict) -> str:
+def _total_flow_label(project_state: Any, emitters: dict) -> str:
     total = 0.0
     found = False
 
     for emitter in emitters.values():
-        value = _emitter_flow_kg_s(emitter)
+        value = _emitter_flow_kg_s(project_state, emitter)
         if value is None:
             continue
 
@@ -343,13 +343,17 @@ def _total_flow_label(emitters: dict) -> str:
     return f"{total:.4f} kg/s"
 
 
-def _emitter_flow_kg_s(emitter: Any) -> Optional[float]:
+def _emitter_flow_kg_s(
+    project_state: Any,
+    emitter: Any,
+) -> Optional[float]:
     """
     Resolve projected emitter mass flow in kg/s.
 
-    H-R1 display basis:
-    • If a mass-flow field exists, use it.
-    • Otherwise derive from emitter output and water ΔT.
+    H-S22-B:
+    • If an explicit mass-flow field exists, use it.
+    • Otherwise derive from emitter output and Environment water ΔT.
+    • Emitter flow/return remains a legacy fallback only.
 
     This is still projection only:
     • no pipe sizing
@@ -374,22 +378,59 @@ def _emitter_flow_kg_s(emitter: Any) -> Optional[float]:
             continue
 
     output_W = getattr(emitter, "design_output_W", None)
-    flow_temp_C = getattr(emitter, "flow_temp_C", None)
-    return_temp_C = getattr(emitter, "return_temp_C", None)
-
-    if output_W is None or flow_temp_C is None or return_temp_C is None:
-        return None
 
     try:
         output = float(output_W)
+    except (TypeError, ValueError):
+        return None
+
+    if output <= 0.0:
+        return None
+
+    delta_t = _environment_water_delta_t_K(project_state)
+
+    if delta_t is None:
+        flow_temp_C = getattr(emitter, "flow_temp_C", None)
+        return_temp_C = getattr(emitter, "return_temp_C", None)
+
+        try:
+            delta_t = float(flow_temp_C) - float(return_temp_C)
+        except (TypeError, ValueError):
+            return None
+
+    if delta_t <= 0.0:
+        return None
+
+    return output / (CP_WATER_J_KG_K * delta_t)
+
+
+def _environment_water_delta_t_K(project_state: Any) -> Optional[float]:
+    """
+    Derive hydronic water ΔT from Environment source temperatures.
+
+    Source fields:
+    - environment.design_flow_temp_c
+    - environment.design_return_temp_c
+    """
+    environment = getattr(project_state, "environment", None)
+    if environment is None:
+        return None
+
+    flow_temp_C = getattr(environment, "design_flow_temp_c", None)
+    return_temp_C = getattr(environment, "design_return_temp_c", None)
+
+    if flow_temp_C is None or return_temp_C is None:
+        return None
+
+    try:
         delta_t = float(flow_temp_C) - float(return_temp_C)
     except (TypeError, ValueError):
         return None
 
-    if output <= 0.0 or delta_t <= 0.0:
+    if delta_t <= 0.0:
         return None
 
-    return output / (CP_WATER_J_KG_K * delta_t)
+    return delta_t
 
 def _index_route_leg_flow_map(project_state: Any) -> dict[tuple[str, str], Optional[float]]:
     """
@@ -462,7 +503,7 @@ def _accumulated_flow_for_room_ids(
         if room_id is None or str(room_id) not in wanted:
             continue
 
-        flow = _emitter_flow_kg_s(emitter)
+        flow = _emitter_flow_kg_s(project_state, emitter)
 
         if flow is None:
             continue

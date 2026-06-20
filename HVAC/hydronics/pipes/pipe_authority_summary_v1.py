@@ -232,7 +232,11 @@ def _sum_emitter_mass_flow_kg_s(project_state: Any) -> float | None:
 
         m_dot = Q / (4180 × ΔT_water)
 
-    where Q is design_output_W and ΔT_water is flow_temp_C - return_temp_C.
+    where Q is design_output_W and ΔT_water normally comes from
+    Environment flow/return temperatures.
+
+    Legacy fallback:
+        emitter.flow_temp_C - emitter.return_temp_C
 
     This is still projection-only; it does not store results.
     """
@@ -241,7 +245,7 @@ def _sum_emitter_mass_flow_kg_s(project_state: Any) -> float | None:
     found = False
 
     for emitter in (getattr(project_state, "emitters", {}) or {}).values():
-        value = _emitter_mass_flow_kg_s(emitter)
+        value = _emitter_mass_flow_kg_s(project_state, emitter)
 
         if value is None:
             continue
@@ -266,7 +270,7 @@ def _room_emitter_mass_flow_kg_s(
         if str(getattr(emitter, "room_id", "") or "") != str(room_id):
             continue
 
-        value = _emitter_mass_flow_kg_s(emitter)
+        value = _emitter_mass_flow_kg_s(project_state, emitter)
 
         if value is None:
             continue
@@ -277,27 +281,77 @@ def _room_emitter_mass_flow_kg_s(
     return total if found else None
 
 
-def _emitter_mass_flow_kg_s(emitter: Any) -> float | None:
+def _emitter_mass_flow_kg_s(
+    project_state: Any,
+    emitter: Any,
+) -> float | None:
+    """
+    Resolve projected emitter mass flow for pipe-authority display.
+
+    H-S22-B:
+    Environment flow/return is the v1 project-level authority when valid.
+    Emitter flow/return remains a legacy fallback only.
+
+    Projection only:
+    - no stored derived ΔT
+    - no pipe resizing
+    - no pressure-loss calculation
+    - no pump or valve selection
+    """
     output_W = getattr(emitter, "design_output_W", None)
-    flow_temp_C = getattr(emitter, "flow_temp_C", None)
-    return_temp_C = getattr(emitter, "return_temp_C", None)
 
     try:
-        output_W = float(output_W)
-        flow_temp_C = float(flow_temp_C)
-        return_temp_C = float(return_temp_C)
+        output = float(output_W)
     except (TypeError, ValueError):
         return None
 
-    water_delta_t_K = flow_temp_C - return_temp_C
-
-    if output_W <= 0.0:
+    if output <= 0.0:
         return None
+
+    water_delta_t_K = _environment_water_delta_t_K(project_state)
+
+    if water_delta_t_K is None:
+        flow_temp_C = getattr(emitter, "flow_temp_C", None)
+        return_temp_C = getattr(emitter, "return_temp_C", None)
+
+        try:
+            water_delta_t_K = float(flow_temp_C) - float(return_temp_C)
+        except (TypeError, ValueError):
+            return None
 
     if water_delta_t_K <= 0.0:
         return None
 
-    return output_W / (4180.0 * water_delta_t_K)
+    return output / (4180.0 * water_delta_t_K)
+
+
+def _environment_water_delta_t_K(project_state: Any) -> float | None:
+    """
+    Derive hydronic water ΔT from Environment source temperatures.
+
+    Source fields:
+    - environment.design_flow_temp_c
+    - environment.design_return_temp_c
+    """
+    environment = getattr(project_state, "environment", None)
+    if environment is None:
+        return None
+
+    flow_temp_C = getattr(environment, "design_flow_temp_c", None)
+    return_temp_C = getattr(environment, "design_return_temp_c", None)
+
+    if flow_temp_C is None or return_temp_C is None:
+        return None
+
+    try:
+        delta_t_K = float(flow_temp_C) - float(return_temp_C)
+    except (TypeError, ValueError):
+        return None
+
+    if delta_t_K <= 0.0:
+        return None
+
+    return delta_t_K
 
 
 def _terminal_room_id_for_pipe_run(
