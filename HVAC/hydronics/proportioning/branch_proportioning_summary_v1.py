@@ -7,6 +7,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Iterable, List, Optional
 
+from HVAC.hydronics.design_conditions.hydronic_design_temperature_basis_v1 import (
+    resolve_hydronic_design_temperature_basis_v1,
+)
+
 CP_WATER_J_KG_K = 4180.0
 # ======================================================================
 # DTO
@@ -406,31 +410,14 @@ def _emitter_flow_kg_s(
 
 def _environment_water_delta_t_K(project_state: Any) -> Optional[float]:
     """
-    Derive hydronic water ΔT from Environment source temperatures.
+    Resolve hydronic water ΔT from the shared Environment basis.
 
-    Source fields:
-    - environment.design_flow_temp_c
-    - environment.design_return_temp_c
+    H-S23-D:
+    Delegates Environment flow/return/ΔT resolution to the shared
+    hydronic design-temperature basis helper.
     """
-    environment = getattr(project_state, "environment", None)
-    if environment is None:
-        return None
-
-    flow_temp_C = getattr(environment, "design_flow_temp_c", None)
-    return_temp_C = getattr(environment, "design_return_temp_c", None)
-
-    if flow_temp_C is None or return_temp_C is None:
-        return None
-
-    try:
-        delta_t = float(flow_temp_C) - float(return_temp_C)
-    except (TypeError, ValueError):
-        return None
-
-    if delta_t <= 0.0:
-        return None
-
-    return delta_t
+    basis = resolve_hydronic_design_temperature_basis_v1(project_state)
+    return basis.delta_t_k
 
 def _index_route_leg_flow_map(project_state: Any) -> dict[tuple[str, str], Optional[float]]:
     """

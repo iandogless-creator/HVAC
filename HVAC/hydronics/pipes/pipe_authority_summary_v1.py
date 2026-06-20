@@ -31,6 +31,10 @@ It does not:
 from dataclasses import dataclass
 from typing import Any
 
+from HVAC.hydronics.design_conditions.hydronic_design_temperature_basis_v1 import (
+    resolve_hydronic_design_temperature_basis_v1,
+)
+
 
 # ======================================================================
 # Constants
@@ -327,32 +331,14 @@ def _emitter_mass_flow_kg_s(
 
 def _environment_water_delta_t_K(project_state: Any) -> float | None:
     """
-    Derive hydronic water ΔT from Environment source temperatures.
+    Resolve hydronic water ΔT from the shared Environment basis.
 
-    Source fields:
-    - environment.design_flow_temp_c
-    - environment.design_return_temp_c
+    H-S23-D:
+    Delegates Environment flow/return/ΔT resolution to the shared
+    hydronic design-temperature basis helper.
     """
-    environment = getattr(project_state, "environment", None)
-    if environment is None:
-        return None
-
-    flow_temp_C = getattr(environment, "design_flow_temp_c", None)
-    return_temp_C = getattr(environment, "design_return_temp_c", None)
-
-    if flow_temp_C is None or return_temp_C is None:
-        return None
-
-    try:
-        delta_t_K = float(flow_temp_C) - float(return_temp_C)
-    except (TypeError, ValueError):
-        return None
-
-    if delta_t_K <= 0.0:
-        return None
-
-    return delta_t_K
-
+    basis = resolve_hydronic_design_temperature_basis_v1(project_state)
+    return basis.delta_t_k
 
 def _terminal_room_id_for_pipe_run(
     *,
