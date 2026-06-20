@@ -96,22 +96,32 @@ class HydronicControlPanel(QWidget):
         self._flow_temp_C.setDecimals(1)
         self._flow_temp_C.setSingleStep(1.0)
         self._flow_temp_C.setSuffix(" °C")
-        self._flow_temp_C.setValue(70.0)
+        self._flow_temp_C.setSpecialValueText("unset")
+        self._flow_temp_C.setValue(0.0)
 
         self._return_temp_C = QDoubleSpinBox()
         self._return_temp_C.setRange(0.0, 100.0)
         self._return_temp_C.setDecimals(1)
         self._return_temp_C.setSingleStep(1.0)
         self._return_temp_C.setSuffix(" °C")
-        self._return_temp_C.setValue(50.0)
+        self._return_temp_C.setSpecialValueText("unset")
+        self._return_temp_C.setValue(0.0)
 
         form.addRow("Room:", self._room_combo)
         form.addRow("Existing emitter:", self._emitter_combo)
         form.addRow("Emitter type:", self._emitter_type)
         form.addRow("Quantity:", self._quantity)
         form.addRow("Design output:", self._design_output_W)
-        form.addRow("Flow temp:", self._flow_temp_C)
-        form.addRow("Return temp:", self._return_temp_C)
+        form.addRow("Legacy emitter flow override:", self._flow_temp_C)
+        form.addRow("Legacy emitter return override:", self._return_temp_C)
+
+        self._temperature_authority_note = QLabel(
+            "Temperature authority: Environment sets the normal design "
+            "flow/return temperatures. Leave emitter overrides unset unless "
+            "a legacy or special emitter override is required."
+        )
+        self._temperature_authority_note.setWordWrap(True)
+        form.addRow(self._temperature_authority_note)
 
         root.addLayout(form)
 
@@ -166,11 +176,13 @@ class HydronicControlPanel(QWidget):
                 0.0 if design_output_W is None else float(design_output_W)
             )
 
-            if flow_temp_C is not None:
-                self._flow_temp_C.setValue(float(flow_temp_C))
+            self._flow_temp_C.setValue(
+                float(flow_temp_C) if flow_temp_C is not None else 0.0
+            )
 
-            if return_temp_C is not None:
-                self._return_temp_C.setValue(float(return_temp_C))
+            self._return_temp_C.setValue(
+                float(return_temp_C) if return_temp_C is not None else 0.0
+            )
         finally:
             self._is_priming = False
 
