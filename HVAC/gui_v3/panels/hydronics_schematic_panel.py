@@ -34,7 +34,7 @@ Authority
     • Basic hydronics worksheet
 
 Proportioning
-    • Branch / proportioning summary
+    • Hydronic topology authority audit — branch-aware basis
 """
 from __future__ import annotations
 
@@ -1125,6 +1125,30 @@ class HydronicsSchematicPanel(QWidget):
         )
 
         # --------------------------------------------------
+        # H-S25-C — Hydronic topology authority audit
+        # --------------------------------------------------
+        self._proportioning_table = self._make_table(
+            columns=[
+                "Group",
+                "Role",
+                "From",
+                "To",
+                "Flow",
+                "Basis",
+                "Status",
+            ],
+            stretch_columns={0, 1, 2, 3, 5, 6},
+        )
+
+        self._add_section(
+            proportioning_layout,
+            title="Hydronic topology authority audit — branch-aware basis",
+            table=self._proportioning_table,
+            min_height=220,
+            expanded=False,
+        )
+
+        # --------------------------------------------------
         # Proportioning route schematic
         # --------------------------------------------------
         self._proportioning_schematic_widget = ProportioningSchematicWidgetV1(self)
@@ -1239,30 +1263,6 @@ class HydronicsSchematicPanel(QWidget):
             title="DEV common-main / leg / subleg topology — preview only",
             table=self._common_main_leg_subleg_table,
             min_height=160,
-            expanded=False,
-        )
-
-        # --------------------------------------------------
-        # Branch / proportioning summary
-        # --------------------------------------------------
-        self._proportioning_table = self._make_table(
-            columns=[
-                "Group",
-                "Role",
-                "From",
-                "To",
-                "Flow",
-                "Basis",
-                "Status",
-            ],
-            stretch_columns={0, 1, 2, 3, 5, 6},
-        )
-
-        self._add_section(
-            proportioning_layout,
-            title="Branch-aware route authority audit — read-only",
-            table=self._proportioning_table,
-            min_height=220,
             expanded=False,
         )
 
