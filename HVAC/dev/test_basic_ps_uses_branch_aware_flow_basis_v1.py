@@ -1,14 +1,14 @@
 # ======================================================================
-# HVAC/dev/test_basic_ps_branch_flow_comparison_v1.py
-# H-S24-E — Basic PS vs branch-aware carried-flow comparison
+# HVAC/dev/test_basic_ps_uses_branch_aware_flow_basis_v1.py
+# H-S24-F — Basic PS uses branch-aware carried-flow basis
 # ======================================================================
 
 from __future__ import annotations
 
 from HVAC.core.environment_state import EnvironmentStateV1
 from HVAC.hydronics.emitter_v1 import EmitterV1
-from HVAC.hydronics.proportioning.basic_ps_branch_flow_comparison_v1 import (
-    build_basic_ps_branch_flow_comparison_v1,
+from HVAC.hydronics.sizing.basic_ps_topology_sections_v1 import (
+    build_basic_ps_topology_sections_v1,
 )
 from HVAC.hydronics.topology.hydronic_topology_v1 import (
     HydronicLegV1,
@@ -29,10 +29,14 @@ def _add_emitter(project: ProjectState, room_id: str, output_W: float) -> None:
     )
 
 
+def _expected_flow(output_W: float) -> float:
+    return output_W / (4180.0 * 10.0)
+
+
 def _build_project() -> ProjectState:
     project = ProjectState(
-        project_id="dev-hs24e-basic-vs-branch-aware",
-        name="DEV H-S24-E Basic PS vs Branch Aware",
+        project_id="dev-hs24f-basic-ps-branch-aware",
+        name="DEV H-S24-F Basic PS Branch Aware",
     )
 
     project.environment = EnvironmentStateV1(
@@ -110,76 +114,66 @@ def _build_project() -> ProjectState:
 def main() -> None:
     project = _build_project()
 
-    primary = build_basic_ps_branch_flow_comparison_v1(
+    projection = build_basic_ps_topology_sections_v1(
         project,
         leg_id="leg-001",
         subleg_id="leg-001-primary-subleg",
     )
 
     print()
-    print("H-S24-E — Basic PS vs branch-aware carried-flow comparison")
-    print("=========================================================")
-    print("PRIMARY ready:", primary.ready)
-    print("PRIMARY status:", primary.status)
+    print("H-S24-F — Basic PS uses branch-aware carried-flow basis")
+    print("=======================================================")
+    print("status:", projection.status)
 
-    for row in primary.rows:
+    for section in projection.sections:
         print(
-            row.section_id,
-            "| basic Q:", row.basic_carried_heat_W,
-            "| branch-aware Q:", row.branch_aware_carried_heat_W,
-            "| ΔQ:", row.heat_delta_W,
-            "| basic rooms:", list(row.basic_downstream_room_ids),
-            "| branch-aware rooms:", list(row.branch_aware_carried_room_ids),
-            "| rolled-up:", list(row.branch_aware_rolled_up_room_ids),
-            "| differs:", row.differs,
-            "| status:", row.status,
+            section.section_id,
+            "| downstream:", list(section.downstream_room_ids),
+            "| Q:", section.carried_heat_W,
+            "| flow:", f"{section.carried_flow_kg_s:.6f}",
+            "| status:", section.status,
         )
 
-    assert primary.ready is True
-    assert "no differences" in primary.status
-    assert len(primary.rows) == 3
+    assert len(projection.sections) == 3
 
-    assert primary.rows[0].basic_carried_heat_W == 3500.0
-    assert primary.rows[0].branch_aware_carried_heat_W == 3500.0
-    assert primary.rows[0].heat_delta_W == 0.0
-    assert primary.rows[0].differs is False
+    first, second, third = projection.sections
 
-    assert primary.rows[1].basic_carried_heat_W == 2500.0
-    assert primary.rows[1].branch_aware_carried_heat_W == 2500.0
-    assert primary.rows[1].heat_delta_W == 0.0
-    assert primary.rows[1].differs is False
+    assert first.carried_heat_W == 3500.0
+    assert first.downstream_room_ids == (
+        "room-002",
+        "room-003",
+        "room-004",
+        "room-005",
+        "room-006",
+        "room-007",
+        "room-008",
+    )
+    assert abs(first.carried_flow_kg_s - _expected_flow(3500.0)) < 1e-9
 
-    assert primary.rows[2].basic_carried_heat_W == 1100.0
-    assert primary.rows[2].branch_aware_carried_heat_W == 1100.0
-    assert primary.rows[2].heat_delta_W == 0.0
-    assert primary.rows[2].differs is False
+    assert second.carried_heat_W == 2500.0
+    assert second.downstream_room_ids == (
+        "room-003",
+        "room-004",
+        "room-005",
+        "room-006",
+        "room-007",
+    )
+    assert abs(second.carried_flow_kg_s - _expected_flow(2500.0)) < 1e-9
 
-    branch = build_basic_ps_branch_flow_comparison_v1(
-        project,
-        leg_id="leg-001",
-        subleg_id="leg-001-subleg-b",
+    assert third.carried_heat_W == 1100.0
+    assert third.downstream_room_ids == (
+        "room-004",
+        "room-007",
+    )
+    assert abs(third.carried_flow_kg_s - _expected_flow(1100.0)) < 1e-9
+
+    assert all(
+        "Branch-aware carried-flow basis" in section.status
+        for section in projection.sections
     )
 
     print()
-    print("BRANCH ready:", branch.ready)
-    print("BRANCH status:", branch.status)
-
-    for row in branch.rows:
-        print(
-            row.section_id,
-            "| basic Q:", row.basic_carried_heat_W,
-            "| branch-aware Q:", row.branch_aware_carried_heat_W,
-            "| ΔQ:", row.heat_delta_W,
-            "| differs:", row.differs,
-        )
-
-    assert branch.ready is True
-    assert "no differences" in branch.status
-    assert len(branch.rows) == 2
-    assert all(row.differs is False for row in branch.rows)
-
-    print()
-    print("OK — Basic PS / branch-aware carried-flow comparison passed.")
+    print("OK — Basic PS branch-aware carried-flow integration passed.")
 
 
 if __name__ == "__main__":

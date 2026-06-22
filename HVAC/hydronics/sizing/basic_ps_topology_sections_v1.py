@@ -17,6 +17,9 @@ from HVAC.hydronics.topology.primary_subleg_helpers_v1 import (
 from HVAC.hydronics.design_conditions.hydronic_design_temperature_basis_v1 import (
     resolve_hydronic_design_temperature_basis_v1,
 )
+from HVAC.hydronics.proportioning.branch_aware_carried_flow_basis_v1 import (
+    build_branch_aware_carried_flow_basis_v1,
+)
 
 
 # ======================================================================
@@ -125,6 +128,10 @@ def build_basic_ps_topology_sections_v1(
     room_lookup = getattr(project_state, "rooms", {}) or {}
     emitters = getattr(project_state, "emitters", {}) or {}
 
+    branch_aware_by_section_id = _branch_aware_rows_by_section_id(
+        project_state
+    )
+
     sections: list[BasicPSTopologySectionV1] = []
     route_room_ids = list(primary_subleg.route_room_ids)
 
@@ -140,7 +147,50 @@ def build_basic_ps_topology_sections_v1(
             )
         )
 
-        downstream_room_ids = tuple(route_room_ids[index:])
+        section_id = f"{primary_subleg.subleg_id}-section-{order:03d}"
+        branch_aware_row = branch_aware_by_section_id.get(section_id)
+
+        if branch_aware_row is not None:
+            downstream_room_ids = tuple(branch_aware_row.carried_room_ids)
+            carried_heat_W = float(branch_aware_row.carried_heat_W)
+
+            branch_aware_flow = getattr(
+                branch_aware_row,
+                "carried_flow_kg_s",
+                None,
+            )
+            carried_flow_kg_s = (
+                float(branch_aware_flow)
+                if branch_aware_flow is not None
+                else _heat_W_to_flow_kg_s(
+                    heat_W=carried_heat_W,
+                    delta_t_K=resolved_delta_t_K,
+                )
+            )
+
+            row_status = (
+                "Branch-aware carried-flow basis / "
+                f"{branch_aware_row.status}"
+            )
+        else:
+            downstream_room_ids = tuple(route_room_ids[index:])
+
+            carried_heat_W = sum(
+                _emitter_heat_W(emitters[emitter_id])
+                for emitter_id in _emitter_ids_for_rooms(
+                    emitters=emitters,
+                    room_ids=downstream_room_ids,
+                )
+                if emitter_id in emitters
+            )
+
+            carried_flow_kg_s = _heat_W_to_flow_kg_s(
+                heat_W=carried_heat_W,
+                delta_t_K=resolved_delta_t_K,
+            )
+
+            row_status = "Projection only"
+
         downstream_emitter_ids = tuple(
             _emitter_ids_for_rooms(
                 emitters=emitters,
@@ -148,22 +198,11 @@ def build_basic_ps_topology_sections_v1(
             )
         )
 
-        carried_heat_W = sum(
-            _emitter_heat_W(emitters[emitter_id])
-            for emitter_id in downstream_emitter_ids
-            if emitter_id in emitters
-        )
-
-        carried_flow_kg_s = _heat_W_to_flow_kg_s(
-            heat_W=carried_heat_W,
-            delta_t_K=resolved_delta_t_K,
-        )
-
         to_room = room_lookup.get(to_room_id)
 
         sections.append(
             BasicPSTopologySectionV1(
-                section_id=f"{primary_subleg.subleg_id}-section-{order:03d}",
+                section_id=section_id,
                 leg_id=leg.leg_id,
                 subleg_id=primary_subleg.subleg_id,
                 order=order,
@@ -176,7 +215,7 @@ def build_basic_ps_topology_sections_v1(
                 carried_flow_kg_s=carried_flow_kg_s,
                 is_terminal=(order == len(route_room_ids)),
                 is_index_room=(str(to_room_id) == primary_subleg.index_room_id),
-                status="Projection only",
+                status=row_status,
             )
         )
 
@@ -190,6 +229,34 @@ def build_basic_ps_topology_sections_v1(
         sections=tuple(sections),
         status="Projection only",
     )
+
+
+# ======================================================================
+# Branch-aware integration helpers
+# ======================================================================
+
+def _branch_aware_rows_by_section_id(project_state: Any) -> dict[str, Any]:
+    """
+    Return H-S24-C branch-aware carried-flow rows by section_id.
+
+    H-S24-F integration rule:
+    - if branch-aware basis is available, Basic PS uses it for carried Q/flow;
+    - if unavailable, Basic PS keeps its legacy route-local basis.
+    """
+
+    try:
+        basis = build_branch_aware_carried_flow_basis_v1(project_state)
+    except Exception:
+        return {}
+
+    if not getattr(basis, "ready", False):
+        return {}
+
+    return {
+        str(getattr(row, "section_id", "") or ""): row
+        for row in getattr(basis, "rows", ()) or ()
+        if str(getattr(row, "section_id", "") or "")
+    }
 
 
 # ======================================================================
