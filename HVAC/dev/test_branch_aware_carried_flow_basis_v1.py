@@ -55,6 +55,7 @@ def main() -> None:
         "room-005": 500.0,
         "room-006": 600.0,
         "room-007": 700.0,
+        "room-008": 800.0,
     }.items():
         _add_emitter(project, room_id, output_W)
 
@@ -82,8 +83,17 @@ def main() -> None:
         index_room_id="room-007",
     )
 
+    early_branch = HydronicSublegV1(
+        subleg_id="leg-001-subleg-d",
+        label="Leg 1D Early riser branch",
+        origin_room_id="room-002",
+        route_room_ids=["room-008"],
+        index_room_id="room-008",
+    )
+
     primary.sublegs.append(true_branch)
     primary.sublegs.append(terminal_continuation)
+    primary.sublegs.append(early_branch)
 
     project.hydronic_topology = HydronicTopologyV1(
         heat_source_room_id="room-001",
@@ -139,14 +149,17 @@ def main() -> None:
     # own rooms 002+003+004 = 900 W
     # true branch 005+006 = 1100 W
     # terminal continuation 007 = 700 W
-    # total = 2700 W
-    assert primary_rows[0].carried_heat_W == 2700.0
+    # early/riser branch 008 = 800 W
+    # total = 3500 W
+    assert primary_rows[0].carried_heat_W == 3500.0
     assert primary_rows[0].rolled_up_room_ids == (
         "room-005",
         "room-006",
         "room-007",
+        "room-008",
     )
-    assert abs(primary_rows[0].carried_flow_kg_s - _flow(2700.0)) < 1e-9
+    assert abs(primary_rows[0].carried_flow_kg_s - _flow(3500.0)) < 1e-9
+    assert "Early take-off / riser-capable branch" in primary_rows[0].status
 
     # Primary section 2:
     # own rooms 003+004 = 700 W
@@ -160,6 +173,10 @@ def main() -> None:
         "room-007",
     )
     assert abs(primary_rows[1].carried_flow_kg_s - _flow(2500.0)) < 1e-9
+    assert (
+        "Late take-off — parent downstream terminal emitter only"
+        in primary_rows[1].status
+    )
 
     # Primary section 3:
     # own room 004 = 400 W
@@ -170,6 +187,16 @@ def main() -> None:
     assert primary_rows[2].rolled_up_room_ids == ("room-007",)
     assert abs(primary_rows[2].carried_flow_kg_s - _flow(1100.0)) < 1e-9
     assert "Continuation from parent terminal" in primary_rows[2].status
+
+    early_rows = [
+        row
+        for row in basis.rows
+        if row.subleg_id == "leg-001-subleg-d"
+    ]
+
+    assert len(early_rows) == 1
+    assert early_rows[0].subleg_kind == "branch subleg"
+    assert early_rows[0].carried_heat_W == 800.0
 
     continuation_rows = [
         row

@@ -284,6 +284,53 @@ def _subleg_total_room_ids(
     return tuple(room_ids)
 
 
+def _takeoff_position_classification(
+    *,
+    parent_rooms: list[str],
+    origin_room_id: str,
+) -> str:
+    """
+    Classify a child subleg origin within its parent route.
+
+    H-S24-D:
+    This is descriptive classification only. It does not change carried-flow
+    maths.
+    """
+
+    if not origin_room_id or origin_room_id not in parent_rooms:
+        return "unresolved_takeoff"
+
+    origin_index = parent_rooms.index(origin_room_id)
+    terminal_index = len(parent_rooms) - 1
+
+    if origin_index == terminal_index:
+        return "terminal_continuation"
+
+    if origin_index == 0:
+        return "early_takeoff"
+
+    if origin_index == terminal_index - 1:
+        return "late_terminal_takeoff"
+
+    return "true_branch_takeoff"
+
+
+def _takeoff_classification_label(classification: str) -> str:
+    if classification == "early_takeoff":
+        return "Early take-off / riser-capable branch"
+
+    if classification == "late_terminal_takeoff":
+        return "Late take-off — parent downstream terminal emitter only"
+
+    if classification == "terminal_continuation":
+        return "Continuation from parent terminal"
+
+    if classification == "unresolved_takeoff":
+        return "Branch take-off unresolved — origin not in parent route"
+
+    return "Branch roll-up to take-off"
+
+
 def _child_rollup_for_section(
     *,
     parent_rooms: list[str],
@@ -303,19 +350,23 @@ def _child_rollup_for_section(
 
     origin_room_id = str(child.origin_room_id or "").strip()
 
-    if not origin_room_id or origin_room_id not in parent_rooms:
-        return False, "Branch take-off unresolved — origin not in parent route"
+    classification = _takeoff_position_classification(
+        parent_rooms=parent_rooms,
+        origin_room_id=origin_room_id,
+    )
+
+    if classification == "unresolved_takeoff":
+        return False, _takeoff_classification_label(classification)
 
     origin_index = parent_rooms.index(origin_room_id)
-    terminal_index = len(parent_rooms) - 1
 
-    if origin_index == terminal_index:
+    if classification == "terminal_continuation":
         if section_index <= origin_index:
-            return True, "Continuation from parent terminal"
+            return True, _takeoff_classification_label(classification)
         return False, "Continuation after parent terminal"
 
     if section_index <= origin_index:
-        return True, "Branch roll-up to take-off"
+        return True, _takeoff_classification_label(classification)
 
     return False, "Downstream of branch take-off"
 
@@ -336,7 +387,12 @@ def _subleg_kind(
     if parent is not None:
         parent_rooms = list(parent.route_room_ids)
         origin = str(subleg.origin_room_id or "").strip()
-        if parent_rooms and origin == parent_rooms[-1]:
+        classification = _takeoff_position_classification(
+            parent_rooms=parent_rooms,
+            origin_room_id=origin,
+        )
+
+        if classification == "terminal_continuation":
             return "continuation subleg"
 
     if parent_subleg_id:
