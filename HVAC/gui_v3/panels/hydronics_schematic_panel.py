@@ -1260,7 +1260,7 @@ class HydronicsSchematicPanel(QWidget):
 
         self._add_section(
             proportioning_layout,
-            title="Branch / proportioning summary",
+            title="Branch-aware route authority audit — read-only",
             table=self._proportioning_table,
             min_height=220,
             expanded=False,

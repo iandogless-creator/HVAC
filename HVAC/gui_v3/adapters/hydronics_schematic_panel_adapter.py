@@ -55,8 +55,8 @@ from HVAC.hydronics.sizing.basic_pipe_size_suggestion_v1 import (
 from HVAC.hydronics.pipes.pipe_authority_summary_v1 import (
     build_pipe_authority_summary_v1,
 )
-from HVAC.hydronics.proportioning.branch_proportioning_summary_v1 import (
-    build_branch_proportioning_summary_v1,
+from HVAC.hydronics.proportioning.branch_aware_route_summary_audit_v1 import (
+    build_branch_aware_route_summary_audit_v1,
 )
 from HVAC.hydronics.proportioning.proportioning_schematic_projection_v1 import (
     build_proportioning_schematic_v1,
@@ -383,7 +383,7 @@ class HydronicsSchematicPanelAdapter:
         # --------------------------------------------------
         # Branch / proportioning summary
         # --------------------------------------------------
-        proportioning_rows = build_branch_proportioning_summary_v1(
+        proportioning_rows = build_branch_aware_route_summary_audit_v1(
             self._project_state
         )
         self._panel.set_proportioning_rows(
@@ -1141,17 +1141,67 @@ class HydronicsSchematicPanelAdapter:
 
     def _build_proportioning_rows(self, rows) -> list[dict]:
         """
-        Convert H-R1 branch/proportioning DTO rows into panel rows.
+        Convert branch-aware route authority audit rows into the existing
+        Branch / proportioning summary table slot.
 
-        Adapter responsibility:
-        • DTO → display dict only
-        • no physics
-        • no ProjectState mutation
+        H-S25-B:
+        This table now surfaces the branch-aware topology authority audit.
+        The older H-R1 index-route summary remains as backend evidence but
+        is no longer the primary branch authority table in Proportioning.
         """
+
+        source_rows = getattr(rows, "rows", rows) or []
 
         out: list[dict] = []
 
-        for row in rows or []:
+        for row in source_rows:
+            if hasattr(row, "takeoff_classification"):
+                q_label = self._format_watts(
+                    getattr(row, "entry_carried_heat_W", None)
+                )
+                flow_label = self._format_kg_s(
+                    getattr(row, "entry_carried_flow_kg_s", None)
+                )
+
+                role = str(getattr(row, "role", "") or "")
+                origin_room_id = str(getattr(row, "origin_room_id", "") or "")
+                parent_subleg_id = str(
+                    getattr(row, "parent_subleg_id", "") or ""
+                )
+
+                if role == "primary/common subleg":
+                    from_label = "Common main / leg entry"
+                elif origin_room_id:
+                    from_label = f"Take-off at {origin_room_id}"
+                elif parent_subleg_id:
+                    from_label = f"Parent {parent_subleg_id}"
+                else:
+                    from_label = "—"
+
+                entry_rooms = getattr(row, "entry_carried_room_ids", ()) or ()
+                route_rooms = getattr(row, "route_room_ids", ()) or ()
+
+                basis = (
+                    f"{getattr(row, 'takeoff_classification', '')} | "
+                    f"entry Q {q_label} | "
+                    f"entry rooms {len(entry_rooms)} | "
+                    f"route rooms {len(route_rooms)}"
+                )
+
+                out.append(
+                    {
+                        "group": str(getattr(row, "leg_label", "") or ""),
+                        "role": role,
+                        "from": from_label,
+                        "to": str(getattr(row, "subleg_label", "") or ""),
+                        "flow": flow_label,
+                        "basis": basis,
+                        "status": str(getattr(row, "status", "") or ""),
+                    }
+                )
+                continue
+
+            # Legacy fallback for any remaining old H-R1 DTO rows.
             out.append(
                 {
                     "group": str(getattr(row, "group", "") or ""),
