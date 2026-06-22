@@ -798,9 +798,29 @@ class HydronicsSchematicPanelAdapter:
 
         rows: list[dict] = []
 
+        section_by_id = {
+            str(getattr(section, "section_id", "") or ""): section
+            for section in getattr(
+                projection.sections_projection,
+                "sections",
+                (),
+            ) or ()
+            if str(getattr(section, "section_id", "") or "")
+        }
+
         for result in projection.pipe_sizing_projection.results:
             section_id = str(getattr(result, "section_id", "") or "")
             preview = preview_by_section_id.get(section_id)
+            topology_section = section_by_id.get(section_id)
+
+            raw_basis_status = str(
+                getattr(topology_section, "status", "") or ""
+            )
+            section_basis_status = (
+                ""
+                if raw_basis_status in {"", "—", "Projection only"}
+                else raw_basis_status
+            )
 
             section_length_m = (
                 getattr(preview, "section_length_m", None)
@@ -842,6 +862,7 @@ class HydronicsSchematicPanelAdapter:
             )
 
             status_parts = [
+                section_basis_status,
                 str(getattr(result, "status", "") or ""),
                 str(preview_status or ""),
                 str(local_k_preview.status or ""),
