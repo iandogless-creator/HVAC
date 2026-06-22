@@ -1149,7 +1149,7 @@ class HydronicsSchematicPanel(QWidget):
         )
 
         # --------------------------------------------------
-        # Proportioning route schematic
+        # H-S25-D — Selected route trace schematic
         # --------------------------------------------------
         self._proportioning_schematic_widget = ProportioningSchematicWidgetV1(self)
 
@@ -1168,7 +1168,7 @@ class HydronicsSchematicPanel(QWidget):
 
         self._add_section(
             proportioning_layout,
-            title="Proportioning route — calculation trace: boiler → index",
+            title="Selected route trace — boiler → index",
             table=self._proportioning_schematic_scroll,
             min_height=300,
             expanded=False,
