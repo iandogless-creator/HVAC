@@ -29,7 +29,13 @@ from HVAC.hydronics.proportioning.proportioning_schematic_dto_v1 import (
 # Public builder
 # ======================================================================
 
-def build_proportioning_schematic_v1(project_state: Any) -> ProportioningSchematicV1:
+def build_proportioning_schematic_v1(
+    project_state: Any,
+    *,
+    selected_leg_id: str | None = None,
+    selected_subleg_id: str | None = None,
+    selected_route_label: str | None = None,
+) -> ProportioningSchematicV1:
     """
     Build a read-only proportioning logic schematic.
 
@@ -45,7 +51,13 @@ def build_proportioning_schematic_v1(project_state: Any) -> ProportioningSchemat
     topology = getattr(project_state, "hydronic_topology", None)
 
     if topology is not None:
-        return _build_from_hydronic_topology(project_state, topology)
+        return _build_from_hydronic_topology(
+            project_state,
+            topology,
+            selected_leg_id=selected_leg_id,
+            selected_subleg_id=selected_subleg_id,
+            selected_route_label=selected_route_label,
+        )
     summary_rows = build_branch_proportioning_summary_v1(project_state)
     index_room_label = _resolve_index_room_label(project_state)
 
@@ -271,12 +283,16 @@ def build_proportioning_schematic_v1(project_state: Any) -> ProportioningSchemat
     return ProportioningSchematicV1(
         nodes=nodes,
         edges=tuple(edges),
-        title="Proportioning route — calculation trace: boiler → index",
+        title="Selected route trace — boiler → index",
         basis="Derived from hydronic proportioning summary — route shown to calculated index point",
     )
 def _build_from_hydronic_topology(
     project_state: Any,
     topology: Any,
+    *,
+    selected_leg_id: str | None = None,
+    selected_subleg_id: str | None = None,
+    selected_route_label: str | None = None,
 ) -> ProportioningSchematicV1:
     """
     Build schematic projection from HydronicTopologyV1 route authority.
@@ -328,17 +344,31 @@ def _build_from_hydronic_topology(
         )
     )
 
-    legs = list(getattr(topology, "legs", []) or [])
-    first_leg = legs[0] if legs else None
-
-    route_room_ids = (
-        list(getattr(first_leg, "route_room_ids", []) or [])
-        if first_leg is not None
-        else []
+    selected_leg, selected_subleg = _resolve_trace_leg_subleg(
+        topology=topology,
+        selected_leg_id=selected_leg_id,
+        selected_subleg_id=selected_subleg_id,
     )
 
-    if not index_room_id and first_leg is not None:
-        index_room_id = getattr(first_leg, "index_room_id", None)
+    if selected_subleg is not None:
+        route_room_ids = list(getattr(selected_subleg, "route_room_ids", []) or [])
+        route_index_room_id = getattr(selected_subleg, "index_room_id", None)
+    elif selected_leg is not None:
+        route_room_ids = list(getattr(selected_leg, "route_room_ids", []) or [])
+        route_index_room_id = getattr(selected_leg, "index_room_id", None)
+    else:
+        route_room_ids = []
+        route_index_room_id = None
+
+    if not index_room_id or str(index_room_id) not in {str(x) for x in route_room_ids}:
+        index_room_id = route_index_room_id
+
+    route_label = str(
+        selected_route_label
+        or getattr(selected_subleg, "label", None)
+        or getattr(selected_leg, "label", None)
+        or "selected topology route"
+    )
 
     previous_node_id = common_main_id
     route_order = 2
@@ -381,8 +411,8 @@ def _build_from_hydronic_topology(
             )
         ),
         edges=tuple(edges),
-        title="Proportioning route — calculation trace: boiler → index",
-        basis="Derived from hydronic topology — route authority before Basic PS",
+        title="Selected route trace — boiler → index",
+        basis=f"Derived from hydronic topology — selected route trace: {route_label}",
     )
 
 

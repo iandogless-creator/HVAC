@@ -395,8 +395,17 @@ class HydronicsSchematicPanelAdapter:
                 self._project_state,
                 overwrite=False,
             )
+        selected_route_trace_target = (
+            self._selected_route_trace_target_from_route_pressure_projection(
+                route_pressure_projection
+            )
+        )
+
         proportioning_schematic = build_proportioning_schematic_v1(
-            self._project_state
+            self._project_state,
+            selected_leg_id=selected_route_trace_target.get("leg_id"),
+            selected_subleg_id=selected_route_trace_target.get("subleg_id"),
+            selected_route_label=selected_route_trace_target.get("route_label"),
         )
         self._panel.set_proportioning_schematic(proportioning_schematic)
 
@@ -644,6 +653,10 @@ class HydronicsSchematicPanelAdapter:
                         else "No"
                     ),
                     "status": getattr(row, "status", "—"),
+                    "route_id": getattr(row, "route_id", ""),
+                    "route_label": getattr(row, "route_label", ""),
+                    "leg_id": getattr(row, "leg_id", ""),
+                    "subleg_id": getattr(row, "subleg_id", ""),
                 }
             )
 
