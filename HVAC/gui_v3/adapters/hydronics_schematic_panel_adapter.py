@@ -622,6 +622,37 @@ class HydronicsSchematicPanelAdapter:
         # Safe fallback for older/incomplete topology.
         return [("leg-001", "leg-001-primary-subleg")]
 
+    @staticmethod
+    def _selected_route_trace_target_from_route_pressure_projection(
+        projection,
+    ) -> dict:
+        """
+        H-S25-E:
+        Resolve the selected route trace target from route-pressure authority.
+
+        Default rule:
+        - use the controlling route candidate
+        - return leg/subleg identity for the selected route trace schematic
+        - no ProjectState mutation
+        - no pressure calculation
+        """
+
+        if projection is None:
+            return {}
+
+        rows = list(getattr(projection, "rows", ()) or ())
+
+        for row in rows:
+            if getattr(row, "is_controlling_candidate", False):
+                return {
+                    "route_id": str(getattr(row, "route_id", "") or ""),
+                    "route_label": str(getattr(row, "route_label", "") or ""),
+                    "leg_id": str(getattr(row, "leg_id", "") or ""),
+                    "subleg_id": str(getattr(row, "subleg_id", "") or ""),
+                }
+
+        return {}
+
     def _build_route_pressure_preview_rows(self, projection) -> list[dict]:
         rows: list[dict] = []
 

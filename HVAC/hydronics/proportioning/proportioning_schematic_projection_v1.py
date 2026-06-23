@@ -416,6 +416,65 @@ def _build_from_hydronic_topology(
     )
 
 
+def _iter_sublegs(sublegs: Any):
+    for subleg in list(sublegs or []):
+        yield subleg
+        yield from _iter_sublegs(getattr(subleg, "sublegs", []) or [])
+
+
+def _resolve_trace_leg_subleg(
+    *,
+    topology: Any,
+    selected_leg_id: str | None,
+    selected_subleg_id: str | None,
+) -> tuple[Any | None, Any | None]:
+    """
+    H-S25-E:
+    Resolve the topology leg/subleg to draw in the selected route trace.
+
+    Preferred authority:
+    - controlling/selected route pressure row leg_id + subleg_id
+
+    Fallback:
+    - first leg / first subleg only when no selected route authority exists
+    """
+
+    legs = list(getattr(topology, "legs", []) or [])
+
+    wanted_leg_id = str(selected_leg_id or "")
+    wanted_subleg_id = str(selected_subleg_id or "")
+
+    if wanted_leg_id or wanted_subleg_id:
+        for leg in legs:
+            leg_id = str(getattr(leg, "leg_id", "") or "")
+
+            if wanted_leg_id and leg_id != wanted_leg_id:
+                continue
+
+            for subleg in _iter_sublegs(getattr(leg, "sublegs", []) or []):
+                subleg_id = str(getattr(subleg, "subleg_id", "") or "")
+
+                if wanted_subleg_id and subleg_id != wanted_subleg_id:
+                    continue
+
+                return leg, subleg
+
+            if wanted_leg_id and not wanted_subleg_id:
+                return leg, None
+
+    first_leg = legs[0] if legs else None
+
+    if first_leg is None:
+        return None, None
+
+    first_sublegs = list(getattr(first_leg, "sublegs", []) or [])
+
+    if first_sublegs:
+        return first_leg, first_sublegs[0]
+
+    return first_leg, None
+
+
 def _room_route_label(room: Any, room_id: str) -> str:
     """
     Resolve schematic room label.
