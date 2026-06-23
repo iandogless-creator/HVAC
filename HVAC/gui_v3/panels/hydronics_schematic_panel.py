@@ -632,7 +632,7 @@ class HydronicsSchematicPanel(QWidget):
             title="Preliminary route balancing requirement — preview only",
             table=self._preliminary_route_balancing_table,
             min_height=150,
-            expanded=True,
+            expanded=False,
         )
 
         # --------------------------------------------------
@@ -684,7 +684,7 @@ class HydronicsSchematicPanel(QWidget):
             title="Preliminary balancing resistance basis — preview only",
             table=self._preliminary_balancing_resistance_table,
             min_height=130,
-            expanded=True,
+            expanded=False,
         )
 
 
