@@ -178,16 +178,29 @@ def build_proportioning_input_snapshot_v1(
         for row in section_rows
     ]
 
-    shortfall_by_route = {
-        _text(row, "route_id", "route", "route_label"): row
-        for row in shortfall_rows
-    }
+    shortfall_by_route: dict[str, dict[str, Any]] = {}
+
+    for row in shortfall_rows:
+        for key_name in ("route_id", "route", "route_label"):
+            key = _text(row, key_name)
+            if key:
+                shortfall_by_route[key] = row
 
     routes: list[ProportioningInputRouteV1] = []
 
     for row in route_rows:
-        route_key = _text(row, "route_id", "route", "route_label")
-        shortfall = shortfall_by_route.get(route_key, {})
+        route_keys = [
+            _text(row, "route_id"),
+            _text(row, "route"),
+            _text(row, "route_label"),
+        ]
+
+        shortfall = {}
+
+        for route_key in route_keys:
+            if route_key and route_key in shortfall_by_route:
+                shortfall = shortfall_by_route[route_key]
+                break
 
         routes.append(
             ProportioningInputRouteV1(

@@ -2618,7 +2618,7 @@ class HydronicsSchematicPanel(QWidget):
             for row in (rows or [])
         ]
 
-        table = self._route_pressure_preview_table
+        table = self._route_shortfall_preview_table
         table.setRowCount(len(rows))
 
         for row_index, row in enumerate(rows):

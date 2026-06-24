@@ -484,6 +484,16 @@ class HydronicsSchematicPanelAdapter:
         )
 
         # --------------------------------------------------
+        # H-S25-F — Final Proportioning snapshot refresh
+        # --------------------------------------------------
+        # Some Proportioning preview tables depend on several row feeds:
+        # received Basic PS sections, route Δp rows, shortfall rows, and
+        # return comparison rows. Refresh once at the end of the adapter
+        # pass so preliminary balancing previews see the complete snapshot.
+        if hasattr(self._panel, "_refresh_proportioning_input_snapshot"):
+            self._panel._refresh_proportioning_input_snapshot()
+
+        # --------------------------------------------------
         # Basic hydronics worksheet
         # --------------------------------------------------
         worksheet = build_basic_hydronics_worksheet_v1(
