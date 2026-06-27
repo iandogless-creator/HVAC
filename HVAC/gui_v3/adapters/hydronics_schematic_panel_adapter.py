@@ -312,6 +312,17 @@ class HydronicsSchematicPanelAdapter:
                     "basis_mode": readiness.basis_mode,
                     "total_index_length": readiness.total_index_length_label,
                     "nominal_gradient": readiness.nominal_gradient_label,
+                    "return_arrangement_basis": (
+                        readiness.return_arrangement_basis_label
+                    ),
+                    "return_arrangement_accepted": (
+                        "Yes"
+                        if readiness.return_arrangement_basis_ready
+                        else "No"
+                    ),
+                    "return_arrangement_status": (
+                        readiness.return_arrangement_basis_status
+                    ),
                     "status": readiness.proportioning_status,
                 }
             )

@@ -3137,6 +3137,18 @@ class HydronicsSchematicPanel(QWidget):
             ("Basic basis", readiness.get("basis_mode", "—")),
             ("Total index length", readiness.get("total_index_length", "—")),
             ("Nominal Δp/m", readiness.get("nominal_gradient", "—")),
+            (
+                "Return arrangement basis",
+                readiness.get("return_arrangement_basis", "—"),
+            ),
+            (
+                "Return arrangement accepted",
+                readiness.get("return_arrangement_accepted", "No"),
+            ),
+            (
+                "Return arrangement status",
+                readiness.get("return_arrangement_status", "—"),
+            ),
             ("Proportioning status", readiness.get("status", "—")),
         ]
 

@@ -7,6 +7,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from HVAC.hydronics.proportioning.return_arrangement_acceptance_intent_v1 import (
+    resolve_system_return_arrangement_v1,
+)
+
 
 @dataclass(frozen=True, slots=True)
 class ProportioningReadinessV1:
@@ -30,6 +34,9 @@ class ProportioningReadinessV1:
     basis_mode: str
     total_index_length_label: str
     nominal_gradient_label: str
+    return_arrangement_basis_label: str
+    return_arrangement_basis_ready: bool
+    return_arrangement_basis_status: str
     proportioning_status: str
 
 
@@ -59,6 +66,39 @@ def build_proportioning_readiness_v1(project_state: Any) -> ProportioningReadine
 
     terminal_room_id = _terminal_room_id(topology)
 
+    return_intent = getattr(
+        project_state,
+        "hydronic_return_arrangement_intent",
+        None,
+    )
+    resolved_return_basis = resolve_system_return_arrangement_v1(
+        return_intent
+    )
+
+    return_basis_label = str(
+        getattr(
+            resolved_return_basis,
+            "resolved_arrangement",
+            "UNDECIDED",
+        )
+        or "UNDECIDED"
+    )
+    return_basis_ready = bool(
+        getattr(
+            resolved_return_basis,
+            "accepted",
+            False,
+        )
+    )
+    return_basis_status = str(
+        getattr(
+            resolved_return_basis,
+            "status",
+            "System return arrangement undecided",
+        )
+        or "System return arrangement undecided"
+    )
+
     index_label = _room_label(project_state, index_room_id)
     terminal_label = _room_label(project_state, terminal_room_id)
 
@@ -71,6 +111,19 @@ def build_proportioning_readiness_v1(project_state: Any) -> ProportioningReadine
     else:
         alignment = "Mismatch — index room is not terminal"
 
+    blockers: list[str] = []
+
+    if not return_basis_ready:
+        blockers.append("Accepted return arrangement basis required")
+
+    if blockers:
+        proportioning_status = "Blocked — " + "; ".join(blockers)
+    else:
+        proportioning_status = (
+            "Read-only preview only — accepted return arrangement basis "
+            "available; detailed balancing has not been run"
+        )
+
     return ProportioningReadinessV1(
         index_room_id=str(index_room_id) if index_room_id else None,
         index_room_label=index_label,
@@ -80,9 +133,10 @@ def build_proportioning_readiness_v1(project_state: Any) -> ProportioningReadine
         basis_mode=basis_mode,
         total_index_length_label=_length_label(total_index_length),
         nominal_gradient_label=_gradient_label(nominal_gradient),
-        proportioning_status=(
-            "Read-only preview only — detailed balancing has not been run"
-        ),
+        return_arrangement_basis_label=return_basis_label,
+        return_arrangement_basis_ready=return_basis_ready,
+        return_arrangement_basis_status=return_basis_status,
+        proportioning_status=proportioning_status,
     )
 
 
