@@ -150,6 +150,17 @@ class HydronicsSchematicPanelAdapter:
                 self.set_system_return_arrangement_acceptance
             )
 
+        # --------------------------------------------------
+        # H-S26-G — Commit Proportioning basis snapshot callback
+        # --------------------------------------------------
+        if hasattr(
+                self._panel,
+                "set_commit_proportioning_callback",
+        ):
+            self._panel.set_commit_proportioning_callback(
+                self.commit_proportioning_basis_snapshot
+            )
+
         self.refresh()
 
 
@@ -1262,6 +1273,57 @@ class HydronicsSchematicPanelAdapter:
     # --------------------------------------------------
     # H-S26-C — User accepted system return arrangement basis
     # --------------------------------------------------
+    def commit_proportioning_basis_snapshot(self) -> None:
+        """
+        H-S26-G:
+        Commit a frozen accepted proportioning-basis snapshot.
+
+        This writes a basis-only snapshot to ProjectState.
+
+        It does not:
+        • select a pump
+        • select valves
+        • resize pipes
+        • mutate balancing
+        • create a final hydraulic Proportioned result
+        """
+        from HVAC.hydronics.proportioning.proportioned_basis_snapshot_v1 import (
+            build_proportioned_basis_snapshot_v1,
+        )
+
+        project = getattr(self, "_project_state", None)
+
+        if project is None:
+            print(
+                "H-S26-G Commit Proportioning blocked: "
+                "no ProjectState is available"
+            )
+            return
+
+        result = build_proportioned_basis_snapshot_v1(project)
+
+        if not result.ready or result.snapshot is None:
+            if hasattr(self._panel, "set_commit_proportioning_ready"):
+                self._panel.set_commit_proportioning_ready(
+                    ready=False,
+                    reason=result.status,
+                )
+
+            print(
+                "H-S26-G Commit Proportioning blocked:",
+                result.status,
+            )
+            return
+
+        project.hydronic_proportioned_basis_snapshot = result.snapshot
+
+        print(
+            "H-S26-G committed proportioning basis snapshot:",
+            result.snapshot.return_arrangement_basis,
+        )
+
+        self.refresh()
+
     def set_system_return_arrangement_acceptance(self, basis: str) -> None:
         """
         User-facing acceptance only.

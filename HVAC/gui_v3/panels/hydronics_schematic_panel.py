@@ -3194,6 +3194,15 @@ class HydronicsSchematicPanel(QWidget):
 
         table.resizeColumnsToContents()
 
+    def set_commit_proportioning_callback(self, callback) -> None:
+        """
+        H-S26-G:
+        Register adapter callback for Commit Proportioning.
+
+        Panel remains observer/control surface only.
+        """
+        self._commit_proportioning_callback = callback
+
     def set_commit_proportioning_ready(
             self,
             *,
@@ -3258,12 +3267,23 @@ class HydronicsSchematicPanel(QWidget):
 
     def _on_commit_proportioning_button_clicked(self) -> None:
         """
-        H-S26-F:
-        Safe shell only. The actual ProjectState commit is deferred.
+        H-S26-G:
+        Ask adapter to create the frozen accepted basis snapshot.
+
+        Panel does not access ProjectState directly.
         """
+        callback = getattr(
+            self,
+            "_commit_proportioning_callback",
+            None,
+        )
+
+        if callable(callback):
+            callback()
+            return
+
         print(
-            "H-S26-F Commit Proportioning gate is ready; "
-            "final commit action is deferred."
+            "H-S26-G Commit Proportioning callback is not registered."
         )
 
     def set_proportioning_schematic(self, schematic) -> None:

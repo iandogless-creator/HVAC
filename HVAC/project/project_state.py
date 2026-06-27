@@ -23,6 +23,11 @@ from HVAC.hydronics.proportioning.return_arrangement_acceptance_intent_v1 import
     return_arrangement_intent_from_dict_v1,
     return_arrangement_intent_to_dict_v1,
 )
+from HVAC.hydronics.proportioning.proportioned_basis_snapshot_v1 import (
+    ProportionedBasisSnapshotV1,
+    proportioned_basis_snapshot_from_dict_v1,
+    proportioned_basis_snapshot_to_dict_v1,
+)
 from HVAC.hydronics.topology.hydronic_topology_v1 import HydronicTopologyV1
 # ======================================================================
 # Hydronics emitter serialization
@@ -145,6 +150,7 @@ class ProjectState:
     # ------------------------------------------------------------------
     hydronic_local_k_intent: Optional[LocalKIntentV1] = None
     hydronic_return_arrangement_intent: Optional[ReturnArrangementIntentV1] = None
+    hydronic_proportioned_basis_snapshot: Optional[ProportionedBasisSnapshotV1] = None
 
     # ------------------------------------------------------------------
     # Execution override (temporary)
@@ -328,6 +334,13 @@ class ProjectState:
                 if self.hydronic_return_arrangement_intent
                 else None
             ),
+            "hydronic_proportioned_basis_snapshot": (
+                proportioned_basis_snapshot_to_dict_v1(
+                    self.hydronic_proportioned_basis_snapshot
+                )
+                if self.hydronic_proportioned_basis_snapshot
+                else None
+            ),
             "hydronics": {
                 "valid": self.hydronics_valid,
                 "results": _json_safe(self.hydronics_results),
@@ -407,6 +420,17 @@ class ProjectState:
             instance.hydronic_return_arrangement_intent = (
                 return_arrangement_intent_from_dict_v1(
                     raw_hydronic_return_arrangement_intent
+                )
+            )
+
+        raw_hydronic_proportioned_basis_snapshot = data.get(
+            "hydronic_proportioned_basis_snapshot"
+        )
+
+        if isinstance(raw_hydronic_proportioned_basis_snapshot, dict):
+            instance.hydronic_proportioned_basis_snapshot = (
+                proportioned_basis_snapshot_from_dict_v1(
+                    raw_hydronic_proportioned_basis_snapshot
                 )
             )
 
