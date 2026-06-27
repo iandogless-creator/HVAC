@@ -69,6 +69,9 @@ from PySide6.QtWidgets import (
     QTabWidget,
     QAbstractItemView,
     QGridLayout,
+    QRadioButton,
+    QButtonGroup,
+    QHBoxLayout,
 )
 
 from HVAC.gui_v3.schematic.dto import (
@@ -1104,7 +1107,126 @@ class HydronicsSchematicPanel(QWidget):
         # ==================================================
         # Proportioning tab — lower diagnostic/detail area
         # ==================================================
+        # --------------------------------------------------
+        # H-S26-C — Return arrangement acceptance controls
+        # --------------------------------------------------
+        self._return_arrangement_acceptance_widget = QWidget(self)
 
+        return_acceptance_layout = QVBoxLayout(
+            self._return_arrangement_acceptance_widget
+        )
+        return_acceptance_layout.setContentsMargins(8, 8, 8, 8)
+        return_acceptance_layout.setSpacing(6)
+
+        self._return_arrangement_acceptance_status_label = QLabel(
+            "This is the system-wide accepted return arrangement. "
+            "Legs and sublegs inherit this basis unless later overridden. "
+            "F+R / F+RR comparison is evidence only.",
+            self,
+        )
+        self._return_arrangement_acceptance_status_label.setWordWrap(True)
+
+        return_acceptance_layout.addWidget(
+            self._return_arrangement_acceptance_status_label
+        )
+
+        self._return_arrangement_button_group = QButtonGroup(self)
+        self._return_arrangement_button_group.setExclusive(True)
+
+        self._return_arrangement_undecided_radio = QRadioButton(
+            "Undecided",
+            self,
+        )
+        self._return_arrangement_direct_radio = QRadioButton(
+            "Direct return / F+R",
+            self,
+        )
+        self._return_arrangement_reverse_radio = QRadioButton(
+            "Reverse return / F+RR",
+            self,
+        )
+
+        self._return_arrangement_button_group.addButton(
+            self._return_arrangement_undecided_radio
+        )
+        self._return_arrangement_button_group.addButton(
+            self._return_arrangement_direct_radio
+        )
+        self._return_arrangement_button_group.addButton(
+            self._return_arrangement_reverse_radio
+        )
+
+        self._return_arrangement_undecided_radio.setChecked(True)
+
+        return_choice_layout = QHBoxLayout()
+        return_choice_layout.setSpacing(14)
+
+        return_radio_layout = QHBoxLayout()
+        return_radio_layout.setSpacing(10)
+        return_radio_layout.addWidget(
+            self._return_arrangement_undecided_radio
+        )
+        return_radio_layout.addWidget(
+            self._return_arrangement_direct_radio
+        )
+        return_radio_layout.addWidget(
+            self._return_arrangement_reverse_radio
+        )
+
+        self._return_arrangement_pressure_evidence_label = QLabel(
+            self,
+        )
+        self._return_arrangement_pressure_evidence_label.setWordWrap(True)
+        self._return_arrangement_pressure_evidence_label.setFrameShape(
+            QFrame.StyledPanel
+        )
+        self._return_arrangement_pressure_evidence_label.setMinimumWidth(360)
+        self._return_arrangement_pressure_evidence_label.setText(
+            "System-wide return arrangement pressure evidence — preview only\\n\\n"
+            "Direct return controlling Δp:      TBA\\n"
+            "Reverse return controlling Δp:     TBA\\n"
+            "Controlling route Δp change:       TBA\\n\\n"
+            "Direct balancing burden:           TBA\\n"
+            "Reverse balancing burden:          TBA\\n"
+            "Balancing resistance reduction:    TBA\\n\\n"
+            "RR extra pipe allowance:           TBA\\n"
+            "Evidence result:                   TBA"
+        )
+
+        return_choice_layout.addLayout(return_radio_layout, 0)
+        return_choice_layout.addWidget(
+            self._return_arrangement_pressure_evidence_label,
+            1,
+        )
+
+        return_acceptance_layout.addLayout(return_choice_layout)
+
+        self._return_arrangement_undecided_radio.toggled.connect(
+            lambda checked: checked
+            and self._on_system_return_arrangement_acceptance_changed(
+                "UNDECIDED"
+            )
+        )
+        self._return_arrangement_direct_radio.toggled.connect(
+            lambda checked: checked
+            and self._on_system_return_arrangement_acceptance_changed(
+                "DIRECT_RETURN"
+            )
+        )
+        self._return_arrangement_reverse_radio.toggled.connect(
+            lambda checked: checked
+            and self._on_system_return_arrangement_acceptance_changed(
+                "REVERSE_RETURN"
+            )
+        )
+
+        self._add_section(
+            proportioning_layout,
+            title="System-wide return arrangement acceptance — user design basis",
+            table=self._return_arrangement_acceptance_widget,
+            min_height=105,
+            expanded=True,
+        )
         # --------------------------------------------------
         # Proportioning readiness
         # --------------------------------------------------
@@ -1413,6 +1535,299 @@ class HydronicsSchematicPanel(QWidget):
 
         self._fit_table_height(table, min_height=110, max_height=170)
         table.scrollToTop()
+
+    def _parse_pressure_pa_value(self, value) -> float | None:
+        """
+        H-S26-C:
+        Best-effort parser for pressure values displayed in preview rows.
+        """
+        if value is None:
+            return None
+
+        if isinstance(value, (int, float)):
+            return float(value)
+
+        text = str(value or "").strip()
+        if not text or text == "—":
+            return None
+
+        text = (
+            text.replace("Pa", "")
+            .replace("pa", "")
+            .replace(",", "")
+            .strip()
+        )
+
+        try:
+            return float(text)
+        except ValueError:
+            return None
+
+    def _format_pressure_pa_value(self, value: float | None) -> str:
+        """
+        H-S26-C:
+        Format pressure value for the system-wide pressure evidence summary.
+        """
+        if value is None:
+            return "TBA"
+        return f"{value:,.0f} Pa"
+
+    def _return_row_pressure_value(
+            self,
+            row: dict,
+            keys: tuple[str, ...],
+    ) -> float | None:
+        """
+        H-S26-C:
+        Read a pressure value from a return-comparison row using several
+        possible key names, keeping this tolerant of current/future row shapes.
+        """
+        for key in keys:
+            if key in row:
+                value = self._parse_pressure_pa_value(row.get(key))
+                if value is not None:
+                    return value
+        return None
+
+    def _return_row_bool_value(
+            self,
+            row: dict,
+            keys: tuple[str, ...],
+    ) -> bool:
+        """
+        H-S26-C:
+        Read a controlling flag from a return-comparison row.
+        """
+        for key in keys:
+            if key not in row:
+                continue
+
+            value = row.get(key)
+
+            if isinstance(value, bool):
+                return value
+
+            text = str(value or "").strip().lower()
+            if text in {"true", "yes", "y", "1", "controlling", "index"}:
+                return True
+
+        return False
+
+    def _set_return_arrangement_pressure_evidence_summary(
+            self,
+            rows: list[dict] | None = None,
+    ) -> None:
+        """
+        H-S26-C:
+        Show system-wide return arrangement pressure evidence beside the
+        acceptance radio buttons.
+
+        Evidence only:
+        • no ProjectState persistence
+        • no final Proportioned commit
+        • no valve selection
+        • no pump selection
+        • no pipe resizing
+        • no automatic choice from F+R / F+RR comparison evidence
+
+        Balancing burden definition:
+        Σ(max(controlling route Δp - circuit route Δp, 0))
+        """
+        label = getattr(
+            self,
+            "_return_arrangement_pressure_evidence_label",
+            None,
+        )
+        if label is None:
+            return
+
+        rows = list(rows or [])
+
+        direct_values: list[float] = []
+        reverse_values: list[float] = []
+
+        direct_controlling_values: list[float] = []
+        reverse_controlling_values: list[float] = []
+
+        for row in rows:
+            row = dict(row or {})
+
+            direct_dp = self._return_row_pressure_value(
+                row,
+                (
+                    "direct_dp",
+                    "direct_route_dp",
+                    "direct_total_dp",
+                    "direct_sigma_dp",
+                    "direct_ΣΔp",
+                    "Direct ΣΔp",
+                    "F+R Δp",
+                    "f_r_dp",
+                ),
+            )
+            reverse_dp = self._return_row_pressure_value(
+                row,
+                (
+                    "reverse_dp",
+                    "reverse_route_dp",
+                    "reverse_total_dp",
+                    "reverse_sigma_dp",
+                    "reverse_ΣΔp",
+                    "Reverse ΣΔp",
+                    "F+RR Δp",
+                    "f_rr_dp",
+                ),
+            )
+
+            if direct_dp is not None:
+                direct_values.append(direct_dp)
+
+                if self._return_row_bool_value(
+                        row,
+                        (
+                            "direct_controlling",
+                            "Direct Controlling",
+                            "direct_is_controlling",
+                            "F+R Ctrl",
+                            "f_r_ctrl",
+                        ),
+                ):
+                    direct_controlling_values.append(direct_dp)
+
+            if reverse_dp is not None:
+                reverse_values.append(reverse_dp)
+
+                if self._return_row_bool_value(
+                        row,
+                        (
+                            "reverse_controlling",
+                            "Reverse Controlling",
+                            "reverse_is_controlling",
+                            "F+RR Ctrl",
+                            "f_rr_ctrl",
+                        ),
+                ):
+                    reverse_controlling_values.append(reverse_dp)
+
+        direct_controlling_dp = (
+            max(direct_controlling_values)
+            if direct_controlling_values
+            else (max(direct_values) if direct_values else None)
+        )
+        reverse_controlling_dp = (
+            max(reverse_controlling_values)
+            if reverse_controlling_values
+            else (max(reverse_values) if reverse_values else None)
+        )
+
+        direct_burden = None
+        if direct_controlling_dp is not None and direct_values:
+            direct_burden = sum(
+                max(direct_controlling_dp - value, 0.0)
+                for value in direct_values
+            )
+
+        reverse_burden = None
+        if reverse_controlling_dp is not None and reverse_values:
+            reverse_burden = sum(
+                max(reverse_controlling_dp - value, 0.0)
+                for value in reverse_values
+            )
+
+        controlling_change_text = "TBA"
+        if (
+                direct_controlling_dp is not None
+                and reverse_controlling_dp is not None
+        ):
+            controlling_delta = direct_controlling_dp - reverse_controlling_dp
+
+            if controlling_delta > 0:
+                controlling_change_text = (
+                    f"{abs(controlling_delta):,.0f} Pa lower with F+RR"
+                )
+            elif controlling_delta < 0:
+                controlling_change_text = (
+                    f"{abs(controlling_delta):,.0f} Pa higher with F+RR"
+                )
+            else:
+                controlling_change_text = "No change"
+
+        balancing_reduction_text = "TBA"
+        evidence_result = "Evidence result:                   TBA"
+
+        if direct_burden is not None and reverse_burden is not None:
+            burden_delta = direct_burden - reverse_burden
+
+            if burden_delta > 0:
+                balancing_reduction_text = f"{burden_delta:,.0f} Pa"
+                evidence_result = (
+                    "Evidence result:                   "
+                    "Reverse return reduces pressure imbalance"
+                )
+            elif burden_delta < 0:
+                balancing_reduction_text = (
+                    f"{abs(burden_delta):,.0f} Pa higher with F+RR"
+                )
+                evidence_result = (
+                    "Evidence result:                   "
+                    "Direct return has lower balancing burden"
+                )
+            else:
+                balancing_reduction_text = "No change"
+                evidence_result = (
+                    "Evidence result:                   "
+                    "Direct and reverse are pressure-neutral"
+                )
+
+        label.setText(
+            "System-wide return arrangement pressure evidence — preview only\n\n"
+            f"Direct return controlling Δp:      "
+            f"{self._format_pressure_pa_value(direct_controlling_dp)}\n"
+            f"Reverse return controlling Δp:     "
+            f"{self._format_pressure_pa_value(reverse_controlling_dp)}\n"
+            f"Controlling route Δp change:       "
+            f"{controlling_change_text}\n\n"
+            f"Direct balancing burden:           "
+            f"{self._format_pressure_pa_value(direct_burden)}\n"
+            f"Reverse balancing burden:          "
+            f"{self._format_pressure_pa_value(reverse_burden)}\n"
+            f"Balancing resistance reduction:    "
+            f"{balancing_reduction_text}\n\n"
+            "RR extra pipe allowance:           TBA\n"
+            f"{evidence_result}"
+        )
+
+    def set_system_return_arrangement_acceptance_callback(self, callback) -> None:
+        """
+        H-S26-C:
+        Adapter callback for user-accepted system return-arrangement basis.
+        """
+        self._system_return_arrangement_acceptance_callback = callback
+
+    def _on_system_return_arrangement_acceptance_changed(
+            self,
+            basis: str,
+    ) -> None:
+        """
+        H-S26-C:
+        User-facing system return-arrangement acceptance.
+
+        Design acceptance only:
+        • no ProjectState persistence here
+        • no final Proportioned commit
+        • no valve selection
+        • no pump selection
+        • no pipe resizing
+        • no automatic choice from F+R / F+RR comparison evidence
+        """
+        callback = getattr(
+            self,
+            "_system_return_arrangement_acceptance_callback",
+            None,
+        )
+
+        if callback is not None:
+            callback(basis)
 
     def _set_preliminary_route_balancing_preview(
             self,
@@ -2258,6 +2673,11 @@ class HydronicsSchematicPanel(QWidget):
             dict(row)
             for row in (rows or [])
         ]
+
+        self._set_return_arrangement_pressure_evidence_summary(
+            self._proportioning_snapshot_return_comparison_rows
+        )
+
         table = self._return_path_comparison_table
 
         table.setRowCount(len(rows))

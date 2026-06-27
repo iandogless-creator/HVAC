@@ -90,6 +90,16 @@ from HVAC.gui_v3.widgets.common_main_leg_subleg_schematic_widget_v1 import (
     CommonMainLegSublegRouteV1,
     CommonMainLegSublegSchematicV1,
 )
+from HVAC.hydronics.proportioning.return_arrangement_acceptance_intent_v1 import (
+    DIRECT_RETURN,
+    REVERSE_RETURN,
+    UNDECIDED,
+    INHERIT,
+    ReturnArrangementIntentV1,
+    resolve_system_return_arrangement_v1,
+    resolve_leg_return_arrangement_v1,
+    resolve_subleg_return_arrangement_v1,
+)
 
 class HydronicsSchematicPanelAdapter:
     """
@@ -128,7 +138,21 @@ class HydronicsSchematicPanelAdapter:
             "hydronic_section_focus_requested",
             self._on_hydronic_section_focus_requested,
         )
+
+        # --------------------------------------------------
+        # H-S26-C — User return-arrangement acceptance callback
+        # --------------------------------------------------
+        if hasattr(
+                self._panel,
+                "set_system_return_arrangement_acceptance_callback",
+        ):
+            self._panel.set_system_return_arrangement_acceptance_callback(
+                self.set_system_return_arrangement_acceptance
+            )
+
         self.refresh()
+
+
 
     def _subscribe_if_present(self, signal_name: str, callback) -> None:
         """
@@ -1147,6 +1171,60 @@ class HydronicsSchematicPanelAdapter:
             return f"{float(value):.1f} Pa"
         except (TypeError, ValueError):
             return "—"
+
+    # --------------------------------------------------
+    # H-S26-C — In-memory return arrangement acceptance intent
+    # --------------------------------------------------
+    def _get_return_arrangement_acceptance_intent(self):
+        from HVAC.hydronics.proportioning.return_arrangement_acceptance_intent_v1 import (
+            ReturnArrangementIntentV1,
+        )
+
+        intent = getattr(self, "_return_arrangement_acceptance_intent", None)
+
+        if intent is None:
+            intent = ReturnArrangementIntentV1()
+            self._return_arrangement_acceptance_intent = intent
+
+        return intent
+
+    # --------------------------------------------------
+    # H-S26-C — User accepted system return arrangement basis
+    # --------------------------------------------------
+    def set_system_return_arrangement_acceptance(self, basis: str) -> None:
+        """
+        User-facing acceptance only.
+
+        This does not persist to ProjectState.
+        This does not commit final Proportioned state.
+        This does not use F+R/F+RR comparison to auto-select a basis.
+        """
+
+        from dataclasses import replace
+
+        from HVAC.hydronics.proportioning.return_arrangement_acceptance_intent_v1 import (
+            DIRECT_RETURN,
+            REVERSE_RETURN,
+            UNDECIDED,
+        )
+
+        basis = str(basis or "").strip().upper()
+
+        if basis not in {UNDECIDED, DIRECT_RETURN, REVERSE_RETURN}:
+            basis = UNDECIDED
+
+        intent = self._get_return_arrangement_acceptance_intent()
+
+        try:
+            self._return_arrangement_acceptance_intent = replace(
+                intent,
+                system_arrangement=basis,
+            )
+        except TypeError:
+            intent.system_arrangement = basis
+            self._return_arrangement_acceptance_intent = intent
+
+        self.refresh()
 
     def _build_pipe_authority_summary_rows(self, summary) -> list[dict]:
         rows: list[dict] = []
