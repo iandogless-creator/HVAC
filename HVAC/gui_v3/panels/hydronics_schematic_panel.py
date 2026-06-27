@@ -60,7 +60,9 @@ from PySide6.QtWidgets import (
     QWidget,
     QFrame,
     QLabel,
+    QPushButton,
     QVBoxLayout,
+    QSizePolicy,
     QTableWidget,
     QTableWidgetItem,
     QHeaderView,
@@ -1199,6 +1201,27 @@ class HydronicsSchematicPanel(QWidget):
             1,
         )
 
+        self._commit_proportioning_button = QPushButton(
+            "Commit Proportioning",
+            self._return_arrangement_acceptance_widget,
+        )
+        self._commit_proportioning_button.clicked.connect(
+            self._on_commit_proportioning_button_clicked
+        )
+
+        return_choice_layout.addSpacing(12)
+        return_choice_layout.addWidget(
+            self._commit_proportioning_button
+        )
+
+        self.set_commit_proportioning_ready(
+            ready=False,
+            reason=(
+                "Accept a Direct or Reverse return arrangement basis before "
+                "committing proportioning."
+            ),
+        )
+
         return_acceptance_layout.addLayout(return_choice_layout)
 
         self._return_arrangement_undecided_radio.toggled.connect(
@@ -1230,6 +1253,13 @@ class HydronicsSchematicPanel(QWidget):
         # --------------------------------------------------
         # Proportioning readiness
         # --------------------------------------------------
+        self._proportioning_readiness_widget = QWidget(self)
+        proportioning_readiness_layout = QVBoxLayout(
+            self._proportioning_readiness_widget
+        )
+        proportioning_readiness_layout.setContentsMargins(0, 0, 0, 0)
+        proportioning_readiness_layout.setSpacing(6)
+
         self._proportioning_readiness_table = self._make_table(
             columns=[
                 "Item",
@@ -1237,12 +1267,15 @@ class HydronicsSchematicPanel(QWidget):
             ],
             stretch_columns={1},
         )
+        proportioning_readiness_layout.addWidget(
+            self._proportioning_readiness_table
+        )
 
         self._add_section(
             proportioning_layout,
             title="Proportioning readiness — received from Basic",
-            table=self._proportioning_readiness_table,
-            min_height=170,
+            table=self._proportioning_readiness_widget,
+            min_height=215,
             expanded=False,
         )
 
@@ -3160,6 +3193,78 @@ class HydronicsSchematicPanel(QWidget):
             table.setItem(row_index, 1, QTableWidgetItem(str(value)))
 
         table.resizeColumnsToContents()
+
+    def set_commit_proportioning_ready(
+            self,
+            *,
+            ready: bool,
+            reason: str = "",
+    ) -> None:
+        """
+        H-S26-F:
+        Display-only Commit Proportioning button gate.
+
+        No ProjectState access.
+        No proportioned-result write.
+        No balancing mutation.
+        No valve selection.
+        No pump sizing.
+        No pipe resizing.
+        """
+        button = getattr(self, "_commit_proportioning_button", None)
+        if button is None:
+            return
+
+        ready = bool(ready)
+        button.setEnabled(ready)
+
+        if ready:
+            button.setStyleSheet(
+                """
+                QPushButton {
+                    background-color: #43a047;
+                    color: white;
+                    font-weight: bold;
+                    border: 1px solid #2e7d32;
+                    border-radius: 4px;
+                    padding: 6px 10px;
+                }
+                QPushButton:hover {
+                    background-color: #4caf50;
+                }
+                """
+            )
+            button.setToolTip(
+                "Ready to commit proportioning basis. "
+                "Final commit action is not implemented in this milestone."
+            )
+        else:
+            button.setStyleSheet(
+                """
+                QPushButton {
+                    background-color: #e0e0e0;
+                    color: #666666;
+                    border: 1px solid #aaaaaa;
+                    border-radius: 4px;
+                    padding: 6px 10px;
+                }
+                """
+            )
+            button.setToolTip(
+                reason
+                or "Accept a Direct or Reverse return arrangement basis before "
+                "committing proportioning."
+            )
+
+    def _on_commit_proportioning_button_clicked(self) -> None:
+        """
+        H-S26-F:
+        Safe shell only. The actual ProjectState commit is deferred.
+        """
+        print(
+            "H-S26-F Commit Proportioning gate is ready; "
+            "final commit action is deferred."
+        )
 
     def set_proportioning_schematic(self, schematic) -> None:
         """

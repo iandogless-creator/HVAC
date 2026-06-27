@@ -326,6 +326,12 @@ class HydronicsSchematicPanelAdapter:
                     "status": readiness.proportioning_status,
                 }
             )
+
+        if hasattr(self._panel, "set_commit_proportioning_ready"):
+            self._panel.set_commit_proportioning_ready(
+                ready=readiness.return_arrangement_basis_ready,
+                reason=readiness.proportioning_status,
+            )
         # --------------------------------------------------
         # H-S20-F2 — Proportioning received Basic PS sections
         # Route-aware section-flow basis for all known sublegs.
