@@ -278,3 +278,76 @@ def resolve_subleg_return_arrangement_v1(
             f"{_arrangement_label(leg_basis.resolved_arrangement)}"
         ),
     )
+
+def return_arrangement_intent_to_dict_v1(
+        intent: ReturnArrangementIntentV1 | None,
+) -> dict:
+    """
+    H-S26-D:
+    Serialize user/design return-arrangement acceptance intent.
+
+    Persistence only:
+    - no balancing
+    - no valve selection
+    - no pump sizing
+    - no pipe resizing
+    - no final Proportioned commit
+    - no automatic choice from F+R / F+RR evidence
+    """
+    if intent is None:
+        intent = ReturnArrangementIntentV1()
+
+    return {
+        "schema": "return_arrangement_intent_v1",
+        "system_arrangement": _normalise_intent(
+            getattr(intent, "system_arrangement", UNDECIDED),
+            default=UNDECIDED,
+        ),
+        "leg_arrangements": {
+            str(key): _normalise_intent(value, default=INHERIT)
+            for key, value in dict(
+                getattr(intent, "leg_arrangements", {}) or {}
+            ).items()
+        },
+        "subleg_arrangements": {
+            str(key): _normalise_intent(value, default=INHERIT)
+            for key, value in dict(
+                getattr(intent, "subleg_arrangements", {}) or {}
+            ).items()
+        },
+    }
+
+
+def return_arrangement_intent_from_dict_v1(
+        data: object,
+) -> ReturnArrangementIntentV1:
+    """
+    H-S26-D:
+    Restore user/design return-arrangement acceptance intent from project data.
+
+    Tolerant by design:
+    - missing system basis falls back to UNDECIDED
+    - missing leg/subleg basis falls back to INHERIT
+    - bad values are normalised safely
+    """
+    if not isinstance(data, dict):
+        return ReturnArrangementIntentV1()
+
+    return ReturnArrangementIntentV1(
+        system_arrangement=_normalise_intent(
+            data.get("system_arrangement", UNDECIDED),
+            default=UNDECIDED,
+        ),
+        leg_arrangements={
+            str(key): _normalise_intent(value, default=INHERIT)
+            for key, value in dict(
+                data.get("leg_arrangements", {}) or {}
+            ).items()
+        },
+        subleg_arrangements={
+            str(key): _normalise_intent(value, default=INHERIT)
+            for key, value in dict(
+                data.get("subleg_arrangements", {}) or {}
+            ).items()
+        },
+    )

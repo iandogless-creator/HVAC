@@ -18,6 +18,11 @@ from HVAC.hydronics.models.basic_hydronic_sizing_intent_v1 import (
     BasicHydronicSizingIntentV1,
 )
 from HVAC.hydronics.local_losses.local_k_intent_v1 import LocalKIntentV1
+from HVAC.hydronics.proportioning.return_arrangement_acceptance_intent_v1 import (
+    ReturnArrangementIntentV1,
+    return_arrangement_intent_from_dict_v1,
+    return_arrangement_intent_to_dict_v1,
+)
 from HVAC.hydronics.topology.hydronic_topology_v1 import HydronicTopologyV1
 # ======================================================================
 # Hydronics emitter serialization
@@ -139,6 +144,7 @@ class ProjectState:
     # Hydronics H-S12-B — Local K / fittings intent
     # ------------------------------------------------------------------
     hydronic_local_k_intent: Optional[LocalKIntentV1] = None
+    hydronic_return_arrangement_intent: Optional[ReturnArrangementIntentV1] = None
 
     # ------------------------------------------------------------------
     # Execution override (temporary)
@@ -315,6 +321,13 @@ class ProjectState:
                 if self.hydronic_local_k_intent
                 else None
             ),
+            "hydronic_return_arrangement_intent": (
+                return_arrangement_intent_to_dict_v1(
+                    self.hydronic_return_arrangement_intent
+                )
+                if self.hydronic_return_arrangement_intent
+                else None
+            ),
             "hydronics": {
                 "valid": self.hydronics_valid,
                 "results": _json_safe(self.hydronics_results),
@@ -384,6 +397,17 @@ class ProjectState:
         if isinstance(raw_hydronic_local_k_intent, dict):
             instance.hydronic_local_k_intent = LocalKIntentV1.from_dict(
                 raw_hydronic_local_k_intent
+            )
+
+        raw_hydronic_return_arrangement_intent = data.get(
+            "hydronic_return_arrangement_intent"
+        )
+
+        if isinstance(raw_hydronic_return_arrangement_intent, dict):
+            instance.hydronic_return_arrangement_intent = (
+                return_arrangement_intent_from_dict_v1(
+                    raw_hydronic_return_arrangement_intent
+                )
             )
 
         instance.boundary_segments = {

@@ -1797,6 +1797,63 @@ class HydronicsSchematicPanel(QWidget):
             f"{evidence_result}"
         )
 
+    def set_system_return_arrangement_acceptance_basis(
+            self,
+            basis: str,
+    ) -> None:
+        """
+        H-S26-D:
+        Restore/display the persisted system-wide return arrangement basis
+        without treating it as a fresh user click.
+
+        Display only:
+        • no ProjectState mutation here
+        • no final Proportioned commit
+        • no valve selection
+        • no pump selection
+        • no pipe resizing
+        """
+        basis = str(basis or "").strip().upper()
+
+        radio_map = {
+            "DIRECT_RETURN": getattr(
+                self,
+                "_return_arrangement_direct_radio",
+                None,
+            ),
+            "REVERSE_RETURN": getattr(
+                self,
+                "_return_arrangement_reverse_radio",
+                None,
+            ),
+            "UNDECIDED": getattr(
+                self,
+                "_return_arrangement_undecided_radio",
+                None,
+            ),
+        }
+
+        wanted_radio = radio_map.get(
+            basis,
+            radio_map.get("UNDECIDED"),
+        )
+
+        radios = [
+            radio
+            for radio in radio_map.values()
+            if radio is not None
+        ]
+
+        for radio in radios:
+            radio.blockSignals(True)
+
+        try:
+            if wanted_radio is not None:
+                wanted_radio.setChecked(True)
+        finally:
+            for radio in radios:
+                radio.blockSignals(False)
+
     def set_system_return_arrangement_acceptance_callback(self, callback) -> None:
         """
         H-S26-C:

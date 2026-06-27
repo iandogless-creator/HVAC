@@ -154,6 +154,36 @@ class HydronicsSchematicPanelAdapter:
 
 
 
+    def _restore_return_arrangement_acceptance_basis_to_panel(self) -> None:
+        """
+        H-S26-D:
+        Restore the persisted system-wide return-arrangement basis into the
+        radio buttons during adapter refresh.
+
+        Display restore only:
+        • no ProjectState mutation
+        • no final Proportioned commit
+        • no valve selection
+        • no pump selection
+        • no pipe resizing
+        • no automatic choice from F+R / F+RR evidence
+        """
+        return_intent = self._get_return_arrangement_acceptance_intent()
+
+        basis = getattr(
+            return_intent,
+            "system_arrangement",
+            "UNDECIDED",
+        )
+
+        if hasattr(
+                self._panel,
+                "set_system_return_arrangement_acceptance_basis",
+        ):
+            self._panel.set_system_return_arrangement_acceptance_basis(
+                basis
+            )
+
     def _subscribe_if_present(self, signal_name: str, callback) -> None:
         """
         Best-effort subscription to GuiProjectContext signals.
@@ -200,6 +230,8 @@ class HydronicsSchematicPanelAdapter:
     # ------------------------------------------------------------------
 
     def refresh(self) -> None:
+        self._restore_return_arrangement_acceptance_basis_to_panel()
+
         """
         Hydronics schematic panel refresh.
 
@@ -1173,18 +1205,40 @@ class HydronicsSchematicPanelAdapter:
             return "—"
 
     # --------------------------------------------------
-    # H-S26-C — In-memory return arrangement acceptance intent
+    # H-S26-D — ProjectState-backed return arrangement acceptance intent
     # --------------------------------------------------
     def _get_return_arrangement_acceptance_intent(self):
+        """
+        H-S26-D:
+        Return the persisted ProjectState-backed return arrangement intent.
+
+        Persistence only:
+        • no balancing
+        • no valve selection
+        • no pump sizing
+        • no pipe resizing
+        • no final Proportioned commit
+        • no automatic choice from F+R / F+RR evidence
+        """
         from HVAC.hydronics.proportioning.return_arrangement_acceptance_intent_v1 import (
             ReturnArrangementIntentV1,
         )
 
-        intent = getattr(self, "_return_arrangement_acceptance_intent", None)
+        project = getattr(self, "_project_state", None)
+
+        intent = getattr(
+            project,
+            "hydronic_return_arrangement_intent",
+            None,
+        )
 
         if intent is None:
             intent = ReturnArrangementIntentV1()
-            self._return_arrangement_acceptance_intent = intent
+
+            if project is not None:
+                project.hydronic_return_arrangement_intent = intent
+
+        self._return_arrangement_acceptance_intent = intent
 
         return intent
 
@@ -1223,6 +1277,17 @@ class HydronicsSchematicPanelAdapter:
         except TypeError:
             intent.system_arrangement = basis
             self._return_arrangement_acceptance_intent = intent
+
+        project = getattr(self, "_project_state", None)
+        if project is not None:
+            project.hydronic_return_arrangement_intent = (
+                self._return_arrangement_acceptance_intent
+            )
+
+        else:
+            print(
+                "H-S26-D warning: no ProjectState available for return arrangement intent"
+            )
 
         self.refresh()
 
