@@ -19,7 +19,7 @@ The panel displays adapter-derived rows only.
 
 H-R2 layout
 -----------
-The panel is split into three tabs:
+The panel is split into four tabs:
 
 Overview
     • Emitter demand summary
@@ -74,6 +74,7 @@ from PySide6.QtWidgets import (
     QRadioButton,
     QButtonGroup,
     QHBoxLayout,
+    QComboBox,
 )
 
 from HVAC.gui_v3.schematic.dto import (
@@ -1110,7 +1111,7 @@ class HydronicsSchematicPanel(QWidget):
         # Proportioning tab — lower diagnostic/detail area
         # ==================================================
         # --------------------------------------------------
-        # H-S26-C — Return arrangement acceptance controls
+        # H-S26-I — Return arrangement acceptance tabs / panel wiring
         # --------------------------------------------------
         self._return_arrangement_acceptance_widget = QWidget(self)
 
@@ -1120,32 +1121,42 @@ class HydronicsSchematicPanel(QWidget):
         return_acceptance_layout.setContentsMargins(8, 8, 8, 8)
         return_acceptance_layout.setSpacing(6)
 
-        self._return_arrangement_acceptance_status_label = QLabel(
-            "This is the system-wide accepted return arrangement. "
-            "Legs and sublegs inherit this basis unless later overridden. "
-            "F+R / F+RR comparison is evidence only.",
-            self,
-        )
-        self._return_arrangement_acceptance_status_label.setWordWrap(True)
+        self._scoped_return_arrangement_acceptance_callback = None
+        self._return_arrangement_scope_controls = {}
 
-        return_acceptance_layout.addWidget(
-            self._return_arrangement_acceptance_status_label
+        self._return_arrangement_tabs = QTabWidget(
+            self._return_arrangement_acceptance_widget
         )
+
+        # ----------------------------------------------
+        # System tab — existing persisted system-wide basis
+        # ----------------------------------------------
+        system_tab = QWidget(self._return_arrangement_tabs)
+        system_layout = QHBoxLayout(system_tab)
+        system_layout.setContentsMargins(6, 6, 6, 6)
+        system_layout.setSpacing(12)
 
         self._return_arrangement_button_group = QButtonGroup(self)
         self._return_arrangement_button_group.setExclusive(True)
 
         self._return_arrangement_undecided_radio = QRadioButton(
             "Undecided",
-            self,
+            system_tab,
         )
         self._return_arrangement_direct_radio = QRadioButton(
-            "Direct return / F+R",
-            self,
+            "F&R",
+            system_tab,
         )
         self._return_arrangement_reverse_radio = QRadioButton(
-            "Reverse return / F+RR",
-            self,
+            "F+RR",
+            system_tab,
+        )
+
+        self._return_arrangement_direct_radio.setToolTip(
+            "Direct return / flow and return same route sense."
+        )
+        self._return_arrangement_reverse_radio.setToolTip(
+            "Reverse return / reverse-return arrangement."
         )
 
         self._return_arrangement_button_group.addButton(
@@ -1160,46 +1171,216 @@ class HydronicsSchematicPanel(QWidget):
 
         self._return_arrangement_undecided_radio.setChecked(True)
 
-        return_choice_layout = QHBoxLayout()
-        return_choice_layout.setSpacing(14)
-
-        return_radio_layout = QHBoxLayout()
-        return_radio_layout.setSpacing(10)
-        return_radio_layout.addWidget(
+        system_radio_layout = QHBoxLayout()
+        system_radio_layout.setSpacing(10)
+        system_radio_layout.addWidget(
             self._return_arrangement_undecided_radio
         )
-        return_radio_layout.addWidget(
+        system_radio_layout.addWidget(
             self._return_arrangement_direct_radio
         )
-        return_radio_layout.addWidget(
+        system_radio_layout.addWidget(
             self._return_arrangement_reverse_radio
         )
+        system_radio_layout.addStretch(1)
 
         self._return_arrangement_pressure_evidence_label = QLabel(
-            self,
+            self._return_arrangement_acceptance_widget,
         )
-        self._return_arrangement_pressure_evidence_label.setWordWrap(True)
+        self._return_arrangement_pressure_evidence_label.setWordWrap(False)
         self._return_arrangement_pressure_evidence_label.setFrameShape(
             QFrame.StyledPanel
         )
-        self._return_arrangement_pressure_evidence_label.setMinimumWidth(360)
+        self._return_arrangement_pressure_evidence_label.setMinimumWidth(430)
+        self._return_arrangement_pressure_evidence_label.setMaximumWidth(560)
+        self._return_arrangement_pressure_evidence_label.setMinimumHeight(130)
+        self._return_arrangement_pressure_evidence_label.setMaximumHeight(165)
+        self._return_arrangement_pressure_evidence_label.setSizePolicy(
+            QSizePolicy.Maximum,
+            QSizePolicy.Maximum,
+        )
         self._return_arrangement_pressure_evidence_label.setText(
-            "System-wide return arrangement pressure evidence — preview only\\n\\n"
-            "Direct return controlling Δp:      TBA\\n"
-            "Reverse return controlling Δp:     TBA\\n"
-            "Controlling route Δp change:       TBA\\n\\n"
-            "Direct balancing burden:           TBA\\n"
-            "Reverse balancing burden:          TBA\\n"
-            "Balancing resistance reduction:    TBA\\n\\n"
-            "RR extra pipe allowance:           TBA\\n"
-            "Evidence result:                   TBA"
+            "Pressure evidence — preview only\n\n"
+            "F&R controlling Δp:      TBA\n"
+            "F+RR controlling Δp:     TBA\n"
+            "Route Δp change:         TBA\n\n"
+            "F&R balancing burden:    TBA\n"
+            "F+RR balancing burden:   TBA\n"
+            "Resistance reduction:    TBA\n\n"
+            "RR pipe allowance:       TBA\n"
+            "Evidence result:         TBA"
         )
 
-        return_choice_layout.addLayout(return_radio_layout, 0)
-        return_choice_layout.addWidget(
-            self._return_arrangement_pressure_evidence_label,
-            1,
+        system_layout.addLayout(system_radio_layout, 0)
+        system_layout.addStretch(1)
+
+        self._return_arrangement_tabs.addTab(
+            system_tab,
+            "System",
         )
+
+        # ----------------------------------------------
+        # Scoped override tabs
+        # ----------------------------------------------
+        def _make_scoped_override_tab(
+                *,
+                scope_key: str,
+                target_label: str,
+                inherit_label: str,
+                parent_visible: bool = False,
+        ) -> QWidget:
+            tab = QWidget(self._return_arrangement_tabs)
+            layout = QVBoxLayout(tab)
+            layout.setContentsMargins(6, 6, 6, 6)
+            layout.setSpacing(6)
+
+            target_row = QHBoxLayout()
+            target_row.setSpacing(8)
+
+            label = QLabel(target_label, tab)
+            combo = QComboBox(tab)
+            combo.setMinimumWidth(180)
+            combo.setMaximumWidth(260)
+            combo.setSizePolicy(
+                QSizePolicy.Fixed,
+                QSizePolicy.Fixed,
+            )
+            combo.addItem("No targets yet", "")
+
+            target_row.addWidget(label, 0)
+            target_row.addWidget(combo, 0)
+            target_row.addStretch(1)
+
+            layout.addLayout(target_row)
+
+            parent_label = QLabel("", tab)
+            parent_label.setWordWrap(True)
+            parent_label.setVisible(parent_visible)
+            layout.addWidget(parent_label)
+
+            group = QButtonGroup(self)
+            group.setExclusive(True)
+
+            inherit_radio = QRadioButton(inherit_label, tab)
+            direct_radio = QRadioButton("F&R", tab)
+            reverse_radio = QRadioButton("F+RR", tab)
+
+            group.addButton(inherit_radio)
+            group.addButton(direct_radio)
+            group.addButton(reverse_radio)
+
+            inherit_radio.setChecked(True)
+
+            radio_row = QHBoxLayout()
+            radio_row.setSpacing(10)
+            radio_row.addWidget(inherit_radio)
+            radio_row.addWidget(direct_radio)
+            radio_row.addWidget(reverse_radio)
+            radio_row.addStretch(1)
+
+            layout.addLayout(radio_row)
+            layout.addStretch(1)
+
+            self._return_arrangement_scope_controls[scope_key] = {
+                "combo": combo,
+                "group": group,
+                "inherit_radio": inherit_radio,
+                "direct_radio": direct_radio,
+                "reverse_radio": reverse_radio,
+                "parent_label": parent_label,
+            }
+
+            combo.currentIndexChanged.connect(
+                lambda _index, scope_key=scope_key:
+                self._on_scoped_return_arrangement_target_changed(
+                    scope_key
+                )
+            )
+
+            inherit_radio.toggled.connect(
+                lambda checked, scope_key=scope_key: checked
+                and self._on_scoped_return_arrangement_acceptance_changed(
+                    scope_key,
+                    "INHERIT",
+                )
+            )
+            direct_radio.toggled.connect(
+                lambda checked, scope_key=scope_key: checked
+                and self._on_scoped_return_arrangement_acceptance_changed(
+                    scope_key,
+                    "DIRECT_RETURN",
+                )
+            )
+            reverse_radio.toggled.connect(
+                lambda checked, scope_key=scope_key: checked
+                and self._on_scoped_return_arrangement_acceptance_changed(
+                    scope_key,
+                    "REVERSE_RETURN",
+                )
+            )
+
+            return tab
+
+        self._return_arrangement_tabs.addTab(
+            _make_scoped_override_tab(
+                scope_key="LEG",
+                target_label="Leg:",
+                inherit_label="Inherit system",
+            ),
+            "Leg",
+        )
+
+        self._return_arrangement_tabs.addTab(
+            _make_scoped_override_tab(
+                scope_key="COMMON_SUBLEG",
+                target_label="Common subleg:",
+                inherit_label="Inherit leg/system",
+            ),
+            "Common subleg",
+        )
+
+        self._return_arrangement_tabs.addTab(
+            _make_scoped_override_tab(
+                scope_key="BRANCH_SUBLEG",
+                target_label="Branch subleg:",
+                inherit_label="Inherit parent",
+                parent_visible=True,
+            ),
+            "Branch subleg",
+        )
+
+        return_acceptance_layout.addWidget(
+            self._return_arrangement_tabs,
+            0,
+        )
+
+        evidence_row_layout = QHBoxLayout()
+        evidence_row_layout.setSpacing(8)
+        evidence_row_layout.addWidget(
+            self._return_arrangement_pressure_evidence_label,
+            0,
+        )
+        evidence_row_layout.addStretch(1)
+        return_acceptance_layout.addLayout(evidence_row_layout)
+
+        self._return_arrangement_scope_key_by_tab_index = {
+            0: "SYSTEM",
+            1: "LEG",
+            2: "COMMON_SUBLEG",
+            3: "BRANCH_SUBLEG",
+        }
+        self._return_arrangement_tabs.currentChanged.connect(
+            self._on_return_arrangement_tab_changed
+        )
+
+        footer_layout = QHBoxLayout()
+        footer_layout.setSpacing(8)
+
+        self._return_arrangement_acceptance_status_label = QLabel(
+            "Design basis only — no pump, valve, balancing, or pipe resizing.",
+            self,
+        )
+        self._return_arrangement_acceptance_status_label.setWordWrap(True)
 
         self._commit_proportioning_button = QPushButton(
             "Commit Proportioning",
@@ -1209,10 +1390,16 @@ class HydronicsSchematicPanel(QWidget):
             self._on_commit_proportioning_button_clicked
         )
 
-        return_choice_layout.addSpacing(12)
-        return_choice_layout.addWidget(
-            self._commit_proportioning_button
+        footer_layout.addWidget(
+            self._return_arrangement_acceptance_status_label,
+            1,
         )
+        footer_layout.addWidget(
+            self._commit_proportioning_button,
+            0,
+        )
+
+        return_acceptance_layout.addLayout(footer_layout)
 
         self.set_commit_proportioning_ready(
             ready=False,
@@ -1221,8 +1408,6 @@ class HydronicsSchematicPanel(QWidget):
                 "committing proportioning."
             ),
         )
-
-        return_acceptance_layout.addLayout(return_choice_layout)
 
         self._return_arrangement_undecided_radio.toggled.connect(
             lambda checked: checked
@@ -1245,9 +1430,9 @@ class HydronicsSchematicPanel(QWidget):
 
         self._add_section(
             proportioning_layout,
-            title="System-wide return arrangement acceptance — user design basis",
+            title="Return arrangement acceptance — user design basis",
             table=self._return_arrangement_acceptance_widget,
-            min_height=105,
+            min_height=185,
             expanded=True,
         )
         # --------------------------------------------------
@@ -1646,9 +1831,589 @@ class HydronicsSchematicPanel(QWidget):
 
         return False
 
+    @staticmethod
+    def _return_arrangement_truthy(value) -> bool:
+        if isinstance(value, bool):
+            return value
+
+        text = str(value or "").strip().lower()
+        return text in {"true", "yes", "y", "1", "branch"}
+
+    @staticmethod
+    def _return_arrangement_row_value(
+            row: dict,
+            keys: tuple[str, ...],
+            default: str = "",
+    ) -> str:
+        for key in keys:
+            value = row.get(key)
+            if value not in (None, ""):
+                return str(value)
+
+        return default
+
+    def _set_return_arrangement_override_targets(
+            self,
+            rows: list[dict] | None,
+    ) -> None:
+        """
+        H-S26-I:
+        Populate scoped return-arrangement target combos from the current
+        common-main / leg / subleg topology rows.
+
+        Panel only:
+        • no ProjectState mutation
+        • no pump / valve / balancing / pipe resize
+        """
+        controls = getattr(
+            self,
+            "_return_arrangement_scope_controls",
+            {},
+        )
+        if not controls:
+            return
+
+        rows = [
+            dict(row or {})
+            for row in (rows or [])
+        ]
+
+        leg_items: dict[str, str] = {}
+        common_items: dict[str, str] = {}
+        branch_items: dict[str, tuple[str, str]] = {}
+
+        for row in rows:
+            leg_id = self._return_arrangement_row_value(
+                row,
+                ("leg_id", "legId", "leg"),
+            )
+            leg_label = self._return_arrangement_row_value(
+                row,
+                ("leg_label", "legLabel", "leg"),
+                leg_id,
+            )
+
+            if leg_id:
+                leg_items.setdefault(
+                    leg_id,
+                    leg_label or leg_id,
+                )
+
+            subleg_id = self._return_arrangement_row_value(
+                row,
+                ("subleg_id", "sublegId", "subleg"),
+            )
+            subleg_label = self._return_arrangement_row_value(
+                row,
+                ("subleg_label", "sublegLabel", "subleg"),
+                subleg_id,
+            )
+            parent_subleg_id = self._return_arrangement_row_value(
+                row,
+                ("parent_subleg_id", "parentSublegId"),
+            )
+            parent_subleg_label = self._return_arrangement_row_value(
+                row,
+                (
+                    "parent_subleg_label",
+                    "parentSublegLabel",
+                    "parent_subleg",
+                    "parent",
+                ),
+                parent_subleg_id,
+            )
+
+            role_text = self._return_arrangement_row_value(
+                row,
+                ("role", "subleg_role", "type"),
+            ).lower()
+
+            is_branch = (
+                self._return_arrangement_truthy(
+                    row.get("is_branch_subleg")
+                )
+                or bool(parent_subleg_id)
+                or "branch" in role_text
+                or "branch" in subleg_label.lower()
+            )
+
+            is_common = (
+                bool(subleg_id)
+                and not is_branch
+                and (
+                    "common" in role_text
+                    or "common" in subleg_label.lower()
+                    or "primary" in subleg_id.lower()
+                )
+            )
+
+            if is_common:
+                common_items.setdefault(
+                    subleg_id,
+                    subleg_label or subleg_id,
+                )
+
+            if is_branch:
+                branch_items.setdefault(
+                    subleg_id,
+                    (
+                        subleg_label or subleg_id,
+                        parent_subleg_label or "Parent: TBA",
+                    ),
+                )
+
+        def populate_combo(
+                scope_key: str,
+                items,
+        ) -> None:
+            control = controls.get(scope_key, {})
+            combo = control.get("combo")
+            if combo is None:
+                return
+
+            combo.blockSignals(True)
+            try:
+                combo.clear()
+
+                if not items:
+                    combo.addItem("No targets", "")
+                    combo.setEnabled(False)
+                else:
+                    for item in items:
+                        if len(item) == 2:
+                            label, value = item
+                        else:
+                            label, value, _parent = item
+                        combo.addItem(label, value)
+
+                    combo.setEnabled(True)
+
+            finally:
+                combo.blockSignals(False)
+
+        populate_combo(
+            "LEG",
+            [
+                (label, key)
+                for key, label in leg_items.items()
+            ],
+        )
+        populate_combo(
+            "COMMON_SUBLEG",
+            [
+                (label, key)
+                for key, label in common_items.items()
+            ],
+        )
+        populate_combo(
+            "BRANCH_SUBLEG",
+            [
+                (label, key, parent_label)
+                for key, (label, parent_label) in branch_items.items()
+            ],
+        )
+
+        branch_control = controls.get("BRANCH_SUBLEG", {})
+        branch_combo = branch_control.get("combo")
+        branch_parent_label = branch_control.get("parent_label")
+
+        if branch_combo is not None:
+            branch_combo.setProperty(
+                "parent_labels_by_id",
+                {
+                    key: parent_label
+                    for key, (_label, parent_label) in branch_items.items()
+                },
+            )
+
+        if branch_parent_label is not None:
+            branch_parent_label.setVisible(True)
+
+        self._on_scoped_return_arrangement_target_changed(
+            "BRANCH_SUBLEG"
+        )
+
+        for scope_key, control in controls.items():
+            combo = control.get("combo")
+            enabled = bool(
+                combo is not None
+                and combo.isEnabled()
+                and str(combo.currentData() or "")
+            )
+
+            for key in (
+                "inherit_radio",
+                "direct_radio",
+                "reverse_radio",
+            ):
+                radio = control.get(key)
+                if radio is not None:
+                    radio.setEnabled(enabled)
+
+    def _on_scoped_return_arrangement_target_changed(
+            self,
+            scope_key: str,
+    ) -> None:
+        controls = getattr(
+            self,
+            "_return_arrangement_scope_controls",
+            {},
+        )
+        control = controls.get(scope_key, {})
+
+        combo = control.get("combo")
+        parent_label = control.get("parent_label")
+
+        if scope_key == "BRANCH_SUBLEG" and parent_label is not None:
+            parent_text = "Parent: TBA"
+
+            if combo is not None:
+                target_id = str(combo.currentData() or "")
+                parent_labels = combo.property("parent_labels_by_id") or {}
+                parent_value = parent_labels.get(target_id)
+
+                if parent_value:
+                    parent_text = f"Parent: {parent_value}"
+
+            parent_label.setText(parent_text)
+
+        self._apply_scoped_return_arrangement_selection_for_scope(scope_key)
+        self._refresh_return_arrangement_evidence_for_current_scope()
+
+    def set_scoped_return_arrangement_acceptance_callback(
+            self,
+            callback,
+    ) -> None:
+        """
+        H-S26-I:
+        Adapter callback for scoped return-arrangement overrides.
+        """
+        self._scoped_return_arrangement_acceptance_callback = callback
+
+    def _on_scoped_return_arrangement_acceptance_changed(
+            self,
+            scope_key: str,
+            basis: str,
+    ) -> None:
+        """
+        H-S26-I:
+        User-facing scoped return-arrangement override.
+
+        Override only:
+        • no room/subleg exclusion
+        • no pump / valve / balancing / pipe resize
+        """
+        controls = getattr(
+            self,
+            "_return_arrangement_scope_controls",
+            {},
+        )
+        control = controls.get(scope_key, {})
+
+        combo = control.get("combo")
+        target_id = ""
+        target_label = ""
+
+        if combo is not None:
+            target_id = str(combo.currentData() or "")
+            target_label = str(combo.currentText() or "")
+
+        if not target_id:
+            return
+
+        callback = getattr(
+            self,
+            "_scoped_return_arrangement_acceptance_callback",
+            None,
+        )
+
+        self._refresh_return_arrangement_evidence_for_current_scope()
+
+        if callback is not None:
+            callback(
+                scope_key,
+                target_id,
+                target_label,
+                basis,
+            )
+
+    def _current_return_arrangement_scope_key(self) -> str:
+        tabs = getattr(
+            self,
+            "_return_arrangement_tabs",
+            None,
+        )
+        if tabs is None:
+            return "SYSTEM"
+
+        index = int(tabs.currentIndex())
+        mapping = getattr(
+            self,
+            "_return_arrangement_scope_key_by_tab_index",
+            {},
+        )
+
+        return str(mapping.get(index, "SYSTEM") or "SYSTEM")
+
+    def _current_return_arrangement_scope_target(self) -> tuple[str, str]:
+        scope_key = self._current_return_arrangement_scope_key()
+
+        if scope_key == "SYSTEM":
+            return "", "System"
+
+        controls = getattr(
+            self,
+            "_return_arrangement_scope_controls",
+            {},
+        )
+        control = controls.get(scope_key, {})
+        combo = control.get("combo")
+
+        if combo is None:
+            return "", "—"
+
+        return (
+            str(combo.currentData() or ""),
+            str(combo.currentText() or "—"),
+        )
+
+    def _current_return_arrangement_basis_label(self) -> str:
+        scope_key = self._current_return_arrangement_scope_key()
+
+        if scope_key == "SYSTEM":
+            if getattr(
+                    self,
+                    "_return_arrangement_direct_radio",
+                    None,
+            ) is not None and self._return_arrangement_direct_radio.isChecked():
+                return "F&R"
+
+            if getattr(
+                    self,
+                    "_return_arrangement_reverse_radio",
+                    None,
+            ) is not None and self._return_arrangement_reverse_radio.isChecked():
+                return "F+RR"
+
+            return "Undecided"
+
+        controls = getattr(
+            self,
+            "_return_arrangement_scope_controls",
+            {},
+        )
+        control = controls.get(scope_key, {})
+
+        if (
+                control.get("direct_radio") is not None
+                and control["direct_radio"].isChecked()
+        ):
+            return "F&R"
+
+        if (
+                control.get("reverse_radio") is not None
+                and control["reverse_radio"].isChecked()
+        ):
+            return "F+RR"
+
+        return "Inherit"
+
+    def _return_arrangement_evidence_heading(self) -> str:
+        scope_key = self._current_return_arrangement_scope_key()
+        target_id, target_label = self._current_return_arrangement_scope_target()
+        basis_label = self._current_return_arrangement_basis_label()
+
+        if scope_key == "SYSTEM":
+            return f"System — pressure evidence ({basis_label})"
+
+        if scope_key == "LEG":
+            return f"Leg {target_label} — pressure evidence ({basis_label})"
+
+        if scope_key == "COMMON_SUBLEG":
+            return (
+                f"Common subleg {target_label} — pressure evidence "
+                f"({basis_label})"
+            )
+
+        if scope_key == "BRANCH_SUBLEG":
+            return (
+                f"Branch subleg {target_label} — pressure evidence "
+                f"({basis_label})"
+            )
+
+        return "Pressure evidence — preview only"
+
+    def _return_arrangement_filtered_evidence_rows(self) -> list[dict]:
+        rows = [
+            dict(row or {})
+            for row in getattr(
+                self,
+                "_proportioning_snapshot_return_comparison_rows",
+                [],
+            )
+        ]
+
+        scope_key = self._current_return_arrangement_scope_key()
+        target_id, _target_label = self._current_return_arrangement_scope_target()
+
+        if scope_key == "SYSTEM":
+            return rows
+
+        if not target_id:
+            return []
+
+        if scope_key == "LEG":
+            return [
+                row
+                for row in rows
+                if str(row.get("leg_id", "") or "") == target_id
+            ]
+
+        if scope_key in {"COMMON_SUBLEG", "BRANCH_SUBLEG"}:
+            return [
+                row
+                for row in rows
+                if (
+                    str(row.get("subleg_id", "") or "") == target_id
+                    or str(row.get("route_id", "") or "") == target_id
+                )
+            ]
+
+        return rows
+
+    def _refresh_return_arrangement_evidence_for_current_scope(self) -> None:
+        self._set_return_arrangement_pressure_evidence_summary(
+            self._return_arrangement_filtered_evidence_rows(),
+            heading=self._return_arrangement_evidence_heading(),
+        )
+
+    def _on_return_arrangement_tab_changed(
+            self,
+            _index: int,
+    ) -> None:
+        self._refresh_return_arrangement_evidence_for_current_scope()
+
+    def set_scoped_return_arrangement_acceptance_basis(
+            self,
+            *,
+            leg_arrangements: dict | None = None,
+            subleg_arrangements: dict | None = None,
+    ) -> None:
+        """
+        H-S26-I6:
+        Restore persisted scoped return-arrangement overrides into the tab
+        controls after project load / refresh.
+
+        Panel only:
+            no ProjectState mutation here.
+        """
+        self._scoped_return_arrangement_leg_arrangements = {
+            str(key): str(value)
+            for key, value in dict(leg_arrangements or {}).items()
+        }
+        self._scoped_return_arrangement_subleg_arrangements = {
+            str(key): str(value)
+            for key, value in dict(subleg_arrangements or {}).items()
+        }
+
+        for scope_key in (
+                "LEG",
+                "COMMON_SUBLEG",
+                "BRANCH_SUBLEG",
+        ):
+            self._apply_scoped_return_arrangement_selection_for_scope(
+                scope_key
+            )
+
+        self._refresh_return_arrangement_evidence_for_current_scope()
+
+    def _scoped_return_arrangement_basis_for_target(
+            self,
+            scope_key: str,
+            target_id: str,
+    ) -> str:
+        scope_key = str(scope_key or "").strip().upper()
+        target_id = str(target_id or "").strip()
+
+        if not target_id:
+            return "INHERIT"
+
+        if scope_key == "LEG":
+            source = getattr(
+                self,
+                "_scoped_return_arrangement_leg_arrangements",
+                {},
+            )
+        else:
+            source = getattr(
+                self,
+                "_scoped_return_arrangement_subleg_arrangements",
+                {},
+            )
+
+        basis = str(source.get(target_id, "INHERIT") or "INHERIT").upper()
+
+        if basis not in {
+                "INHERIT",
+                "DIRECT_RETURN",
+                "REVERSE_RETURN",
+        }:
+            return "INHERIT"
+
+        return basis
+
+    def _apply_scoped_return_arrangement_selection_for_scope(
+            self,
+            scope_key: str,
+    ) -> None:
+        controls = getattr(
+            self,
+            "_return_arrangement_scope_controls",
+            {},
+        )
+        control = controls.get(scope_key, {})
+
+        combo = control.get("combo")
+        if combo is None:
+            return
+
+        target_id = str(combo.currentData() or "")
+        basis = self._scoped_return_arrangement_basis_for_target(
+            scope_key,
+            target_id,
+        )
+
+        radio_map = {
+            "INHERIT": control.get("inherit_radio"),
+            "DIRECT_RETURN": control.get("direct_radio"),
+            "REVERSE_RETURN": control.get("reverse_radio"),
+        }
+
+        radios = [
+            radio
+            for radio in radio_map.values()
+            if radio is not None
+        ]
+
+        for radio in radios:
+            radio.blockSignals(True)
+
+        try:
+            wanted = radio_map.get(
+                basis,
+                radio_map.get("INHERIT"),
+            )
+            if wanted is not None:
+                wanted.setChecked(True)
+        finally:
+            for radio in radios:
+                radio.blockSignals(False)
+
     def _set_return_arrangement_pressure_evidence_summary(
             self,
             rows: list[dict] | None = None,
+            *,
+            heading: str = "Pressure evidence — preview only",
     ) -> None:
         """
         H-S26-C:
@@ -1812,21 +2577,23 @@ class HydronicsSchematicPanel(QWidget):
                     "Direct and reverse are pressure-neutral"
                 )
 
+        heading = str(heading or "Pressure evidence — preview only")
+
         label.setText(
-            "System-wide return arrangement pressure evidence — preview only\n\n"
-            f"Direct return controlling Δp:      "
+            f"{heading}\n\n"
+            f"F&R controlling Δp:      "
             f"{self._format_pressure_pa_value(direct_controlling_dp)}\n"
-            f"Reverse return controlling Δp:     "
+            f"F+RR controlling Δp:     "
             f"{self._format_pressure_pa_value(reverse_controlling_dp)}\n"
-            f"Controlling route Δp change:       "
+            f"Route Δp change:         "
             f"{controlling_change_text}\n\n"
-            f"Direct balancing burden:           "
+            f"F&R balancing burden:    "
             f"{self._format_pressure_pa_value(direct_burden)}\n"
-            f"Reverse balancing burden:          "
+            f"F+RR balancing burden:   "
             f"{self._format_pressure_pa_value(reverse_burden)}\n"
-            f"Balancing resistance reduction:    "
+            f"Resistance reduction:    "
             f"{balancing_reduction_text}\n\n"
-            "RR extra pipe allowance:           TBA\n"
+            "RR pipe allowance:       TBA\n"
             f"{evidence_result}"
         )
 
@@ -1915,6 +2682,8 @@ class HydronicsSchematicPanel(QWidget):
             "_system_return_arrangement_acceptance_callback",
             None,
         )
+
+        self._refresh_return_arrangement_evidence_for_current_scope()
 
         if callback is not None:
             callback(basis)
@@ -2578,6 +3347,11 @@ class HydronicsSchematicPanel(QWidget):
         • no pump selection
         • no committed return arrangement
         """
+        # H-S26-I:
+        # Feed the Return arrangement acceptance scoped target combos from
+        # the same topology rows as the common-main / leg / subleg table.
+        self._set_return_arrangement_override_targets(rows)
+
         if not hasattr(self, "_common_main_leg_subleg_table"):
             return
 
@@ -2764,9 +3538,7 @@ class HydronicsSchematicPanel(QWidget):
             for row in (rows or [])
         ]
 
-        self._set_return_arrangement_pressure_evidence_summary(
-            self._proportioning_snapshot_return_comparison_rows
-        )
+        self._refresh_return_arrangement_evidence_for_current_scope()
 
         table = self._return_path_comparison_table
 

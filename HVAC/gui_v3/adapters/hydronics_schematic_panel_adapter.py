@@ -151,6 +151,17 @@ class HydronicsSchematicPanelAdapter:
             )
 
         # --------------------------------------------------
+        # H-S26-I5 — Scoped return-arrangement override callback
+        # --------------------------------------------------
+        if hasattr(
+                self._panel,
+                "set_scoped_return_arrangement_acceptance_callback",
+        ):
+            self._panel.set_scoped_return_arrangement_acceptance_callback(
+                self.set_scoped_return_arrangement_acceptance
+            )
+
+        # --------------------------------------------------
         # H-S26-G — Commit Proportioning basis snapshot callback
         # --------------------------------------------------
         if hasattr(
@@ -522,6 +533,36 @@ class HydronicsSchematicPanelAdapter:
                 common_main_leg_subleg_rows
             )
 
+        # --------------------------------------------------
+        # H-S26-I6 — restore scoped return-arrangement overrides
+        # after target combos are populated.
+        # --------------------------------------------------
+        if hasattr(
+                self._panel,
+                "set_scoped_return_arrangement_acceptance_basis",
+        ):
+            intent = self._get_return_arrangement_acceptance_intent()
+
+            if isinstance(intent, dict):
+                leg_arrangements = dict(
+                    intent.get("leg_arrangements", {}) or {}
+                )
+                subleg_arrangements = dict(
+                    intent.get("subleg_arrangements", {}) or {}
+                )
+            else:
+                leg_arrangements = dict(
+                    getattr(intent, "leg_arrangements", {}) or {}
+                )
+                subleg_arrangements = dict(
+                    getattr(intent, "subleg_arrangements", {}) or {}
+                )
+
+            self._panel.set_scoped_return_arrangement_acceptance_basis(
+                leg_arrangements=leg_arrangements,
+                subleg_arrangements=subleg_arrangements,
+            )
+
         common_main_leg_subleg_schematic = None
 
         if getattr(self._project_state, "hydronic_topology", None) is not None:
@@ -608,10 +649,131 @@ class HydronicsSchematicPanelAdapter:
         dto = self._build_schematic_dto(snapshot)
         self._panel._set_schematic(dto)
 
+    # --------------------------------------------------
+    # H-S26-I5 — Scoped return-arrangement override persistence
+    # --------------------------------------------------
+    def set_scoped_return_arrangement_acceptance(
+            self,
+            scope_key: str,
+            target_id: str,
+            target_label: str,
+            basis: str,
+    ) -> None:
+        """
+        Persist leg/subleg return-arrangement overrides.
+
+        Meaning:
+            INHERIT removes the override.
+            DIRECT_RETURN stores F&R.
+            REVERSE_RETURN stores F+RR.
+
+        Design-basis intent only:
+            • no room/subleg exclusion
+            • no balancing
+            • no pump selection
+            • no valve selection
+            • no pipe resizing
+            • no final Proportioned result
+        """
+        scope_key = str(scope_key or "").strip().upper()
+        target_id = str(target_id or "").strip()
+        target_label = str(target_label or "").strip()
+        basis = str(basis or "").strip().upper()
+
+        if basis not in {
+                "INHERIT",
+                "DIRECT_RETURN",
+                "REVERSE_RETURN",
+        }:
+            basis = "INHERIT"
+
+        if scope_key not in {
+                "LEG",
+                "COMMON_SUBLEG",
+                "BRANCH_SUBLEG",
+        }:
+            print(
+                "H-S26-I5 warning: unknown return-arrangement scope:",
+                repr(scope_key),
+            )
+            return
+
+        if not target_id:
+            print(
+                "H-S26-I5 warning: missing target id for scoped "
+                f"return-arrangement scope {scope_key!r}"
+            )
+            return
+
+        intent = self._get_return_arrangement_acceptance_intent()
+
+        if scope_key == "LEG":
+            field_name = "leg_arrangements"
+        else:
+            field_name = "subleg_arrangements"
+
+        if isinstance(intent, dict):
+            next_intent = dict(intent)
+            override_map = dict(next_intent.get(field_name, {}) or {})
+
+            if basis == "INHERIT":
+                override_map.pop(target_id, None)
+            else:
+                override_map[target_id] = basis
+
+            next_intent[field_name] = override_map
+            self._return_arrangement_acceptance_intent = next_intent
+
+        else:
+            from dataclasses import replace
+
+            override_map = dict(
+                getattr(intent, field_name, {}) or {}
+            )
+
+            if basis == "INHERIT":
+                override_map.pop(target_id, None)
+            else:
+                override_map[target_id] = basis
+
+            try:
+                self._return_arrangement_acceptance_intent = replace(
+                    intent,
+                    **{field_name: override_map},
+                )
+            except TypeError:
+                setattr(intent, field_name, override_map)
+                self._return_arrangement_acceptance_intent = intent
+
+        project = getattr(self, "_project_state", None)
+        if project is not None:
+            project.hydronic_return_arrangement_intent = (
+                self._return_arrangement_acceptance_intent
+            )
+
+        print(
+            "H-S26-I5 scoped return arrangement persisted:",
+            scope_key,
+            target_label or target_id,
+            "=>",
+            basis,
+        )
+
+        self.refresh()
+
     def _build_common_main_leg_subleg_schematic(
             self,
             topology,
     ) -> CommonMainLegSublegSchematicV1:
+        """
+        H-S26-G2:
+        Build display-only common-main / leg / subleg schematic.
+
+        Branch sublegs are attached to a parent/common subleg take-off marker,
+        not drawn as if they originate directly from the leg.
+
+        Branch take-off location remains TBA.
+        """
         routes: list[CommonMainLegSublegRouteV1] = []
 
         for leg in getattr(topology, "legs", []) or []:
@@ -626,44 +788,148 @@ class HydronicsSchematicPanelAdapter:
 
             leg_label = self._display_leg_label(raw_leg_label)
 
-            for subleg in getattr(leg, "sublegs", []) or []:
-                subleg_id = str(getattr(subleg, "subleg_id", "") or "")
+            leg_sublegs = list(getattr(leg, "sublegs", []) or [])
 
-                raw_subleg_label = str(
-                    getattr(subleg, "label", None)
-                    or getattr(subleg, "name", None)
-                    or subleg_id
-                    or "—"
+            primary_subleg = self._primary_subleg_for_display(leg_sublegs)
+
+            primary_subleg_id = ""
+            primary_subleg_label = ""
+
+            if primary_subleg is not None:
+                primary_subleg_id = str(
+                    getattr(primary_subleg, "subleg_id", "") or ""
                 )
-
-                subleg_label = self._display_subleg_label(
-                    raw_subleg_label
-                )
-
-                room_labels = tuple(
-                    self._subleg_room_ids_for_display(subleg)
-                )
-
-                routes.append(
-                    CommonMainLegSublegRouteV1(
-                        leg_id=leg_id,
-                        leg_label=leg_label,
-                        subleg_id=subleg_id,
-                        subleg_label=subleg_label,
-                        role=self._subleg_role_label(subleg),
-                        room_labels=room_labels,
+                primary_subleg_label = self._display_subleg_label(
+                    str(
+                        getattr(primary_subleg, "label", None)
+                        or getattr(primary_subleg, "name", None)
+                        or primary_subleg_id
+                        or "Primary subleg"
                     )
                 )
+
+            def add_subleg_tree(
+                    sublegs,
+                    *,
+                    parent_subleg_id: str = "",
+                    parent_subleg_label: str = "",
+            ) -> None:
+                for subleg in list(sublegs or []):
+                    subleg_id = str(getattr(subleg, "subleg_id", "") or "")
+
+                    raw_subleg_label = str(
+                        getattr(subleg, "label", None)
+                        or getattr(subleg, "name", None)
+                        or subleg_id
+                        or "—"
+                    )
+
+                    subleg_label = self._display_subleg_label(
+                        raw_subleg_label
+                    )
+
+                    role_label = self._subleg_role_label(subleg)
+                    role_lower = role_label.lower()
+
+                    is_primary = (
+                        "primary-subleg" in subleg_id
+                        or (
+                            "common" in role_lower
+                            and "branch" not in role_lower
+                        )
+                    )
+
+                    effective_parent_id = str(parent_subleg_id or "")
+                    effective_parent_label = str(parent_subleg_label or "")
+
+                    # Some current topology versions hold branch sublegs as
+                    # leg-level siblings rather than true nested children.
+                    # For display, attach those branches to the leg primary /
+                    # common subleg if available.
+                    if (
+                            not effective_parent_id
+                            and not is_primary
+                            and primary_subleg_id
+                            and subleg_id != primary_subleg_id
+                    ):
+                        effective_parent_id = primary_subleg_id
+                        effective_parent_label = primary_subleg_label
+
+                    is_branch = bool(effective_parent_id)
+
+                    room_labels = tuple(
+                        self._subleg_room_ids_for_display(subleg)
+                    )
+
+                    routes.append(
+                        CommonMainLegSublegRouteV1(
+                            leg_id=leg_id,
+                            leg_label=leg_label,
+                            subleg_id=subleg_id,
+                            subleg_label=subleg_label,
+                            role=role_label,
+                            room_labels=room_labels,
+                            parent_subleg_id=effective_parent_id,
+                            parent_subleg_label=effective_parent_label,
+                            parent_takeoff_label=(
+                                "Branch take-off — TBA"
+                                if is_branch
+                                else ""
+                            ),
+                            is_branch_subleg=is_branch,
+                        )
+                    )
+
+                    child_sublegs = list(
+                        getattr(subleg, "sublegs", ()) or ()
+                    )
+
+                    if child_sublegs:
+                        add_subleg_tree(
+                            child_sublegs,
+                            parent_subleg_id=subleg_id,
+                            parent_subleg_label=subleg_label,
+                        )
+
+            add_subleg_tree(leg_sublegs)
 
         return CommonMainLegSublegSchematicV1(
             heat_source_label="Boiler",
             common_main_label="Common main",
             routes=tuple(routes),
             status=(
-                "DEV topology schematic preview only — common main feeds legs; "
-                "legs feed sublegs; sublegs carry rooms"
+                "DEV topology schematic preview only — branch take-offs are "
+                "display-only TBA markers; no pressure, balancing, pump, "
+                "valve, or pipe-resize result"
             ),
         )
+
+    @staticmethod
+    def _primary_subleg_for_display(sublegs):
+        """
+        H-S26-G2:
+        Find the common/primary subleg used as the display parent for
+        branch sublegs whose explicit parent is not yet modelled.
+        """
+        sublegs = list(sublegs or [])
+
+        for subleg in sublegs:
+            subleg_id = str(getattr(subleg, "subleg_id", "") or "")
+
+            if "primary-subleg" in subleg_id:
+                return subleg
+
+        for subleg in sublegs:
+            raw_label = str(
+                getattr(subleg, "label", None)
+                or getattr(subleg, "name", None)
+                or ""
+            ).lower()
+
+            if "common" in raw_label and "branch" not in raw_label:
+                return subleg
+
+        return sublegs[0] if sublegs else None
 
     def _build_basic_ps_route_specs_for_proportioning(self) -> list[tuple[str, str]]:
         """
@@ -1066,10 +1332,22 @@ class HydronicsSchematicPanelAdapter:
         return rows
 
     def _build_common_main_leg_subleg_rows(self, topology) -> list[dict]:
+        """
+        H-S26-G2:
+        Display rows for common-main / leg / subleg topology, including
+        branch parent/take-off meaning.
+
+        Display only:
+        • no ProjectState mutation
+        • no pressure calculation
+        • no pipe sizing
+        • no balancing
+        """
         rows: list[dict] = []
 
         for leg in getattr(topology, "legs", []) or []:
             leg_id = str(getattr(leg, "leg_id", "") or "")
+
             raw_leg_label = str(
                 getattr(leg, "label", None)
                 or getattr(leg, "name", None)
@@ -1078,34 +1356,111 @@ class HydronicsSchematicPanelAdapter:
             )
 
             leg_label = self._display_leg_label(raw_leg_label)
+            leg_sublegs = list(getattr(leg, "sublegs", []) or [])
 
-            for subleg in getattr(leg, "sublegs", []) or []:
-                subleg_id = str(getattr(subleg, "subleg_id", "") or "")
-                raw_subleg_label = str(
-                    getattr(subleg, "label", None)
-                    or getattr(subleg, "name", None)
-                    or subleg_id
-                    or "—"
+            primary_subleg = self._primary_subleg_for_display(leg_sublegs)
+
+            primary_subleg_id = ""
+            primary_subleg_label = ""
+
+            if primary_subleg is not None:
+                primary_subleg_id = str(
+                    getattr(primary_subleg, "subleg_id", "") or ""
+                )
+                primary_subleg_label = self._display_subleg_label(
+                    str(
+                        getattr(primary_subleg, "label", None)
+                        or getattr(primary_subleg, "name", None)
+                        or primary_subleg_id
+                        or "Primary subleg"
+                    )
                 )
 
-                subleg_label = self._display_subleg_label(raw_subleg_label)
+            def add_rows(
+                    sublegs,
+                    *,
+                    parent_subleg_id: str = "",
+                    parent_subleg_label: str = "",
+            ) -> None:
+                for subleg in list(sublegs or []):
+                    subleg_id = str(getattr(subleg, "subleg_id", "") or "")
 
-                room_ids = self._subleg_room_ids_for_display(subleg)
-                rooms_label = " → ".join(room_ids) if room_ids else "—"
+                    raw_subleg_label = str(
+                        getattr(subleg, "label", None)
+                        or getattr(subleg, "name", None)
+                        or subleg_id
+                        or "—"
+                    )
 
-                rows.append(
-                    {
-                        "common_main": "Common main",
-                        "leg": leg_label,
-                        "subleg": subleg_label,
-                        "role": self._subleg_role_label(subleg),
-                        "rooms": rooms_label,
-                        "status": (
-                            "DEV topology preview — common main feeds leg; "
-                            "leg feeds sublegs; sublegs carry rooms"
-                        ),
-                    }
-                )
+                    subleg_label = self._display_subleg_label(
+                        raw_subleg_label
+                    )
+
+                    role_label = self._subleg_role_label(subleg)
+                    role_lower = role_label.lower()
+
+                    is_primary = (
+                        "primary-subleg" in subleg_id
+                        or (
+                            "common" in role_lower
+                            and "branch" not in role_lower
+                        )
+                    )
+
+                    effective_parent_id = str(parent_subleg_id or "")
+                    effective_parent_label = str(parent_subleg_label or "")
+
+                    if (
+                            not effective_parent_id
+                            and not is_primary
+                            and primary_subleg_id
+                            and subleg_id != primary_subleg_id
+                    ):
+                        effective_parent_id = primary_subleg_id
+                        effective_parent_label = primary_subleg_label
+
+                    is_branch = bool(effective_parent_id)
+
+                    room_ids = self._subleg_room_ids_for_display(subleg)
+                    rooms_label = " → ".join(room_ids) if room_ids else "—"
+
+                    rows.append(
+                        {
+                            "common_main": "Common main",
+                            "leg_id": leg_id,
+                            "leg": leg_label,
+                            "subleg_id": subleg_id,
+                            "subleg": subleg_label,
+                            "parent_subleg_id": effective_parent_id,
+                            "parent_subleg": (
+                                effective_parent_label if is_branch else "—"
+                            ),
+                            "role": role_label,
+                            "rooms": rooms_label,
+                            "status": (
+                                "Branch take-off — TBA from parent/common "
+                                "subleg"
+                                if is_branch
+                                else (
+                                    "DEV topology preview — common main feeds "
+                                    "leg; leg feeds common/primary subleg"
+                                )
+                            ),
+                        }
+                    )
+
+                    child_sublegs = list(
+                        getattr(subleg, "sublegs", ()) or ()
+                    )
+
+                    if child_sublegs:
+                        add_rows(
+                            child_sublegs,
+                            parent_subleg_id=subleg_id,
+                            parent_subleg_label=subleg_label,
+                        )
+
+            add_rows(leg_sublegs)
 
         return rows
 
