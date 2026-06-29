@@ -970,7 +970,7 @@ class HydronicsSchematicPanel(QWidget):
             overview_layout,
             title="Basic overview — calculation trace: index → boiler",
             table=self._index_route_strip,
-            min_height=170,
+            min_height=175,
         )
 
         self._pipe_size_suggestion_table = self._make_table(
@@ -1127,12 +1127,20 @@ class HydronicsSchematicPanel(QWidget):
         self._return_arrangement_tabs = QTabWidget(
             self._return_arrangement_acceptance_widget
         )
+        self._return_arrangement_tabs.tabBar().setExpanding(False)
+        self._return_arrangement_tabs.tabBar().setUsesScrollButtons(False)
+        self._return_arrangement_tabs.setSizePolicy(
+            QSizePolicy.Maximum,
+            QSizePolicy.Fixed,
+        )
+        self._return_arrangement_tabs.setMinimumWidth(620)
+        self._return_arrangement_tabs.setMaximumWidth(760)
 
         # ----------------------------------------------
         # System tab — existing persisted system-wide basis
         # ----------------------------------------------
         system_tab = QWidget(self._return_arrangement_tabs)
-        system_layout = QHBoxLayout(system_tab)
+        system_layout = QVBoxLayout(system_tab)
         system_layout.setContentsMargins(6, 6, 6, 6)
         system_layout.setSpacing(12)
 
@@ -1211,8 +1219,12 @@ class HydronicsSchematicPanel(QWidget):
             "Evidence result:         TBA"
         )
 
-        system_layout.addLayout(system_radio_layout, 0)
+        system_layout.addLayout(system_radio_layout)
         system_layout.addStretch(1)
+
+        self._return_arrangement_scope_controls["SYSTEM"] = {
+            "layout": system_layout,
+        }
 
         self._return_arrangement_tabs.addTab(
             system_tab,
@@ -1282,6 +1294,7 @@ class HydronicsSchematicPanel(QWidget):
             layout.addStretch(1)
 
             self._return_arrangement_scope_controls[scope_key] = {
+                "layout": layout,
                 "combo": combo,
                 "group": group,
                 "inherit_radio": inherit_radio,
@@ -1336,7 +1349,7 @@ class HydronicsSchematicPanel(QWidget):
                 target_label="Common subleg:",
                 inherit_label="Inherit leg/system",
             ),
-            "Common subleg",
+            "Common",
         )
 
         self._return_arrangement_tabs.addTab(
@@ -1346,22 +1359,22 @@ class HydronicsSchematicPanel(QWidget):
                 inherit_label="Inherit parent",
                 parent_visible=True,
             ),
-            "Branch subleg",
+            "Branch",
         )
 
-        return_acceptance_layout.addWidget(
+        # H-S26-I9:
+        # Keep the acceptance tabs compact, then place Commit Proportioning
+        # immediately to the right of the tab group. This reads as:
+        # choose basis -> review evidence -> commit.
+        return_tabs_row = QHBoxLayout()
+        return_tabs_row.setContentsMargins(0, 0, 0, 0)
+        return_tabs_row.setSpacing(8)
+
+        return_tabs_row.addWidget(
             self._return_arrangement_tabs,
             0,
+            Qt.AlignLeft | Qt.AlignTop,
         )
-
-        evidence_row_layout = QHBoxLayout()
-        evidence_row_layout.setSpacing(8)
-        evidence_row_layout.addWidget(
-            self._return_arrangement_pressure_evidence_label,
-            0,
-        )
-        evidence_row_layout.addStretch(1)
-        return_acceptance_layout.addLayout(evidence_row_layout)
 
         self._return_arrangement_scope_key_by_tab_index = {
             0: "SYSTEM",
@@ -1372,6 +1385,8 @@ class HydronicsSchematicPanel(QWidget):
         self._return_arrangement_tabs.currentChanged.connect(
             self._on_return_arrangement_tab_changed
         )
+
+        self._move_return_arrangement_evidence_label_to_current_tab()
 
         footer_layout = QHBoxLayout()
         footer_layout.setSpacing(8)
@@ -1386,19 +1401,25 @@ class HydronicsSchematicPanel(QWidget):
             "Commit Proportioning",
             self._return_arrangement_acceptance_widget,
         )
+        self._commit_proportioning_button.setMinimumWidth(150)
+        self._commit_proportioning_button.setMaximumWidth(190)
         self._commit_proportioning_button.clicked.connect(
             self._on_commit_proportioning_button_clicked
         )
+
+        return_tabs_row.addWidget(
+            self._commit_proportioning_button,
+            0,
+            Qt.AlignLeft | Qt.AlignBottom,
+        )
+        return_tabs_row.addStretch(1)
+
+        return_acceptance_layout.addLayout(return_tabs_row)
 
         footer_layout.addWidget(
             self._return_arrangement_acceptance_status_label,
             1,
         )
-        footer_layout.addWidget(
-            self._commit_proportioning_button,
-            0,
-        )
-
         return_acceptance_layout.addLayout(footer_layout)
 
         self.set_commit_proportioning_ready(
@@ -2291,6 +2312,7 @@ class HydronicsSchematicPanel(QWidget):
             self,
             _index: int,
     ) -> None:
+        self._move_return_arrangement_evidence_label_to_current_tab()
         self._refresh_return_arrangement_evidence_for_current_scope()
 
     def set_scoped_return_arrangement_acceptance_basis(
@@ -2408,6 +2430,56 @@ class HydronicsSchematicPanel(QWidget):
         finally:
             for radio in radios:
                 radio.blockSignals(False)
+
+    def _return_arrangement_current_scope_layout(self):
+        scope_key = self._current_return_arrangement_scope_key()
+        controls = getattr(
+            self,
+            "_return_arrangement_scope_controls",
+            {},
+        )
+        return controls.get(scope_key, {}).get("layout")
+
+    def _move_return_arrangement_evidence_label_to_current_tab(self) -> None:
+        """
+        H-S26-I7:
+        Keep the pressure-evidence box inside the active acceptance tab.
+
+        Layout only:
+            no ProjectState mutation.
+        """
+        label = getattr(
+            self,
+            "_return_arrangement_pressure_evidence_label",
+            None,
+        )
+        if label is None:
+            return
+
+        layout = self._return_arrangement_current_scope_layout()
+        if layout is None:
+            return
+
+        previous_layout = getattr(
+            self,
+            "_return_arrangement_evidence_layout",
+            None,
+        )
+        if previous_layout is not None and previous_layout is not layout:
+            previous_layout.removeWidget(label)
+
+        # Insert before the stretch item if the tab has one.
+        insert_index = layout.count()
+        if insert_index > 0:
+            insert_index -= 1
+
+        layout.insertWidget(
+            insert_index,
+            label,
+            0,
+        )
+        self._return_arrangement_evidence_layout = layout
+        label.show()
 
     def _set_return_arrangement_pressure_evidence_summary(
             self,
