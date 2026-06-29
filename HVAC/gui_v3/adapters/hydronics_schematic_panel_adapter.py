@@ -100,6 +100,12 @@ from HVAC.hydronics.proportioning.return_arrangement_acceptance_intent_v1 import
     resolve_leg_return_arrangement_v1,
     resolve_subleg_return_arrangement_v1,
 )
+from HVAC.hydronics.proportioning.effective_return_arrangement_resolver_v1 import (
+    resolve_effective_return_arrangements_v1,
+)
+from HVAC.hydronics.proportioning.proportioned_basis_snapshot_v1 import (
+    build_proportioned_basis_snapshot_v1,
+)
 
 class HydronicsSchematicPanelAdapter:
     """
@@ -619,6 +625,11 @@ class HydronicsSchematicPanelAdapter:
             self._panel._refresh_proportioning_input_snapshot()
 
         # --------------------------------------------------
+        # H-S27-B — resolved return arrangement basis feed
+        # --------------------------------------------------
+        self._refresh_effective_return_arrangement_basis_rows()
+
+        # --------------------------------------------------
         # Basic hydronics worksheet
         # --------------------------------------------------
         worksheet = build_basic_hydronics_worksheet_v1(
@@ -648,6 +659,120 @@ class HydronicsSchematicPanelAdapter:
 
         dto = self._build_schematic_dto(snapshot)
         self._panel._set_schematic(dto)
+
+    # --------------------------------------------------
+    # H-S27-B — Proportioned resolved return-arrangement basis rows
+    # --------------------------------------------------
+    @staticmethod
+    def _return_arrangement_basis_display_label(basis: object) -> str:
+        basis = str(basis or "").strip().upper()
+
+        if basis == "DIRECT_RETURN":
+            return "F&R"
+
+        if basis == "REVERSE_RETURN":
+            return "F+RR"
+
+        if basis == "INHERIT":
+            return "Inherit"
+
+        if basis == "UNDECIDED":
+            return "Undecided"
+
+        return basis or "—"
+
+    @staticmethod
+    def _return_arrangement_scope_display_label(scope: object) -> str:
+        scope = str(scope or "").strip().upper()
+
+        return {
+            "SYSTEM": "System",
+            "LEG": "Leg",
+            "COMMON_SUBLEG": "Common",
+            "BRANCH_SUBLEG": "Branch",
+        }.get(scope, scope or "—")
+
+    def _build_effective_return_arrangement_basis_rows(
+            self,
+            resolution,
+    ) -> list[dict]:
+        """
+        H-S27-B:
+        Convert effective return-arrangement resolver output into compact
+        Proportioned-tab display rows.
+
+        Adapter only:
+            no mutation
+            no balancing
+            no pump / valve / pipe resize
+        """
+        rows: list[dict] = []
+
+        for row in list(getattr(resolution, "rows", ()) or ()):
+            rows.append(
+                {
+                    "scope": self._return_arrangement_scope_display_label(
+                        getattr(row, "scope", "")
+                    ),
+                    "target": str(getattr(row, "label", "") or "—"),
+                    "effective_basis": self._return_arrangement_basis_display_label(
+                        getattr(row, "effective_basis", "")
+                    ),
+                    "source": str(getattr(row, "source", "") or "—"),
+                    "status": str(getattr(row, "status", "") or "—"),
+                }
+            )
+
+        if not rows:
+            rows.append(
+                {
+                    "scope": "—",
+                    "target": "—",
+                    "effective_basis": "—",
+                    "source": "—",
+                    "status": str(
+                        getattr(
+                            resolution,
+                            "status",
+                            "No resolved return arrangement basis",
+                        )
+                    ),
+                }
+            )
+
+        return rows
+
+    def _refresh_effective_return_arrangement_basis_rows(self) -> None:
+        """
+        H-S27-B:
+        Feed the Proportioned-tab resolved return-arrangement basis table.
+
+        Read-only projection:
+            no mutation
+            no balancing
+            no pump / valve / pipe resize
+        """
+        if not hasattr(
+                self._panel,
+                "set_effective_return_arrangement_basis_rows",
+        ):
+            return
+
+        try:
+            resolution = resolve_effective_return_arrangements_v1(
+                self._project_state
+            )
+            self._panel.set_effective_return_arrangement_basis_rows(
+                self._build_effective_return_arrangement_basis_rows(
+                    resolution
+                )
+            )
+        except Exception as exc:
+            print(
+                "[H-S27-B EFFECTIVE RETURN ARRANGEMENT ERROR]",
+                repr(exc),
+            )
+            self._panel.set_effective_return_arrangement_basis_rows([])
 
     # --------------------------------------------------
     # H-S26-I5 — Scoped return-arrangement override persistence
@@ -1642,9 +1767,6 @@ class HydronicsSchematicPanelAdapter:
         • mutate balancing
         • create a final hydraulic Proportioned result
         """
-        from HVAC.hydronics.proportioning.proportioned_basis_snapshot_v1 import (
-            build_proportioned_basis_snapshot_v1,
-        )
 
         project = getattr(self, "_project_state", None)
 

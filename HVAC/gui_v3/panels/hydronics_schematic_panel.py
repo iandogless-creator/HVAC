@@ -911,6 +911,30 @@ class HydronicsSchematicPanel(QWidget):
             min_height=120,
         )
 
+        # --------------------------------------------------
+        # H-S27-B — Resolved return-arrangement basis
+        # --------------------------------------------------
+        self._effective_return_arrangement_basis_table = self._make_table(
+            columns=[
+                "Scope",
+                "Target",
+                "Effective basis",
+                "Source",
+                "Status",
+            ],
+            stretch_columns={1, 4},
+        )
+
+        self._add_section(
+            proportioned_layout,
+            title="Resolved return arrangement basis — read-only",
+            table=self._effective_return_arrangement_basis_table,
+            min_height=155,
+            expanded=True,
+        )
+
+        self.set_effective_return_arrangement_basis_rows([])
+
         self.set_proportioned_status(
             [
                 {
@@ -3928,6 +3952,59 @@ class HydronicsSchematicPanel(QWidget):
                     "room_id": room_id,
                 }
             )
+
+    def set_effective_return_arrangement_basis_rows(
+            self,
+            rows: list[dict],
+    ) -> None:
+        """
+        H-S27-B:
+        Display the resolved effective return-arrangement basis consumed by
+        Proportioned.
+
+        Display only:
+            no ProjectState access
+            no balancing
+            no pump selection
+            no valve selection
+            no pipe resizing
+            no final hydraulic result
+        """
+        if not hasattr(self, "_effective_return_arrangement_basis_table"):
+            return
+
+        table = self._effective_return_arrangement_basis_table
+        rows = list(rows or [])
+
+        if not rows:
+            rows = [
+                {
+                    "scope": "—",
+                    "target": "—",
+                    "effective_basis": "—",
+                    "source": "—",
+                    "status": "No resolved return arrangement basis yet",
+                }
+            ]
+
+        table.setRowCount(len(rows))
+
+        for row_index, row in enumerate(rows):
+            values = [
+                row.get("scope", "—"),
+                row.get("target", "—"),
+                row.get("effective_basis", "—"),
+                row.get("source", "—"),
+                row.get("status", "—"),
+            ]
+
+            for col_index, value in enumerate(values):
+                item = QTableWidgetItem(str(value))
+                item.setFlags(item.flags() & ~Qt.ItemIsEditable)
+                table.setItem(row_index, col_index, item)
+
+        self._fit_table_height(table, min_height=120, max_height=240)
+        table.scrollToTop()
 
     def set_proportioned_status(self, rows: list[dict]) -> None:
         """
