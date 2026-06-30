@@ -988,6 +988,28 @@ class HydronicsSchematicPanel(QWidget):
         )
 
         self.set_chosen_basis_controlling_route_preview_rows([])
+
+        # --------------------------------------------------
+        # H-S27-F — Chosen-basis proportioned readiness summary
+        # --------------------------------------------------
+        self._chosen_basis_proportioned_readiness_table = self._make_table(
+            columns=[
+                "Item",
+                "Status",
+            ],
+            stretch_columns={1},
+        )
+
+        self._add_section(
+            proportioned_layout,
+            title="Chosen-basis proportioned readiness — read-only",
+            table=self._chosen_basis_proportioned_readiness_table,
+            min_height=145,
+            expanded=True,
+        )
+
+        self.set_chosen_basis_proportioned_readiness_rows([])
+
         self.set_proportioned_status(
             [
                 {
@@ -4166,6 +4188,52 @@ class HydronicsSchematicPanel(QWidget):
                 row.get("controlling", "No"),
                 row.get("dp_below_controlling", "—"),
                 row.get("source", "—"),
+                row.get("status", "—"),
+            ]
+
+            for col_index, value in enumerate(values):
+                item = QTableWidgetItem(str(value))
+                table.setItem(row_index, col_index, item)
+
+        table.setWordWrap(False)
+        for row_index in range(table.rowCount()):
+            table.setRowHeight(row_index, 24)
+
+    def set_chosen_basis_proportioned_readiness_rows(
+            self,
+            rows: list[dict],
+    ) -> None:
+        """
+        H-S27-F:
+        Display chosen-basis proportioned readiness summary.
+
+        Display only:
+            no ProjectState access
+            no balancing
+            no pump selection
+            no valve selection
+            no pipe resizing
+            no final hydraulic result
+        """
+        if not hasattr(self, "_chosen_basis_proportioned_readiness_table"):
+            return
+
+        table = self._chosen_basis_proportioned_readiness_table
+        rows = list(rows or [])
+
+        if not rows:
+            rows = [
+                {
+                    "item": "Chosen-basis proportioned readiness",
+                    "status": "No chosen-basis proportioned readiness summary yet",
+                }
+            ]
+
+        table.setRowCount(len(rows))
+
+        for row_index, row in enumerate(rows):
+            values = [
+                row.get("item", "—"),
                 row.get("status", "—"),
             ]
 

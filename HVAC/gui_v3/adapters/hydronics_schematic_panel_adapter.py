@@ -114,6 +114,10 @@ from HVAC.hydronics.proportioning.chosen_basis_route_pressure_preview_v1 import 
 from HVAC.hydronics.proportioning.chosen_basis_controlling_route_preview_v1 import (
     build_chosen_basis_controlling_route_preview_v1,
 )
+from HVAC.hydronics.proportioning.chosen_basis_proportioned_readiness_summary_v1 import (
+    build_chosen_basis_proportioned_readiness_summary_v1,
+)
+
 
 class HydronicsSchematicPanelAdapter:
     """
@@ -1014,16 +1018,50 @@ class HydronicsSchematicPanelAdapter:
 
         return rows
 
+    def _build_chosen_basis_proportioned_readiness_rows(
+            self,
+            readiness_rows,
+    ) -> list[dict]:
+        """
+        H-S27-F:
+        Convert chosen-basis proportioned readiness summary rows into
+        Proportioned-tab display rows.
+
+        Read-only projection:
+            no mutation
+            no balancing
+            no pump / valve / pipe resize
+            no final hydraulic result
+        """
+        rows: list[dict] = []
+
+        for row in readiness_rows or ():
+            rows.append(
+                {
+                    "item": str(getattr(row, "item", "—")),
+                    "status": str(getattr(row, "status", "—")),
+                }
+            )
+
+        if not rows:
+            rows.append(
+                {
+                    "item": "Chosen-basis proportioned readiness",
+                    "status": "Not ready — no readiness evidence",
+                }
+            )
+
+        return rows
 
     def _refresh_effective_return_arrangement_basis_rows(
             self,
             return_path_comparison_rows=None,
     ) -> None:
         """
-        H-S27-B / H-S27-C / H-S27-D:
+        H-S27-B / H-S27-C / H-S27-D / H-S27-F:
         Feed Proportioned-tab resolved return-arrangement basis,
-        chosen-basis route Δp preview, and chosen-basis controlling route
-        preview.
+        chosen-basis route Δp preview, chosen-basis controlling route
+        preview, and chosen-basis readiness summary.
 
         Read-only projection:
             no mutation
@@ -1043,11 +1081,16 @@ class HydronicsSchematicPanelAdapter:
             self._panel,
             "set_chosen_basis_controlling_route_preview_rows",
         )
+        has_readiness_table = hasattr(
+            self._panel,
+            "set_chosen_basis_proportioned_readiness_rows",
+        )
 
         if (
                 not has_resolved_table
                 and not has_chosen_table
                 and not has_controlling_table
+                and not has_readiness_table
         ):
             return
 
@@ -1075,22 +1118,47 @@ class HydronicsSchematicPanelAdapter:
                     )
                 )
 
-            if has_controlling_table:
-                chosen_controlling_rows = (
-                    build_chosen_basis_controlling_route_preview_v1(
-                        chosen_preview_rows
-                    )
+            chosen_controlling_rows = (
+                build_chosen_basis_controlling_route_preview_v1(
+                    chosen_preview_rows
                 )
+            )
 
+            if has_controlling_table:
                 self._panel.set_chosen_basis_controlling_route_preview_rows(
                     self._build_chosen_basis_controlling_route_preview_rows(
                         chosen_controlling_rows
                     )
                 )
 
+            if has_readiness_table:
+                readiness_rows = (
+                    build_chosen_basis_proportioned_readiness_summary_v1(
+                        has_resolved_return_arrangement_basis=bool(
+                            getattr(resolution, "rows", ()) or ()
+                        ),
+                        has_chosen_route_pressure_evidence=bool(
+                            chosen_preview_rows
+                        ),
+                        has_chosen_basis_controlling_route=any(
+                            bool(getattr(row, "is_controlling", False))
+                            for row in chosen_controlling_rows or ()
+                        ),
+                        has_chosen_basis_shortfall_preview=bool(
+                            chosen_controlling_rows
+                        ),
+                    )
+                )
+
+                self._panel.set_chosen_basis_proportioned_readiness_rows(
+                    self._build_chosen_basis_proportioned_readiness_rows(
+                        readiness_rows
+                    )
+                )
+
         except Exception as exc:
             print(
-                "[H-S27-B/C/D RETURN ARRANGEMENT PREVIEW ERROR]",
+                "[H-S27-B/C/D/F RETURN ARRANGEMENT PREVIEW ERROR]",
                 repr(exc),
             )
 
@@ -1102,6 +1170,9 @@ class HydronicsSchematicPanelAdapter:
 
             if has_controlling_table:
                 self._panel.set_chosen_basis_controlling_route_preview_rows([])
+
+            if has_readiness_table:
+                self._panel.set_chosen_basis_proportioned_readiness_rows([])
 
     def set_scoped_return_arrangement_acceptance(
             self,
