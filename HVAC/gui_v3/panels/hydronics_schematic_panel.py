@@ -934,7 +934,32 @@ class HydronicsSchematicPanel(QWidget):
         )
 
         self.set_effective_return_arrangement_basis_rows([])
+        # --------------------------------------------------
+        # H-S27-C — Chosen-basis route pressure preview
+        # --------------------------------------------------
+        self._chosen_basis_route_pressure_preview_table = self._make_table(
+            columns=[
+                "Scope",
+                "Route",
+                "Basis",
+                "Chosen Δp",
+                "Alternative Δp",
+                "Difference",
+                "Source",
+                "Status",
+            ],
+            stretch_columns={1, 7},
+        )
 
+        self._add_section(
+            proportioned_layout,
+            title="Chosen-basis route Δp preview — read-only",
+            table=self._chosen_basis_route_pressure_preview_table,
+            min_height=170,
+            expanded=True,
+        )
+
+        self.set_chosen_basis_route_pressure_preview_rows([])
         self.set_proportioned_status(
             [
                 {
@@ -4005,6 +4030,64 @@ class HydronicsSchematicPanel(QWidget):
 
         self._fit_table_height(table, min_height=120, max_height=240)
         table.scrollToTop()
+
+    def set_chosen_basis_route_pressure_preview_rows(
+            self,
+            rows: list[dict],
+    ) -> None:
+        """
+        H-S27-C:
+        Display chosen-basis route Δp preview consumed by Proportioned.
+
+        Display only:
+            no ProjectState access
+            no balancing
+            no pump selection
+            no valve selection
+            no pipe resizing
+            no final hydraulic result
+        """
+        if not hasattr(self, "_chosen_basis_route_pressure_preview_table"):
+            return
+
+        table = self._chosen_basis_route_pressure_preview_table
+        rows = list(rows or [])
+
+        if not rows:
+            rows = [
+                {
+                    "scope": "—",
+                    "route": "—",
+                    "basis": "—",
+                    "chosen_dp": "—",
+                    "alternative_dp": "—",
+                    "difference": "—",
+                    "source": "—",
+                    "status": "No chosen-basis route Δp preview yet",
+                }
+            ]
+
+        table.setRowCount(len(rows))
+
+        for row_index, row in enumerate(rows):
+            values = [
+                row.get("scope", "—"),
+                row.get("route", "—"),
+                row.get("basis", "—"),
+                row.get("chosen_dp", "—"),
+                row.get("alternative_dp", "—"),
+                row.get("difference", "—"),
+                row.get("source", "—"),
+                row.get("status", "—"),
+            ]
+
+            for col_index, value in enumerate(values):
+                item = QTableWidgetItem(str(value))
+                table.setItem(row_index, col_index, item)
+
+        table.setWordWrap(False)
+        for row_index in range(table.rowCount()):
+            table.setRowHeight(row_index, 24)
 
     def set_proportioned_status(self, rows: list[dict]) -> None:
         """

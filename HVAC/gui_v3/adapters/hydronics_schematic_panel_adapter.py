@@ -85,7 +85,9 @@ from HVAC.hydronics.proportioning.route_proportioning_shortfall_preview_v1 impor
 from HVAC.hydronics.proportioning.circuit_return_path_comparison_v1 import (
     build_circuit_return_path_comparison_v1,
 )
-
+from HVAC.hydronics.proportioning.chosen_basis_route_pressure_preview_v1 import (
+    build_chosen_basis_route_pressure_preview_v1,
+)
 from HVAC.gui_v3.widgets.common_main_leg_subleg_schematic_widget_v1 import (
     CommonMainLegSublegRouteV1,
     CommonMainLegSublegSchematicV1,
@@ -105,6 +107,9 @@ from HVAC.hydronics.proportioning.effective_return_arrangement_resolver_v1 impor
 )
 from HVAC.hydronics.proportioning.proportioned_basis_snapshot_v1 import (
     build_proportioned_basis_snapshot_v1,
+)
+from HVAC.hydronics.proportioning.chosen_basis_route_pressure_preview_v1 import (
+    build_chosen_basis_route_pressure_preview_v1,
 )
 
 class HydronicsSchematicPanelAdapter:
@@ -456,11 +461,7 @@ class HydronicsSchematicPanelAdapter:
         # H-S19-H — Direct vs reverse return comparison
         # --------------------------------------------------
         return_path_comparison_rows = []
-
-        # --------------------------------------------------
-        # H-S19-H — Direct vs reverse return comparison
-        # --------------------------------------------------
-        return_path_comparison_rows = []
+        return_path_comparison_evidence_rows = []
 
         if getattr(self._project_state, "hydronic_topology", None) is not None:
             try:
@@ -469,11 +470,24 @@ class HydronicsSchematicPanelAdapter:
                         self._project_state,
                     )
                 )
+
+                return_path_comparison_evidence_rows = list(
+                    getattr(return_path_comparison_projection, "rows", ()) or ()
+                )
+
+                return_path_comparison_evidence_rows = list(
+                    getattr(return_path_comparison_projection, "rows", ()) or ()
+                )
+
                 return_path_comparison_rows = (
                     self._build_return_path_comparison_rows(
                         return_path_comparison_projection
                     )
                 )
+
+                if not return_path_comparison_evidence_rows:
+                    return_path_comparison_evidence_rows = return_path_comparison_rows
+
             except Exception as exc:
                 print("[RETURN PATH COMPARISON ERROR]", repr(exc))
 
@@ -627,7 +641,9 @@ class HydronicsSchematicPanelAdapter:
         # --------------------------------------------------
         # H-S27-B — resolved return arrangement basis feed
         # --------------------------------------------------
-        self._refresh_effective_return_arrangement_basis_rows()
+        self._refresh_effective_return_arrangement_basis_rows(
+            return_path_comparison_rows=return_path_comparison_evidence_rows,
+        )
 
         # --------------------------------------------------
         # Basic hydronics worksheet
@@ -742,37 +758,135 @@ class HydronicsSchematicPanelAdapter:
 
         return rows
 
-    def _refresh_effective_return_arrangement_basis_rows(self) -> None:
+    def _build_chosen_basis_route_pressure_preview_rows(
+            self,
+            preview_rows,
+    ) -> list[dict]:
         """
-        H-S27-B:
-        Feed the Proportioned-tab resolved return-arrangement basis table.
+        H-S27-C:
+        Convert chosen-basis route Δp preview rows into Proportioned-tab
+        display rows.
 
         Read-only projection:
             no mutation
             no balancing
             no pump / valve / pipe resize
+            no final hydraulic result
         """
-        if not hasattr(
-                self._panel,
-                "set_effective_return_arrangement_basis_rows",
-        ):
+        rows: list[dict] = []
+
+        for row in list(preview_rows or ()):
+            status = str(getattr(row, "status", "") or "—")
+
+            # H-S27-C is route/subleg evidence only.
+            # Skip system/leg rows if backend received them but no pressure
+            # evidence exists for them.
+            if (
+                    getattr(row, "chosen_dp_pa", None) is None
+                    and getattr(row, "alternative_dp_pa", None) is None
+                    and "missing return comparison evidence" in status.lower()
+            ):
+                continue
+
+            rows.append(
+                {
+                    "scope": self._return_arrangement_scope_display_label(
+                        getattr(row, "scope", "")
+                    ),
+                    "route": str(getattr(row, "route", "") or "—"),
+                    "basis": str(getattr(row, "basis", "") or "—"),
+                    "chosen_dp": self._format_pa(
+                        getattr(row, "chosen_dp_pa", None)
+                    ),
+                    "alternative_dp": self._format_pa(
+                        getattr(row, "alternative_dp_pa", None)
+                    ),
+                    "difference": self._format_signed_pa(
+                        getattr(row, "difference_pa", None)
+                    ),
+                    "source": str(getattr(row, "source", "") or "—"),
+                    "status": status,
+                }
+            )
+
+        if not rows:
+            rows.append(
+                {
+                    "scope": "—",
+                    "route": "—",
+                    "basis": "—",
+                    "chosen_dp": "—",
+                    "alternative_dp": "—",
+                    "difference": "—",
+                    "source": "—",
+                    "status": "Preview only — no chosen-basis route pressure evidence",
+                }
+            )
+
+        return rows
+
+    def _refresh_effective_return_arrangement_basis_rows(
+            self,
+            return_path_comparison_rows=None,
+    ) -> None:
+        """
+        H-S27-B / H-S27-C:
+        Feed the Proportioned-tab resolved return-arrangement basis table
+        and chosen-basis route Δp preview table.
+
+        Read-only projection:
+            no mutation
+            no balancing
+            no pump / valve / pipe resize
+            no final hydraulic result
+        """
+        has_resolved_table = hasattr(
+            self._panel,
+            "set_effective_return_arrangement_basis_rows",
+        )
+        has_chosen_table = hasattr(
+            self._panel,
+            "set_chosen_basis_route_pressure_preview_rows",
+        )
+
+        if not has_resolved_table and not has_chosen_table:
             return
 
         try:
             resolution = resolve_effective_return_arrangements_v1(
                 self._project_state
             )
-            self._panel.set_effective_return_arrangement_basis_rows(
-                self._build_effective_return_arrangement_basis_rows(
-                    resolution
+
+            if has_resolved_table:
+                self._panel.set_effective_return_arrangement_basis_rows(
+                    self._build_effective_return_arrangement_basis_rows(
+                        resolution
+                    )
                 )
-            )
+
+            if has_chosen_table:
+                chosen_preview_rows = build_chosen_basis_route_pressure_preview_v1(
+                    resolved_basis_rows=getattr(resolution, "rows", ()) or (),
+                    return_comparison_rows=return_path_comparison_rows or (),
+                )
+
+                self._panel.set_chosen_basis_route_pressure_preview_rows(
+                    self._build_chosen_basis_route_pressure_preview_rows(
+                        chosen_preview_rows
+                    )
+                )
+
         except Exception as exc:
             print(
-                "[H-S27-B EFFECTIVE RETURN ARRANGEMENT ERROR]",
+                "[H-S27-B/C RETURN ARRANGEMENT PREVIEW ERROR]",
                 repr(exc),
             )
-            self._panel.set_effective_return_arrangement_basis_rows([])
+
+            if has_resolved_table:
+                self._panel.set_effective_return_arrangement_basis_rows([])
+
+            if has_chosen_table:
+                self._panel.set_chosen_basis_route_pressure_preview_rows([])
 
     # --------------------------------------------------
     # H-S26-I5 — Scoped return-arrangement override persistence
@@ -1711,6 +1825,30 @@ class HydronicsSchematicPanelAdapter:
             return f"{float(value):.1f} Pa"
         except (TypeError, ValueError):
             return "—"
+
+    @staticmethod
+    def _format_signed_pa(value) -> str:
+        if value is None:
+            return "—"
+
+        try:
+            value = float(value)
+        except (TypeError, ValueError):
+            return "—"
+
+        return f"{value:+.1f} Pa"
+
+    @staticmethod
+    def _format_signed_pa(value) -> str:
+        if value is None:
+            return "—"
+
+        try:
+            value = float(value)
+        except (TypeError, ValueError):
+            return "—"
+
+        return f"{value:+.1f} Pa"
 
     # --------------------------------------------------
     # H-S26-D — ProjectState-backed return arrangement acceptance intent
