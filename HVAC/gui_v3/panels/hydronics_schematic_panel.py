@@ -972,7 +972,7 @@ class HydronicsSchematicPanel(QWidget):
                 "Basis",
                 "Chosen Δp",
                 "Controlling",
-                "Δp below controlling",
+                "Required added Δp",
                 "Source",
                 "Status",
             ],
@@ -981,7 +981,7 @@ class HydronicsSchematicPanel(QWidget):
 
         self._add_section(
             proportioned_layout,
-            title="Chosen-basis controlling route preview — read-only",
+            title="Chosen-basis controlling / shortfall preview — read-only",
             table=self._chosen_basis_controlling_route_preview_table,
             min_height=150,
             expanded=True,
