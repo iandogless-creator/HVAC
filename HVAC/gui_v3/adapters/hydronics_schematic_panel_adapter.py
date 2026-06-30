@@ -485,6 +485,17 @@ class HydronicsSchematicPanelAdapter:
                     )
                 )
 
+                hs27c_display_evidence_rows = (
+                    self._build_hs27c_return_comparison_evidence_rows(
+                        return_path_comparison_rows
+                    )
+                )
+
+                if hs27c_display_evidence_rows:
+                    return_path_comparison_evidence_rows = (
+                        hs27c_display_evidence_rows
+                    )
+
                 if not return_path_comparison_evidence_rows:
                     return_path_comparison_evidence_rows = return_path_comparison_rows
 
@@ -707,6 +718,122 @@ class HydronicsSchematicPanelAdapter:
             "COMMON_SUBLEG": "Common",
             "BRANCH_SUBLEG": "Branch",
         }.get(scope, scope or "—")
+
+
+    @staticmethod
+    def _hs27c_row_value(row, *keys):
+        if isinstance(row, dict):
+            for key in keys:
+                if key in row:
+                    return row.get(key)
+            return None
+
+        for key in keys:
+            if hasattr(row, key):
+                return getattr(row, key)
+
+        return None
+
+    @staticmethod
+    def _hs27c_parse_pa_text(value):
+        if value is None:
+            return None
+
+        if isinstance(value, (int, float)):
+            return float(value)
+
+        text = str(value).strip()
+        if not text or text == "—":
+            return None
+
+        lowered = text.lower().replace(",", "").strip()
+
+        factor = 1.0
+        if "kpa" in lowered:
+            factor = 1000.0
+            lowered = lowered.replace("kpa", "")
+        else:
+            lowered = lowered.replace("pa", "")
+
+        lowered = lowered.strip()
+
+        try:
+            return float(lowered) * factor
+        except (TypeError, ValueError):
+            return None
+
+    def _build_hs27c_return_comparison_evidence_rows(
+            self,
+            return_path_comparison_rows,
+    ) -> list[dict]:
+        """
+        H-S27-C:
+        Normalise the visible H-S19 F+R / F+RR comparison table rows into
+        numeric route pressure evidence for chosen-basis preview.
+
+        This deliberately consumes the same display-row source seen by the
+        user in the Proportioning comparison table.
+        """
+        evidence_rows: list[dict] = []
+
+        for row in list(return_path_comparison_rows or ()):
+            route_id = self._hs27c_row_value(
+                row,
+                "route_id",
+                "route_key",
+                "target_id",
+            )
+            subleg_id = self._hs27c_row_value(
+                row,
+                "subleg_id",
+            )
+            route_label = self._hs27c_row_value(
+                row,
+                "route",
+                "route_label",
+                "target_label",
+            )
+
+            direct_dp = self._hs27c_parse_pa_text(
+                self._hs27c_row_value(
+                    row,
+                    "direct_total_dp",
+                    "direct_route_dp",
+                    "direct_dp",
+                    "f_r_dp",
+                    "f_plus_r_dp",
+                    "flow_return_dp",
+                )
+            )
+
+            reverse_dp = self._hs27c_parse_pa_text(
+                self._hs27c_row_value(
+                    row,
+                    "reverse_total_dp",
+                    "reverse_route_dp",
+                    "reverse_dp",
+                    "f_plus_rr_dp",
+                    "f_rr_dp",
+                    "reverse_return_dp",
+                )
+            )
+
+            if direct_dp is None and reverse_dp is None:
+                continue
+
+            evidence_rows.append(
+                {
+                    "route_id": str(route_id or ""),
+                    "subleg_id": str(subleg_id or ""),
+                    "route": str(route_label or route_id or subleg_id or "—"),
+                    "route_label": str(route_label or route_id or subleg_id or "—"),
+                    "direct_dp_pa": direct_dp,
+                    "reverse_dp_pa": reverse_dp,
+                }
+            )
+
+        return evidence_rows
+
 
     def _build_effective_return_arrangement_basis_rows(
             self,
