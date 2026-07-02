@@ -11,7 +11,11 @@ from typing import Iterable
 from HVAC.hydronics.sizing.basic_ps_topology_sections_v1 import (
     BasicPSTopologySectionV1,
 )
-
+from HVAC.core.fluid_friction.friction_factor_v1 import (
+    darcy_weisbach_pressure_gradient as _shared_darcy_pressure_gradient,
+    haaland_friction_factor as _shared_haaland_friction_factor,
+    reynolds_number as _shared_reynolds_number,
+)
 
 # ======================================================================
 # Constants
@@ -273,22 +277,15 @@ def reynolds_number(
     water_density_kg_m3: float = WATER_DENSITY_KG_M3,
     dynamic_viscosity_Pa_s: float = WATER_DYNAMIC_VISCOSITY_PA_S,
 ) -> float:
-    if velocity_m_s <= 0.0:
-        return 0.0
-
-    if internal_diameter_m <= 0.0:
-        raise ValueError("internal_diameter_m must be > 0")
-
-    if dynamic_viscosity_Pa_s <= 0.0:
-        raise ValueError("dynamic_viscosity_Pa_s must be > 0")
-
-    return (
-        water_density_kg_m3
-        * velocity_m_s
-        * internal_diameter_m
-        / dynamic_viscosity_Pa_s
+    """
+    Basic PS compatibility wrapper around shared Reynolds helper.
+    """
+    return _shared_reynolds_number(
+        velocity_m_s=velocity_m_s,
+        internal_diameter_m=internal_diameter_m,
+        density_kg_m3=water_density_kg_m3,
+        dynamic_viscosity_pa_s=dynamic_viscosity_Pa_s,
     )
-
 
 def haaland_friction_factor(
     *,
@@ -297,37 +294,17 @@ def haaland_friction_factor(
     roughness_m: float,
 ) -> float:
     """
-    Return Darcy friction factor.
+    Basic PS compatibility wrapper around shared Haaland helper.
 
-    Laminar:
-        f = 64 / Re
-
-    Turbulent/transitional first pass:
-        Haaland explicit approximation.
+    Basic PS remains first-pass Haaland only.
     """
-
-    if reynolds_number <= 0.0:
-        return 0.0
-
-    if reynolds_number < 2300.0:
-        return 64.0 / reynolds_number
-
     if internal_diameter_m <= 0.0:
         raise ValueError("internal_diameter_m must be > 0")
 
-    relative_roughness = roughness_m / internal_diameter_m
-
-    term = ((relative_roughness / 3.7) ** 1.11) + (6.9 / reynolds_number)
-
-    if term <= 0.0:
-        return 0.0
-
-    inverse_sqrt_f = -1.8 * math.log10(term)
-
-    if inverse_sqrt_f <= 0.0:
-        return 0.0
-
-    return 1.0 / (inverse_sqrt_f**2)
+    return _shared_haaland_friction_factor(
+        reynolds_number=reynolds_number,
+        relative_roughness=roughness_m / internal_diameter_m,
+    )
 
 
 def darcy_pressure_gradient_Pa_per_m(
@@ -338,22 +315,14 @@ def darcy_pressure_gradient_Pa_per_m(
     internal_diameter_m: float,
 ) -> float:
     """
-    Darcy-Weisbach pressure gradient:
-
-        Δp/L = f × ρ × v² / (2D)
+    Basic PS compatibility wrapper around shared Darcy-Weisbach
+    pressure-gradient helper.
     """
-
-    if friction_factor <= 0.0 or velocity_m_s <= 0.0:
-        return 0.0
-
-    if internal_diameter_m <= 0.0:
-        raise ValueError("internal_diameter_m must be > 0")
-
-    return (
-        friction_factor
-        * water_density_kg_m3
-        * velocity_m_s**2
-        / (2.0 * internal_diameter_m)
+    return _shared_darcy_pressure_gradient(
+        friction_factor=friction_factor,
+        density_kg_m3=water_density_kg_m3,
+        velocity_m_s=velocity_m_s,
+        internal_diameter_m=internal_diameter_m,
     )
 
 
