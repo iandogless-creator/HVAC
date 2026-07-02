@@ -1647,6 +1647,10 @@ class HydronicsSchematicPanel(QWidget):
                 "Pipe",
                 "v m/s",
                 "Δp/m",
+                "Re",
+                "f",
+                "Method",
+                "Iter",
                 "Length",
                 "K",
                 "Local Δp",
@@ -1654,7 +1658,7 @@ class HydronicsSchematicPanel(QWidget):
                 "Section Δp",
                 "Status",
             ],
-            stretch_columns={1, 2, 10},
+            stretch_columns={1, 2, 17},
         )
 
         self._add_section(
@@ -3273,6 +3277,13 @@ class HydronicsSchematicPanel(QWidget):
                 row.get("pipe", "—"),
                 row.get("velocity_m_s", "—"),
                 row.get("dp_per_m", "—"),
+                row.get("reynolds_number", row.get("re", "—")),
+                row.get("friction_factor", row.get("f", "—")),
+                row.get("friction_method", row.get("method", "—")),
+                row.get(
+                    "colebrook_iterations",
+                    row.get("colebrook_iteration_count", "—"),
+                ),
                 row.get("length_m", "—"),
                 row.get("k_total", "0.00"),
                 row.get("local_dp", "0.0 Pa"),

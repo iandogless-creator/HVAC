@@ -38,6 +38,12 @@ class ProportioningInputSectionV1:
     dp_per_m: str = ""
     length_m: str = ""
 
+    reynolds_number: str = ""
+    friction_factor: str = ""
+    friction_method: str = ""
+    colebrook_iterations: str = ""
+    colebrook_converged: str = ""
+
     k_total: str = ""
     local_dp: str = ""
     straight_dp: str = ""
@@ -168,6 +174,20 @@ def build_proportioning_input_snapshot_v1(
             pipe=_text(row, "pipe"),
             velocity_m_s=_text(row, "velocity_m_s"),
             dp_per_m=_text(row, "dp_per_m"),
+            reynolds_number=_text(row, "reynolds_number", "re"),
+            friction_factor=_text(row, "friction_factor", "f"),
+            friction_method=_text(row, "friction_method", "method"),
+            colebrook_iterations=_text(
+                row,
+                "colebrook_iterations",
+                "colebrook_iteration_count",
+                "iter",
+            ),
+            colebrook_converged=_text(
+                row,
+                "colebrook_converged",
+                "colebrook_ok",
+            ),
             length_m=_text(row, "length_m"),
             k_total=_text(row, "k_total"),
             local_dp=_text(row, "local_dp"),

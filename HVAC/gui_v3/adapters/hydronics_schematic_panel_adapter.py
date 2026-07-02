@@ -1838,6 +1838,23 @@ class HydronicsSchematicPanelAdapter:
                     "dp_per_m": self._format_dp_per_m(
                         getattr(result, "pressure_gradient_Pa_per_m", None)
                     ),
+                    "reynolds_number": self._format_reynolds_number(
+                        getattr(result, "reynolds_number", None)
+                    ),
+                    "friction_factor": self._format_friction_factor(
+                        getattr(result, "friction_factor", None)
+                    ),
+                    "friction_method": str(
+                        getattr(result, "friction_method", "Haaland") or "Haaland"
+                    ),
+                    "colebrook_iterations": str(
+                        getattr(result, "colebrook_iteration_count", "—") or "—"
+                    ),
+                    "colebrook_converged": (
+                        "Yes"
+                        if bool(getattr(result, "colebrook_converged", False))
+                        else "—"
+                    ),
                     "length_m": self._format_length(display_length_m),
                     "k_total": f"{local_k_preview.k_total:.2f}",
                     "local_dp": self._format_pa(
@@ -1985,6 +2002,26 @@ class HydronicsSchematicPanelAdapter:
             add_rows(leg_sublegs)
 
         return rows
+
+    @staticmethod
+    def _format_reynolds_number(value) -> str:
+        if value is None:
+            return "—"
+
+        try:
+            return f"{float(value):.0f}"
+        except (TypeError, ValueError):
+            return "—"
+
+    @staticmethod
+    def _format_friction_factor(value) -> str:
+        if value is None:
+            return "—"
+
+        try:
+            return f"{float(value):.4f}"
+        except (TypeError, ValueError):
+            return "—"
 
     @staticmethod
     def _subleg_room_ids_for_display(subleg) -> list[str]:
