@@ -6,14 +6,16 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any
-
+import re
 from HVAC.hydronics.sizing.basic_ps_readonly_projection_v1 import (
     build_basic_ps_readonly_projection_v1,
 )
 from HVAC.hydronics.local_losses.local_k_pressure_preview_v1 import (
     build_local_k_pressure_preview_v1,
 )
-
+from HVAC.hydronics.pipes.dp.mass_flow_pressure_drop_v1 import (
+    calculate_hydronic_pipe_pressure_drop_from_mass_flow_v1,
+)
 
 @dataclass(frozen=True, slots=True)
 class RoutePressureSectionContributionV1:
@@ -21,6 +23,15 @@ class RoutePressureSectionContributionV1:
     order: int
     from_label: str
     to_label: str
+
+    pressure_gradient_Pa_per_m: float
+    velocity_m_s: float
+    reynolds_number: float
+    friction_factor: float
+    friction_method: str
+    colebrook_iteration_count: int
+    colebrook_converged: bool
+
     straight_pressure_drop_Pa: float | None
     local_pressure_drop_Pa: float
     section_total_pressure_drop_Pa: float | None
@@ -199,15 +210,33 @@ def _build_single_route_pressure_row_v1(
     complete = True
 
     for result in basic_ps.pipe_sizing_projection.results:
-        preview = build_local_k_pressure_preview_v1(
+        section_id = str(result.section_id)
+
+        section_length_m = _local_k_section_length_m_v1(
             project_state,
-            section_id=str(result.section_id),
-            velocity_m_s=float(result.velocity_m_s),
-            pressure_gradient_Pa_per_m=float(
-                result.pressure_gradient_Pa_per_m
-            ),
+            section_id=section_id,
         )
 
+        pressure_basis = calculate_hydronic_pipe_pressure_drop_from_mass_flow_v1(
+            mass_flow_kg_s=float(result.carried_flow_kg_s),
+            material=_route_pressure_material_v1(project_state),
+            dn=_dn_from_pipe_size_label_v1(result.pipe_size_label),
+            length_m=(
+                float(section_length_m)
+                if section_length_m is not None
+                else 0.0
+            ),
+            friction_method="colebrook",
+        )
+
+        preview = build_local_k_pressure_preview_v1(
+            project_state,
+            section_id=section_id,
+            velocity_m_s=float(pressure_basis.velocity_m_s),
+            pressure_gradient_Pa_per_m=float(
+                pressure_basis.pressure_gradient_pa_per_m
+            ),
+        )
         local_total += float(preview.local_pressure_drop_Pa or 0.0)
 
         if preview.straight_pressure_drop_Pa is None:
@@ -222,10 +251,25 @@ def _build_single_route_pressure_row_v1(
 
         contributions.append(
             RoutePressureSectionContributionV1(
-                section_id=str(result.section_id),
+                section_id=section_id,
                 order=int(result.order),
                 from_label=str(result.from_label),
                 to_label=str(result.to_room_label),
+                pressure_gradient_Pa_per_m=float(
+                    pressure_basis.pressure_gradient_pa_per_m
+                ),
+                velocity_m_s=float(pressure_basis.velocity_m_s),
+                reynolds_number=float(pressure_basis.reynolds_number),
+                friction_factor=float(
+                    pressure_basis.selected_friction_factor
+                ),
+                friction_method=str(pressure_basis.friction_method),
+                colebrook_iteration_count=int(
+                    pressure_basis.colebrook_iteration_count
+                ),
+                colebrook_converged=bool(
+                    pressure_basis.colebrook_converged
+                ),
                 straight_pressure_drop_Pa=preview.straight_pressure_drop_Pa,
                 local_pressure_drop_Pa=float(
                     preview.local_pressure_drop_Pa or 0.0
@@ -256,3 +300,67 @@ def _build_single_route_pressure_row_v1(
             else "Incomplete — one or more section lengths not set"
         ),
     )
+
+def _route_pressure_material_v1(project_state: Any) -> str:
+    """
+    H-S29-E v1 material basis.
+
+    For now Basic PS domestic candidates are treated as copper catalogue
+    entries. Later this can read an explicit hydronic pipe material authority.
+    """
+    value = getattr(project_state, "hydronic_pipe_material", None)
+
+    if value is None:
+        return "copper"
+
+    text = str(value or "").strip().lower()
+    return text or "copper"
+
+
+def _dn_from_pipe_size_label_v1(pipe_size_label: Any) -> int:
+    """
+    Parse labels such as:
+        '10 mm'
+        '15 mm'
+        'DN15'
+        'Copper 22 mm'
+
+    into DN integer for pipe_materials_library lookup.
+    """
+    text = str(pipe_size_label or "").strip()
+
+    match = re.search(r"(\d+)", text)
+    if not match:
+        raise ValueError(
+            f"Cannot parse DN from pipe_size_label={pipe_size_label!r}"
+        )
+
+    return int(match.group(1))
+
+
+def _local_k_section_length_m_v1(
+        project_state: Any,
+        *,
+        section_id: str,
+) -> float | None:
+    """
+    Read visible/persisted Local K section length.
+
+    Local K remains the length authority for this preview layer.
+    """
+    intent = getattr(project_state, "hydronic_local_k_intent", None)
+
+    if intent is None:
+        return None
+
+    section = getattr(intent, "sections", {}).get(str(section_id))
+
+    if section is None:
+        return None
+
+    raw_length = getattr(section, "length_m", None)
+
+    if raw_length is None:
+        return None
+
+    return float(raw_length)
