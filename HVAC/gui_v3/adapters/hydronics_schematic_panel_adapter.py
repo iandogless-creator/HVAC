@@ -383,49 +383,10 @@ class HydronicsSchematicPanelAdapter:
         # - no pipe resizing
         # - branch take-off remains TBA
         # --------------------------------------------------
-        received_basic_ps_rows = []
-
-        try:
-            route_specs = self._build_basic_ps_route_specs_for_proportioning()
-
-            for leg_id, subleg_id in route_specs:
-                basic_ps_projection = build_basic_ps_readonly_projection_v1(
-                    self._project_state,
-                    leg_id=leg_id,
-                    subleg_id=subleg_id,
-                )
-
-                built_rows = self._build_proportioning_basic_ps_sections(
-                    basic_ps_projection
-                )
-
-                flow_basis_text = _hydronic_mass_flow_basis_text(
-                    self._project_state,
-                    basic_ps_projection,
-                )
-
-                for row in built_rows:
-                    status = str(row.get("status", "") or "")
-                    row["status"] = (
-                        f"{status} | {flow_basis_text}"
-                        if status
-                        else flow_basis_text
-                    )
-
-                received_basic_ps_rows.extend(built_rows)
-
-        except Exception as exc:
-            print("[PROPORTIONING BASIC PS SECTIONS ERROR]", repr(exc))
-            received_basic_ps_rows = []
-
-        if hasattr(self._panel, "set_proportioning_basic_ps_sections"):
-            self._panel.set_proportioning_basic_ps_sections(
-                received_basic_ps_rows
-            )
         # --------------------------------------------------
-        # H-S14 — Route Δp preview
-        # H-S18 — Route Δp shortfall preview
+        # H-S29-G — route pressure authority first
         # --------------------------------------------------
+        route_pressure_projection = None
         route_pressure_rows = []
         route_shortfall_rows = []
 
@@ -457,6 +418,57 @@ class HydronicsSchematicPanelAdapter:
 
             except Exception as exc:
                 print("[ROUTE PRESSURE / SHORTFALL PREVIEW ERROR]", repr(exc))
+
+        route_section_by_id = (
+            self._route_pressure_section_contribution_by_id_v1(
+                route_pressure_projection
+            )
+        )
+
+        received_basic_ps_rows = []
+
+        try:
+            route_specs = self._build_basic_ps_route_specs_for_proportioning()
+
+            for leg_id, subleg_id in route_specs:
+                basic_ps_projection = build_basic_ps_readonly_projection_v1(
+                    self._project_state,
+                    leg_id=leg_id,
+                    subleg_id=subleg_id,
+                )
+
+                built_rows = self._build_proportioning_basic_ps_sections(
+                    basic_ps_projection,
+                    route_section_by_id=route_section_by_id,
+                )
+
+                flow_basis_text = _hydronic_mass_flow_basis_text(
+                    self._project_state,
+                    basic_ps_projection,
+                )
+
+                for row in built_rows:
+                    status = str(row.get("status", "") or "")
+                    row["status"] = (
+                        f"{status} | {flow_basis_text}"
+                        if status
+                        else flow_basis_text
+                    )
+
+                received_basic_ps_rows.extend(built_rows)
+
+        except Exception as exc:
+            print("[PROPORTIONING BASIC PS SECTIONS ERROR]", repr(exc))
+            received_basic_ps_rows = []
+
+        if hasattr(self._panel, "set_proportioning_basic_ps_sections"):
+            self._panel.set_proportioning_basic_ps_sections(
+                received_basic_ps_rows
+            )
+        # --------------------------------------------------
+        # H-S14 — Route Δp preview
+        # H-S18 — Route Δp shortfall preview
+        # --------------------------------------------------
 
         if hasattr(self._panel, "set_route_pressure_preview_rows"):
             self._panel.set_route_pressure_preview_rows(route_pressure_rows)
@@ -1505,6 +1517,37 @@ class HydronicsSchematicPanelAdapter:
         return [("leg-001", "leg-001-primary-subleg")]
 
     @staticmethod
+    def _route_pressure_section_contribution_by_id_v1(
+        projection,
+    ) -> dict[str, object]:
+        """
+        H-S29-G:
+        Map route-pressure section contributions by section_id so the
+        Proportioning received-section preview can display the same
+        Colebrook-backed pressure metadata as the route accumulator.
+
+        Display/projection only:
+        - no ProjectState mutation
+        - no recalculation
+        - no pipe resizing
+        - no final balancing
+        """
+        by_id: dict[str, object] = {}
+
+        if projection is None:
+            return by_id
+
+        for route_row in getattr(projection, "rows", ()) or ():
+            for section in getattr(route_row, "sections", ()) or ():
+                section_id = str(getattr(section, "section_id", "") or "")
+
+                if section_id:
+                    by_id[section_id] = section
+
+        return by_id
+
+
+    @staticmethod
     def _selected_route_trace_target_from_route_pressure_projection(
         projection,
     ) -> dict:
@@ -1703,7 +1746,12 @@ class HydronicsSchematicPanelAdapter:
 
         return rows
 
-    def _build_proportioning_basic_ps_sections(self, projection) -> list[dict]:
+    def _build_proportioning_basic_ps_sections(
+        self,
+        projection,
+        *,
+        route_section_by_id: dict[str, object] | None = None,
+    ) -> list[dict]:
         """
         Convert composed Basic PS read-only projection into rows displayed
         on the Proportioning tab as received first-pass basis.
@@ -1723,6 +1771,7 @@ class HydronicsSchematicPanelAdapter:
         }
 
         rows: list[dict] = []
+        route_section_by_id = route_section_by_id or {}
 
         section_by_id = {
             str(getattr(section, "section_id", "") or ""): section
@@ -1738,6 +1787,8 @@ class HydronicsSchematicPanelAdapter:
             section_id = str(getattr(result, "section_id", "") or "")
             preview = preview_by_section_id.get(section_id)
             topology_section = section_by_id.get(section_id)
+            route_section = route_section_by_id.get(section_id)
+            pressure_source = route_section if route_section is not None else result
 
             raw_basis_status = str(
                 getattr(topology_section, "status", "") or ""
@@ -1768,10 +1819,14 @@ class HydronicsSchematicPanelAdapter:
                 self._project_state,
                 section_id=section_id,
                 velocity_m_s=float(
-                    getattr(result, "velocity_m_s", 0.0) or 0.0
+                    getattr(pressure_source, "velocity_m_s", 0.0) or 0.0
                 ),
                 pressure_gradient_Pa_per_m=float(
-                    getattr(result, "pressure_gradient_Pa_per_m", 0.0) or 0.0
+                    getattr(
+                        pressure_source,
+                        "pressure_gradient_Pa_per_m",
+                        getattr(result, "pressure_gradient_Pa_per_m", 0.0),
+                    ) or 0.0
                 ),
             )
 
@@ -1833,26 +1888,52 @@ class HydronicsSchematicPanelAdapter:
                     ),
                     "pipe": str(getattr(result, "pipe_size_label", "") or "—"),
                     "velocity_m_s": self._format_velocity(
-                        getattr(result, "velocity_m_s", None)
+                        getattr(pressure_source, "velocity_m_s", None)
                     ),
                     "dp_per_m": self._format_dp_per_m(
-                        getattr(result, "pressure_gradient_Pa_per_m", None)
+                        getattr(
+                            pressure_source,
+                            "pressure_gradient_Pa_per_m",
+                            getattr(result, "pressure_gradient_Pa_per_m", None),
+                        )
                     ),
                     "reynolds_number": self._format_reynolds_number(
-                        getattr(result, "reynolds_number", None)
+                        getattr(
+                            pressure_source,
+                            "reynolds_number",
+                            getattr(result, "reynolds_number", None),
+                        )
                     ),
                     "friction_factor": self._format_friction_factor(
-                        getattr(result, "friction_factor", None)
+                        getattr(
+                            pressure_source,
+                            "friction_factor",
+                            getattr(result, "friction_factor", None),
+                        )
                     ),
                     "friction_method": str(
-                        getattr(result, "friction_method", "Haaland") or "Haaland"
+                        getattr(
+                            pressure_source,
+                            "friction_method",
+                            getattr(result, "friction_method", "Haaland"),
+                        ) or "Haaland"
                     ),
                     "colebrook_iterations": str(
-                        getattr(result, "colebrook_iteration_count", "—") or "—"
+                        getattr(
+                            pressure_source,
+                            "colebrook_iteration_count",
+                            getattr(result, "colebrook_iteration_count", "—"),
+                        ) or "—"
                     ),
                     "colebrook_converged": (
                         "Yes"
-                        if bool(getattr(result, "colebrook_converged", False))
+                        if bool(
+                            getattr(
+                                pressure_source,
+                                "colebrook_converged",
+                                getattr(result, "colebrook_converged", False),
+                            )
+                        )
                         else "—"
                     ),
                     "length_m": self._format_length(display_length_m),
