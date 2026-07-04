@@ -1223,6 +1223,7 @@ class HydronicsSchematicPanel(QWidget):
         return_acceptance_layout.setSpacing(6)
 
         self._scoped_return_arrangement_acceptance_callback = None
+        self._rr_length_basis_mode_callback = None
         self._return_arrangement_scope_controls = {}
 
         self._return_arrangement_tabs = QTabWidget(
@@ -1469,6 +1470,47 @@ class HydronicsSchematicPanel(QWidget):
         # Keep the acceptance tabs compact, then place Commit Proportioning
         # immediately to the right of the tab group. This reads as:
         # choose basis -> review evidence -> commit.
+        # --------------------------------------------------
+        # H-S29-M — RR length basis mode control
+        # --------------------------------------------------
+        rr_length_basis_layout = QHBoxLayout()
+        rr_length_basis_layout.setContentsMargins(0, 0, 0, 0)
+        rr_length_basis_layout.setSpacing(8)
+
+        self._rr_length_basis_mode_label = QLabel(
+            "RR length basis:",
+            self._return_arrangement_acceptance_widget,
+        )
+
+        self._rr_length_basis_mode_combo = QComboBox(
+            self._return_arrangement_acceptance_widget
+        )
+        self._rr_length_basis_mode_combo.setMinimumWidth(260)
+        self._rr_length_basis_mode_combo.setMaximumWidth(360)
+        self._rr_length_basis_mode_combo.addItem(
+            "Physical loop — no extra allowance",
+            "physical_loop_zero_extra",
+        )
+        self._rr_length_basis_mode_combo.addItem(
+            "Downstream proxy allowance",
+            "downstream_proxy",
+        )
+        self._rr_length_basis_mode_combo.addItem(
+            "Manual allowance",
+            "manual_allowance",
+        )
+        self._rr_length_basis_mode_combo.setToolTip(
+            "Preview-only reverse-return extra length basis. "
+            "Manual metre entry is added in a later stage."
+        )
+        self._rr_length_basis_mode_combo.currentIndexChanged.connect(
+            self._on_rr_length_basis_mode_changed
+        )
+
+        rr_length_basis_layout.addWidget(self._rr_length_basis_mode_label)
+        rr_length_basis_layout.addWidget(self._rr_length_basis_mode_combo)
+        rr_length_basis_layout.addStretch(1)
+
         return_tabs_row = QHBoxLayout()
         return_tabs_row.setContentsMargins(0, 0, 0, 0)
         return_tabs_row.setSpacing(8)
@@ -1517,6 +1559,7 @@ class HydronicsSchematicPanel(QWidget):
         )
         return_tabs_row.addStretch(1)
 
+        return_acceptance_layout.addLayout(rr_length_basis_layout)
         return_acceptance_layout.addLayout(return_tabs_row)
 
         footer_layout.addWidget(
@@ -2935,6 +2978,91 @@ class HydronicsSchematicPanel(QWidget):
             return float(cleaned)
         except ValueError:
             return None
+
+
+    @staticmethod
+    def _normalise_rr_length_basis_mode_ui(mode: str) -> str:
+        mode = (
+            str(mode or "")
+            .strip()
+            .lower()
+            .replace("-", "_")
+            .replace(" ", "_")
+        )
+
+        if mode in {
+                "downstream",
+                "downstream_proxy",
+                "derived_downstream",
+                "downstream_allowance",
+        }:
+            return "downstream_proxy"
+
+        if mode in {
+                "manual",
+                "manual_allowance",
+                "manual_length",
+                "manual_extra",
+        }:
+            return "manual_allowance"
+
+        return "physical_loop_zero_extra"
+
+    def set_rr_length_basis_mode_callback(self, callback) -> None:
+        """
+        H-S29-M:
+        Adapter callback for user-selected RR added-length basis mode.
+        """
+        self._rr_length_basis_mode_callback = callback
+
+    def set_rr_length_basis_mode(self, mode: str) -> None:
+        """
+        H-S29-M:
+        Restore/display RR length basis mode without treating it as a
+        fresh user selection.
+        """
+        combo = getattr(self, "_rr_length_basis_mode_combo", None)
+
+        if combo is None:
+            return
+
+        mode = self._normalise_rr_length_basis_mode_ui(mode)
+        index = combo.findData(mode)
+
+        if index < 0:
+            index = combo.findData("physical_loop_zero_extra")
+
+        combo.blockSignals(True)
+        try:
+            combo.setCurrentIndex(max(index, 0))
+        finally:
+            combo.blockSignals(False)
+
+    def _on_rr_length_basis_mode_changed(self, _index: int) -> None:
+        """
+        H-S29-M:
+        User-facing RR length basis mode selection.
+
+        Selection only:
+        • no manual metre entry yet
+        • no pump / valve / balancing / pipe resize
+        • no final hydraulic result
+        """
+        combo = getattr(self, "_rr_length_basis_mode_combo", None)
+
+        if combo is None:
+            return
+
+        mode = self._normalise_rr_length_basis_mode_ui(
+            str(combo.currentData() or "")
+        )
+
+        callback = getattr(self, "_rr_length_basis_mode_callback", None)
+
+        self._refresh_return_arrangement_evidence_for_current_scope()
+
+        if callback is not None:
+            callback(mode)
 
 
     def set_system_return_arrangement_acceptance_basis(

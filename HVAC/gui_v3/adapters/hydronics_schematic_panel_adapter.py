@@ -180,6 +180,17 @@ class HydronicsSchematicPanelAdapter:
             )
 
         # --------------------------------------------------
+        # H-S29-M — RR length basis mode callback
+        # --------------------------------------------------
+        if hasattr(
+                self._panel,
+                "set_rr_length_basis_mode_callback",
+        ):
+            self._panel.set_rr_length_basis_mode_callback(
+                self.set_rr_length_basis_mode
+            )
+
+        # --------------------------------------------------
         # H-S26-G — Commit Proportioning basis snapshot callback
         # --------------------------------------------------
         if hasattr(
@@ -223,6 +234,85 @@ class HydronicsSchematicPanelAdapter:
             self._panel.set_system_return_arrangement_acceptance_basis(
                 basis
             )
+
+    @staticmethod
+    def _normalise_rr_length_basis_mode_v1(mode: str) -> str:
+        mode = (
+            str(mode or "")
+            .strip()
+            .lower()
+            .replace("-", "_")
+            .replace(" ", "_")
+        )
+
+        if mode in {
+                "downstream",
+                "downstream_proxy",
+                "derived_downstream",
+                "downstream_allowance",
+        }:
+            return "downstream_proxy"
+
+        if mode in {
+                "manual",
+                "manual_allowance",
+                "manual_length",
+                "manual_extra",
+        }:
+            return "manual_allowance"
+
+        return "physical_loop_zero_extra"
+
+    def _current_rr_length_basis_mode_v1(self) -> str:
+        project = getattr(self, "_project_state", None)
+
+        if project is None:
+            return "physical_loop_zero_extra"
+
+        return self._normalise_rr_length_basis_mode_v1(
+            getattr(
+                project,
+                "hydronic_rr_added_length_basis_mode",
+                "physical_loop_zero_extra",
+            )
+        )
+
+    def _restore_rr_length_basis_mode_to_panel(self) -> None:
+        """
+        H-S29-M:
+        Restore the ProjectState-backed RR length basis mode into the
+        acceptance-panel combo.
+        """
+        if hasattr(self._panel, "set_rr_length_basis_mode"):
+            self._panel.set_rr_length_basis_mode(
+                self._current_rr_length_basis_mode_v1()
+            )
+
+    def set_rr_length_basis_mode(self, mode: str) -> None:
+        """
+        H-S29-M:
+        User-facing RR length basis mode selection.
+
+        ProjectState preview basis only:
+        • no manual metre entry yet
+        • no pump / valve / balancing / pipe resize
+        • no final hydraulic result
+        """
+        mode = self._normalise_rr_length_basis_mode_v1(mode)
+
+        project = getattr(self, "_project_state", None)
+
+        if project is not None:
+            project.hydronic_rr_added_length_basis_mode = mode
+        else:
+            print(
+                "H-S29-M warning: no ProjectState available for "
+                "RR length basis mode"
+            )
+
+        print("H-S29-M RR length basis mode set:", mode)
+
+        self.refresh()
 
     def _subscribe_if_present(self, signal_name: str, callback) -> None:
         """
@@ -271,6 +361,7 @@ class HydronicsSchematicPanelAdapter:
 
     def refresh(self) -> None:
         self._restore_return_arrangement_acceptance_basis_to_panel()
+        self._restore_rr_length_basis_mode_to_panel()
 
         """
         Hydronics schematic panel refresh.
