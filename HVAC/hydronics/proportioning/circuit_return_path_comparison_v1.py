@@ -22,7 +22,12 @@ from HVAC.hydronics.sizing.basic_ps_readonly_projection_v1 import (
     build_basic_ps_readonly_projection_v1,
 )
 from HVAC.hydronics.proportioning.route_pressure_accumulator_v1 import (
+    _dn_from_pipe_size_label_v1,
+    _route_pressure_material_v1,
     build_route_pressure_accumulator_v1,
+)
+from HVAC.hydronics.pipes.dp.mass_flow_pressure_drop_v1 import (
+    calculate_hydronic_pipe_pressure_drop_from_mass_flow_v1,
 )
 
 @dataclass(frozen=True, slots=True)
@@ -42,6 +47,9 @@ class CircuitReturnPathComparisonRowV1:
     flow_dp_Pa: float | None
     direct_return_dp_Pa: float | None
     reverse_return_dp_Pa: float | None
+
+    rr_added_length_m: float
+    rr_added_pressure_drop_Pa: float
 
     direct_total_dp_Pa: float | None
     reverse_return_total_dp_Pa: float | None
@@ -64,6 +72,12 @@ class ReverseReturnSuitabilityV1:
 class CircuitReturnPathComparisonProjectionV1:
     rows: tuple[CircuitReturnPathComparisonRowV1, ...]
     status: str = "Circuit return path comparison preview only"
+
+
+@dataclass(frozen=True, slots=True)
+class _RRSectionPressureBasisV1:
+    mass_flow_kg_s: float
+    pipe_size_label: str
 
 
 def build_circuit_return_path_comparison_v1(
@@ -124,6 +138,14 @@ def build_circuit_return_path_comparison_v1(
                 subleg_id=subleg_id,
             )
 
+            section_pressure_basis_by_id = _section_pressure_basis_by_id(
+                project_state,
+                leg_id=leg_id,
+                subleg_id=subleg_id,
+            )
+
+            rr_added_length_m = _rr_added_length_m(project_state)
+
             rr_suitability = _appraise_reverse_return_suitability_v1(
                 subleg,
                 room_ids=room_ids,
@@ -160,14 +182,30 @@ def build_circuit_return_path_comparison_v1(
                     reverse_return_section_ids,
                 )
 
+                rr_added_pressure_drop_Pa = _rr_added_length_pressure_drop_Pa(
+                    project_state=project_state,
+                    section_pressure_basis_by_id=section_pressure_basis_by_id,
+                    candidate_section_ids=(
+                        reverse_return_section_ids or flow_section_ids
+                    ),
+                    length_m=(
+                        rr_added_length_m
+                        if reverse_return_section_ids
+                        else 0.0
+                    ),
+                )
+
                 direct_total_dp_Pa = _add_optional_dp(
                     flow_dp_Pa,
                     direct_return_dp_Pa,
                 )
 
-                reverse_return_total_dp_Pa = _add_optional_dp(
-                    flow_dp_Pa,
-                    reverse_return_dp_Pa,
+                reverse_return_total_dp_Pa = (
+                    _reverse_return_total_with_rr_added_dp_v1(
+                        flow_dp_Pa=flow_dp_Pa,
+                        reverse_return_dp_Pa=reverse_return_dp_Pa,
+                        rr_added_pressure_drop_Pa=rr_added_pressure_drop_Pa,
+                    )
                 )
 
                 emitter_id = _find_emitter_id_for_room(
@@ -187,6 +225,8 @@ def build_circuit_return_path_comparison_v1(
                         flow_dp_Pa=flow_dp_Pa,
                         direct_return_dp_Pa=direct_return_dp_Pa,
                         reverse_return_dp_Pa=reverse_return_dp_Pa,
+                        rr_added_length_m=rr_added_length_m,
+                        rr_added_pressure_drop_Pa=rr_added_pressure_drop_Pa,
                         direct_total_dp_Pa=direct_total_dp_Pa,
                         reverse_return_total_dp_Pa=reverse_return_total_dp_Pa,
                         direct_rank=None,
@@ -195,14 +235,11 @@ def build_circuit_return_path_comparison_v1(
                         rr_suitability_status=rr_suitability.status,
                         controlling_direct=False,
                         controlling_reverse_return=False,
-                        status=(
-                            "Flow + direct + reverse return paths ready"
-                            if reverse_return_section_ids
-                            else (
-                                "Flow + direct return path ready — reverse return not generated"
-                                if flow_section_ids
-                                else "Missing flow path — return paths not modelled yet"
-                            )
+                        status=_return_comparison_status_v1(
+                            flow_section_ids=flow_section_ids,
+                            reverse_return_section_ids=reverse_return_section_ids,
+                            rr_added_length_m=rr_added_length_m,
+                            rr_added_pressure_drop_Pa=rr_added_pressure_drop_Pa,
                         ),
                     )
                 )
@@ -447,6 +484,167 @@ def _section_total_dp_by_id(
                 result[section_id] = None
 
     return result
+
+def _section_pressure_basis_by_id(
+    project_state: Any,
+    *,
+    leg_id: str,
+    subleg_id: str,
+) -> dict[str, _RRSectionPressureBasisV1]:
+    """
+    Build section_id -> pressure basis for RR added-length preview.
+
+    Uses received Basic PS pipe/flow basis only as the section authority.
+    The added-length pressure is then calculated through the hydronic
+    mass-flow/Colebrook wrapper.
+    """
+    try:
+        projection = build_basic_ps_readonly_projection_v1(
+            project_state,
+            leg_id=leg_id,
+            subleg_id=subleg_id,
+        )
+    except Exception:
+        return {}
+
+    result: dict[str, _RRSectionPressureBasisV1] = {}
+
+    for row in getattr(projection.pipe_sizing_projection, "results", ()) or ():
+        section_id = str(getattr(row, "section_id", "") or "")
+        pipe_size_label = str(getattr(row, "pipe_size_label", "") or "")
+        mass_flow = _optional_float(getattr(row, "carried_flow_kg_s", None))
+
+        if not section_id or mass_flow is None or not pipe_size_label:
+            continue
+
+        result[section_id] = _RRSectionPressureBasisV1(
+            mass_flow_kg_s=float(mass_flow),
+            pipe_size_label=pipe_size_label,
+        )
+
+    return result
+
+
+def _rr_added_length_m(project_state: Any) -> float:
+    """
+    Provisional RR added-length basis.
+
+    v1 reads an optional project_state attribute and otherwise uses 0.0 m.
+    No persistence/UI authority is introduced here.
+    """
+    for attr_name in (
+        "hydronic_rr_added_length_m",
+        "hydronic_reverse_return_added_length_m",
+        "rr_added_length_m",
+    ):
+        value = getattr(project_state, attr_name, None)
+
+        if value is None:
+            continue
+
+        parsed = _optional_float(value)
+
+        if parsed is not None:
+            return max(float(parsed), 0.0)
+
+    return 0.0
+
+
+def _rr_added_length_pressure_drop_Pa(
+    *,
+    project_state: Any,
+    section_pressure_basis_by_id: dict[str, _RRSectionPressureBasisV1],
+    candidate_section_ids: tuple[str, ...],
+    length_m: float,
+) -> float:
+    """
+    Calculate RR added-length pressure using H-S29-C mass-flow wrapper.
+
+    The candidate section path supplies a flow/pipe basis. This is still
+    preview evidence, not final return-pipe modelling.
+    """
+    if length_m <= 0.0:
+        return 0.0
+
+    basis = _first_pressure_basis_for_path_v1(
+        section_pressure_basis_by_id,
+        candidate_section_ids,
+    )
+
+    if basis is None or basis.mass_flow_kg_s <= 0.0:
+        return 0.0
+
+    try:
+        result = calculate_hydronic_pipe_pressure_drop_from_mass_flow_v1(
+            mass_flow_kg_s=float(basis.mass_flow_kg_s),
+            material=_route_pressure_material_v1(project_state),
+            dn=_dn_from_pipe_size_label_v1(basis.pipe_size_label),
+            length_m=float(length_m),
+            friction_method="colebrook",
+        )
+    except Exception:
+        return 0.0
+
+    return float(result.pressure_drop_pa or 0.0)
+
+
+def _first_pressure_basis_for_path_v1(
+    section_pressure_basis_by_id: dict[str, _RRSectionPressureBasisV1],
+    section_ids: tuple[str, ...],
+) -> _RRSectionPressureBasisV1 | None:
+    for section_id in section_ids:
+        basis = section_pressure_basis_by_id.get(str(section_id))
+
+        if basis is not None:
+            return basis
+
+    return None
+
+
+def _reverse_return_total_with_rr_added_dp_v1(
+    *,
+    flow_dp_Pa: float | None,
+    reverse_return_dp_Pa: float | None,
+    rr_added_pressure_drop_Pa: float,
+) -> float | None:
+    base = _add_optional_dp(flow_dp_Pa, reverse_return_dp_Pa)
+
+    if base is None:
+        return None
+
+    return float(base) + max(float(rr_added_pressure_drop_Pa or 0.0), 0.0)
+
+
+def _return_comparison_status_v1(
+    *,
+    flow_section_ids: tuple[str, ...],
+    reverse_return_section_ids: tuple[str, ...],
+    rr_added_length_m: float,
+    rr_added_pressure_drop_Pa: float,
+) -> str:
+    if reverse_return_section_ids:
+        base = "Flow + direct + reverse return paths ready"
+
+        if rr_added_length_m > 0.0:
+            return (
+                f"{base} | RR added length {rr_added_length_m:.2f} m "
+                f"adds {rr_added_pressure_drop_Pa:.1f} Pa"
+            )
+
+        return f"{base} | RR added length 0.00 m"
+
+    if flow_section_ids:
+        return "Flow + direct return path ready — reverse return not generated"
+
+    return "Missing flow path — return paths not modelled yet"
+
+
+def _optional_float(value: Any) -> float | None:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
 
 def _sum_section_dp(
         section_dp_by_id: dict[str, float | None],
