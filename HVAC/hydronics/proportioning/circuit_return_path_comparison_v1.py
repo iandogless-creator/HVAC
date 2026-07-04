@@ -23,6 +23,7 @@ from HVAC.hydronics.sizing.basic_ps_readonly_projection_v1 import (
 )
 from HVAC.hydronics.proportioning.route_pressure_accumulator_v1 import (
     _dn_from_pipe_size_label_v1,
+    _local_k_section_length_m_v1,
     _route_pressure_material_v1,
     build_route_pressure_accumulator_v1,
 )
@@ -144,7 +145,15 @@ def build_circuit_return_path_comparison_v1(
                 subleg_id=subleg_id,
             )
 
-            rr_added_length_m = _rr_added_length_m(project_state)
+            section_length_by_id = _section_length_by_id(
+                project_state,
+                leg_id=leg_id,
+                subleg_id=subleg_id,
+            )
+
+            rr_added_length_basis_mode = _rr_added_length_basis_mode(
+                project_state
+            )
 
             rr_suitability = _appraise_reverse_return_suitability_v1(
                 subleg,
@@ -165,6 +174,13 @@ def build_circuit_return_path_comparison_v1(
                     reverse_return_sections_by_room.get(str(room_id), ())
                     if rr_suitability.code == "ordered-subleg"
                     else ()
+                )
+
+                rr_added_length_m = _rr_added_length_for_row_v1(
+                    project_state=project_state,
+                    basis_mode=rr_added_length_basis_mode,
+                    section_length_by_id=section_length_by_id,
+                    reverse_return_section_ids=reverse_return_section_ids,
                 )
 
                 flow_dp_Pa = _sum_section_dp(
@@ -238,6 +254,7 @@ def build_circuit_return_path_comparison_v1(
                         status=_return_comparison_status_v1(
                             flow_section_ids=flow_section_ids,
                             reverse_return_section_ids=reverse_return_section_ids,
+                            rr_added_length_basis_mode=rr_added_length_basis_mode,
                             rr_added_length_m=rr_added_length_m,
                             rr_added_pressure_drop_Pa=rr_added_pressure_drop_Pa,
                         ),
@@ -485,6 +502,190 @@ def _section_total_dp_by_id(
 
     return result
 
+def _section_length_by_id(
+    project_state: Any,
+    *,
+    leg_id: str,
+    subleg_id: str,
+) -> dict[str, float | None]:
+    """
+    H-S29-K:
+    Build section_id -> length lookup for RR added-length basis modes.
+
+    Uses the same Local K / section-length authority as route pressure.
+    Preview only.
+    """
+    try:
+        projection = build_basic_ps_topology_sections_v1(
+            project_state,
+            leg_id=leg_id,
+            subleg_id=subleg_id,
+        )
+    except Exception:
+        return {}
+
+    result: dict[str, float | None] = {}
+
+    for section in getattr(projection, "sections", ()) or ():
+        section_id = str(getattr(section, "section_id", "") or "")
+
+        if not section_id:
+            continue
+
+        value = _local_k_section_length_m_v1(
+            project_state,
+            section_id=section_id,
+        )
+
+        if value is None:
+            result[section_id] = None
+            continue
+
+        try:
+            result[section_id] = max(float(value), 0.0)
+        except (TypeError, ValueError):
+            result[section_id] = None
+
+    return result
+
+
+def _rr_added_length_basis_mode(project_state: Any) -> str:
+    """
+    H-S29-K:
+    Choose how RR extra/additional length is interpreted.
+
+    Default is physical_loop_zero_extra so a good/perfect perimeter
+    reverse-return loop is not penalised with invented extra pipe.
+    """
+    for attr_name in (
+        "hydronic_rr_added_length_basis_mode",
+        "hydronic_reverse_return_added_length_basis_mode",
+        "rr_added_length_basis_mode",
+    ):
+        raw_value = getattr(project_state, attr_name, None)
+
+        if raw_value is None:
+            continue
+
+        value = (
+            str(raw_value)
+            .strip()
+            .lower()
+            .replace("-", "_")
+            .replace(" ", "_")
+        )
+
+        if value in {
+            "physical_loop",
+            "physical_loop_zero_extra",
+            "perfect_rr",
+            "perfect_rr_loop",
+            "loop_zero_extra",
+            "zero_extra",
+            "none",
+            "no_extra",
+        }:
+            return "physical_loop_zero_extra"
+
+        if value in {
+            "downstream",
+            "downstream_proxy",
+            "derived_downstream",
+            "downstream_allowance",
+        }:
+            return "downstream_proxy"
+
+        if value in {
+            "manual",
+            "manual_allowance",
+            "manual_length",
+            "manual_extra",
+        }:
+            return "manual_allowance"
+
+    return "physical_loop_zero_extra"
+
+
+def _rr_added_length_for_row_v1(
+    *,
+    project_state: Any,
+    basis_mode: str,
+    section_length_by_id: dict[str, float | None],
+    reverse_return_section_ids: tuple[str, ...],
+) -> float:
+    """
+    H-S29-K:
+    Calculate the RR extra/additional length for one comparison row.
+
+    physical_loop_zero_extra:
+        Perfect/represented RR loop. No extra allowance.
+
+    downstream_proxy:
+        Provisional retrofit/proxy allowance. Uses downstream section
+        lengths after the current room.
+
+    manual_allowance:
+        Existing hidden H-S29-I hook. UI/manual entry comes later.
+    """
+    mode = str(basis_mode or "").strip().lower()
+
+    if mode == "downstream_proxy":
+        return _downstream_proxy_rr_added_length_m_v1(
+            reverse_return_section_ids=reverse_return_section_ids,
+            section_length_by_id=section_length_by_id,
+        )
+
+    if mode == "manual_allowance":
+        return _rr_added_length_m(project_state)
+
+    return 0.0
+
+
+def _downstream_proxy_rr_added_length_m_v1(
+    *,
+    reverse_return_section_ids: tuple[str, ...],
+    section_length_by_id: dict[str, float | None],
+) -> float:
+    """
+    Sum downstream section lengths after the current room.
+
+    Current reverse-return path scaffold is:
+        current section + downstream sections
+
+    Therefore the added downstream proxy excludes the first/current
+    section and sums the remainder.
+    """
+    if len(reverse_return_section_ids) <= 1:
+        return 0.0
+
+    total = 0.0
+
+    for section_id in reverse_return_section_ids[1:]:
+        value = section_length_by_id.get(str(section_id))
+
+        if value is None:
+            continue
+
+        try:
+            total += max(float(value), 0.0)
+        except (TypeError, ValueError):
+            continue
+
+    return total
+
+
+def _rr_added_length_basis_label_v1(basis_mode: str) -> str:
+    mode = str(basis_mode or "").strip().lower()
+
+    if mode == "downstream_proxy":
+        return "Downstream proxy allowance"
+
+    if mode == "manual_allowance":
+        return "Manual allowance"
+
+    return "Physical loop — no extra allowance"
+
+
 def _section_pressure_basis_by_id(
     project_state: Any,
     *,
@@ -619,19 +820,19 @@ def _return_comparison_status_v1(
     *,
     flow_section_ids: tuple[str, ...],
     reverse_return_section_ids: tuple[str, ...],
+    rr_added_length_basis_mode: str,
     rr_added_length_m: float,
     rr_added_pressure_drop_Pa: float,
 ) -> str:
     if reverse_return_section_ids:
         base = "Flow + direct + reverse return paths ready"
+        basis = _rr_added_length_basis_label_v1(rr_added_length_basis_mode)
 
-        if rr_added_length_m > 0.0:
-            return (
-                f"{base} | RR added length {rr_added_length_m:.2f} m "
-                f"adds {rr_added_pressure_drop_Pa:.1f} Pa"
-            )
-
-        return f"{base} | RR added length 0.00 m"
+        return (
+            f"{base} | RR length basis: {basis}; "
+            f"extra {rr_added_length_m:.2f} m adds "
+            f"{rr_added_pressure_drop_Pa:.1f} Pa"
+        )
 
     if flow_section_ids:
         return "Flow + direct return path ready — reverse return not generated"
