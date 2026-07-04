@@ -1707,6 +1707,12 @@ class HydronicsSchematicPanelAdapter:
                         )
                         else "No"
                     ),
+                    "rr_added_length": self._format_length(
+                        getattr(row, "rr_added_length_m", None)
+                    ),
+                    "rr_added_dp": self._format_pa(
+                        getattr(row, "rr_added_pressure_drop_Pa", None)
+                    ),
                     "rr_suitability": getattr(
                         row,
                         "rr_suitability_status",

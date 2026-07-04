@@ -98,6 +98,9 @@ class ProportioningInputReturnComparisonV1:
     reverse_total_dp: str = ""
     reverse_controlling: str = ""
 
+    rr_added_length: str = ""
+    rr_added_dp: str = ""
+
     rr_suitability: str = ""
     status: str = ""
 
@@ -273,6 +276,16 @@ def build_proportioning_input_snapshot_v1(
             reverse_rank=_text(row, "reverse_rank"),
             reverse_total_dp=_text(row, "reverse_total_dp"),
             reverse_controlling=_text(row, "reverse_controlling"),
+            rr_added_length=_text(
+                row,
+                "rr_added_length",
+                "rr_added_length_m",
+            ),
+            rr_added_dp=_text(
+                row,
+                "rr_added_dp",
+                "rr_added_pressure_drop_Pa",
+            ),
             rr_suitability=_text(row, "rr_suitability"),
             status=_text(row, "status"),
         )

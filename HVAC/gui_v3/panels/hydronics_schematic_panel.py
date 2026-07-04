@@ -871,10 +871,12 @@ class HydronicsSchematicPanel(QWidget):
                 "F+RR Rank",
                 "F+RR Δp",
                 "F+RR Ctrl",
+                "RR add L",
+                "RR add Δp",
                 "RR suitability",
                 "Status",
             ],
-            stretch_columns={0, 1, 2, 9, 10},
+            stretch_columns={0, 1, 2, 11, 12},
         )
 
         self._return_path_comparison_table.setSelectionMode(
@@ -3739,6 +3741,8 @@ class HydronicsSchematicPanel(QWidget):
                 row.get("reverse_rank", "—"),
                 row.get("reverse_total_dp", "—"),
                 row.get("reverse_controlling", "No"),
+                row.get("rr_added_length", "—"),
+                row.get("rr_added_dp", "—"),
                 row.get("rr_suitability", "—"),
                 row.get("status", "—"),
             ]
