@@ -1303,7 +1303,7 @@ class HydronicsSchematicPanel(QWidget):
         self._return_arrangement_pressure_evidence_label.setMinimumWidth(430)
         self._return_arrangement_pressure_evidence_label.setMaximumWidth(560)
         self._return_arrangement_pressure_evidence_label.setMinimumHeight(130)
-        self._return_arrangement_pressure_evidence_label.setMaximumHeight(165)
+        self._return_arrangement_pressure_evidence_label.setMaximumHeight(195)
         self._return_arrangement_pressure_evidence_label.setSizePolicy(
             QSizePolicy.Maximum,
             QSizePolicy.Maximum,
@@ -1316,7 +1316,9 @@ class HydronicsSchematicPanel(QWidget):
             "F&R balancing burden:    TBA\n"
             "F+RR balancing burden:   TBA\n"
             "Resistance reduction:    TBA\n\n"
-            "RR pipe allowance:       TBA\n"
+            "RR length basis:         TBA\n"
+            "RR extra length:         TBA\n"
+            "RR extra Δp:             TBA\n"
             "Evidence result:         TBA"
         )
 
@@ -1554,7 +1556,7 @@ class HydronicsSchematicPanel(QWidget):
             proportioning_layout,
             title="Return arrangement acceptance — user design basis",
             table=self._return_arrangement_acceptance_widget,
-            min_height=185,
+            min_height=210,
             expanded=True,
         )
         # --------------------------------------------------
@@ -2756,6 +2758,14 @@ class HydronicsSchematicPanel(QWidget):
 
         heading = str(heading or "Pressure evidence — preview only")
 
+        (
+            rr_length_basis_text,
+            rr_extra_length_text,
+            rr_extra_dp_text,
+        ) = self._return_arrangement_rr_length_evidence_summary(
+            self._return_arrangement_filtered_evidence_rows()
+        )
+
         label.setText(
             f"{heading}\n\n"
             f"F&R controlling Δp:      "
@@ -2770,9 +2780,162 @@ class HydronicsSchematicPanel(QWidget):
             f"{self._format_pressure_pa_value(reverse_burden)}\n"
             f"Resistance reduction:    "
             f"{balancing_reduction_text}\n\n"
-            "RR pipe allowance:       TBA\n"
+            f"RR length basis:         {rr_length_basis_text}\n"
+            f"RR extra length:         {rr_extra_length_text}\n"
+            f"RR extra Δp:             {rr_extra_dp_text}\n"
             f"{evidence_result}"
         )
+
+    def _return_arrangement_rr_length_evidence_summary(
+            self,
+            rows: list[dict],
+    ) -> tuple[str, str, str]:
+        """
+        H-S29-L:
+        Summarise RR length-basis evidence for the return-arrangement
+        acceptance panel.
+
+        Display only:
+        • no ProjectState mutation
+        • no manual entry yet
+        • no pump / valve / balancing / pipe resize
+        """
+        rows = [dict(row or {}) for row in (rows or [])]
+
+        if not rows:
+            return "TBA", "TBA", "TBA"
+
+        basis_text = self._return_arrangement_rr_length_basis_from_rows(rows)
+
+        length_values = [
+            value
+            for value in (
+                self._return_row_length_m_value(
+                    row,
+                    (
+                        "rr_added_length",
+                        "rr_added_length_m",
+                        "rr_extra_length",
+                        "rr_extra_length_m",
+                    ),
+                )
+                for row in rows
+            )
+            if value is not None
+        ]
+
+        pressure_values = [
+            value
+            for value in (
+                self._return_row_pressure_value(
+                    row,
+                    (
+                        "rr_added_dp",
+                        "rr_added_pressure_drop_Pa",
+                        "rr_extra_dp",
+                        "rr_extra_pressure_drop_Pa",
+                    ),
+                )
+                for row in rows
+            )
+            if value is not None
+        ]
+
+        length_text = (
+            "TBA"
+            if not length_values
+            else f"{max(length_values):.2f} m"
+        )
+
+        pressure_text = (
+            "TBA"
+            if not pressure_values
+            else self._format_pressure_pa_value(max(pressure_values))
+        )
+
+        return basis_text, length_text, pressure_text
+
+    @staticmethod
+    def _return_arrangement_rr_length_basis_from_rows(
+            rows: list[dict],
+    ) -> str:
+        """
+        Read the H-S29-K RR length basis from row status text or explicit
+        future row keys.
+        """
+        for row in rows:
+            for key in (
+                    "rr_length_basis",
+                    "rr_added_length_basis",
+                    "rr_added_length_basis_mode",
+            ):
+                value = str(row.get(key) or "").strip()
+
+                if value:
+                    return value
+
+            status = str(row.get("status") or "").strip()
+            marker = "RR length basis:"
+
+            if marker in status:
+                value = status.split(marker, 1)[1].split(";", 1)[0].strip()
+
+                if value:
+                    return value
+
+        return "Physical loop — no extra allowance"
+
+    def _return_row_length_m_value(
+            self,
+            row: dict,
+            keys: tuple[str, ...],
+    ) -> float | None:
+        for key in keys:
+            if key not in row:
+                continue
+
+            value = self._parse_length_m_value(row.get(key))
+
+            if value is not None:
+                return value
+
+        return None
+
+    @staticmethod
+    def _parse_length_m_value(value) -> float | None:
+        if value is None:
+            return None
+
+        if isinstance(value, (int, float)):
+            return float(value)
+
+        text = str(value or "").strip()
+
+        if not text or text == "—":
+            return None
+
+        lowered = text.lower()
+
+        if lowered in {"tba", "none", "not set"}:
+            return None
+
+        cleaned = (
+            lowered.replace("metres", "")
+            .replace("meters", "")
+            .replace("meter", "")
+            .replace("metre", "")
+            .replace("m", "")
+            .replace(",", "")
+            .replace("max", "")
+            .replace("extra", "")
+            .strip()
+        )
+
+        try:
+            return float(cleaned)
+        except ValueError:
+            return None
+
 
     def set_system_return_arrangement_acceptance_basis(
             self,
