@@ -551,21 +551,21 @@ def _section_length_by_id(
 
 def _rr_added_length_basis_mode(project_state: Any) -> str:
     """
-    H-S29-K:
+    H-S29-K / H-S29-M1:
     Choose how RR extra/additional length is interpreted.
+
+    Authority order:
+    1) return-arrangement intent field
+    2) temporary legacy ProjectState attributes, for dev tolerance
+    3) safe default: physical_loop_zero_extra
 
     Default is physical_loop_zero_extra so a good/perfect perimeter
     reverse-return loop is not penalised with invented extra pipe.
     """
-    for attr_name in (
-        "hydronic_rr_added_length_basis_mode",
-        "hydronic_reverse_return_added_length_basis_mode",
-        "rr_added_length_basis_mode",
-    ):
-        raw_value = getattr(project_state, attr_name, None)
 
+    def normalise(raw_value: Any) -> str | None:
         if raw_value is None:
-            continue
+            return None
 
         value = (
             str(raw_value)
@@ -602,6 +602,31 @@ def _rr_added_length_basis_mode(project_state: Any) -> str:
             "manual_extra",
         }:
             return "manual_allowance"
+
+        return None
+
+    intent = getattr(
+        project_state,
+        "hydronic_return_arrangement_intent",
+        None,
+    )
+
+    intent_mode = normalise(
+        getattr(intent, "rr_added_length_basis_mode", None)
+    )
+
+    if intent_mode is not None:
+        return intent_mode
+
+    for attr_name in (
+        "hydronic_rr_added_length_basis_mode",
+        "hydronic_reverse_return_added_length_basis_mode",
+        "rr_added_length_basis_mode",
+    ):
+        project_mode = normalise(getattr(project_state, attr_name, None))
+
+        if project_mode is not None:
+            return project_mode
 
     return "physical_loop_zero_extra"
 
@@ -728,11 +753,29 @@ def _section_pressure_basis_by_id(
 
 def _rr_added_length_m(project_state: Any) -> float:
     """
-    Provisional RR added-length basis.
+    H-S29-N:
+    Manual RR added-length basis.
 
-    v1 reads an optional project_state attribute and otherwise uses 0.0 m.
-    No persistence/UI authority is introduced here.
+    Read the manual value from return-arrangement intent first.
+    Legacy loose ProjectState attributes remain fallback only.
     """
+    intent = getattr(
+        project_state,
+        "hydronic_return_arrangement_intent",
+        None,
+    )
+
+    if isinstance(intent, dict):
+        value = intent.get("rr_added_length_m")
+    else:
+        value = getattr(intent, "rr_added_length_m", None)
+
+    if value is not None:
+        parsed = _optional_float(value)
+
+        if parsed is not None:
+            return max(float(parsed), 0.0)
+
     for attr_name in (
         "hydronic_rr_added_length_m",
         "hydronic_reverse_return_added_length_m",
@@ -749,7 +792,6 @@ def _rr_added_length_m(project_state: Any) -> float:
             return max(float(parsed), 0.0)
 
     return 0.0
-
 
 def _rr_added_length_pressure_drop_Pa(
     *,

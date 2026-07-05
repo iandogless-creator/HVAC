@@ -190,6 +190,14 @@ class HydronicsSchematicPanelAdapter:
                 self.set_rr_length_basis_mode
             )
 
+        if hasattr(
+                self._panel,
+                "set_rr_manual_extra_length_callback",
+        ):
+            self._panel.set_rr_manual_extra_length_callback(
+                self.set_rr_manual_extra_length_m
+            )
+
         # --------------------------------------------------
         # H-S26-G — Commit Proportioning basis snapshot callback
         # --------------------------------------------------
@@ -264,18 +272,82 @@ class HydronicsSchematicPanelAdapter:
         return "physical_loop_zero_extra"
 
     def _current_rr_length_basis_mode_v1(self) -> str:
+        """
+        H-S29-M1:
+        RR length basis mode is stored on the return-arrangement intent.
+        Fall back to the old temporary ProjectState attribute only for
+        tolerance during development.
+        """
         project = getattr(self, "_project_state", None)
 
         if project is None:
             return "physical_loop_zero_extra"
 
+        intent = getattr(
+            project,
+            "hydronic_return_arrangement_intent",
+            None,
+        )
+
         return self._normalise_rr_length_basis_mode_v1(
             getattr(
-                project,
-                "hydronic_rr_added_length_basis_mode",
-                "physical_loop_zero_extra",
+                intent,
+                "rr_added_length_basis_mode",
+                getattr(
+                    project,
+                    "hydronic_rr_added_length_basis_mode",
+                    "physical_loop_zero_extra",
+                ),
             )
         )
+
+    def _current_rr_manual_extra_length_m_v1(self) -> float:
+        """
+        H-S29-N:
+        Manual RR extra length is stored on return-arrangement intent.
+        Legacy loose ProjectState attributes remain fallback only.
+        """
+        project = getattr(self, "_project_state", None)
+
+        if project is None:
+            return 0.0
+
+        intent = getattr(
+            project,
+            "hydronic_return_arrangement_intent",
+            None,
+        )
+
+        if isinstance(intent, dict):
+            value = intent.get("rr_added_length_m")
+        else:
+            value = getattr(intent, "rr_added_length_m", None)
+
+        if value is None:
+            for attr_name in (
+                "hydronic_rr_added_length_m",
+                "hydronic_reverse_return_added_length_m",
+                "rr_added_length_m",
+            ):
+                value = getattr(project, attr_name, None)
+
+                if value is not None:
+                    break
+
+        try:
+            return max(float(value), 0.0)
+        except (TypeError, ValueError):
+            return 0.0
+
+    def _restore_rr_manual_extra_length_to_panel(self) -> None:
+        """
+        H-S29-N:
+        Restore ProjectState-backed manual RR length into panel control.
+        """
+        if hasattr(self._panel, "set_rr_manual_extra_length_m"):
+            self._panel.set_rr_manual_extra_length_m(
+                self._current_rr_manual_extra_length_m_v1()
+            )
 
     def _restore_rr_length_basis_mode_to_panel(self) -> None:
         """
@@ -287,6 +359,46 @@ class HydronicsSchematicPanelAdapter:
             self._panel.set_rr_length_basis_mode(
                 self._current_rr_length_basis_mode_v1()
             )
+
+    def set_rr_manual_extra_length_m(self, value: float) -> None:
+        """
+        H-S29-N:
+        Persist manual RR added length in return-arrangement intent.
+        """
+        project = getattr(self, "_project_state", None)
+
+        if project is None:
+            print(
+                "H-S29-N warning: no ProjectState available for "
+                "manual RR extra length"
+            )
+            return
+
+        try:
+            value = max(float(value), 0.0)
+        except (TypeError, ValueError):
+            value = 0.0
+
+        intent = self._get_return_arrangement_acceptance_intent()
+
+        if isinstance(intent, dict):
+            next_intent = dict(intent)
+            next_intent["rr_added_length_m"] = value
+        else:
+            try:
+                from dataclasses import replace
+
+                next_intent = replace(intent, rr_added_length_m=value)
+            except Exception:
+                setattr(intent, "rr_added_length_m", value)
+                next_intent = intent
+
+        project.hydronic_return_arrangement_intent = next_intent
+
+        if hasattr(project, "mark_dirty"):
+            project.mark_dirty()
+
+        self.refresh()
 
     def set_rr_length_basis_mode(self, mode: str) -> None:
         """
@@ -302,13 +414,34 @@ class HydronicsSchematicPanelAdapter:
 
         project = getattr(self, "_project_state", None)
 
-        if project is not None:
-            project.hydronic_rr_added_length_basis_mode = mode
-        else:
+        if project is None:
             print(
                 "H-S29-M warning: no ProjectState available for "
                 "RR length basis mode"
             )
+            return
+
+        from dataclasses import replace
+
+        intent = self._get_return_arrangement_acceptance_intent()
+
+        if isinstance(intent, dict):
+            next_intent = dict(intent)
+            next_intent["rr_added_length_basis_mode"] = mode
+            self._return_arrangement_acceptance_intent = next_intent
+        else:
+            try:
+                self._return_arrangement_acceptance_intent = replace(
+                    intent,
+                    rr_added_length_basis_mode=mode,
+                )
+            except TypeError:
+                setattr(intent, "rr_added_length_basis_mode", mode)
+                self._return_arrangement_acceptance_intent = intent
+
+        project.hydronic_return_arrangement_intent = (
+            self._return_arrangement_acceptance_intent
+        )
 
         print("H-S29-M RR length basis mode set:", mode)
 
@@ -362,6 +495,7 @@ class HydronicsSchematicPanelAdapter:
     def refresh(self) -> None:
         self._restore_return_arrangement_acceptance_basis_to_panel()
         self._restore_rr_length_basis_mode_to_panel()
+        self._restore_rr_manual_extra_length_to_panel()
 
         """
         Hydronics schematic panel refresh.

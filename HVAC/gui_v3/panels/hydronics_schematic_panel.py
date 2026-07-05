@@ -75,6 +75,7 @@ from PySide6.QtWidgets import (
     QButtonGroup,
     QHBoxLayout,
     QComboBox,
+    QDoubleSpinBox,
 )
 
 from HVAC.gui_v3.schematic.dto import (
@@ -1224,6 +1225,7 @@ class HydronicsSchematicPanel(QWidget):
 
         self._scoped_return_arrangement_acceptance_callback = None
         self._rr_length_basis_mode_callback = None
+        self._rr_manual_extra_length_callback = None
         self._return_arrangement_scope_controls = {}
 
         self._return_arrangement_tabs = QTabWidget(
@@ -1501,15 +1503,42 @@ class HydronicsSchematicPanel(QWidget):
         )
         self._rr_length_basis_mode_combo.setToolTip(
             "Preview-only reverse-return extra length basis. "
-            "Manual metre entry is added in a later stage."
+            "Manual metre entry is enabled only for Manual allowance."
         )
+
+        self._rr_manual_extra_length_label = QLabel(
+            "Extra length:",
+            self._return_arrangement_acceptance_widget,
+        )
+        self._rr_manual_extra_length_spin = QDoubleSpinBox(
+            self._return_arrangement_acceptance_widget
+        )
+        self._rr_manual_extra_length_spin.setDecimals(2)
+        self._rr_manual_extra_length_spin.setRange(0.0, 9999.0)
+        self._rr_manual_extra_length_spin.setSingleStep(0.25)
+        self._rr_manual_extra_length_spin.setSuffix(" m")
+        self._rr_manual_extra_length_spin.setMinimumWidth(110)
+        self._rr_manual_extra_length_spin.setMaximumWidth(140)
+        self._rr_manual_extra_length_spin.setToolTip(
+            "Manual reverse-return extra pipe length allowance. "
+            "Enabled only when RR length basis is Manual allowance."
+        )
+        self._rr_manual_extra_length_spin.valueChanged.connect(
+            self._on_rr_manual_extra_length_changed
+        )
+
         self._rr_length_basis_mode_combo.currentIndexChanged.connect(
             self._on_rr_length_basis_mode_changed
         )
 
         rr_length_basis_layout.addWidget(self._rr_length_basis_mode_label)
         rr_length_basis_layout.addWidget(self._rr_length_basis_mode_combo)
+        rr_length_basis_layout.addSpacing(12)
+        rr_length_basis_layout.addWidget(self._rr_manual_extra_length_label)
+        rr_length_basis_layout.addWidget(self._rr_manual_extra_length_spin)
         rr_length_basis_layout.addStretch(1)
+
+        self._update_rr_manual_extra_length_enabled()
 
         return_tabs_row = QHBoxLayout()
         return_tabs_row.setContentsMargins(0, 0, 0, 0)
@@ -3015,6 +3044,68 @@ class HydronicsSchematicPanel(QWidget):
         """
         self._rr_length_basis_mode_callback = callback
 
+    def set_rr_manual_extra_length_callback(self, callback) -> None:
+        """
+        H-S29-N:
+        Adapter callback for user-entered manual RR extra length.
+        """
+        self._rr_manual_extra_length_callback = callback
+
+    def set_rr_manual_extra_length_m(self, value: float) -> None:
+        """
+        H-S29-N:
+        Restore/display manual RR extra length without emitting user intent.
+        """
+        spin = getattr(self, "_rr_manual_extra_length_spin", None)
+
+        if spin is None:
+            return
+
+        try:
+            parsed = max(float(value), 0.0)
+        except (TypeError, ValueError):
+            parsed = 0.0
+
+        spin.blockSignals(True)
+        try:
+            spin.setValue(parsed)
+        finally:
+            spin.blockSignals(False)
+
+    def _update_rr_manual_extra_length_enabled(self) -> None:
+        """
+        H-S29-N:
+        Manual metre entry is editable only for Manual allowance.
+        """
+        combo = getattr(self, "_rr_length_basis_mode_combo", None)
+        spin = getattr(self, "_rr_manual_extra_length_spin", None)
+        label = getattr(self, "_rr_manual_extra_length_label", None)
+
+        if combo is None or spin is None:
+            return
+
+        mode = self._normalise_rr_length_basis_mode_ui(
+            str(combo.currentData() or "")
+        )
+        enabled = mode == "manual_allowance"
+
+        spin.setEnabled(enabled)
+
+        if label is not None:
+            label.setEnabled(enabled)
+
+    def _on_rr_manual_extra_length_changed(self, value: float) -> None:
+        """
+        H-S29-N:
+        User-facing manual RR extra length entry.
+        """
+        callback = getattr(self, "_rr_manual_extra_length_callback", None)
+
+        self._refresh_return_arrangement_evidence_for_current_scope()
+
+        if callback is not None:
+            callback(max(float(value), 0.0))
+
     def set_rr_length_basis_mode(self, mode: str) -> None:
         """
         H-S29-M:
@@ -3038,6 +3129,8 @@ class HydronicsSchematicPanel(QWidget):
         finally:
             combo.blockSignals(False)
 
+        self._update_rr_manual_extra_length_enabled()
+
     def _on_rr_length_basis_mode_changed(self, _index: int) -> None:
         """
         H-S29-M:
@@ -3056,6 +3149,8 @@ class HydronicsSchematicPanel(QWidget):
         mode = self._normalise_rr_length_basis_mode_ui(
             str(combo.currentData() or "")
         )
+
+        self._update_rr_manual_extra_length_enabled()
 
         callback = getattr(self, "_rr_length_basis_mode_callback", None)
 
@@ -3122,6 +3217,11 @@ class HydronicsSchematicPanel(QWidget):
             for radio in radios:
                 radio.blockSignals(False)
 
+        # H-S29-M2:
+        # When the adapter restores the accepted FR/F+RR basis with
+        # signals blocked, the evidence heading/result must still refresh.
+        self._refresh_return_arrangement_evidence_for_current_scope()
+
     def set_system_return_arrangement_acceptance_callback(self, callback) -> None:
         """
         H-S26-C:
@@ -3155,6 +3255,16 @@ class HydronicsSchematicPanel(QWidget):
 
         if callback is not None:
             callback(basis)
+
+        # H-S29-M2:
+        # Keep the visible evidence box in step with the selected
+        # FR/F+RR acceptance radio even before/after adapter refresh.
+        self._refresh_return_arrangement_evidence_for_current_scope()
+
+        # H-S29-M2:
+        # Keep the visible evidence box in step with the selected
+        # FR/F+RR acceptance radio even before/after adapter refresh.
+        self._refresh_return_arrangement_evidence_for_current_scope()
 
     def _set_preliminary_route_balancing_preview(
             self,
