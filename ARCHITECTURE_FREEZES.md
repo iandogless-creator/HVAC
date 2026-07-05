@@ -1,132 +1,264 @@
+# HVACgooee — Architecture Freezes
 
-### Responsibilities
-This document is authoritative. In the event of conflict between code and
-this file, the architecture described here takes precedence.
+Status: CANONICAL  
+Owner: Ian Allison  
+Repository: HVACgooee  
+Licence: GPL-v3 core  
+Last updated: 2026-07-05  
+Current active area: Hydronics Phase H — proportioning / return-arrangement evidence
 
+This document is authoritative.
 
-#### GUI
-• Displays intent and results
-• Emits user intent
-• Never executes physics
-• Never mutates state
+In the event of conflict between code and this file, the architecture described here takes precedence.
 
-#### Adapter
-• Observes ProjectState
-• Forwards intent
-• Wires GUI → controller
-• Has NO authority
+These freezes exist to prevent silent architectural drift. They are not intended to stop progress. They define what must remain stable while the project grows.
 
-#### Controller
-• Decides execution scope
-• Invokes runners
-• Commits results
-• Marks validity explicitly
+---
 
-#### Runner
-• Pure computation
-• Stateless
-• Read-only ProjectState access
-• No side effects
-• No GUI imports
+## FREEZE 1 — ProjectState Authority Contract (LOCKED)
+
+### Scope
+
+`HVAC/project/` and all runtime project-state containers.
+
+### Status
+
+LOCKED
+
+### Definition
+
+`ProjectState` is the sole authoritative data model.
+
+It owns project intent, identity, persisted engineering state, and committed result containers.
+
+### Rules
+
+- ProjectState owns what the project is.
+- ProjectState may hold runtime authority containers.
+- ProjectState does not calculate.
+- ProjectState does not import GUI.
+- ProjectState does not silently repair engineering intent.
+- ProjectState should expose explicit containers for user intent and committed results.
+
+### Authority examples
+
+ProjectState may own:
+
+- rooms
+- environment
+- boundary segments
+- constructions
+- surface construction map
+- heat-loss readiness / result containers
+- emitters
+- room opening schedules
+- hydronic topology
+- hydronic return-arrangement intent
+- hydronic local K intent
+- committed hydronic basis snapshots
 
 ### Forbidden
 
-❌ GUI → Runner calls
-❌ Runner → ProjectState mutation
-❌ Adapter committing results
-❌ Validation inside runners
+- Hidden calculation inside ProjectState
+- GUI imports inside ProjectState
+- Implicit state repair
+- Silent creation of engineering results
+- Treating display state as engineering authority
+
+---
+
+## FREEZE 2 — Layer Responsibilities / Execution Topology (LOCKED)
+
+### Scope
+
+Application architecture across GUI, adapters, controllers, runners, and ProjectState.
+
+### Status
+
+LOCKED
+
+### Canonical topology
+
+```text
+GUI → Adapter → Controller → Runner → Result
+Result → ProjectState only through explicit commit
+```
+
+Observer / editor side paths are allowed only as intent:
+
+```text
+Panel → Adapter → Context / Controller → ProjectState
+```
+
+Reverse authority flows are forbidden.
+
+### GUI
+
+- Displays intent and results.
+- Emits user intent.
+- Never executes physics.
+- Never owns state.
+- Never mutates authoritative engineering state directly.
+
+### Adapter
+
+- Observes ProjectState.
+- Builds projection rows and display DTOs.
+- Wires GUI intent to controller / context / transition path.
+- Has no engineering authority.
+- Must not invent physics, readiness, or final results.
+
+### Controller
+
+- Decides execution scope.
+- Invokes runners.
+- Owns readiness policy.
+- Commits results.
+- Marks validity explicitly.
+
+### Runner
+
+- Performs pure computation.
+- Is stateless.
+- Reads input DTOs or read-only state snapshots.
+- Has no GUI imports.
+- Has no persistence side effects.
+
+### Forbidden
+
+- GUI → Runner calls
+- Runner → ProjectState mutation
+- Adapter committing final results as a permanent architecture
+- Validation policy inside runners
+- GUI-derived authority
+- Silent execution blocking
+
+### Hydronics transition note
+
+Hydronics Phase H currently contains some adapter/panel persistence and commit wiring while the Hydronics controller boundary is still maturing.
+
+This is documented transition debt.
+
+It is not a permanent relaxation of this freeze.
+
+Before final hydronic output, pump selection, valve selection, final balancing, or pipe resizing become authoritative, those commit paths should be moved behind explicit controller boundaries.
 
 ---
 
 ## FREEZE 3 — Runner Purity Contract (LOCKED)
 
 ### Scope
-`*_runner_v*` modules
+
+`*_runner_v*` modules and equivalent pure calculation functions.
 
 ### Status
-**LOCKED**
+
+LOCKED
 
 ### Rules
 
-• Runners are PURE functions
-• No mutation of inputs
-• No caching
-• No logging beyond diagnostics
-• No persistence
-• No GUI access
-• No validation inference
+- Runners are pure functions.
+- No mutation of inputs.
+- No persistence.
+- No GUI access.
+- No hidden caching.
+- No validation inference.
+- No side-channel authority.
+- Diagnostics may exist, but must not become control flow authority.
 
 ### Output
-• Explicit return values only
-• No side-channel effects
+
+- Explicit return values only.
+- Results must be reproducible from the same inputs.
 
 This contract enables:
-• reproducibility
-• testing
-• parallelism
-• future acceleration (threads / GPU / distributed)
+
+- reproducibility
+- testing
+- parallelism
+- future acceleration
+- future CLI / batch / API execution
 
 ---
 
 ## FREEZE 4 — Overrides Semantics (LOCKED)
 
 ### Scope
-Heat-Loss worksheet overrides (v1)
+
+Heat-loss worksheet overrides and future equivalent override systems.
 
 ### Status
-**LOCKED**
+
+LOCKED
 
 ### Definition
-Overrides represent **user intent**, not results.
+
+Overrides represent user intent, not calculated results.
 
 ### Rules
 
-• Overrides never store calculated values
-• Overrides may shadow derived inputs
-• Overrides are optional and sparse
-• Clearing overrides removes intent
-• Any override change invalidates results
+- Overrides never store calculated values.
+- Overrides may shadow derived inputs.
+- Overrides are optional and sparse.
+- Clearing an override removes intent.
+- Any override change invalidates dependent results.
+- Overrides must be explicitly addressable by stable identity.
 
 ### Ownership
-• Stored in `HeatLossStateV1.overrides`
-• Written only by controllers
-• Read by runners and adapters
+
+- Heat-loss overrides belong to `HeatLossStateV1.overrides`.
+- Future domain overrides must have an equivalent explicit owner.
+- Controllers write overrides.
+- Runners and adapters read overrides.
 
 ### Forbidden
 
-❌ results overwriting overrides
-❌ overrides auto-clearing
-❌ implicit override creation
-❌ override-driven mutation
+- Results overwriting overrides
+- Overrides auto-clearing
+- Implicit override creation
+- Override-driven hidden mutation
+- Treating a calculated result as a user override
 
 ---
 
 ## FREEZE 5 — GUI v3 Observer Rule (LOCKED)
 
 ### Scope
-`HVAC.gui_v3`
+
+`HVAC/gui_v3`
 
 ### Status
-**LOCKED**
+
+LOCKED
 
 ### Definition
-GUI panels are **non-authoritative observers**.
+
+GUI panels are non-authoritative observers and intent emitters.
 
 ### Rules
 
-• Panels may display incorrect or incomplete data
-• Panels may be destroyed or recreated freely
-• Panels never own state
-• Panels emit intent only
-• Panels do not infer readiness
-• Panels do not commit results
+- Panels may display incomplete or stale data.
+- Panels may be destroyed or recreated freely.
+- Panels never own engineering state.
+- Panels emit intent only.
+- Panels do not infer readiness.
+- Panels do not commit results.
+- Panels do not execute physics.
 
 ### Consequences
 
-• Panel layout is NOT frozen
-• Widget composition is NOT frozen
-• Styling is NOT frozen
-• Docking behavior is NOT frozen
+Globally not frozen unless separately stated:
+
+- panel layout
+- widget composition
+- styling
+- docking behaviour
+- visual grouping
+- table column ordering
+
+Exception:
+
+- the Heat-Loss worksheet column order is locked by Freeze 8.
 
 Authority is never derived from GUI state.
 
@@ -135,39 +267,519 @@ Authority is never derived from GUI state.
 ## FREEZE 6 — Identity & Addressing (LOCKED)
 
 ### Scope
-Rooms, elements, surfaces
+
+Rooms, elements, surfaces, boundary segments, openings, emitters, and hydronic route/section identities.
 
 ### Status
-**LOCKED — v1 Identity Contract**
+
+LOCKED — v1 identity contract
 
 ### Identifiers
 
-• room_id — stable project identifier
-• element_id — stable within room
-• surface_class — semantic classification
+- `room_id` — stable project room identifier
+- `element_id` — stable within room / worksheet element context
+- `surface_id` — stable projected surface / segment identifier
+- `segment_id` — boundary topology identity
+- `construction_id` — construction authority identity
+- `profile_id` — opening profile identity
+- `emitter_id` — hydronic emitter identity
+- `leg_id` — hydronic leg identity
+- `subleg_id` — hydronic subleg identity
+- `section_id` — hydronic route / pipe section identity
+- `route_id` — hydronic route identity where available
 
 ### Rules
 
-• IDs are used for overrides and results
-• Geometry may change shape but IDs persist
-• Execution relies on identity, not GUI selection
+- Overrides and results use identity.
+- Geometry may change shape, but IDs persist where the engineering object persists.
+- Execution relies on identity, not GUI selection.
+- Room-level openings use `room_id`.
+- v1 openings do not require wall placement identity.
+- Hydronic section focus must use `section_id`, not visible row number.
 
-This freeze protects future geometry refactors.
+This freeze protects future geometry, schematic, and hydronic topology refactors.
+
+---
+
+## FREEZE 7 — Readiness & Blocking Semantics (LOCKED)
+
+### Scope
+
+Heat-loss execution readiness and user-facing blocking messages. The same pattern applies to later Hydronics readiness.
+
+### Status
+
+LOCKED
+
+### Definition
+
+Readiness determines whether an execution may run.
+
+Blocking messages explain why execution cannot run.
+
+Readiness is policy, not physics and not GUI authority.
+
+### Ownership
+
+| Concern | Owner |
+|---|---|
+| Readiness rules | Controller |
+| Readiness state | ProjectState / domain state |
+| Blocking reasons | Controller, explicit |
+| Display of reasons | GUI, observer only |
+
+### Rules
+
+1. GUI never decides readiness.
+
+   Panels must not infer “ready” or “not ready”.
+
+2. Readiness is explicit and boolean.
+
+   Controllers expose:
+
+   ```text
+   is_ready: bool
+   blocking_reasons: list[str]
+   ```
+
+3. Blocking reasons are additive.
+
+   Multiple reasons may exist simultaneously.
+
+4. Readiness is phase-scoped.
+
+   Heat-loss readiness does not require Hydronics data.
+
+   Hydronics readiness must not be smuggled into Heat-Loss readiness.
+
+5. Readiness invalidates results where appropriate.
+
+   Any change to intent inputs must mark dependent results stale or dirty.
+
+6. GUI wording is non-authoritative.
+
+   Allowed:
+
+   - “Cannot run yet because…”
+   - “Heat-loss not ready”
+   - “Results invalidated”
+   - “Preview only”
+   - “Evidence incomplete”
+
+   Forbidden:
+
+   - “Incorrect”
+   - “Invalid input”
+   - “Error in geometry”
+
+The system explains. It does not judge.
+
+### Explicitly forbidden
+
+- GUI computing readiness
+- Adapters inventing blocking reasons
+- Runners checking readiness policy
+- Silent execution blocking
+- Implicit auto-runs
+
+---
+
+## FREEZE 8 — Heat-Loss Worksheet & HLPE Edit Spine (LOCKED)
+
+### Scope
+
+Heat-Loss worksheet column semantics, HLPE targeting model, and GUI v3 observer-only worksheet behaviour.
+
+### Status
+
+LOCKED
+
+### Definition
+
+HLPE is a GUI-only edit overlay that allows the user to express engineering intent against existing fabric elements.
+
+HLPE:
+
+- looks inline
+- is not inline
+- never mutates authoritative state
+- never depends on layout position
+- never executes heat-loss
+
+### Locked column order
+
+The Heat-Loss worksheet column order is:
+
+```text
+Element | Area | U | ΔT | Qf
+```
+
+Rationale:
+
+- matches Qf = A × U × ΔT
+- matches engineering scan order
+- aligns with spreadsheet and hand-calculation convention
+
+This specific worksheet order is locked for v1.
+
+### Locked edit targeting
+
+HLPE activation is non-positional.
+
+Edits are routed exclusively by semantic identifiers:
+
+```text
+(room_id, element_id, attribute)
+```
+
+Where:
+
+```text
+attribute ∈ {"area", "u_value", "delta_t"}
+```
+
+### Explicitly prohibited
+
+- column-index routing
+- visual position inference
+- table geometry-dependent edit routing
+- inline worksheet mutation
+- GUI-driven state changes
+- HLPE calculating or validating engineering data
+
+### Worksheet behaviour rules
+
+- Worksheet adapters are observer-only.
+- GUI never executes heat-loss.
+- GUI never owns authoritative results.
+- DEV rows may be injected only as temporary bootstrap when real engine rows are unavailable.
+- DEV scaffolding must be removed once controller-backed previews/results exist.
+
+### Result placement
+
+- Element-level `Qf` values appear in the worksheet.
+- Aggregate results appear below the worksheet.
+- Summary results are not worksheet rows.
+
+---
+
+## FREEZE 9 — Wall Wizard / Room-Level Opening Schedule Contract (LOCKED)
+
+### Scope
+
+Wall Wizard v1, room-level opening schedules, opening profile preview rows, runtime ProjectState ownership of opening schedules, and Wall Wizard add / remove / clear behaviour.
+
+### Status
+
+LOCKED
+
+### Applies to
+
+- `HVAC/gui_v3/wizards/wall_wizard.py`
+- `HVAC/gui_v3/adapters/wall_wizard_adapter.py`
+- `HVAC/core/opening_schedule_v1.py`
+- `ProjectState.room_opening_schedules`
+
+### Definition
+
+Wall Wizard v1 is a room-level opening schedule editor.
+
+It is not:
+
+- a CAD wall editor
+- a heat-loss engine
+- an authoritative wall geometry system
+
+### Current scope
+
+- Windows and doors are scheduled at room level.
+- Openings are not placed on individual wall segments.
+- Any external wall click in a room may open the same room-level external opening schedule.
+- Gross external wall area is the total external wall area for that room.
+- Net wall area is previewed as:
+
+```text
+net_external_wall_area = gross_external_wall_area - total_room_opening_area
+```
+
+### Authority
+
+- WallWizardDialog is UI only.
+- WallWizardAdapter routes intent.
+- `ProjectState.room_opening_schedules` owns runtime opening schedules.
+- `RoomOpeningScheduleV1` owns room-level opening schedule items.
+- `OpeningScheduleItemV1` owns profile, size, quantity, and construction_id.
+
+### Rules
+
+- No HLP Qf mutation yet.
+- No project-file persistence yet unless explicitly added in a later phase.
+- No CAD placement.
+- No wall-position inference.
+- Opening U-values resolve by `construction_id`.
+- `OpeningScheduleItemV1` never stores U-value.
+
+---
+
+## FREEZE 10 — Hydronics Proportioning Preview & Return Arrangement Basis Contract (LOCKED)
+
+### Scope
+
+Hydronics Phase H proportioning preview, Basic PS handoff, route pressure evidence, Local K preview, return arrangement comparison, reverse-return length basis, and chosen-basis Proportioned preview.
+
+### Status
+
+LOCKED — Hydronics Phase H preview contract
+
+### Applies to
+
+- `HVAC/gui_v3/panels/hydronics_schematic_panel.py`
+- `HVAC/gui_v3/adapters/hydronics_schematic_panel_adapter.py`
+- `HVAC/gui_v3/widgets/common_main_leg_subleg_schematic_widget_v1.py`
+- `HVAC/core/fluid_friction/`
+- `HVAC/core/materials/pipe_materials_library.py`
+- `HVAC/hydronics/sizing/`
+- `HVAC/hydronics/local_losses/`
+- `HVAC/hydronics/pipes/dp/`
+- `HVAC/hydronics/proportioning/`
+- `HVAC/hydronics/proportioning/return_arrangement_acceptance_intent_v1.py`
+
+### Definition
+
+Hydronics Phase H is a preview and design-basis evidence phase.
+
+It may show detailed pressure evidence.
+
+It does not yet produce a final hydraulic design.
+
+### Basic PS contract
+
+Basic PS is a first-pass sizing / handoff basis.
+
+It may provide:
+
+- topology section rows
+- carried flow
+- candidate pipe size
+- first-pass velocity
+- first-pass pressure gradient
+- first-pass status evidence
+
+Basic PS must remain clearly labelled as preliminary where appropriate.
+
+Basic PS does not:
+
+- select the pump
+- select valves
+- perform final balancing
+- resize final pipework
+- create final hydraulic authority
+
+### Shared friction / pressure contract
+
+The shared friction core is the canonical route for friction-factor calculations.
+
+The hydronics pressure path may use:
+
+- Haaland for first-pass / candidate sizing where appropriate
+- Colebrook-White for detailed route pressure evidence
+- Darcy-Weisbach pressure calculation
+- material roughness from the pipe material library
+- candidate internal diameter from the pipe material / pipe size basis
+
+Hydronics code must not silently re-implement independent friction solvers where the shared core should be used.
+
+### Route pressure evidence contract
+
+Route pressure preview is evidence only.
+
+It may show:
+
+- section Δp
+- straight Δp
+- Local K Δp
+- route ΣΔp
+- controlling route candidate
+- route shortfall
+- preliminary balancing burden
+- Reynolds number
+- friction factor
+- friction method
+- Colebrook iteration count
+
+Route pressure preview does not commit:
+
+- balancing valve selection
+- pump head
+- final pipe size
+- final hydraulic result
+- final installation instruction
+
+### Local K contract
+
+Local K intent is section-level design intent.
+
+Local K preview may calculate local pressure loss for evidence.
+
+Local K preview does not become final balancing.
+
+### Return arrangement contract
+
+Return arrangement comparison may show F&R versus F+RR evidence.
+
+It may show:
+
+- F&R route Δp
+- F+RR route Δp
+- route Δp change
+- balancing burden
+- resistance reduction or increase
+- RR length basis
+- RR extra length
+- RR extra Δp
+
+This evidence informs design judgement.
+
+It must not automatically select the design basis.
+
+### Accepted return arrangement basis
+
+Return arrangement acceptance is user design intent.
+
+It may be accepted at:
+
+- system level
+- leg level
+- common subleg level
+- branch subleg level
+
+Inheritance is allowed.
+
+Room-level return-arrangement selection is not part of v1.
+
+Room-level or subleg-level exclusion / opt-out is not part of v1.
+
+Hydronic topology membership governs participation.
+
+### Reverse-return length basis
+
+Reverse-return added length is separate from reverse-return arrangement.
+
+The recognised RR length basis modes are:
+
+```text
+physical_loop_zero_extra
+downstream_proxy
+manual_allowance
+```
+
+Display labels:
+
+```text
+Physical loop — no extra allowance
+Downstream proxy allowance
+Manual allowance
+```
+
+Meaning:
+
+- `physical_loop_zero_extra` means a represented or perfect physical loop is not penalised with invented extra pipe.
+- `downstream_proxy` means the model derives a provisional extra-length allowance from downstream path evidence.
+- `manual_allowance` means the user provides an explicit extra length in metres.
+
+The RR length basis belongs with return-arrangement design intent, not as unrelated GUI state.
+
+The preferred authority home is:
+
+```text
+ProjectState.hydronic_return_arrangement_intent.rr_added_length_basis_mode
+ProjectState.hydronic_return_arrangement_intent.rr_added_length_m
+```
+
+### Proportioned tab contract
+
+The Proportioned tab may show chosen-basis evidence.
+
+It is read-only at this stage.
+
+It may show:
+
+- resolved effective return arrangement
+- chosen-basis route Δp
+- chosen-basis controlling route
+- chosen-basis shortfall / preliminary burden
+- chosen-basis readiness summary
+
+It does not yet show a final hydraulic result.
+
+### Commit contract
+
+Commit Proportioning currently commits a frozen basis snapshot only.
+
+The snapshot records accepted design basis evidence.
+
+It does not mean:
+
+- pump selected
+- valves selected
+- balancing complete
+- pipework resized
+- installation-ready hydraulic design complete
+
+### Evidence wording contract
+
+Hydronics evidence should use wording such as:
+
+- “preview only”
+- “candidate”
+- “evidence”
+- “chosen basis”
+- “user design basis”
+- “controlling route candidate”
+- “preliminary balancing burden”
+
+Hydronics evidence should avoid wording that implies final authority before the final hydraulic phase exists.
+
+### Explicitly forbidden in Phase H preview
+
+- pump selection
+- valve selection
+- final balancing
+- final pipe resizing
+- final hydraulic result
+- automatic design choice from F&R / F+RR evidence
+- hidden RR extra length
+- treating a table or proxy as natural law
+- treating GUI selection as engineering authority
+
+### Transition debt
+
+Current Hydronics adapter/panel wiring includes some direct intent persistence while the Hydronics controller boundary is still under development.
+
+This is accepted only as short-term transition debt.
+
+It must be reviewed before any final hydronic result, pump, valve, or balancing commit path is introduced.
 
 ---
 
 ## NOT FROZEN (INTENTIONALLY)
 
-The following are **explicitly unfrozen**:
+Unless a specific freeze above says otherwise, the following remain unfrozen:
 
-• Panel layout and UI composition
-• Styling and theming
-• Education content
-• Table column ordering
-• Docking behavior
-• GUI persistence strategy
+- panel layout
+- visual style
+- table column ordering outside locked Heat-Loss worksheet columns
+- docking behaviour
+- education content
+- explanatory wording
+- schematic drawing layout
+- hover content
+- focus colour and visual affordances
+- UI grouping and collapse behaviour
+- future report/export layout
 
-These are expected to evolve.
+These may evolve without architecture-freeze updates, provided authority boundaries are preserved.
 
 ---
 
@@ -175,12 +787,14 @@ These are expected to evolve.
 
 Any change that violates a freeze must:
 
-• be deliberate
-• be documented
-• update this file
-• justify architectural impact
+- be deliberate
+- be documented
+- update this file
+- justify architectural impact
 
 Silent violations are bugs.
+
+If implementation temporarily breaches a freeze during a transition phase, the breach must be labelled as transition debt and scheduled for cleanup before the affected feature becomes final authority.
 
 ---
 
@@ -188,752 +802,18 @@ Silent violations are bugs.
 
 These freezes exist to reduce complexity, not creativity.
 
-Future work is expected — but must respect these boundaries.
+Future work is expected, but must respect the authority boundaries.
 
 This is how HVACgooee scales without collapsing under its own weight.
 
-FREEZE 7 — Readiness & Blocking Semantics (Phase F-B) (LOCKED)
-Scope
-
-Heat-Loss execution readiness and user-facing blocking messages
-(GUI v3, adapters, controllers)
-
-Status
-
-LOCKED
-
-Definition
-
-Readiness determines whether an execution may run.
-Blocking messages explain why execution cannot run.
-
-These are presentation and control concerns, not physics and not GUI authority.
-
-Ownership
-Concern	Owner
-Readiness rules	Controller
-Readiness state	ProjectState / HeatLossState
-Blocking reasons	Controller (explicit)
-Display of reasons	GUI (observer only)
-Rules
-1. GUI never decides readiness
-
-• Panels must not infer “ready” or “not ready”
-• Panels may show partial, incorrect, or missing data
-• Panels only display readiness and reasons supplied to them
-
-❌ if not length: disable run
-❌ if no room selected: infer not ready
-
-2. Readiness is explicit and boolean
-
-Controllers expose:
-
-is_ready: bool
-blocking_reasons: list[str]
-
-
-There is no implicit readiness.
-
-3. Blocking reasons are additive
-
-Multiple reasons may exist simultaneously.
-
-Example:
-
-Cannot run heat-loss because:
-• No room selected
-• Room has no geometry
-• No constructions defined
-
-
-No prioritisation or masking in GUI.
-
-4. Readiness is phase-scoped
-
-Phase F-B readiness rules are minimal:
-
-Heat-Loss may NOT run if:
-• No project loaded
-• No room selected
-• Room has no geometry intent
-• Required constructions are missing
-
-Heat-Loss does NOT require (yet):
-• Complete U-values
-• Overrides resolved
-• Ventilation present
-• Hydronics data
-
-These expand only in later freezes.
-
-5. Readiness invalidates results
-
-Any change to intent inputs (geometry, ACH, constructions, overrides):
-
-• Marks heat-loss results dirty
-• Clears “ready” state
-• Requires explicit re-run
-
-No auto-recalculation.
-
-6. GUI wording is non-authoritative
-
-Allowed phrases:
-• “Cannot run yet because…”
-• “Heat-loss not ready”
-• “Results invalidated”
-
-Forbidden phrases:
-❌ “Incorrect”
-❌ “Invalid input”
-❌ “Error in geometry”
-
-The system explains — it does not judge.
-
-Consequences
-
-• Run buttons may be enabled/disabled only from controller signals
-• Status panels mirror controller state verbatim
-• Tests assert readiness logic without GUI involvement
-• Future solvers (batch, CLI, API) reuse identical rules
-
-Explicitly Forbidden
-
-❌ GUI computing readiness
-❌ Adapters inventing blocking reasons
-❌ Runners checking readiness
-❌ Silent execution blocking
-❌ Implicit auto-runs
-
-Rationale
-
-This freeze:
-• Preserves GUI v3 observer purity
-• Makes readiness testable
-• Prevents “spreadsheet logic” creeping into widgets
-• Enables future non-GUI execution paths
-
-Readiness is policy, not physics.
-
-
-FREEZE 8 — HLPE Interaction & Signal Contract (GUI v3) (LOCKED)
-Scope
-
-Heat-Loss Edit Overlay (HLPE), Heat-Loss worksheet interaction, GUI v3 adapters
-
-Status
-
-LOCKED
-
-Purpose
-
-This freeze formalises the HLPE interaction model and guarantees that all
-heat-loss editing behaviour remains semantic, non-positional, and
-non-authoritative.
-
-This prevents regression into column-index logic, inline mutation, or GUI-driven
-state changes.
-
-Definition
-
-HLPE is a GUI-only edit overlay that allows the user to express engineering
-intent against existing fabric elements.
-
-HLPE:
-• Looks inline
-• Is not inline
-• Never mutates authoritative state
-• Never depends on layout position
-
-Locked Interaction Model
-Selection
-
-• Mouse left-click only
-• Clicking an editable worksheet cell opens HLPE
-• Keyboard navigation is not used for candidate selection
-
-Cancellation
-
-• Esc always cancels
-• Cancel closes HLPE and discards staged edits
-• No state mutation occurs
-
-Apply
-
-• Apply emits semantic edit intent only
-• No calculation is triggered
-• Results are marked dirty explicitly elsewhere
-
-Locked Signal Contract
-
-Worksheet → HLPE communication is semantic only.
-
-Signals MUST include:
-• room_id
-• element_id (or surface identifier)
-• attribute ∈ { "area", "u_value", "delta_t" }
-
-Signals MUST NOT include:
-❌ row index
-❌ column index
-❌ widget position
-❌ layout assumptions
-
-Column order and column width are presentation concerns only.
-
-Attribute Ownership
-
-• "area" — geometric magnitude override
-• "u_value" — construction / fabric performance override
-• "delta_t" — assumption override
-
-Editor selection is driven only by attribute, never by column position.
-
-Non-Editable Cells
-
-• Clicking non-editable cells MUST NOT open HLPE
-• Element name cells display a tooltip:
-
-“Element naming is read-only in v1”
-
-This behaviour is intentional and not an error.
-
-Authority Rules
-
-HLPE:
-• Does NOT mutate ProjectState
-• Does NOT perform validation
-• Does NOT execute calculations
-• Does NOT infer readiness
-
-All HLPE output is intent, not results.
-
-Rationale
-
-This freeze ensures that:
-
-• Worksheet column reordering cannot break behaviour
-• HLPE remains robust as UI layout evolves
-• Editing semantics are testable and explicit
-• GUI v3 remains a pure observer/emitter layer
-
-HLPE is now safe to extend without architectural drift.
-
-Consequences
-
-Allowed:
-• Reordering worksheet columns
-• Changing column widths
-• Changing visual layout
-• Adding new HLPE-editable attributes later
-
-Forbidden:
-❌ Positional signal logic
-❌ Inline worksheet mutation
-❌ GUI-driven state changes
-❌ HLPE calculating or validating data
-
-Level of Achievement (as of this freeze)
-
-At this point, GUI v3 has achieved:
-
-• A stable, non-positional HLPE interaction model
-• Spreadsheet-faithful worksheet behaviour
-• Explicit edit vs result separation
-• Clear user feedback for non-editable cells
-• A future-proof foundation for batch edits, undo/redo, and richer intent DTOs
-
-Further work is additive only.
-
-Freeze: Heat-Loss Worksheet Semantics & HLPE Edit Spine (GUI v3)
-
-Status: LOCKED (GUI v3 / Heat-Loss v3 / HLPE v1)
-Date: 2026-02-18
-
-1. Scope
-
-This freeze governs:
-
-Heat-Loss worksheet column semantics
-
-HLPE (Heat-Loss Edit Overlay) targeting model
-
-GUI v3 observer-only worksheet behaviour
-
-It applies to all GUI v3 worksheet views regardless of data source
-(DEV preview rows, engine previews, or authoritative results).
-
-2. Column Order (LOCKED)
-
-The Heat-Loss worksheet column order is fixed as:
-
-Element | Area | U | ΔT | Qf
-
-
-Rationale:
-
-Matches engineering mental model: Qf = A × U × ΔT
-
-Optimises left-to-right scan for experienced engineers
-
-Aligns with spreadsheet and hand-calc conventions
-
-This order must not change in v1.
-
-3. HLPE Edit Targeting (LOCKED)
-
-HLPE activation is non-positional.
-
-Edits are routed exclusively by semantic identifiers:
-
-(room_id, element_id, attribute)
-
-
-Where attribute ∈ {"area", "u_value", "delta_t"}.
-
-Explicitly prohibited:
-
-Column index–based routing
-
-Visual position–based inference
-
-Table geometry–dependent logic
-
-This guarantees:
-
-Safe column reordering
-
-Stable edit behaviour across themes, layouts, and DPI
-
-Future keyboard/navigation support without refactor
-
-4. Worksheet Behaviour Rules
-
-Worksheet adapters are observer-only
-
-No calculations are permitted in GUI adapters
-
-No mutation of ProjectState
-
-DEV preview rows are allowed temporarily
-
-DEV rows must be visually plausible but non-authoritative
-
-DEV preview population must be removed once
-HeatLossControllerV4 provides real previews/results.
-
-5. Results Placement (LOCKED)
-
-Element-level Qf values appear only in the worksheet
-
-Aggregate results (ΣQf, Qt, Cv) are displayed below the worksheet
-
-Summary results are not rows
-
-This separation preserves worksheet clarity and auditability.
-
-6. Visual Conventions (v1)
-
-Units appear under column headers, not in cells
-
-Numeric values are right-aligned
-
-Decimal points are aligned
-
-Default precision: 2 decimal places (configurable post-v1)
-
-Neutral background; no dominant colour fills
-
-Edit indication may use subtle border/accent (not fill)
-
-7. Non-Goals (Explicit)
-
-This freeze does not include:
-
-Keyboard navigation
-
-Editable element names
-
-User-configurable precision
-
-Theming (dark mode planned post-v1)
-
-8. Regression Rule
-
-Any change affecting:
-
-column order
-
-edit routing
-
-worksheet semantics
-
-requires an explicit architecture freeze update.
-
-Silent drift is not permitted.
-
-Explicit non-goals (this phase):
-
-External wall length is not represented
-
-Geometry is treated as scalar intent only (L, W, H, ACH, Ti)
-
-No surface decomposition or orientation
-
-These are deferred until after the HLPE interaction model and worksheet spine are proven stable
-
-Heat-Loss Worksheet Contract (LOCKED)
-
-Heat-Loss Worksheet & HLPE Contract — LOCKED
-
-Status: CANONICAL
-Scope: GUI v3
-
-Locked Decisions
-
-Worksheet Row Model
-
-Heat-loss worksheet rows are represented by
-HeatLossWorksheetRowDTO
-
-DTO is GUI-only and non-authoritative
-
-One DTO instance maps to one fabric/opening element
-
-Column Semantics (Non-Positional)
-
-Column order is fixed and canonical:
-
-Element | Area | U | ΔT | Qf
-
-
-HLPE edit targeting is based on semantic role,
-not column index or widget position
-
-Edit Pathway
-
-Worksheet cell click → HLPE overlay → cancel/apply
-
-Signal routing does not depend on keyboard navigation
-
-Mouse left-click only in v1
-
-ESC cancels active HLPE session
-
-DEV Worksheet Rows
-
-DEV rows may be injected when:
-
-no engine previews exist
-
-no declared fabric exists
-
-DEV rows:
-
-do not mutate ProjectState
-
-do not calculate
-
-are deterministic
-
-DEV scaffolding must be removed once
-HeatLossController produces real previews
-
-Authority Boundary
-
-GUI never executes heat-loss
-
-GUI never owns authoritative results
-
-Engines remain the sole source of truth
-
-These rules are frozen to prevent regression of
-interaction semantics and architectural boundaries.
-
-That paragraph alone is worth the commit.
-
-4. Why this is safe to land on main
-
-You explicitly said you prefer to stay on main.
-That’s justified here because:
-
-✅ No engine behaviour is changed
-
-✅ No data model authority is altered
-
-✅ GUI-only scaffolding is clearly marked
-
-✅ Contracts are documented, not implied
-
-✅ Reversion would be trivial if needed
-
-This is foundational, not experimental.
-
-5. What this unlocks next (so you feel momentum)
-
-After this commit, future work becomes linear and calm:
-
-Next clean steps (in order):
-
-Make DEV row visible (1 row is enough)
-
-Highlight editable cell (subtle border, not colour wash)
-
-Implement HLPE apply path for Area only
-
-Replace DEV rows with engine preview output
-
-Remove gui_v3/dev/heat_loss_dev_rows.py
-
-No rewrites. No refactors. No fear.
-
-### Phase F — Heat-Loss Worksheet Spine (FROZEN)
-
-The Heat-Loss worksheet interaction model is frozen with the following rules:
-
-• Worksheet rows are populated exclusively via HeatLossWorksheetRowDTO
-• GUI adapters are observer-only (read ProjectState, never mutate)
-• Cell edit intent is non-positional and attribute-addressed
-• HLPE entry is triggered only via explicit cell intent
-• DEV worksheet rows are permitted ONLY as a temporary bootstrap
-• DEV rows MUST be removed once the engine provides real worksheet rows
-
-This freeze guarantees:
-• No regression to positional UI wiring
-• No GUI-owned calculations
-• Stable HLPE interaction semantics
-
-# ======================================================================
-# HVACgooee — ARCHITECTURE FREEZE
-# Phase: H — Post–G-C System Behaviour & Readiness
-# Status: FROZEN
-# Date: Tuesday 18 February 2026, 09:17 am
-# ======================================================================
-
-## 1. Scope
-
-Phase H formalises **post–G-C system behaviour** across the application.
-
-This phase defines:
-- Project readiness semantics
-- Validity vs readiness rules
-- Global invalidation behaviour
-- GUI behavioural contracts
-- Save / load invariants
-
-Phase H introduces **no new calculation physics** and **no new UI panels**.
-
----
-
-## 2. Authority (LOCKED)
-
-| Layer | Authority |
-|------|----------|
-| ProjectState | **Sole authoritative data model** |
-| Engines | Pure, deterministic, stateless |
-| GUI | Observer + intent emitter only |
-| Adapters | Read-only projection |
-| DTOs | Immutable snapshots |
-
-The GUI:
-- MUST NOT derive or repair engineering intent
-- MUST NOT auto-calculate
-- MUST NOT persist transient state
-
----
-
-## 3. Readiness Model (LOCKED)
-
-A project SHALL expose a **derived readiness state**.
-
-Readiness:
-- Is computed from ProjectState
-- Is never user-set
-- Is not persisted
-- Does not trigger calculation
-
-### Canonical Readiness States
-
-EMPTY
-STRUCTURAL
-ENVIRONMENT_READY
-HEATLOSS_READY
-HEATLOSS_VALID
-HYDRONICS_READY (reserved)
-COMPLETE (reserved)
-
-
-Later phases MAY extend the enum but MUST NOT alter existing meanings.
-
----
-
-## 4. Validity vs Readiness (LOCKED)
-
-| Concept | Definition |
-|-------|------------|
-| Validity | Internal consistency of data |
-| Readiness | Sufficiency of data to proceed |
-
-Rules:
-- Data may be valid but not ready
-- Data may be ready but results invalidated
-- Validity never implies readiness
-- Readiness never implies calculation
-
----
-
-## 5. Heat-Loss Invalidation Rules (LOCKED)
-
-Any of the following SHALL invalidate heat-loss results:
-
-- Geometry affecting area or volume
-- Environment parameter changes (Te, authoritative Ti)
-- Construction U-value change
-- Element thermal participation toggle
-- Room inclusion/exclusion from HL scope
-
-Invalidation:
-- MUST NOT auto-recalculate
-- MUST be visible to the user
-- MUST persist across save/load
-
----
-
-## 6. GUI Behaviour Contracts (LOCKED)
-
-### 6.1 Panel Roles
-
-Every GUI panel MUST belong to exactly one role:
-
-- **Observer Panel** — read-only projection
-- **Edit Overlay Panel** — local, non-authoritative intent
-- **Commit Panel** — writes to ProjectState
-
-Panels MUST NOT mix roles.
-
----
-
-### 6.2 Readiness-Driven UX
-
-- Control enable/disable SHALL be driven by readiness only
-- User messaging SHALL explain *why* an action is unavailable
-- No hidden defaults or silent fixes are permitted
-
-Example:
-> “Heat-loss unavailable: external design temperature not defined.”
-
----
-
-## 7. Save / Load Invariants (LOCKED)
-
-### On Save
-- Persist ProjectState only
-- Exclude GUI state
-- Exclude transient edit overlays
-- Preserve invalidation flags
-
-### On Load
-- Recompute readiness
-- Preserve invalid states
-- Perform no automatic recalculation
-
-Reopening a project MUST NOT change results without explicit user intent.
-
----
-
-## 8. Post-G-C Behaviour Guarantee (LOCKED)
-
-After Phase G-C and Phase H:
-
-- Edits never silently propagate
-- Commits are explicit
-- Calculations are deliberate
-- System state is explainable at all times
-
-The application SHALL always be able to answer:
-> “Why is this result missing, invalid, or stale?”
-
----
-
-## 9. Non-Goals (Explicit)
-
-Phase H does NOT define:
-- Hydronics behaviour
-- Templates or wizards
-- Advanced geometry semantics
-- Calculation sequencing beyond HL
-
-Those belong to later phases.
-
----
-
-## 10. Enforcement
-
-Any future phase that:
-- Auto-repairs data
-- Auto-calculates on edit
-- Persists GUI state
-- Blurs authority boundaries
-
-**violates Phase H** and MUST be rejected or refactored.
-
----
-
-## 11. Lock Statement
-
-Phase H defines **system behaviour**, not features.
-
-Once frozen:
-- Behavioural rules are immutable
-- Later phases must comply, not reinterpret
-- Deviations require a new freeze note
-
-**Phase H is hereby FROZEN.**
-
-# ======================================================================
-# FREEZE 9 — Wall Wizard / Room-Level Opening Schedule Contract
-# Status: LOCKED
-# Date: Sunday 10 May 2026
-# ======================================================================
-
-## Scope
-
-This freeze governs:
-
-- Wall Wizard v1
-- Room-level opening schedules
-- Opening profile preview rows
-- Runtime ProjectState ownership of opening schedules
-- Wall Wizard add / remove / clear behaviour
-
-It applies to:
-
-- `HVAC/gui_v3/wizards/wall_wizard.py`
-- `HVAC/gui_v3/adapters/wall_wizard_adapter.py`
-- `HVAC/core/opening_schedule_v1.py`
-- `ProjectState.room_opening_schedules`
-
----
-
-## Definition
-
-Wall Wizard v1 is a room-level opening schedule editor.
-
-It is NOT a CAD wall editor.
-It is NOT a heat-loss engine.
-It is NOT an authoritative wall geometry system.
-
-For v1:
-
-- Windows and doors are scheduled at room level
-- Openings are not placed on individual wall segments
-- Any external wall click in a room may open the same room-level external opening schedule
-- Gross external wall area is the total external wall area for that room
-- Net wall area is previewed as:
+In short:
 
 ```text
-net_external_wall_area = gross_external_wall_area - total_room_opening_area
+Intent is explicit.
+Physics is traceable.
+Preview is not final.
+The designer remains authoritative.
+```
 
 # ======================================================================
 # END OF DOCUMENT
