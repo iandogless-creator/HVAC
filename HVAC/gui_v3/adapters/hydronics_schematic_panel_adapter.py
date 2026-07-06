@@ -1290,6 +1290,128 @@ class HydronicsSchematicPanelAdapter:
 
         return rows
 
+    def _build_proportioned_output_status_rows_v1(
+            self,
+            *,
+            resolution,
+            chosen_preview_rows,
+            chosen_controlling_rows,
+            readiness_rows,
+    ) -> list[dict]:
+        """
+        H-S30-A:
+        Build the top Proportioned-tab output status rows.
+
+        Read-only output preview:
+            no pump selection
+            no valve selection
+            no final balancing
+            no pipe resizing
+            no final hydraulic result
+        """
+        project = getattr(self, "_project_state", None)
+        snapshot = getattr(
+            project,
+            "hydronic_proportioned_basis_snapshot",
+            None,
+        )
+
+        resolved_rows = tuple(getattr(resolution, "rows", ()) or ())
+        chosen_preview_rows = tuple(chosen_preview_rows or ())
+        chosen_controlling_rows = tuple(chosen_controlling_rows or ())
+        readiness_rows = tuple(readiness_rows or ())
+
+        if snapshot is not None:
+            basis = str(
+                getattr(snapshot, "return_arrangement_basis", "—")
+                or "—"
+            )
+            accepted_basis_status = (
+                f"Committed basis snapshot: {basis} — basis only; "
+                "final hydraulics not committed"
+            )
+        elif resolved_rows:
+            accepted_basis_status = (
+                "Read-only preview available — accepted basis resolved; "
+                "not a final hydraulic result"
+            )
+        else:
+            accepted_basis_status = (
+                "Waiting for accepted return-arrangement basis"
+            )
+
+        route_pressure_status = (
+            "Chosen-basis route Δp evidence available — preview only"
+            if chosen_preview_rows
+            else "Waiting for chosen-basis route pressure evidence"
+        )
+
+        has_controlling = any(
+            bool(getattr(row, "is_controlling", False))
+            for row in chosen_controlling_rows
+        )
+
+        controlling_status = (
+            "Controlling route / shortfall evidence available — preview only"
+            if has_controlling
+            else "Waiting for controlling route / shortfall evidence"
+        )
+
+        readiness_status = (
+            "Readiness evidence available — see readiness table"
+            if readiness_rows
+            else "Waiting for chosen-basis readiness evidence"
+        )
+
+        return [
+            {
+                "item": "Accepted return basis",
+                "status": accepted_basis_status,
+            },
+            {
+                "item": "Selected route pressure evidence",
+                "status": route_pressure_status,
+            },
+            {
+                "item": "Controlling route / shortfall evidence",
+                "status": controlling_status,
+            },
+            {
+                "item": "Chosen-basis readiness",
+                "status": readiness_status,
+            },
+            {
+                "item": "Preliminary balancing burden",
+                "status": (
+                    "Evidence only — no balancing valve selected; "
+                    "no final balancing performed"
+                ),
+            },
+            {
+                "item": "Pump selection",
+                "status": "Not selected",
+            },
+            {
+                "item": "Valve selection",
+                "status": "Not selected",
+            },
+            {
+                "item": "Final balancing",
+                "status": "Not performed",
+            },
+            {
+                "item": "Pipe resizing",
+                "status": "Not performed",
+            },
+            {
+                "item": "Final output",
+                "status": (
+                    "Not committed — Proportioned tab is read-only output "
+                    "preview at this stage"
+                ),
+            },
+        ]
+
     def _refresh_effective_return_arrangement_basis_rows(
             self,
             return_path_comparison_rows=None,
@@ -1322,12 +1444,17 @@ class HydronicsSchematicPanelAdapter:
             self._panel,
             "set_chosen_basis_proportioned_readiness_rows",
         )
+        has_proportioned_status_table = hasattr(
+            self._panel,
+            "set_proportioned_status",
+        )
 
         if (
                 not has_resolved_table
                 and not has_chosen_table
                 and not has_controlling_table
                 and not has_readiness_table
+                and not has_proportioned_status_table
         ):
             return
 
@@ -1368,28 +1495,38 @@ class HydronicsSchematicPanelAdapter:
                     )
                 )
 
-            if has_readiness_table:
-                readiness_rows = (
-                    build_chosen_basis_proportioned_readiness_summary_v1(
-                        has_resolved_return_arrangement_basis=bool(
-                            getattr(resolution, "rows", ()) or ()
-                        ),
-                        has_chosen_route_pressure_evidence=bool(
-                            chosen_preview_rows
-                        ),
-                        has_chosen_basis_controlling_route=any(
-                            bool(getattr(row, "is_controlling", False))
-                            for row in chosen_controlling_rows or ()
-                        ),
-                        has_chosen_basis_shortfall_preview=bool(
-                            chosen_controlling_rows
-                        ),
-                    )
+            readiness_rows = (
+                build_chosen_basis_proportioned_readiness_summary_v1(
+                    has_resolved_return_arrangement_basis=bool(
+                        getattr(resolution, "rows", ()) or ()
+                    ),
+                    has_chosen_route_pressure_evidence=bool(
+                        chosen_preview_rows
+                    ),
+                    has_chosen_basis_controlling_route=any(
+                        bool(getattr(row, "is_controlling", False))
+                        for row in chosen_controlling_rows or ()
+                    ),
+                    has_chosen_basis_shortfall_preview=bool(
+                        chosen_controlling_rows
+                    ),
                 )
+            )
 
+            if has_readiness_table:
                 self._panel.set_chosen_basis_proportioned_readiness_rows(
                     self._build_chosen_basis_proportioned_readiness_rows(
                         readiness_rows
+                    )
+                )
+
+            if has_proportioned_status_table:
+                self._panel.set_proportioned_status(
+                    self._build_proportioned_output_status_rows_v1(
+                        resolution=resolution,
+                        chosen_preview_rows=chosen_preview_rows,
+                        chosen_controlling_rows=chosen_controlling_rows,
+                        readiness_rows=readiness_rows,
                     )
                 )
 
@@ -1410,6 +1547,23 @@ class HydronicsSchematicPanelAdapter:
 
             if has_readiness_table:
                 self._panel.set_chosen_basis_proportioned_readiness_rows([])
+
+            if has_proportioned_status_table:
+                self._panel.set_proportioned_status(
+                    [
+                        {
+                            "item": "Proportioned output preview",
+                            "status": (
+                                "Preview unavailable — return-arrangement "
+                                "evidence refresh failed"
+                            ),
+                        },
+                        {
+                            "item": "Final output",
+                            "status": "Not committed",
+                        },
+                    ]
+                )
 
     def set_scoped_return_arrangement_acceptance(
             self,
