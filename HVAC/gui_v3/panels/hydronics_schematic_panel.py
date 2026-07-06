@@ -1566,7 +1566,7 @@ class HydronicsSchematicPanel(QWidget):
         footer_layout.setSpacing(8)
 
         self._return_arrangement_acceptance_status_label = QLabel(
-            "Design basis only — no pump, valve, balancing, or pipe resizing.",
+            "Evidence is guidance only — user design basis remains authoritative. No pump, valve, balancing, or pipe resizing.",
             self,
         )
         self._return_arrangement_acceptance_status_label.setWordWrap(True)
