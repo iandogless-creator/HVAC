@@ -1316,13 +1316,13 @@ class HydronicsSchematicPanel(QWidget):
             "F&R controlling Δp:      TBA\n"
             "F+RR controlling Δp:     TBA\n"
             "Route Δp change:         TBA\n\n"
-            "F&R balancing burden:    TBA\n"
-            "F+RR balancing burden:   TBA\n"
-            "Resistance reduction:    TBA\n\n"
+            "F&R prelim. balancing burden:    TBA\n"
+            "F+RR prelim. balancing burden:   TBA\n"
+            "Prelim. burden evidence:         TBA\n\n"
             "RR length basis:         TBA\n"
             "RR extra length:         TBA\n"
             "RR extra Δp:             TBA\n"
-            "Evidence result:         TBA"
+            "Evidence guidance:       TBA"
         )
 
         system_layout.addLayout(system_radio_layout)
@@ -2802,30 +2802,30 @@ class HydronicsSchematicPanel(QWidget):
                 controlling_change_text = "No change"
 
         balancing_reduction_text = "TBA"
-        evidence_result = "Evidence result:                   TBA"
+        evidence_guidance = "Evidence guidance:                 TBA"
 
         if direct_burden is not None and reverse_burden is not None:
             burden_delta = direct_burden - reverse_burden
 
             if burden_delta > 0:
                 balancing_reduction_text = f"{burden_delta:,.0f} Pa"
-                evidence_result = (
-                    "Evidence result:                   "
-                    "Reverse return reduces pressure imbalance"
+                evidence_guidance = (
+                    "Evidence guidance:                 "
+                    "F+RR shows lower preliminary imbalance evidence"
                 )
             elif burden_delta < 0:
                 balancing_reduction_text = (
                     f"{abs(burden_delta):,.0f} Pa higher with F+RR"
                 )
-                evidence_result = (
-                    "Evidence result:                   "
-                    "Direct return has lower balancing burden"
+                evidence_guidance = (
+                    "Evidence guidance:                 "
+                    "F&R shows lower preliminary imbalance evidence"
                 )
             else:
                 balancing_reduction_text = "No change"
-                evidence_result = (
-                    "Evidence result:                   "
-                    "Direct and reverse are pressure-neutral"
+                evidence_guidance = (
+                    "Evidence guidance:                 "
+                    "F&R and F+RR show no preliminary burden difference"
                 )
 
         heading = str(heading or "Pressure evidence — preview only")
@@ -2846,16 +2846,16 @@ class HydronicsSchematicPanel(QWidget):
             f"{self._format_pressure_pa_value(reverse_controlling_dp)}\n"
             f"Route Δp change:         "
             f"{controlling_change_text}\n\n"
-            f"F&R balancing burden:    "
+            f"F&R prelim. balancing burden:    "
             f"{self._format_pressure_pa_value(direct_burden)}\n"
-            f"F+RR balancing burden:   "
+            f"F+RR prelim. balancing burden:   "
             f"{self._format_pressure_pa_value(reverse_burden)}\n"
-            f"Resistance reduction:    "
+            f"Prelim. burden evidence:         "
             f"{balancing_reduction_text}\n\n"
             f"RR length basis:         {rr_length_basis_text}\n"
             f"RR extra length:         {rr_extra_length_text}\n"
             f"RR extra Δp:             {rr_extra_dp_text}\n"
-            f"{evidence_result}"
+            f"{evidence_guidance}"
         )
 
     def _return_arrangement_rr_length_evidence_summary(
