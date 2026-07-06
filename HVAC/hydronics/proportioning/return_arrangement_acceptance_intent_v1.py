@@ -35,6 +35,33 @@ _INTENT_VALUES = {
     INHERIT,
 }
 
+_RR_ADDED_LENGTH_BASIS_MODES_V1 = {
+    "physical_loop_zero_extra",
+    "downstream_proxy",
+    "manual_allowance",
+}
+
+
+def _normalise_rr_added_length_basis_mode_v1(value: object) -> str:
+    mode = str(value or "physical_loop_zero_extra").strip()
+
+    if mode in _RR_ADDED_LENGTH_BASIS_MODES_V1:
+        return mode
+
+    return "physical_loop_zero_extra"
+
+
+def _normalise_rr_added_length_m_v1(value: object) -> float:
+    try:
+        length_m = float(value or 0.0)
+    except (TypeError, ValueError):
+        return 0.0
+
+    if length_m < 0.0:
+        return 0.0
+
+    return length_m
+
 
 @dataclass(slots=True)
 class ReturnArrangementIntentV1:
@@ -65,6 +92,12 @@ class ReturnArrangementIntentV1:
 
     # subleg_id -> DIRECT_RETURN / REVERSE_RETURN / INHERIT
     subleg_arrangements: dict[str, str] = field(default_factory=dict)
+
+    # H-S29-M / H-S29-N:
+    # Reverse-return extra length basis belongs with the accepted
+    # return-arrangement design intent, not as a loose ProjectState attr.
+    rr_added_length_basis_mode: str = "physical_loop_zero_extra"
+    rr_added_length_m: float = 0.0
 
 
 @dataclass(slots=True)
@@ -315,6 +348,16 @@ def return_arrangement_intent_to_dict_v1(
                 getattr(intent, "subleg_arrangements", {}) or {}
             ).items()
         },
+        "rr_added_length_basis_mode": _normalise_rr_added_length_basis_mode_v1(
+            getattr(
+                intent,
+                "rr_added_length_basis_mode",
+                "physical_loop_zero_extra",
+            )
+        ),
+        "rr_added_length_m": _normalise_rr_added_length_m_v1(
+            getattr(intent, "rr_added_length_m", 0.0)
+        ),
     }
 
 
@@ -350,4 +393,10 @@ def return_arrangement_intent_from_dict_v1(
                 data.get("subleg_arrangements", {}) or {}
             ).items()
         },
+        rr_added_length_basis_mode=_normalise_rr_added_length_basis_mode_v1(
+            data.get("rr_added_length_basis_mode")
+        ),
+        rr_added_length_m=_normalise_rr_added_length_m_v1(
+            data.get("rr_added_length_m")
+        ),
     )
