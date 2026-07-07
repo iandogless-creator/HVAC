@@ -993,6 +993,33 @@ class HydronicsSchematicPanel(QWidget):
         self.set_chosen_basis_controlling_route_preview_rows([])
 
         # --------------------------------------------------
+        # H-S30-C — Provisional proportioning burden
+        # --------------------------------------------------
+        self._provisional_proportioning_burden_table = self._make_table(
+            columns=[
+                "Rank",
+                "Route",
+                "Basis",
+                "Chosen Δp",
+                "Controlling",
+                "Required added Δp",
+                "Action",
+                "Status",
+            ],
+            stretch_columns={1, 6, 7},
+        )
+
+        self._add_section(
+            proportioned_layout,
+            title="Provisional proportioning burden — read-only",
+            table=self._provisional_proportioning_burden_table,
+            min_height=145,
+            expanded=True,
+        )
+
+        self.set_provisional_proportioning_burden_rows([])
+
+        # --------------------------------------------------
         # H-S27-F — Chosen-basis proportioned readiness summary
         # --------------------------------------------------
         self._chosen_basis_proportioned_readiness_table = self._make_table(
@@ -4614,6 +4641,67 @@ class HydronicsSchematicPanel(QWidget):
         table.setWordWrap(False)
         for row_index in range(table.rowCount()):
             table.setRowHeight(row_index, 24)
+
+    def set_provisional_proportioning_burden_rows(
+            self,
+            rows: list[dict],
+    ) -> None:
+        """
+        H-S30-C:
+        Display provisional route burden evidence in the Proportioned tab.
+
+        Display only:
+            no ProjectState access
+            no balancing valve selection
+            no pump selection
+            no pipe resizing
+            no final hydraulic result
+        """
+        if not hasattr(self, "_provisional_proportioning_burden_table"):
+            return
+
+        table = self._provisional_proportioning_burden_table
+        rows = list(rows or [])
+
+        if not rows:
+            rows = [
+                {
+                    "rank": "—",
+                    "route": "—",
+                    "basis": "—",
+                    "chosen_dp": "—",
+                    "controlling": "No",
+                    "required_added_dp": "—",
+                    "action": "Waiting for chosen-basis burden evidence",
+                    "status": "Preview only — no valve selected",
+                }
+            ]
+
+        table.setRowCount(len(rows))
+
+        for row_index, row in enumerate(rows):
+            values = [
+                row.get("rank", "—"),
+                row.get("route", "—"),
+                row.get("basis", "—"),
+                row.get("chosen_dp", "—"),
+                row.get("controlling", "No"),
+                row.get("required_added_dp", "—"),
+                row.get("action", "—"),
+                row.get("status", "—"),
+            ]
+
+            for col_index, value in enumerate(values):
+                item = QTableWidgetItem(str(value))
+                item.setFlags(item.flags() & ~Qt.ItemIsEditable)
+                table.setItem(row_index, col_index, item)
+
+        table.setWordWrap(False)
+        for row_index in range(table.rowCount()):
+            table.setRowHeight(row_index, 24)
+
+        self._fit_table_height(table, min_height=120, max_height=240)
+        table.scrollToTop()
 
     def set_chosen_basis_proportioned_readiness_rows(
             self,

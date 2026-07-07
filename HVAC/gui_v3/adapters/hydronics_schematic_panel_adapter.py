@@ -1255,6 +1255,86 @@ class HydronicsSchematicPanelAdapter:
 
         return rows
 
+    def _build_provisional_proportioning_burden_rows_v1(
+            self,
+            chosen_controlling_rows,
+    ) -> list[dict]:
+        """
+        H-S30-C:
+        Convert chosen-basis controlling / shortfall evidence into a
+        Proportioned-tab provisional burden table.
+
+        Read-only evidence:
+            no valve selection
+            no final balancing
+            no pump selection
+            no pipe resizing
+            no final hydraulic result
+        """
+        input_rows = list(chosen_controlling_rows or ())
+
+        def _chosen_dp(row) -> float:
+            try:
+                return float(getattr(row, "chosen_dp_pa", 0.0) or 0.0)
+            except (TypeError, ValueError):
+                return 0.0
+
+        ranked_rows = sorted(
+            input_rows,
+            key=_chosen_dp,
+            reverse=True,
+        )
+
+        rows: list[dict] = []
+
+        for rank, row in enumerate(ranked_rows, start=1):
+            is_controlling = bool(getattr(row, "is_controlling", False))
+            required_added_dp = getattr(row, "dp_below_controlling_pa", None)
+
+            if is_controlling:
+                action = "Controlling route — no provisional added Δp"
+                status = (
+                    "Preview only — chosen-basis controlling route; "
+                    "no valve selected"
+                )
+            else:
+                action = "Provisional added Δp evidence only"
+                status = (
+                    "Preview only — below controlling route; "
+                    "no balancing valve selected"
+                )
+
+            rows.append(
+                {
+                    "rank": str(rank),
+                    "route": str(getattr(row, "route", "") or "—"),
+                    "basis": str(getattr(row, "basis", "") or "—"),
+                    "chosen_dp": self._format_pa(
+                        getattr(row, "chosen_dp_pa", None)
+                    ),
+                    "controlling": "Yes" if is_controlling else "No",
+                    "required_added_dp": self._format_pa(required_added_dp),
+                    "action": action,
+                    "status": status,
+                }
+            )
+
+        if not rows:
+            rows.append(
+                {
+                    "rank": "—",
+                    "route": "—",
+                    "basis": "—",
+                    "chosen_dp": "—",
+                    "controlling": "No",
+                    "required_added_dp": "—",
+                    "action": "Waiting for chosen-basis burden evidence",
+                    "status": "Preview only — no valve selected",
+                }
+            )
+
+        return rows
+
     def _build_chosen_basis_proportioned_readiness_rows(
             self,
             readiness_rows,
@@ -1428,6 +1508,10 @@ class HydronicsSchematicPanelAdapter:
             self._panel,
             "set_chosen_basis_proportioned_readiness_rows",
         )
+        has_provisional_burden_table = hasattr(
+            self._panel,
+            "set_provisional_proportioning_burden_rows",
+        )
         has_proportioned_status_table = hasattr(
             self._panel,
             "set_proportioned_status",
@@ -1438,6 +1522,7 @@ class HydronicsSchematicPanelAdapter:
                 and not has_chosen_table
                 and not has_controlling_table
                 and not has_readiness_table
+                and not has_provisional_burden_table
                 and not has_proportioned_status_table
         ):
             return
@@ -1528,6 +1613,9 @@ class HydronicsSchematicPanelAdapter:
 
             if has_controlling_table:
                 self._panel.set_chosen_basis_controlling_route_preview_rows([])
+
+            if has_provisional_burden_table:
+                self._panel.set_provisional_proportioning_burden_rows([])
 
             if has_readiness_table:
                 self._panel.set_chosen_basis_proportioned_readiness_rows([])
