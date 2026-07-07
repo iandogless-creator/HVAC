@@ -1564,6 +1564,13 @@ class HydronicsSchematicPanelAdapter:
                     )
                 )
 
+            if has_provisional_burden_table:
+                self._panel.set_provisional_proportioning_burden_rows(
+                    self._build_provisional_proportioning_burden_rows_v1(
+                        chosen_controlling_rows
+                    )
+                )
+
             readiness_rows = (
                 build_chosen_basis_proportioned_readiness_summary_v1(
                     has_resolved_return_arrangement_basis=bool(
