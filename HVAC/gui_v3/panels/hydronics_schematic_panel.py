@@ -932,8 +932,8 @@ class HydronicsSchematicPanel(QWidget):
             proportioned_layout,
             title="Resolved return arrangement basis — read-only",
             table=self._effective_return_arrangement_basis_table,
-            min_height=155,
-            expanded=True,
+            min_height=130,
+            expanded=False,
         )
 
         self.set_effective_return_arrangement_basis_rows([])
@@ -958,8 +958,8 @@ class HydronicsSchematicPanel(QWidget):
             proportioned_layout,
             title="Chosen-basis route Δp preview — read-only",
             table=self._chosen_basis_route_pressure_preview_table,
-            min_height=170,
-            expanded=True,
+            min_height=145,
+            expanded=False,
         )
 
         self.set_chosen_basis_route_pressure_preview_rows([])
@@ -986,8 +986,8 @@ class HydronicsSchematicPanel(QWidget):
             proportioned_layout,
             title="Chosen-basis controlling / shortfall preview — read-only",
             table=self._chosen_basis_controlling_route_preview_table,
-            min_height=150,
-            expanded=True,
+            min_height=130,
+            expanded=False,
         )
 
         self.set_chosen_basis_controlling_route_preview_rows([])
@@ -1036,8 +1036,8 @@ class HydronicsSchematicPanel(QWidget):
             proportioned_layout,
             title="Chosen-basis proportioned readiness — read-only",
             table=self._chosen_basis_proportioned_readiness_table,
-            min_height=145,
-            expanded=True,
+            min_height=120,
+            expanded=False,
         )
 
         self.set_chosen_basis_proportioned_readiness_rows([])
