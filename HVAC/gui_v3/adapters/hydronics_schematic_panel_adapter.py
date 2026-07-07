@@ -1505,6 +1505,33 @@ class HydronicsSchematicPanelAdapter:
             else "Waiting for chosen-basis readiness evidence"
         )
 
+        if snapshot is not None:
+            basis_only_output_ready = bool(
+                getattr(snapshot, "basis_only_output_ready", False)
+            )
+            basis_only_output_status = str(
+                getattr(snapshot, "basis_only_output_status", "") or ""
+            ).strip()
+
+            if basis_only_output_ready:
+                export_status = (
+                    basis_only_output_status
+                    or (
+                        "Ready for basis-only Proportioned output export — "
+                        "final hydraulics not included"
+                    )
+                )
+            else:
+                export_status = (
+                    basis_only_output_status
+                    or "Not ready for basis-only Proportioned output export"
+                )
+        else:
+            export_status = (
+                "Not ready — commit accepted basis snapshot before "
+                "basis-only Proportioned output export"
+            )
+
         return [
             {
                 "item": "Accepted return basis",
@@ -1523,11 +1550,10 @@ class HydronicsSchematicPanelAdapter:
                 "status": readiness_status,
             },
             {
-                "item": "Output boundary",
+                "item": "Basis-only export",
                 "status": (
-                    "Read-only preview; final output not committed; pump, "
-                    "valve selection, final balancing, and pipe resizing "
-                    "not performed"
+                    f"{export_status}; pump, valve selection, final "
+                    "balancing, and pipe resizing not performed"
                 ),
             },
         ]
