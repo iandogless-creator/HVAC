@@ -15,6 +15,12 @@ from HVAC.hydronics.proportioning.return_arrangement_acceptance_intent_v1 import
 )
 
 
+_BASIS_ONLY_OUTPUT_STATUS_V1 = (
+    "Ready for basis-only Proportioned output export — "
+    "final hydraulics not included"
+)
+
+
 @dataclass(frozen=True, slots=True)
 class ProportionedBasisSnapshotV1:
     """
@@ -50,6 +56,9 @@ class ProportionedBasisSnapshotV1:
     basis_mode: str = "—"
     total_index_length_label: str = "—"
     nominal_gradient_label: str = "—"
+
+    basis_only_output_ready: bool = True
+    basis_only_output_status: str = _BASIS_ONLY_OUTPUT_STATUS_V1
 
     note: str = (
         "Frozen accepted proportioning basis only — no pump, valve, "
@@ -116,6 +125,28 @@ def build_proportioned_basis_snapshot_v1(
     )
 
 
+def _bool_from_dict_v1(
+        value: object,
+        *,
+        default: bool,
+) -> bool:
+    if isinstance(value, bool):
+        return value
+
+    if value is None:
+        return default
+
+    text = str(value).strip().lower()
+
+    if text in {"1", "true", "yes", "y", "ready"}:
+        return True
+
+    if text in {"0", "false", "no", "n", "blocked"}:
+        return False
+
+    return default
+
+
 def proportioned_basis_snapshot_to_dict_v1(
         snapshot: ProportionedBasisSnapshotV1 | None,
 ) -> dict | None:
@@ -135,6 +166,17 @@ def proportioned_basis_snapshot_to_dict_v1(
         "basis_mode": snapshot.basis_mode,
         "total_index_length_label": snapshot.total_index_length_label,
         "nominal_gradient_label": snapshot.nominal_gradient_label,
+        "basis_only_output_ready": bool(
+            getattr(snapshot, "basis_only_output_ready", True)
+        ),
+        "basis_only_output_status": str(
+            getattr(
+                snapshot,
+                "basis_only_output_status",
+                _BASIS_ONLY_OUTPUT_STATUS_V1,
+            )
+            or _BASIS_ONLY_OUTPUT_STATUS_V1
+        ),
         "note": snapshot.note,
     }
 
@@ -183,6 +225,17 @@ def proportioned_basis_snapshot_from_dict_v1(
         nominal_gradient_label=str(
             data.get("nominal_gradient_label", "—")
             or "—"
+        ),
+        basis_only_output_ready=_bool_from_dict_v1(
+            data.get("basis_only_output_ready"),
+            default=True,
+        ),
+        basis_only_output_status=str(
+            data.get(
+                "basis_only_output_status",
+                _BASIS_ONLY_OUTPUT_STATUS_V1,
+            )
+            or _BASIS_ONLY_OUTPUT_STATUS_V1
         ),
         note=str(
             data.get(
