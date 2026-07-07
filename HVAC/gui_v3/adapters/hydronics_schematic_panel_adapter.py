@@ -1369,11 +1369,11 @@ class HydronicsSchematicPanelAdapter:
                 "status": accepted_basis_status,
             },
             {
-                "item": "Selected route pressure evidence",
+                "item": "Route pressure evidence",
                 "status": route_pressure_status,
             },
             {
-                "item": "Controlling route / shortfall evidence",
+                "item": "Controlling / shortfall evidence",
                 "status": controlling_status,
             },
             {
@@ -1381,27 +1381,11 @@ class HydronicsSchematicPanelAdapter:
                 "status": readiness_status,
             },
             {
-                "item": "Preliminary balancing burden",
+                "item": "Final hydraulic actions",
                 "status": (
-                    "Evidence only — no balancing valve selected; "
-                    "no final balancing performed"
+                    "Pump, valve selection, final balancing, and pipe "
+                    "resizing not performed"
                 ),
-            },
-            {
-                "item": "Pump selection",
-                "status": "Not selected",
-            },
-            {
-                "item": "Valve selection",
-                "status": "Not selected",
-            },
-            {
-                "item": "Final balancing",
-                "status": "Not performed",
-            },
-            {
-                "item": "Pipe resizing",
-                "status": "Not performed",
             },
             {
                 "item": "Final output",
