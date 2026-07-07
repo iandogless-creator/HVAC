@@ -1461,17 +1461,11 @@ class HydronicsSchematicPanelAdapter:
                 "status": readiness_status,
             },
             {
-                "item": "Final hydraulic actions",
+                "item": "Output boundary",
                 "status": (
-                    "Pump, valve selection, final balancing, and pipe "
-                    "resizing not performed"
-                ),
-            },
-            {
-                "item": "Final output",
-                "status": (
-                    "Not committed — Proportioned tab is read-only output "
-                    "preview at this stage"
+                    "Read-only preview; final output not committed; pump, "
+                    "valve selection, final balancing, and pipe resizing "
+                    "not performed"
                 ),
             },
         ]
