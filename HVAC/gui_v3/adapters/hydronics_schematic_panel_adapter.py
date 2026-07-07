@@ -1258,6 +1258,7 @@ class HydronicsSchematicPanelAdapter:
     def _build_provisional_proportioning_burden_rows_v1(
             self,
             chosen_controlling_rows,
+            resistance_basis=None,
     ) -> list[dict]:
         """
         H-S30-C:
@@ -1272,6 +1273,46 @@ class HydronicsSchematicPanelAdapter:
             no final hydraulic result
         """
         input_rows = list(chosen_controlling_rows or ())
+
+        def _normalise_key(value: object) -> str:
+            return str(value or "").strip().lower()
+
+        resistance_by_route: dict[str, object] = {}
+
+        for resistance_row in list(
+                getattr(resistance_basis, "rows", ()) or ()
+        ):
+            route_id = _normalise_key(
+                getattr(resistance_row, "route_id", "")
+            )
+            route_label = _normalise_key(
+                getattr(resistance_row, "route_label", "")
+            )
+
+            if route_id:
+                resistance_by_route[route_id] = resistance_row
+
+            if route_label:
+                resistance_by_route[route_label] = resistance_row
+
+        def _resistance_row_for(route_row):
+            route_id = _normalise_key(getattr(route_row, "route_id", ""))
+            route_label = _normalise_key(getattr(route_row, "route", ""))
+
+            if route_id and route_id in resistance_by_route:
+                return resistance_by_route[route_id]
+
+            if route_label and route_label in resistance_by_route:
+                return resistance_by_route[route_label]
+
+            for key, candidate in resistance_by_route.items():
+                if route_label and (
+                        route_label in key
+                        or key in route_label
+                ):
+                    return candidate
+
+            return None
 
         def _chosen_dp(row) -> float:
             try:
@@ -1290,6 +1331,23 @@ class HydronicsSchematicPanelAdapter:
         for rank, row in enumerate(ranked_rows, start=1):
             is_controlling = bool(getattr(row, "is_controlling", False))
             required_added_dp = getattr(row, "dp_below_controlling_pa", None)
+            resistance_row = _resistance_row_for(row)
+
+            flow_kg_s = "—"
+            resistance_pa_per_kg_s2 = "—"
+
+            if resistance_row is not None:
+                flow_kg_s = str(
+                    getattr(resistance_row, "flow_kg_s", "") or "—"
+                )
+                resistance_pa_per_kg_s2 = str(
+                    getattr(
+                        resistance_row,
+                        "resistance_pa_per_kg_s2",
+                        "",
+                    )
+                    or "—"
+                )
 
             if is_controlling:
                 action = "Controlling route — no provisional added Δp"
@@ -1309,11 +1367,13 @@ class HydronicsSchematicPanelAdapter:
                     "rank": str(rank),
                     "route": str(getattr(row, "route", "") or "—"),
                     "basis": str(getattr(row, "basis", "") or "—"),
+                    "flow_kg_s": flow_kg_s,
                     "chosen_dp": self._format_pa(
                         getattr(row, "chosen_dp_pa", None)
                     ),
                     "controlling": "Yes" if is_controlling else "No",
                     "required_added_dp": self._format_pa(required_added_dp),
+                    "resistance_pa_per_kg_s2": resistance_pa_per_kg_s2,
                     "action": action,
                     "status": status,
                 }
@@ -1325,9 +1385,11 @@ class HydronicsSchematicPanelAdapter:
                     "rank": "—",
                     "route": "—",
                     "basis": "—",
+                    "flow_kg_s": "—",
                     "chosen_dp": "—",
                     "controlling": "No",
                     "required_added_dp": "—",
+                    "resistance_pa_per_kg_s2": "—",
                     "action": "Waiting for chosen-basis burden evidence",
                     "status": "Preview only — no valve selected",
                 }
@@ -1561,7 +1623,12 @@ class HydronicsSchematicPanelAdapter:
             if has_provisional_burden_table:
                 self._panel.set_provisional_proportioning_burden_rows(
                     self._build_provisional_proportioning_burden_rows_v1(
-                        chosen_controlling_rows
+                        chosen_controlling_rows,
+                        resistance_basis=getattr(
+                            self._panel,
+                            "_preliminary_balancing_resistance_basis",
+                            None,
+                        ),
                     )
                 )
 

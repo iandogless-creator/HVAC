@@ -1000,13 +1000,15 @@ class HydronicsSchematicPanel(QWidget):
                 "Rank",
                 "Route",
                 "Basis",
+                "Flow kg/s",
                 "Chosen Δp",
                 "Controlling",
                 "Required added Δp",
+                "Resistance Pa/(kg/s)²",
                 "Action",
                 "Status",
             ],
-            stretch_columns={1, 6, 7},
+            stretch_columns={1, 8, 9},
         )
 
         self._add_section(
@@ -4669,9 +4671,11 @@ class HydronicsSchematicPanel(QWidget):
                     "rank": "—",
                     "route": "—",
                     "basis": "—",
+                    "flow_kg_s": "—",
                     "chosen_dp": "—",
                     "controlling": "No",
                     "required_added_dp": "—",
+                    "resistance_pa_per_kg_s2": "—",
                     "action": "Waiting for chosen-basis burden evidence",
                     "status": "Preview only — no valve selected",
                 }
@@ -4684,9 +4688,11 @@ class HydronicsSchematicPanel(QWidget):
                 row.get("rank", "—"),
                 row.get("route", "—"),
                 row.get("basis", "—"),
+                row.get("flow_kg_s", "—"),
                 row.get("chosen_dp", "—"),
                 row.get("controlling", "No"),
                 row.get("required_added_dp", "—"),
+                row.get("resistance_pa_per_kg_s2", "—"),
                 row.get("action", "—"),
                 row.get("status", "—"),
             ]
