@@ -906,12 +906,17 @@ class HydronicsSchematicPanel(QWidget):
             ],
             stretch_columns={1},
         )
+        self._proportioned_status_table.setMaximumHeight(155)
+        self._proportioned_status_table.setSizePolicy(
+            QSizePolicy.Expanding,
+            QSizePolicy.Maximum,
+        )
 
         self._add_section(
             proportioned_layout,
             title="Proportioned system — final output",
             table=self._proportioned_status_table,
-            min_height=120,
+            min_height=105,
         )
 
         # --------------------------------------------------
