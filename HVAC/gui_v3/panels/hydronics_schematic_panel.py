@@ -1027,6 +1027,34 @@ class HydronicsSchematicPanel(QWidget):
         self.set_provisional_proportioning_burden_rows([])
 
         # --------------------------------------------------
+        # H-S31-D — Balancing method candidates
+        # --------------------------------------------------
+        self._balancing_method_candidate_table = self._make_table(
+            columns=[
+                "Route",
+                "Method",
+                "Ready",
+                "Controlling",
+                "Required added Δp",
+                "Flow kg/s",
+                "Resistance Pa/(kg/s)²",
+                "Status",
+                "Blockers",
+            ],
+            stretch_columns={0, 1, 7, 8},
+        )
+
+        self._add_section(
+            proportioned_layout,
+            title="Balancing method candidates — read-only",
+            table=self._balancing_method_candidate_table,
+            min_height=145,
+            expanded=True,
+        )
+
+        self.set_balancing_method_candidate_rows([])
+
+        # --------------------------------------------------
         # H-S27-F — Chosen-basis proportioned readiness summary
         # --------------------------------------------------
         self._chosen_basis_proportioned_readiness_table = self._make_table(
@@ -4713,6 +4741,72 @@ class HydronicsSchematicPanel(QWidget):
 
         self._fit_table_height(table, min_height=120, max_height=240)
         table.scrollToTop()
+
+    def set_balancing_method_candidate_rows(
+            self,
+            rows: list[dict],
+    ) -> None:
+        """
+        H-S31-D:
+        Display route-level balancing method candidates in the Proportioned tab.
+
+        Read-only preview:
+            no ProjectState access
+            no valve product selection
+            no Kv / Kvs selection
+            no lockshield turn count
+            no pump selection
+            no final balancing
+            no pipe resizing
+            no final hydraulic result
+        """
+        if not hasattr(self, "_balancing_method_candidate_table"):
+            return
+
+        table = self._balancing_method_candidate_table
+        rows = list(rows or [])
+
+        if not rows:
+            rows = [
+                {
+                    "route": "—",
+                    "method": "—",
+                    "ready": "No",
+                    "controlling": "No",
+                    "required_added_dp": "—",
+                    "flow_kg_s": "—",
+                    "resistance_pa_per_kg_s2": "—",
+                    "status": (
+                        "Waiting for balancing method candidate evidence"
+                    ),
+                    "blockers": "—",
+                }
+            ]
+
+        table.setRowCount(len(rows))
+
+        for row_index, row in enumerate(rows):
+            values = [
+                row.get("route", "—"),
+                row.get("method", "—"),
+                row.get("ready", "No"),
+                row.get("controlling", "No"),
+                row.get("required_added_dp", "—"),
+                row.get("flow_kg_s", "—"),
+                row.get("resistance_pa_per_kg_s2", "—"),
+                row.get("status", "—"),
+                row.get("blockers", "—"),
+            ]
+
+            for col_index, value in enumerate(values):
+                item = QTableWidgetItem(str(value))
+                item.setFlags(item.flags() & ~Qt.ItemIsEditable)
+                table.setItem(row_index, col_index, item)
+
+        table.setWordWrap(False)
+
+        for row_index in range(table.rowCount()):
+            table.setRowHeight(row_index, 24)
 
     def set_chosen_basis_proportioned_readiness_rows(
             self,

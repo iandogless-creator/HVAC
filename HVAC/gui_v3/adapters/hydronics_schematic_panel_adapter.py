@@ -1438,6 +1438,103 @@ class HydronicsSchematicPanelAdapter:
 
         return rows
 
+    def _build_balancing_method_candidate_rows_v1(
+            self,
+            mapping,
+    ) -> list[dict]:
+        """
+        H-S31-D:
+        Convert balancing method candidate mapping into Proportioned-tab rows.
+
+        Read-only display:
+            no ProjectState mutation
+            no valve product selection
+            no Kv / Kvs selection
+            no lockshield turn count
+            no pump selection
+            no final balancing
+            no pipe resizing
+            no final hydraulic result
+        """
+        candidates = tuple(
+            getattr(mapping, "candidates", ()) or ()
+        )
+
+        rows: list[dict] = []
+
+        for candidate in candidates:
+            required_added_dp_pa = getattr(
+                candidate,
+                "required_added_dp_pa",
+                None,
+            )
+            flow_kg_s = getattr(candidate, "flow_kg_s", None)
+            resistance = getattr(
+                candidate,
+                "resistance_pa_per_kg_s2",
+                None,
+            )
+            blockers = tuple(getattr(candidate, "blockers", ()) or ())
+
+            rows.append(
+                {
+                    "route": str(getattr(candidate, "route", "—") or "—"),
+                    "method": str(
+                        getattr(candidate, "method_label", "—") or "—"
+                    ),
+                    "ready": (
+                        "Yes"
+                        if bool(getattr(candidate, "ready", False))
+                        else "No"
+                    ),
+                    "controlling": (
+                        "Yes"
+                        if bool(getattr(candidate, "controlling", False))
+                        else "No"
+                    ),
+                    "required_added_dp": self._format_pa(
+                        required_added_dp_pa
+                    ),
+                    "flow_kg_s": (
+                        f"{float(flow_kg_s):.4f}"
+                        if flow_kg_s is not None
+                        else "—"
+                    ),
+                    "resistance_pa_per_kg_s2": (
+                        f"{float(resistance):.1f}"
+                        if resistance is not None
+                        else "—"
+                    ),
+                    "status": str(
+                        getattr(candidate, "status", "—") or "—"
+                    ),
+                    "blockers": (
+                        "; ".join(str(blocker) for blocker in blockers)
+                        if blockers
+                        else "—"
+                    ),
+                }
+            )
+
+        if not rows:
+            rows.append(
+                {
+                    "route": "—",
+                    "method": "—",
+                    "ready": "No",
+                    "controlling": "No",
+                    "required_added_dp": "—",
+                    "flow_kg_s": "—",
+                    "resistance_pa_per_kg_s2": "—",
+                    "status": (
+                        "Waiting for balancing method candidate evidence"
+                    ),
+                    "blockers": "—",
+                }
+            )
+
+        return rows
+
     def _build_balancing_method_candidate_mapping_preview_v1(
             self,
             *,
@@ -1671,6 +1768,10 @@ class HydronicsSchematicPanelAdapter:
             self._panel,
             "set_provisional_proportioning_burden_rows",
         )
+        has_balancing_method_candidate_table = hasattr(
+            self._panel,
+            "set_balancing_method_candidate_rows",
+        )
         has_proportioned_status_table = hasattr(
             self._panel,
             "set_proportioned_status",
@@ -1682,6 +1783,7 @@ class HydronicsSchematicPanelAdapter:
                 and not has_controlling_table
                 and not has_readiness_table
                 and not has_provisional_burden_table
+                and not has_balancing_method_candidate_table
                 and not has_proportioned_status_table
         ):
             return
@@ -1739,6 +1841,13 @@ class HydronicsSchematicPanelAdapter:
                     provisional_burden_rows=provisional_burden_rows,
                 )
             )
+
+            if has_balancing_method_candidate_table:
+                self._panel.set_balancing_method_candidate_rows(
+                    self._build_balancing_method_candidate_rows_v1(
+                        self._balancing_method_candidate_mapping_preview
+                    )
+                )
 
             self._basis_only_proportioned_export_payload_preview = (
                 self._build_basis_only_proportioned_export_payload_preview_v1(
