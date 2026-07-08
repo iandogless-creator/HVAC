@@ -17,6 +17,9 @@ read-only schematic DTO.
 """
 
 from __future__ import annotations
+from HVAC.hydronics.proportioning.balancing_method_candidate_mapping_v1 import (
+    build_balancing_method_candidate_mapping_v1,
+)
 from HVAC.hydronics.proportioning.basis_only_proportioned_export_payload_v1 import (
     build_basis_only_proportioned_export_payload_preview_v1,
 )
@@ -1435,6 +1438,32 @@ class HydronicsSchematicPanelAdapter:
 
         return rows
 
+    def _build_balancing_method_candidate_mapping_preview_v1(
+            self,
+            *,
+            provisional_burden_rows=None,
+    ):
+        """
+        H-S31-C:
+        Build route-level balancing method candidates from the
+        Proportioned-tab provisional burden rows.
+
+        Adapter-memory only:
+            no ProjectState mutation
+            no panel output
+            no file export
+            no valve product selection
+            no Kv / Kvs selection
+            no lockshield turn count
+            no pump selection
+            no final balancing
+            no pipe resizing
+            no final hydraulic result
+        """
+        return build_balancing_method_candidate_mapping_v1(
+            provisional_burden_rows or ()
+        )
+
     def _build_basis_only_proportioned_export_payload_preview_v1(
             self,
             *,
@@ -1702,6 +1731,12 @@ class HydronicsSchematicPanelAdapter:
                         "_preliminary_balancing_resistance_basis",
                         None,
                     ),
+                )
+            )
+
+            self._balancing_method_candidate_mapping_preview = (
+                self._build_balancing_method_candidate_mapping_preview_v1(
+                    provisional_burden_rows=provisional_burden_rows,
                 )
             )
 
