@@ -1538,6 +1538,120 @@ class HydronicsSchematicPanelAdapter:
 
         return rows
 
+    def _build_valve_authority_input_rows_v1(
+            self,
+            mapping,
+    ) -> list[dict]:
+        """
+        H-S32-D:
+        Convert valve authority input mapping into Proportioned-tab rows.
+
+        Read-only display:
+            no ProjectState mutation
+            no authority ratio calculation here
+            no valve product selection
+            no Kv / Kvs selection
+            no lockshield turn count
+            no manufacturer valve data
+            no pump selection
+            no final balancing
+            no pipe resizing
+            no final hydraulic result
+        """
+        input_rows = tuple(getattr(mapping, "rows", ()) or ())
+
+        rows: list[dict] = []
+
+        for input_row in input_rows:
+            design_valve_dp_pa = getattr(
+                input_row,
+                "design_valve_dp_pa",
+                None,
+            )
+            route_flow_kg_s = getattr(input_row, "route_flow_kg_s", None)
+            candidate_resistance = getattr(
+                input_row,
+                "candidate_resistance_pa_per_kg_s2",
+                None,
+            )
+            controlled_circuit_dp_pa = getattr(
+                input_row,
+                "controlled_circuit_dp_pa",
+                None,
+            )
+            authority = getattr(input_row, "authority", None)
+            blockers = tuple(getattr(input_row, "blockers", ()) or ())
+
+            rows.append(
+                {
+                    "route": str(getattr(input_row, "route", "—") or "—"),
+                    "balancing_method": str(
+                        getattr(
+                            input_row,
+                            "balancing_method_label",
+                            "—",
+                        )
+                        or "—"
+                    ),
+                    "authority_state": str(
+                        getattr(input_row, "authority_label", "—") or "—"
+                    ),
+                    "ready": (
+                        "Yes"
+                        if bool(getattr(input_row, "ready", False))
+                        else "No"
+                    ),
+                    "design_valve_dp": self._format_pa(
+                        design_valve_dp_pa
+                    ),
+                    "flow_kg_s": (
+                        f"{float(route_flow_kg_s):.4f}"
+                        if route_flow_kg_s is not None
+                        else "—"
+                    ),
+                    "candidate_resistance": (
+                        f"{float(candidate_resistance):.1f}"
+                        if candidate_resistance is not None
+                        else "—"
+                    ),
+                    "controlled_circuit_dp": self._format_pa(
+                        controlled_circuit_dp_pa
+                    ),
+                    "authority": (
+                        f"{float(authority):.3f}"
+                        if authority is not None
+                        else "—"
+                    ),
+                    "status": str(
+                        getattr(input_row, "status", "—") or "—"
+                    ),
+                    "blockers": (
+                        "; ".join(str(blocker) for blocker in blockers)
+                        if blockers
+                        else "—"
+                    ),
+                }
+            )
+
+        if not rows:
+            rows.append(
+                {
+                    "route": "—",
+                    "balancing_method": "—",
+                    "authority_state": "—",
+                    "ready": "No",
+                    "design_valve_dp": "—",
+                    "flow_kg_s": "—",
+                    "candidate_resistance": "—",
+                    "controlled_circuit_dp": "—",
+                    "authority": "—",
+                    "status": "Waiting for valve authority input evidence",
+                    "blockers": "—",
+                }
+            )
+
+        return rows
+
     def _build_valve_authority_input_mapping_preview_v1(
             self,
             *,
@@ -1803,6 +1917,10 @@ class HydronicsSchematicPanelAdapter:
             self._panel,
             "set_balancing_method_candidate_rows",
         )
+        has_valve_authority_input_table = hasattr(
+            self._panel,
+            "set_valve_authority_input_rows",
+        )
         has_proportioned_status_table = hasattr(
             self._panel,
             "set_proportioned_status",
@@ -1815,6 +1933,7 @@ class HydronicsSchematicPanelAdapter:
                 and not has_readiness_table
                 and not has_provisional_burden_table
                 and not has_balancing_method_candidate_table
+                and not has_valve_authority_input_table
                 and not has_proportioned_status_table
         ):
             return
@@ -1885,6 +2004,13 @@ class HydronicsSchematicPanelAdapter:
                 self._panel.set_balancing_method_candidate_rows(
                     self._build_balancing_method_candidate_rows_v1(
                         self._balancing_method_candidate_mapping_preview
+                    )
+                )
+
+            if has_valve_authority_input_table:
+                self._panel.set_valve_authority_input_rows(
+                    self._build_valve_authority_input_rows_v1(
+                        self._valve_authority_input_mapping_preview
                     )
                 )
 

@@ -1055,6 +1055,36 @@ class HydronicsSchematicPanel(QWidget):
         self.set_balancing_method_candidate_rows([])
 
         # --------------------------------------------------
+        # H-S32-D — Valve authority input preview
+        # --------------------------------------------------
+        self._valve_authority_input_table = self._make_table(
+            columns=[
+                "Route",
+                "Balancing method",
+                "Authority state",
+                "Ready",
+                "Design valve Δp",
+                "Flow kg/s",
+                "Candidate resistance",
+                "Controlled circuit Δp",
+                "Authority",
+                "Status",
+                "Blockers",
+            ],
+            stretch_columns={0, 1, 2, 9, 10},
+        )
+
+        self._add_section(
+            proportioned_layout,
+            title="Valve authority input preview — read-only",
+            table=self._valve_authority_input_table,
+            min_height=145,
+            expanded=True,
+        )
+
+        self.set_valve_authority_input_rows([])
+
+        # --------------------------------------------------
         # H-S27-F — Chosen-basis proportioned readiness summary
         # --------------------------------------------------
         self._chosen_basis_proportioned_readiness_table = self._make_table(
@@ -4807,6 +4837,79 @@ class HydronicsSchematicPanel(QWidget):
 
         for row_index in range(table.rowCount()):
             table.setRowHeight(row_index, 24)
+
+    def set_valve_authority_input_rows(
+            self,
+            rows: list[dict],
+    ) -> None:
+        """
+        H-S32-D:
+        Display route-level valve authority input preview.
+
+        Read-only preview:
+            no ProjectState access
+            no authority ratio calculation here
+            no valve product selection
+            no Kv / Kvs selection
+            no lockshield turn count
+            no manufacturer valve data
+            no pump selection
+            no final balancing
+            no pipe resizing
+            no final hydraulic result
+        """
+        if not hasattr(self, "_valve_authority_input_table"):
+            return
+
+        table = self._valve_authority_input_table
+        rows = list(rows or [])
+
+        if not rows:
+            rows = [
+                {
+                    "route": "—",
+                    "balancing_method": "—",
+                    "authority_state": "—",
+                    "ready": "No",
+                    "design_valve_dp": "—",
+                    "flow_kg_s": "—",
+                    "candidate_resistance": "—",
+                    "controlled_circuit_dp": "—",
+                    "authority": "—",
+                    "status": "Waiting for valve authority input evidence",
+                    "blockers": "—",
+                }
+            ]
+
+        table.setRowCount(len(rows))
+
+        for row_index, row in enumerate(rows):
+            values = [
+                row.get("route", "—"),
+                row.get("balancing_method", "—"),
+                row.get("authority_state", "—"),
+                row.get("ready", "No"),
+                row.get("design_valve_dp", "—"),
+                row.get("flow_kg_s", "—"),
+                row.get("candidate_resistance", "—"),
+                row.get("controlled_circuit_dp", "—"),
+                row.get("authority", "—"),
+                row.get("status", "—"),
+                row.get("blockers", "—"),
+            ]
+
+            for col_index, value in enumerate(values):
+                item = QTableWidgetItem(str(value))
+                item.setFlags(item.flags() & ~Qt.ItemIsEditable)
+                table.setItem(row_index, col_index, item)
+
+        table.setWordWrap(False)
+
+        for row_index in range(table.rowCount()):
+            table.setRowHeight(row_index, 24)
+
+        self._fit_table_height(table, min_height=105, max_height=155)
+        table.scrollToTop()
 
     def set_chosen_basis_proportioned_readiness_rows(
             self,
