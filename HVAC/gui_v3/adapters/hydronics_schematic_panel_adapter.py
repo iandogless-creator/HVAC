@@ -17,6 +17,9 @@ read-only schematic DTO.
 """
 
 from __future__ import annotations
+from HVAC.hydronics.proportioning.valve_authority_input_mapping_v1 import (
+    build_valve_authority_input_mapping_v1,
+)
 from HVAC.hydronics.proportioning.balancing_method_candidate_mapping_v1 import (
     build_balancing_method_candidate_mapping_v1,
 )
@@ -1535,6 +1538,34 @@ class HydronicsSchematicPanelAdapter:
 
         return rows
 
+    def _build_valve_authority_input_mapping_preview_v1(
+            self,
+            *,
+            balancing_candidate_mapping=None,
+    ):
+        """
+        H-S32-C:
+        Build valve-authority input mapping from the adapter's
+        balancing method candidate mapping.
+
+        Adapter-memory only:
+            no ProjectState mutation
+            no panel output
+            no file export
+            no authority ratio calculation yet
+            no valve product selection
+            no Kv / Kvs selection
+            no lockshield turn count
+            no manufacturer valve data
+            no pump selection
+            no final balancing
+            no pipe resizing
+            no final hydraulic result
+        """
+        return build_valve_authority_input_mapping_v1(
+            balancing_candidate_mapping
+        )
+
     def _build_balancing_method_candidate_mapping_preview_v1(
             self,
             *,
@@ -1839,6 +1870,14 @@ class HydronicsSchematicPanelAdapter:
             self._balancing_method_candidate_mapping_preview = (
                 self._build_balancing_method_candidate_mapping_preview_v1(
                     provisional_burden_rows=provisional_burden_rows,
+                )
+            )
+
+            self._valve_authority_input_mapping_preview = (
+                self._build_valve_authority_input_mapping_preview_v1(
+                    balancing_candidate_mapping=(
+                        self._balancing_method_candidate_mapping_preview
+                    ),
                 )
             )
 
