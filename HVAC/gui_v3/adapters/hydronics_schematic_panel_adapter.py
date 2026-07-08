@@ -17,6 +17,9 @@ read-only schematic DTO.
 """
 
 from __future__ import annotations
+from HVAC.hydronics.proportioning.basis_only_proportioned_export_payload_v1 import (
+    build_basis_only_proportioned_export_payload_preview_v1,
+)
 from PySide6.QtGui import QColor, QBrush
 
 from HVAC.project.project_state import ProjectState
@@ -1432,6 +1435,51 @@ class HydronicsSchematicPanelAdapter:
 
         return rows
 
+    def _build_basis_only_proportioned_export_payload_preview_v1(
+            self,
+            *,
+            resolution=None,
+            chosen_preview_rows=None,
+            chosen_controlling_rows=None,
+            provisional_burden_rows=None,
+    ):
+        """
+        H-S30-I:
+        Build basis-only Proportioned export payload preview from the
+        adapter evidence already feeding the Proportioned tab.
+
+        Adapter-memory only:
+            no ProjectState mutation
+            no file export
+            no pump selection
+            no valve selection
+            no final balancing
+            no pipe resizing
+            no final hydraulic result
+        """
+        project = getattr(self, "_project_state", None)
+        snapshot = getattr(
+            project,
+            "hydronic_proportioned_basis_snapshot",
+            None,
+        )
+
+        resolved_rows = tuple(
+            getattr(resolution, "rows", ()) or ()
+        )
+
+        return build_basis_only_proportioned_export_payload_preview_v1(
+            snapshot=snapshot,
+            resolved_return_arrangement_basis_rows=resolved_rows,
+            chosen_basis_route_pressure_rows=chosen_preview_rows or (),
+            chosen_basis_controlling_shortfall_rows=(
+                chosen_controlling_rows or ()
+            ),
+            provisional_proportioning_burden_rows=(
+                provisional_burden_rows or ()
+            ),
+        )
+
     def _build_proportioned_output_status_rows_v1(
             self,
             *,
@@ -1646,16 +1694,29 @@ class HydronicsSchematicPanelAdapter:
                     )
                 )
 
+            provisional_burden_rows = (
+                self._build_provisional_proportioning_burden_rows_v1(
+                    chosen_controlling_rows,
+                    resistance_basis=getattr(
+                        self._panel,
+                        "_preliminary_balancing_resistance_basis",
+                        None,
+                    ),
+                )
+            )
+
+            self._basis_only_proportioned_export_payload_preview = (
+                self._build_basis_only_proportioned_export_payload_preview_v1(
+                    resolution=resolution,
+                    chosen_preview_rows=chosen_preview_rows,
+                    chosen_controlling_rows=chosen_controlling_rows,
+                    provisional_burden_rows=provisional_burden_rows,
+                )
+            )
+
             if has_provisional_burden_table:
                 self._panel.set_provisional_proportioning_burden_rows(
-                    self._build_provisional_proportioning_burden_rows_v1(
-                        chosen_controlling_rows,
-                        resistance_basis=getattr(
-                            self._panel,
-                            "_preliminary_balancing_resistance_basis",
-                            None,
-                        ),
-                    )
+                    provisional_burden_rows
                 )
 
             readiness_rows = (
