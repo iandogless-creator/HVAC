@@ -1567,6 +1567,129 @@ class HydronicsSchematicPanelAdapter:
             route_pressure_rows=route_pressure_rows,
         )
 
+    def _build_valve_authority_preview_rows_v1(
+            self,
+            preview,
+    ) -> list[dict]:
+        """
+        H-S32-H:
+        Build display rows for the calculated valve authority preview.
+
+        Display only:
+            no valve product selection
+            no Kv / Kvs selection
+            no lockshield turn count
+            no manufacturer valve data
+            no pump selection
+            no final balancing
+            no pipe resizing
+            no ProjectState mutation
+        """
+
+        def fmt_pa(value) -> str:
+            if value is None:
+                return "—"
+
+            try:
+                return f"{float(value):.1f} Pa"
+            except (TypeError, ValueError):
+                return "—"
+
+        def fmt_flow(value) -> str:
+            if value is None:
+                return "—"
+
+            try:
+                return f"{float(value):.4f}"
+            except (TypeError, ValueError):
+                return "—"
+
+        def fmt_resistance(value) -> str:
+            if value is None:
+                return "—"
+
+            try:
+                return f"{float(value):.1f}"
+            except (TypeError, ValueError):
+                return "—"
+
+        def fmt_authority(value) -> str:
+            if value is None:
+                return "—"
+
+            try:
+                return f"{float(value):.3f}"
+            except (TypeError, ValueError):
+                return "—"
+
+        rows = list(getattr(preview, "rows", ()) or ())
+
+        if not rows:
+            return [
+                {
+                    "route": "—",
+                    "balancing_method": "—",
+                    "authority_state": "Waiting for authority preview",
+                    "ready": "No",
+                    "design_valve_dp": "—",
+                    "flow_kg_s": "—",
+                    "candidate_resistance": "—",
+                    "controlled_circuit_dp": "—",
+                    "authority": "—",
+                    "status": "Waiting for valve authority preview evidence",
+                    "blockers": "—",
+                }
+            ]
+
+        display_rows: list[dict] = []
+
+        for row in rows:
+            blockers = tuple(getattr(row, "blockers", ()) or ())
+
+            display_rows.append(
+                {
+                    "route": str(getattr(row, "route", "—") or "—"),
+                    "balancing_method": str(
+                        getattr(row, "balancing_method_label", "—") or "—"
+                    ),
+                    "authority_state": str(
+                        getattr(row, "authority_label", "—") or "—"
+                    ),
+                    "ready": (
+                        "Yes"
+                        if bool(getattr(row, "ready", False))
+                        else "No"
+                    ),
+                    "design_valve_dp": fmt_pa(
+                        getattr(row, "design_valve_dp_pa", None)
+                    ),
+                    "flow_kg_s": fmt_flow(
+                        getattr(row, "route_flow_kg_s", None)
+                    ),
+                    "candidate_resistance": fmt_resistance(
+                        getattr(
+                            row,
+                            "candidate_resistance_pa_per_kg_s2",
+                            None,
+                        )
+                    ),
+                    "controlled_circuit_dp": fmt_pa(
+                        getattr(row, "controlled_circuit_dp_pa", None)
+                    ),
+                    "authority": fmt_authority(
+                        getattr(row, "authority", None)
+                    ),
+                    "status": str(getattr(row, "status", "") or "—"),
+                    "blockers": (
+                        "; ".join(str(item) for item in blockers)
+                        if blockers
+                        else "—"
+                    ),
+                }
+            )
+
+        return display_rows
+
     def _build_valve_authority_input_rows_v1(
             self,
             mapping,

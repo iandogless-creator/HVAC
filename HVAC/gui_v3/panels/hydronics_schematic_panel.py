@@ -1061,7 +1061,7 @@ class HydronicsSchematicPanel(QWidget):
             columns=[
                 "Route",
                 "Balancing method",
-                "Authority state",
+                "Authority band",
                 "Ready",
                 "Design valve Δp",
                 "Flow kg/s",
@@ -1076,7 +1076,7 @@ class HydronicsSchematicPanel(QWidget):
 
         self._add_section(
             proportioned_layout,
-            title="Valve authority input preview — read-only",
+            title="Valve authority preview — read-only",
             table=self._valve_authority_input_table,
             min_height=145,
             expanded=True,
