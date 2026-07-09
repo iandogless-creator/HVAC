@@ -17,6 +17,10 @@ read-only schematic DTO.
 """
 
 from __future__ import annotations
+
+from HVAC.hydronics.proportioning.valve_authority_preview_v1 import (
+    build_valve_authority_preview_v1,
+)
 from HVAC.hydronics.proportioning.valve_authority_input_mapping_v1 import (
     build_valve_authority_input_mapping_v1,
 )
@@ -1538,6 +1542,31 @@ class HydronicsSchematicPanelAdapter:
 
         return rows
 
+    def _build_valve_authority_preview_v1(
+            self,
+            *,
+            valve_authority_input_mapping,
+            route_pressure_rows,
+    ):
+        """
+        H-S32-G:
+        Adapter wrapper for H-S32-F valve authority preview calculation.
+
+        Preview only:
+            no valve product selection
+            no Kv / Kvs selection
+            no lockshield turn count
+            no manufacturer valve data
+            no pump selection
+            no final balancing
+            no pipe resizing
+            no ProjectState mutation
+        """
+        return build_valve_authority_preview_v1(
+            valve_authority_input_mapping=valve_authority_input_mapping,
+            route_pressure_rows=route_pressure_rows,
+        )
+
     def _build_valve_authority_input_rows_v1(
             self,
             mapping,
@@ -1996,6 +2025,19 @@ class HydronicsSchematicPanelAdapter:
                 self._build_valve_authority_input_mapping_preview_v1(
                     balancing_candidate_mapping=(
                         self._balancing_method_candidate_mapping_preview
+                    ),
+                )
+            )
+
+            self._valve_authority_preview = (
+                self._build_valve_authority_preview_v1(
+                    valve_authority_input_mapping=(
+                        self._valve_authority_input_mapping_preview
+                    ),
+                    route_pressure_rows=(
+                        locals().get("mappable_provisional_burden_rows")
+                        or locals().get("provisional_burden_rows")
+                        or ()
                     ),
                 )
             )
