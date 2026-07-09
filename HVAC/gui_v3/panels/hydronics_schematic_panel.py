@@ -5017,6 +5017,64 @@ class HydronicsSchematicPanel(QWidget):
         for row_index in range(table.rowCount()):
             table.setRowHeight(row_index, 24)
 
+    def _apply_clean_proportioned_table_focus_style_v1(self, table: object) -> None:
+        """
+        H-S33-I:
+        Apply the shared clean Proportioned table focus style.
+
+        Visual polish only:
+        • selected/focused row means "what I am looking at"
+        • pale orange selected background
+        • dark readable selected text
+        • alternating rows remain active
+        • no engineering colour meaning is added here
+        • no ProjectState access
+        • no pressure / authority calculation changes
+        """
+        if table is None:
+            return
+
+        try:
+            table.setSelectionBehavior(
+                QAbstractItemView.SelectionBehavior.SelectRows
+            )
+            table.setSelectionMode(
+                QAbstractItemView.SelectionMode.SingleSelection
+            )
+        except AttributeError:
+            table.setSelectionBehavior(QAbstractItemView.SelectRows)
+            table.setSelectionMode(QAbstractItemView.SingleSelection)
+
+        existing_style = str(table.styleSheet() or "")
+
+        if "H-S33-I clean Proportioned focus style" in existing_style:
+            return
+
+        table.setStyleSheet(
+            existing_style
+            + """
+/* H-S33-I clean Proportioned focus style */
+QTableWidget {
+    selection-background-color: rgb(246, 215, 168);
+    selection-color: rgb(20, 20, 20);
+}
+QTableWidget::item:selected {
+    background-color: rgb(246, 215, 168);
+    color: rgb(20, 20, 20);
+}
+QTableWidget::item:selected:active {
+    background-color: rgb(246, 215, 168);
+    color: rgb(20, 20, 20);
+}
+QTableWidget::item:selected:!active {
+    background-color: rgb(246, 215, 168);
+    color: rgb(20, 20, 20);
+}
+"""
+        )
+
+
+
     def _configure_clean_proportioned_output_summary_table_v1(self) -> None:
         """
         H-S33-H:
@@ -5038,6 +5096,7 @@ class HydronicsSchematicPanel(QWidget):
 
         table.setWordWrap(False)
         table.setAlternatingRowColors(True)
+        self._apply_clean_proportioned_table_focus_style_v1(table)
         table.setToolTip(
             "Clean Proportioned output summary — basis/projection output only; "
             "not final hydraulics."
@@ -5197,6 +5256,7 @@ class HydronicsSchematicPanel(QWidget):
 
         table.setWordWrap(False)
         table.setAlternatingRowColors(True)
+        self._apply_clean_proportioned_table_focus_style_v1(table)
         table.setToolTip(
             "Clean Proportioned route output projection only — "
             "not final hydraulics; no valve product, no Kv/Kvs, "
