@@ -1567,6 +1567,66 @@ class HydronicsSchematicPanelAdapter:
             route_pressure_rows=route_pressure_rows,
         )
 
+    def _build_clean_proportioned_route_status_v1(
+            self,
+            *,
+            burden_row: dict,
+            authority_label: str = "",
+            authority_status: str = "",
+    ) -> str:
+        """
+        H-S33-F:
+        Build compact report-style status text for the clean Proportioned
+        route-output table.
+
+        Wording polish only:
+            no ProjectState mutation
+            no new pressure calculation
+            no valve product selection
+            no Kv / Kvs selection
+            no pump selection
+            no final balancing
+            no pipe resizing
+        """
+        burden_status = str(burden_row.get("status", "") or "").lower()
+        added_dp = str(
+            burden_row.get("required_added_dp")
+            or burden_row.get("added_dp")
+            or ""
+        ).strip()
+        label = str(authority_label or "").lower()
+        auth_status = str(authority_status or "").lower()
+
+        is_controlling = (
+            "controlling route" in burden_status
+            or added_dp in {"0.0 Pa", "0 Pa", "0.0", "0", "—", "-"}
+        )
+
+        if "no valve authority required" in label:
+            if is_controlling:
+                return "Controlling route — no added Δp; no authority required"
+            return "No added Δp preview — no authority required"
+
+        if "too low" in label or "below preview minimum" in auth_status:
+            return "Added Δp preview — low authority warning"
+
+        if "high throttling" in label or "high throttling" in auth_status:
+            return "Added Δp preview — high throttling warning"
+
+        if "acceptable" in label:
+            return "Added Δp preview — authority acceptable"
+
+        if "manual review" in label or "blocked" in auth_status:
+            return "Added Δp preview — manual review required"
+
+        if is_controlling:
+            return "Controlling route — no added Δp"
+
+        if added_dp and added_dp not in {"—", "-"}:
+            return "Added Δp preview"
+
+        return "Preview route output evidence only"
+
     def _build_clean_proportioned_route_output_rows_v1(
             self,
             *,
@@ -1640,18 +1700,11 @@ class HydronicsSchematicPanelAdapter:
                     getattr(authority_row, "status", "") or ""
                 )
 
-            status_parts: list[str] = []
-
-            burden_status = str(burden_row.get("status", "") or "").strip()
-
-            if burden_status:
-                status_parts.append(burden_status)
-
-            if authority_label:
-                status_parts.append(authority_label)
-
-            if authority_status and authority_status not in status_parts:
-                status_parts.append(authority_status)
+            clean_status = self._build_clean_proportioned_route_status_v1(
+                burden_row=burden_row,
+                authority_label=authority_label,
+                authority_status=authority_status,
+            )
 
             clean_rows.append(
                 {
@@ -1685,11 +1738,7 @@ class HydronicsSchematicPanelAdapter:
                         or burden_row.get("added_dp")
                     ),
                     "authority": authority,
-                    "status": (
-                        " | ".join(status_parts)
-                        if status_parts
-                        else "Preview route output evidence only"
-                    ),
+                    "status": clean_status,
                 }
             )
 
