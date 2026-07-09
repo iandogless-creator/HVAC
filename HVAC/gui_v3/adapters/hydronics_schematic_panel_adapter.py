@@ -1567,6 +1567,93 @@ class HydronicsSchematicPanelAdapter:
             route_pressure_rows=route_pressure_rows,
         )
 
+    def _build_valve_authority_preview_summary_status_v1(
+            self,
+            preview,
+    ) -> str:
+        """
+        H-S32-I:
+        Build top-level Proportioned-tab status text for valve authority
+        preview evidence.
+
+        Summary only:
+            no valve product selection
+            no Kv / Kvs selection
+            no lockshield turn count
+            no manufacturer valve data
+            no pump selection
+            no final balancing
+            no pipe resizing
+            no ProjectState mutation
+        """
+        rows = list(getattr(preview, "rows", ()) or ())
+
+        if not rows:
+            return "Waiting for valve authority preview evidence"
+
+        total = len(rows)
+        not_required = 0
+        calculated = 0
+        low_warning = 0
+        high_warning = 0
+        acceptable = 0
+        blocked = 0
+
+        for row in rows:
+            label = str(getattr(row, "authority_label", "") or "").lower()
+            status = str(getattr(row, "status", "") or "").lower()
+            authority = getattr(row, "authority", None)
+            blockers = tuple(getattr(row, "blockers", ()) or ())
+
+            if "no valve authority required" in label:
+                not_required += 1
+                continue
+
+            if blockers or not bool(getattr(row, "ready", False)):
+                blocked += 1
+                continue
+
+            if authority is not None:
+                calculated += 1
+
+            if "too low" in label or "below preview minimum" in status:
+                low_warning += 1
+            elif "high throttling" in label or "high throttling" in status:
+                high_warning += 1
+            elif "acceptable" in label:
+                acceptable += 1
+
+        parts: list[str] = []
+
+        if calculated:
+            parts.append(f"{calculated} calculated")
+
+        if acceptable:
+            parts.append(f"{acceptable} acceptable")
+
+        if not_required:
+            parts.append(f"{not_required} not required")
+
+        if low_warning:
+            parts.append(f"{low_warning} low-authority warning")
+
+        if high_warning:
+            parts.append(f"{high_warning} high-throttling warning")
+
+        if blocked:
+            parts.append(f"{blocked} blocked")
+
+        if not parts:
+            return "Waiting for valve authority preview evidence"
+
+        prefix = "Ready"
+        if blocked:
+            prefix = "Blocked"
+        elif low_warning or high_warning:
+            prefix = "Ready with warnings"
+
+        return f"{prefix} — " + ", ".join(parts)
+
     def _build_valve_authority_preview_rows_v1(
             self,
             preview,
@@ -2025,6 +2112,12 @@ class HydronicsSchematicPanelAdapter:
                 "status": (
                     f"{export_status}; pump, valve selection, final "
                     "balancing, and pipe resizing not performed"
+                ),
+            },
+            {
+                "item": "Valve authority preview",
+                "status": self._build_valve_authority_preview_summary_status_v1(
+                    getattr(self, "_valve_authority_preview", None)
                 ),
             },
         ]
