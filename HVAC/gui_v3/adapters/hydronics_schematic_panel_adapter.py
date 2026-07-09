@@ -1567,6 +1567,134 @@ class HydronicsSchematicPanelAdapter:
             route_pressure_rows=route_pressure_rows,
         )
 
+    def _build_clean_proportioned_route_output_rows_v1(
+            self,
+            *,
+            provisional_burden_rows,
+            valve_authority_preview,
+    ) -> list[dict]:
+        """
+        H-S33-D:
+        Build clean Proportioned route-output rows from existing preview
+        evidence.
+
+        Display projection only:
+            no ProjectState mutation
+            no new pressure calculation
+            no valve product selection
+            no Kv / Kvs selection
+            no pump selection
+            no final balancing
+            no pipe resizing
+        """
+
+        def norm(value) -> str:
+            return str(value or "").strip().lower()
+
+        def text_or_dash(value) -> str:
+            value = str(value or "").strip()
+            return value if value else "—"
+
+        def fmt_authority(value) -> str:
+            if value is None:
+                return "—"
+
+            try:
+                return f"{float(value):.3f}"
+            except (TypeError, ValueError):
+                return "—"
+
+        authority_by_route: dict[str, object] = {}
+
+        for row in list(getattr(valve_authority_preview, "rows", ()) or ()):
+            route = norm(getattr(row, "route", ""))
+            if route:
+                authority_by_route[route] = row
+
+        clean_rows: list[dict] = []
+
+        for burden_row in list(provisional_burden_rows or ()):
+            route = text_or_dash(
+                burden_row.get("route")
+                or burden_row.get("route_label")
+                or burden_row.get("route_id")
+            )
+
+            if route in {"", "—", "-"}:
+                continue
+
+            authority_row = authority_by_route.get(norm(route))
+
+            authority = "—"
+            authority_label = ""
+            authority_status = ""
+
+            if authority_row is not None:
+                authority = fmt_authority(
+                    getattr(authority_row, "authority", None)
+                )
+                authority_label = str(
+                    getattr(authority_row, "authority_label", "") or ""
+                )
+                authority_status = str(
+                    getattr(authority_row, "status", "") or ""
+                )
+
+            status_parts: list[str] = []
+
+            burden_status = str(burden_row.get("status", "") or "").strip()
+
+            if burden_status:
+                status_parts.append(burden_status)
+
+            if authority_label:
+                status_parts.append(authority_label)
+
+            if authority_status and authority_status not in status_parts:
+                status_parts.append(authority_status)
+
+            clean_rows.append(
+                {
+                    "route": route,
+                    "basis": text_or_dash(burden_row.get("basis")),
+                    "sections": text_or_dash(
+                        burden_row.get("sections")
+                        or burden_row.get("section_count")
+                    ),
+                    "flow_kg_s": text_or_dash(
+                        burden_row.get("flow_kg_s")
+                        or burden_row.get("flow")
+                    ),
+                    "pipe_dn": text_or_dash(
+                        burden_row.get("pipe_dn")
+                        or burden_row.get("pipe")
+                        or burden_row.get("pipe_size")
+                    ),
+                    "dp_per_m": text_or_dash(
+                        burden_row.get("dp_per_m")
+                        or burden_row.get("dp_m")
+                        or burden_row.get("dp_per_m_label")
+                    ),
+                    "route_dp": text_or_dash(
+                        burden_row.get("chosen_dp")
+                        or burden_row.get("route_dp")
+                        or burden_row.get("route_chosen_dp")
+                    ),
+                    "added_dp": text_or_dash(
+                        burden_row.get("required_added_dp")
+                        or burden_row.get("added_dp")
+                    ),
+                    "authority": authority,
+                    "status": (
+                        " | ".join(status_parts)
+                        if status_parts
+                        else "Preview route output evidence only"
+                    ),
+                }
+            )
+
+        return clean_rows
+
     def _build_valve_authority_preview_summary_status_v1(
             self,
             preview,
@@ -2271,6 +2399,25 @@ class HydronicsSchematicPanelAdapter:
                         self._valve_authority_preview
                     )
                 )
+
+                if hasattr(
+                        self._panel,
+                        "set_clean_proportioned_route_output_rows",
+                ):
+                    self._panel.set_clean_proportioned_route_output_rows(
+                        self._build_clean_proportioned_route_output_rows_v1(
+                            provisional_burden_rows=(
+                                locals().get("mappable_provisional_burden_rows")
+                                or locals().get("provisional_burden_rows")
+                                or ()
+                            ),
+                            valve_authority_preview=getattr(
+                                self,
+                                "_valve_authority_preview",
+                                None,
+                            ),
+                        )
+                    )
 
             self._basis_only_proportioned_export_payload_preview = (
                 self._build_basis_only_proportioned_export_payload_preview_v1(
