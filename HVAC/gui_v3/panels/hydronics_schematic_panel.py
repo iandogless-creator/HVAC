@@ -542,7 +542,19 @@ class HydronicsSchematicPanel(QWidget):
         self._proportioning_tab = self._make_tab("Proportioning")
         proportioning_layout = self._proportioning_tab
 
-        self._proportioned_tab = self._make_tab("Proportioned")
+        self._proportioning_data_tab = self._make_tab("Proportioning Data")
+        self._proportioned_tab = self._proportioning_data_tab
+
+        self._clean_proportioned_tab = self._make_tab("Proportioned")
+        self._clean_proportioned_tab.addWidget(
+            QLabel(
+                "Clean Proportioned output shell — detailed route, "
+                "balancing, and authority evidence is held in "
+                "Proportioning Data."
+            )
+        )
+        self._clean_proportioned_tab.addStretch(1)
+
         proportioned_layout = self._proportioned_tab
 
         # --------------------------------------------------
