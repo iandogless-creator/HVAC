@@ -5000,7 +5000,10 @@ class HydronicsSchematicPanel(QWidget):
         for row_index, row in enumerate(rows):
             values = [
                 row.get("item", "—"),
-                row.get("status", "—"),
+                self._clean_proportioned_summary_status_v1(
+                    item=row.get("item", "—"),
+                    status=row.get("status", "—"),
+                ),
             ]
 
             for col_index, value in enumerate(values):
@@ -5010,6 +5013,94 @@ class HydronicsSchematicPanel(QWidget):
         table.setWordWrap(False)
         for row_index in range(table.rowCount()):
             table.setRowHeight(row_index, 24)
+
+    def _clean_proportioned_summary_status_v1(
+            self,
+            *,
+            item: object,
+            status: object,
+    ) -> str:
+        """
+        H-S33-G:
+        Build compact report-style status text for the clean Proportioned
+        summary table.
+
+        Wording polish only:
+        • no ProjectState access
+        • no new preview calculations
+        • no final proportioning commit
+        • no valve product selection
+        • no Kv / Kvs selection
+        • no pump selection
+        • no pipe resizing
+        """
+        item_text = str(item or "").strip()
+        status_text = str(status or "").strip()
+
+        if not status_text:
+            return "—"
+
+        item_key = item_text.lower()
+        status_key = status_text.lower()
+
+        if item_key == "accepted return basis":
+            if "committed basis snapshot:" in status_key:
+                basis = status_text.split(":", 1)[1].split("—", 1)[0].strip()
+                return f"Accepted basis — {basis} (basis only)"
+
+            if "read-only preview available" in status_key:
+                return "Waiting — accepted basis not committed"
+
+            return status_text
+
+        if item_key == "route pressure evidence":
+            if "available" in status_key:
+                return "Ready — route Δp evidence available"
+
+            if "waiting" in status_key:
+                return "Waiting — route Δp evidence"
+
+            return status_text
+
+        if item_key == "controlling / shortfall evidence":
+            if "available" in status_key:
+                return "Ready — controlling/shortfall evidence available"
+
+            if "waiting" in status_key:
+                return "Waiting — controlling/shortfall evidence"
+
+            return status_text
+
+        if item_key == "chosen-basis readiness":
+            if "available" in status_key:
+                return "Ready — chosen-basis readiness evidence available"
+
+            return status_text
+
+        if item_key == "basis-only export":
+            if status_key.startswith("ready"):
+                return "Ready — basis-only export; final hydraulics excluded"
+
+            if status_key.startswith("not ready"):
+                return "Not ready — commit accepted basis snapshot"
+
+            return status_text
+
+        if item_key == "valve authority preview":
+            if status_key.startswith("ready with warnings"):
+                return status_text
+
+            if status_key.startswith("ready"):
+                return status_text
+
+            if "waiting" in status_key:
+                return "Waiting — valve authority preview evidence"
+
+            return status_text
+
+        return status_text
+
+
 
     def set_clean_proportioned_output_rows(self, rows: list[dict]) -> None:
         """
