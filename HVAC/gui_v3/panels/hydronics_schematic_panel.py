@@ -569,6 +569,8 @@ class HydronicsSchematicPanel(QWidget):
             expanded=True,
         )
 
+        self._configure_clean_proportioned_output_summary_table_v1()
+
         self._clean_proportioned_route_output_table = self._make_table(
             columns=[
                 "Route",
@@ -4182,6 +4184,7 @@ class HydronicsSchematicPanel(QWidget):
                 table.setItem(row_index, col_index, item)
 
         self._fit_table_height(table, min_height=120, max_height=180)
+        self._configure_clean_proportioned_output_summary_table_v1()
         table.scrollToTop()
         self._refresh_proportioning_input_snapshot()
 
@@ -5013,6 +5016,47 @@ class HydronicsSchematicPanel(QWidget):
         table.setWordWrap(False)
         for row_index in range(table.rowCount()):
             table.setRowHeight(row_index, 24)
+
+    def _configure_clean_proportioned_output_summary_table_v1(self) -> None:
+        """
+        H-S33-H:
+        Configure the clean Proportioned output summary table.
+
+        Visual polish only:
+        • no ProjectState access
+        • no new preview calculations
+        • no final proportioning commit
+        • no valve product selection
+        • no Kv / Kvs selection
+        • no pump selection
+        • no pipe resizing
+        """
+        if not hasattr(self, "_clean_proportioned_output_table"):
+            return
+
+        table = self._clean_proportioned_output_table
+
+        table.setWordWrap(False)
+        table.setAlternatingRowColors(True)
+        table.setToolTip(
+            "Clean Proportioned output summary — basis/projection output only; "
+            "not final hydraulics."
+        )
+
+        widths = [
+            190,  # Item
+            760,  # Status
+        ]
+
+        for col_index, width in enumerate(widths):
+            table.setColumnWidth(col_index, width)
+
+        try:
+            table.horizontalHeader().setStretchLastSection(True)
+        except AttributeError:
+            pass
+
+
 
     def _clean_proportioned_summary_status_v1(
             self,
