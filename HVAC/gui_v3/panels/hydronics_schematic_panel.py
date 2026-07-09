@@ -548,11 +548,27 @@ class HydronicsSchematicPanel(QWidget):
         self._clean_proportioned_tab = self._make_tab("Proportioned")
         self._clean_proportioned_tab.addWidget(
             QLabel(
-                "Clean Proportioned output shell — detailed route, "
-                "balancing, and authority evidence is held in "
-                "Proportioning Data."
+                "Clean Proportioned output — summary only. "
+                "Detailed route, balancing, and authority evidence "
+                "is held in Proportioning Data."
             )
         )
+
+        self._clean_proportioned_output_table = self._make_table(
+            columns=[
+                "Item",
+                "Status",
+            ]
+        )
+
+        self._add_section(
+            self._clean_proportioned_tab,
+            title="Proportioned output summary — read-only",
+            table=self._clean_proportioned_output_table,
+            min_height=185,
+            expanded=True,
+        )
+
         self._clean_proportioned_tab.addStretch(1)
 
         proportioned_layout = self._proportioned_tab
@@ -4968,6 +4984,36 @@ class HydronicsSchematicPanel(QWidget):
         table.setWordWrap(False)
         for row_index in range(table.rowCount()):
             table.setRowHeight(row_index, 24)
+    def set_clean_proportioned_output_rows(self, rows: list[dict]) -> None:
+        """
+        H-S20-A:
+        Display future final-output status for the Proportioned tab.
+
+        Display only:
+        • no ProjectState access
+        • no preview calculations
+        • no final proportioning commit
+        """
+        if not hasattr(self, "_clean_proportioned_output_table"):
+            return
+
+        table = self._clean_proportioned_output_table
+        table.setRowCount(len(rows))
+
+        for row_index, row in enumerate(rows):
+            values = [
+                row.get("item", "—"),
+                row.get("status", "—"),
+            ]
+
+            for col_index, value in enumerate(values):
+                item = QTableWidgetItem(str(value))
+                item.setFlags(item.flags() & ~Qt.ItemIsEditable)
+                table.setItem(row_index, col_index, item)
+
+        self._fit_table_height(table, min_height=120, max_height=180)
+        table.scrollToTop()
+
     def set_proportioned_status(self, rows: list[dict]) -> None:
         """
         H-S20-A:
@@ -4997,6 +5043,10 @@ class HydronicsSchematicPanel(QWidget):
 
         self._fit_table_height(table, min_height=120, max_height=180)
         table.scrollToTop()
+
+        if hasattr(self, "set_clean_proportioned_output_rows"):
+            self.set_clean_proportioned_output_rows(rows)
+
 
     def set_route_shortfall_preview_rows(self, rows: list[dict]) -> None:
         """
