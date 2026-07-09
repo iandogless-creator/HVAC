@@ -2174,8 +2174,8 @@ class HydronicsSchematicPanelAdapter:
 
             if has_valve_authority_input_table:
                 self._panel.set_valve_authority_input_rows(
-                    self._build_valve_authority_input_rows_v1(
-                        self._valve_authority_input_mapping_preview
+                    self._build_valve_authority_preview_rows_v1(
+                        self._valve_authority_preview
                     )
                 )
 

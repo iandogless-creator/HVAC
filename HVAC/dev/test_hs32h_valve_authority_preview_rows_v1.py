@@ -84,6 +84,16 @@ def main() -> None:
     assert "self._valve_authority_preview" in source
     assert "_build_valve_authority_preview_rows_v1(" in source
 
+    table_feed_pos = source.find("set_valve_authority_input_rows(")
+
+    assert table_feed_pos >= 0
+
+    table_feed_block = source[table_feed_pos:table_feed_pos + 500]
+
+    assert "_build_valve_authority_preview_rows_v1(" in table_feed_block
+    assert "self._valve_authority_preview" in table_feed_block
+    assert "_build_valve_authority_input_rows_v1(" not in table_feed_block
+
     print("OK — H-S32-H valve authority preview rows passed.")
 
 
