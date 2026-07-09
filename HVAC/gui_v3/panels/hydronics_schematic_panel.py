@@ -575,9 +575,9 @@ class HydronicsSchematicPanel(QWidget):
                 "Basis",
                 "Sections",
                 "Flow kg/s",
-                "Pipe / DN",
+                "Pipe DN",
                 "Δp/m",
-                "Route Δp",
+                "Chosen Δp",
                 "Added Δp",
                 "Authority",
                 "Status",
@@ -592,6 +592,7 @@ class HydronicsSchematicPanel(QWidget):
             expanded=True,
         )
 
+        self._configure_clean_proportioned_route_output_table_v1()
         self.set_clean_proportioned_route_output_rows([])
 
         self._clean_proportioned_tab.addStretch(1)
@@ -668,7 +669,7 @@ class HydronicsSchematicPanel(QWidget):
             columns=[
                 "Route",
                 "Sections",
-                "Route Δp",
+                "Chosen Δp",
                 "Controlling Δp",
                 "Shortfall",
                 "Required added resistance",
@@ -1923,7 +1924,7 @@ class HydronicsSchematicPanel(QWidget):
             columns=[
                 "Rank",
                 "Route",
-                "Route Δp",
+                "Chosen Δp",
                 "Controlling Δp",
                 "Δp Shortfall",
                 "Action",
@@ -5040,6 +5041,56 @@ class HydronicsSchematicPanel(QWidget):
         self._fit_table_height(table, min_height=120, max_height=180)
         table.scrollToTop()
 
+    def _configure_clean_proportioned_route_output_table_v1(self) -> None:
+        """
+        H-S33-E:
+        Configure the clean Proportioned route-output table.
+
+        Visual polish only:
+        • no ProjectState access
+        • no new preview calculations
+        • no final proportioning commit
+        • no valve product selection
+        • no Kv / Kvs selection
+        • no pump selection
+        • no pipe resizing
+        """
+        if not hasattr(self, "_clean_proportioned_route_output_table"):
+            return
+
+        table = self._clean_proportioned_route_output_table
+
+        table.setWordWrap(False)
+        table.setAlternatingRowColors(True)
+        table.setToolTip(
+            "Clean Proportioned route output projection only — "
+            "not final hydraulics; no valve product, no Kv/Kvs, "
+            "no pump selection, and no pipe resizing."
+        )
+
+        widths = [
+            170,  # Route
+            70,   # Basis
+            75,   # Sections
+            80,   # Flow kg/s
+            80,   # Pipe DN
+            75,   # Δp/m
+            100,  # Chosen Δp
+            110,  # Added Δp
+            85,   # Authority
+            360,  # Status
+        ]
+
+        for col_index, width in enumerate(widths):
+            table.setColumnWidth(col_index, width)
+
+        try:
+            table.horizontalHeader().setStretchLastSection(True)
+        except AttributeError:
+            pass
+
+
+
     def set_clean_proportioned_route_output_rows(
             self,
             rows: list[dict],
@@ -5102,6 +5153,7 @@ class HydronicsSchematicPanel(QWidget):
                 table.setItem(row_index, col_index, item)
 
         self._fit_table_height(table, min_height=150, max_height=260)
+        self._configure_clean_proportioned_route_output_table_v1()
         table.scrollToTop()
 
 

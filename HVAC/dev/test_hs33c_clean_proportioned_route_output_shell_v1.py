@@ -21,9 +21,9 @@ def main() -> None:
     assert '"Basis"' in source
     assert '"Sections"' in source
     assert '"Flow kg/s"' in source
-    assert '"Pipe / DN"' in source
+    assert '"Pipe DN"' in source
     assert '"Δp/m"' in source
-    assert '"Route Δp"' in source
+    assert '"Chosen Δp"' in source
     assert '"Added Δp"' in source
     assert '"Authority"' in source
     assert '"Status"' in source
