@@ -5017,6 +5017,137 @@ class HydronicsSchematicPanel(QWidget):
         for row_index in range(table.rowCount()):
             table.setRowHeight(row_index, 24)
 
+    def _clean_proportioned_focused_route_label_v1(self) -> str:
+        """
+        H-S33-J:
+        Return the currently focused clean Proportioned route label.
+
+        UI state only:
+        • no ProjectState access
+        • no section filtering yet
+        • no schematic focus yet
+        • no pressure / authority calculation changes
+        """
+        return str(
+            getattr(
+                self,
+                "_clean_proportioned_focused_route_label",
+                "",
+            )
+            or ""
+        ).strip()
+
+    def _set_clean_proportioned_focused_route_label_v1(
+            self,
+            route_label: object,
+    ) -> None:
+        """
+        H-S33-J:
+        Store the currently focused clean Proportioned route label.
+
+        This is transient UI state only. It is intentionally not persisted.
+        """
+        self._clean_proportioned_focused_route_label = str(
+            route_label or ""
+        ).strip()
+
+    def _clean_proportioned_route_label_for_row_v1(self, row_index: int) -> str:
+        """
+        H-S33-J:
+        Read the route label from the clean Proportioned route-output table.
+        """
+        if not hasattr(self, "_clean_proportioned_route_output_table"):
+            return ""
+
+        table = self._clean_proportioned_route_output_table
+
+        if row_index < 0:
+            return ""
+
+        try:
+            item = table.item(row_index, 0)
+        except Exception:
+            return ""
+
+        if item is None:
+            return ""
+
+        try:
+            return str(item.text() or "").strip()
+        except Exception:
+            return ""
+
+    def _on_clean_proportioned_route_output_selection_changed_v1(self) -> None:
+        """
+        H-S33-J:
+        Capture the currently selected clean route-output row.
+
+        Selecting a new route replaces the previous focused route state.
+        Later H-S33-K/H-S33-L can use this state to show either one route's
+        pipe sections or all routes.
+        """
+        if not hasattr(self, "_clean_proportioned_route_output_table"):
+            return
+
+        table = self._clean_proportioned_route_output_table
+
+        row_index = -1
+
+        try:
+            selected_rows = table.selectionModel().selectedRows()
+        except Exception:
+            selected_rows = []
+
+        if selected_rows:
+            try:
+                row_index = selected_rows[0].row()
+            except Exception:
+                row_index = -1
+
+        if row_index < 0:
+            try:
+                row_index = table.currentRow()
+            except Exception:
+                row_index = -1
+
+        route_label = self._clean_proportioned_route_label_for_row_v1(
+            row_index
+        )
+
+        self._set_clean_proportioned_focused_route_label_v1(route_label)
+
+    def _wire_clean_proportioned_route_output_selection_v1(
+            self,
+            table: object,
+    ) -> None:
+        """
+        H-S33-J:
+        Wire clean route-output row selection into transient focused-route
+        UI state.
+
+        Repeated configure calls are safe; the connection is only made once.
+        """
+        if table is None:
+            return
+
+        if getattr(
+                self,
+                "_clean_proportioned_route_output_selection_wired_v1",
+                False,
+        ):
+            return
+
+        try:
+            table.itemSelectionChanged.connect(
+                self._on_clean_proportioned_route_output_selection_changed_v1
+            )
+        except Exception:
+            return
+
+        self._clean_proportioned_route_output_selection_wired_v1 = True
+
+
+
     def _apply_clean_proportioned_table_focus_style_v1(self, table: object) -> None:
         """
         H-S33-I:
@@ -5257,6 +5388,7 @@ QTableWidget::item:selected:!active {
         table.setWordWrap(False)
         table.setAlternatingRowColors(True)
         self._apply_clean_proportioned_table_focus_style_v1(table)
+        self._wire_clean_proportioned_route_output_selection_v1(table)
         table.setToolTip(
             "Clean Proportioned route output projection only — "
             "not final hydraulics; no valve product, no Kv/Kvs, "
