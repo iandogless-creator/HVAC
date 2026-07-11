@@ -595,6 +595,76 @@ class HydronicsSchematicPanel(QWidget):
         )
 
         self._configure_clean_proportioned_route_output_table_v1()
+
+        self._clean_proportioned_section_view_controls = QWidget()
+        controls_layout = QHBoxLayout(
+            self._clean_proportioned_section_view_controls
+        )
+        controls_layout.setContentsMargins(0, 4, 0, 4)
+
+        self._clean_proportioned_section_view_mode_label = QLabel(
+            "Pipe-section view:"
+        )
+        self._clean_proportioned_section_view_mode_combo = QComboBox()
+        self._clean_proportioned_section_view_mode_combo.addItems(
+            [
+                "Selected route only",
+                "All routes",
+            ]
+        )
+        self._clean_proportioned_section_view_mode_combo.currentTextChanged.connect(
+            self._on_clean_proportioned_section_view_mode_changed_v1
+        )
+
+        self._clean_proportioned_focused_section_label = QLabel(
+            "Focused route: —"
+        )
+
+        controls_layout.addWidget(
+            self._clean_proportioned_section_view_mode_label
+        )
+        controls_layout.addWidget(
+            self._clean_proportioned_section_view_mode_combo
+        )
+        controls_layout.addWidget(
+            self._clean_proportioned_focused_section_label,
+            1,
+        )
+
+        try:
+            self._clean_proportioned_tab.layout().addWidget(
+                self._clean_proportioned_section_view_controls
+            )
+        except Exception:
+            pass
+
+        self._clean_proportioned_focused_section_table = self._make_table(
+            columns=[
+                "Route",
+                "Section",
+                "From",
+                "To",
+                "Flow kg/s",
+                "Pipe DN",
+                "Δp/m",
+                "Length",
+                "K",
+                "Section Δp",
+                "Status",
+            ]
+        )
+
+        self._add_section(
+            self._clean_proportioned_tab,
+            title="Focused route / subleg sections — read-only",
+            table=self._clean_proportioned_focused_section_table,
+            min_height=185,
+            expanded=True,
+        )
+
+        self._configure_clean_proportioned_focused_section_table_v1()
+        self._refresh_clean_proportioned_focused_section_view_v1()
+
         self.set_clean_proportioned_route_output_rows([])
 
         self._clean_proportioned_tab.addStretch(1)
@@ -5116,6 +5186,12 @@ class HydronicsSchematicPanel(QWidget):
 
         self._set_clean_proportioned_focused_route_label_v1(route_label)
 
+        if hasattr(
+                self,
+                "_refresh_clean_proportioned_focused_section_view_v1",
+        ):
+            self._refresh_clean_proportioned_focused_section_view_v1()
+
     def _wire_clean_proportioned_route_output_selection_v1(
             self,
             table: object,
@@ -5145,6 +5221,251 @@ class HydronicsSchematicPanel(QWidget):
             return
 
         self._clean_proportioned_route_output_selection_wired_v1 = True
+
+
+
+    def _clean_proportioned_section_view_mode_v1(self) -> str:
+        """
+        H-S33-K:
+        Return the clean Proportioned focused section view mode.
+
+        UI state only:
+        • no ProjectState access
+        • no section evidence calculation
+        • no pressure / authority calculation changes
+        """
+        mode = ""
+
+        if hasattr(self, "_clean_proportioned_section_view_mode_combo"):
+            try:
+                mode = self._clean_proportioned_section_view_mode_combo.currentText()
+            except Exception:
+                mode = ""
+
+        if not mode:
+            mode = str(
+                getattr(
+                    self,
+                    "_clean_proportioned_section_view_mode",
+                    "",
+                )
+                or ""
+            ).strip()
+
+        if mode not in {"Selected route only", "All routes"}:
+            mode = "Selected route only"
+
+        return mode
+
+    def _set_clean_proportioned_section_view_mode_v1(
+            self,
+            mode: object,
+    ) -> None:
+        """
+        H-S33-K:
+        Store the clean Proportioned focused section view mode.
+
+        This is transient UI state only. It is intentionally not persisted.
+        """
+        mode_text = str(mode or "").strip()
+
+        if mode_text not in {"Selected route only", "All routes"}:
+            mode_text = "Selected route only"
+
+        self._clean_proportioned_section_view_mode = mode_text
+
+        if hasattr(self, "_clean_proportioned_section_view_mode_combo"):
+            try:
+                if (
+                        self._clean_proportioned_section_view_mode_combo.currentText()
+                        != mode_text
+                ):
+                    self._clean_proportioned_section_view_mode_combo.setCurrentText(
+                        mode_text
+                    )
+            except Exception:
+                pass
+
+    def _on_clean_proportioned_section_view_mode_changed_v1(
+            self,
+            *_args: object,
+    ) -> None:
+        """
+        H-S33-K:
+        Refresh the focused section shell when the user switches between
+        selected-route-only and all-routes mode.
+        """
+        self._set_clean_proportioned_section_view_mode_v1(
+            self._clean_proportioned_section_view_mode_v1()
+        )
+        self._refresh_clean_proportioned_focused_section_view_v1()
+
+    def _configure_clean_proportioned_focused_section_table_v1(self) -> None:
+        """
+        H-S33-K:
+        Configure the focused route/subleg pipe-section shell table.
+
+        Visual/UI shell only:
+        • no section rows populated from engineering evidence yet
+        • no final hydraulics
+        • no valve product / Kv / Kvs
+        • no pump selection
+        • no pipe resizing
+        """
+        if not hasattr(self, "_clean_proportioned_focused_section_table"):
+            return
+
+        table = self._clean_proportioned_focused_section_table
+
+        table.setWordWrap(False)
+        table.setAlternatingRowColors(True)
+        self._apply_clean_proportioned_table_focus_style_v1(table)
+
+        table.setToolTip(
+            "Focused pipe-section view shell — read-only; section evidence "
+            "population comes in a later milestone."
+        )
+
+        widths = [
+            190,  # Route
+            95,   # Section
+            120,  # From
+            120,  # To
+            85,   # Flow kg/s
+            80,   # Pipe DN
+            80,   # Δp/m
+            80,   # Length
+            55,   # K
+            95,   # Section Δp
+            330,  # Status
+        ]
+
+        for col_index, width in enumerate(widths):
+            try:
+                table.setColumnWidth(col_index, width)
+            except Exception:
+                pass
+
+        try:
+            table.horizontalHeader().setStretchLastSection(True)
+        except AttributeError:
+            pass
+
+    def _set_clean_proportioned_focused_section_rows_v1(
+            self,
+            rows: list[dict],
+    ) -> None:
+        """
+        H-S33-K:
+        Populate the focused section shell with placeholder rows only.
+
+        H-S33-L will replace these placeholder rows with real section evidence.
+        """
+        if not hasattr(self, "_clean_proportioned_focused_section_table"):
+            return
+
+        table = self._clean_proportioned_focused_section_table
+
+        columns = [
+            "route",
+            "section",
+            "from",
+            "to",
+            "flow_kg_s",
+            "pipe_dn",
+            "dp_per_m",
+            "length",
+            "k",
+            "section_dp",
+            "status",
+        ]
+
+        table.setRowCount(len(rows))
+
+        for row_index, row in enumerate(rows):
+            values = [
+                row.get(column, "—")
+                for column in columns
+            ]
+
+            for col_index, value in enumerate(values):
+                item = QTableWidgetItem(str(value if value != "" else "—"))
+                table.setItem(row_index, col_index, item)
+
+        for row_index in range(table.rowCount()):
+            table.setRowHeight(row_index, 24)
+
+        self._configure_clean_proportioned_focused_section_table_v1()
+
+        try:
+            self._fit_table_height(table, min_height=110, max_height=220)
+        except Exception:
+            pass
+
+        try:
+            table.scrollToTop()
+        except Exception:
+            pass
+
+    def _refresh_clean_proportioned_focused_section_view_v1(self) -> None:
+        """
+        H-S33-K:
+        Refresh the focused route/subleg pipe-section shell.
+
+        This milestone shows the intended drill-down surface only:
+        selected-route-only or all-routes. Real pipe/section rows are
+        populated later.
+        """
+        if not hasattr(self, "_clean_proportioned_focused_section_table"):
+            return
+
+        mode = self._clean_proportioned_section_view_mode_v1()
+        route_label = self._clean_proportioned_focused_route_label_v1()
+
+        if mode == "All routes":
+            label_text = "Focused route: all routes"
+            route_cell = "All routes"
+            status = (
+                "Pipe-section view shell — all routes; "
+                "section evidence population pending"
+            )
+        elif route_label:
+            label_text = f"Focused route: {route_label}"
+            route_cell = route_label
+            status = (
+                "Pipe-section view shell — selected route only; "
+                "section evidence population pending"
+            )
+        else:
+            label_text = "Focused route: —"
+            route_cell = "—"
+            status = "Select a route row above to show its pipe sections"
+
+        if hasattr(self, "_clean_proportioned_focused_section_label"):
+            try:
+                self._clean_proportioned_focused_section_label.setText(
+                    label_text
+                )
+            except Exception:
+                pass
+
+        self._set_clean_proportioned_focused_section_rows_v1(
+            [
+                {
+                    "route": route_cell,
+                    "section": "—",
+                    "from": "—",
+                    "to": "—",
+                    "flow_kg_s": "—",
+                    "pipe_dn": "—",
+                    "dp_per_m": "—",
+                    "length": "—",
+                    "k": "—",
+                    "section_dp": "—",
+                    "status": status,
+                }
+            ]
+        )
 
 
 
@@ -5481,6 +5802,7 @@ QTableWidget::item:selected:!active {
 
         self._fit_table_height(table, min_height=150, max_height=260)
         self._configure_clean_proportioned_route_output_table_v1()
+        self._refresh_clean_proportioned_focused_section_view_v1()
         table.scrollToTop()
 
 
