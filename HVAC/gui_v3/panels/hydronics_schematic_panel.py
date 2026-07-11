@@ -5407,52 +5407,381 @@ class HydronicsSchematicPanel(QWidget):
         except Exception:
             pass
 
+    def _clean_proportioned_table_item_text_v1(self, item: object) -> str:
+        """
+        H-S33-L:
+        Read plain text from a QTableWidgetItem-like object.
+        """
+        if item is None:
+            return ""
+
+        try:
+            return str(item.text() or "").strip()
+        except Exception:
+            return str(item or "").strip()
+
+    def _normalise_clean_proportioned_section_source_row_v1(
+            self,
+            row: dict,
+    ) -> dict:
+        """
+        H-S33-L:
+        Normalise existing pipe/section evidence rows into the clean focused
+        section table schema.
+
+        This is display mapping only:
+        • no new pressure calculation
+        • no pipe resizing
+        • no ProjectState mutation
+        """
+        def first_value(*keys: str) -> str:
+            for key in keys:
+                if key in row and row.get(key) not in (None, ""):
+                    return str(row.get(key)).strip()
+            return "—"
+
+        route = first_value(
+            "route",
+            "Route",
+            "route_label",
+            "Route label",
+            "subleg",
+            "Subleg",
+            "subleg_label",
+            "Subleg label",
+            "target",
+            "Target",
+            "target_label",
+            "Target label",
+            "scope",
+            "Scope",
+            "scope_label",
+            "Scope label",
+        )
+
+        return {
+            "route": route,
+            "section": first_value(
+                "section",
+                "section_id",
+                "section_label",
+                "order",
+                "Order",
+            ),
+            "from": first_value(
+                "from",
+                "from_label",
+                "from_node",
+                "From",
+            ),
+            "to": first_value(
+                "to",
+                "to_label",
+                "to_node",
+                "To",
+            ),
+            "flow_kg_s": first_value(
+                "flow_kg_s",
+                "flow",
+                "Flow kg/s",
+                "mass_flow_kg_s",
+            ),
+            "pipe_dn": first_value(
+                "pipe_dn",
+                "pipe",
+                "Pipe DN",
+                "Pipe",
+                "dn",
+            ),
+            "dp_per_m": first_value(
+                "dp_per_m",
+                "Δp/m",
+                "dp_m",
+                "pressure_gradient",
+            ),
+            "length": first_value(
+                "length",
+                "Length",
+                "length_m",
+            ),
+            "k": first_value(
+                "k",
+                "K",
+                "local_k",
+                "k_total",
+            ),
+            "section_dp": first_value(
+                "section_dp",
+                "Section Δp",
+                "section_dp_pa",
+                "total_dp",
+            ),
+            "status": first_value(
+                "status",
+                "Status",
+            ),
+        }
+
+    def _clean_proportioned_section_source_rows_from_tables_v1(
+            self,
+    ) -> list[dict]:
+        """
+        H-S33-L:
+        Discover existing section evidence from already-populated table widgets.
+
+        This is intentionally defensive so it can reuse the existing
+        Proportioning Data section table without depending on one fragile
+        widget name.
+        """
+        rows: list[dict] = []
+
+        skip_names = {
+            "_clean_proportioned_output_table",
+            "_clean_proportioned_route_output_table",
+            "_clean_proportioned_focused_section_table",
+        }
+
+        for attr_name, table in vars(self).items():
+            if attr_name in skip_names:
+                continue
+
+            if not all(
+                    hasattr(table, name)
+                    for name in (
+                        "rowCount",
+                        "columnCount",
+                        "horizontalHeaderItem",
+                        "item",
+                    )
+            ):
+                continue
+
+            try:
+                headers = [
+                    self._clean_proportioned_table_item_text_v1(
+                        table.horizontalHeaderItem(col_index)
+                    )
+                    for col_index in range(table.columnCount())
+                ]
+            except Exception:
+                continue
+
+            header_keys = {header.lower() for header in headers}
+
+            looks_like_section_table = (
+                {"from", "to"}.issubset(header_keys)
+                and (
+                    "flow kg/s" in header_keys
+                    or "section Δp".lower() in header_keys
+                    or "length" in header_keys
+                    or "q carried" in header_keys
+                )
+            )
+
+            if not looks_like_section_table:
+                continue
+
+            try:
+                row_count = table.rowCount()
+            except Exception:
+                continue
+
+            for row_index in range(row_count):
+                raw_row: dict = {}
+
+                for col_index, header in enumerate(headers):
+                    if not header:
+                        continue
+
+                    try:
+                        item = table.item(row_index, col_index)
+                    except Exception:
+                        item = None
+
+                    raw_row[header] = self._clean_proportioned_table_item_text_v1(
+                        item
+                    )
+
+                if any(value not in ("", "—") for value in raw_row.values()):
+                    rows.append(
+                        self._normalise_clean_proportioned_section_source_row_v1(
+                            raw_row
+                        )
+                    )
+
+        return rows
+
+    def set_clean_proportioned_focused_section_source_rows_v1(
+            self,
+            rows: list[dict],
+    ) -> None:
+        """
+        H-S33-L:
+        Store explicit focused-section source rows.
+
+        Adapter wiring can use this later; this milestone can also discover
+        existing visible section evidence from current tables.
+        """
+        self._clean_proportioned_focused_section_source_rows = [
+            self._normalise_clean_proportioned_section_source_row_v1(row)
+            for row in rows
+        ]
+
+        self._refresh_clean_proportioned_focused_section_view_v1()
+
+    def _clean_proportioned_section_source_rows_v1(self) -> list[dict]:
+        """
+        H-S33-L:
+        Return focused-section source rows, preferring explicit rows when set,
+        otherwise discovering existing section evidence from visible tables.
+        """
+        explicit_rows = getattr(
+            self,
+            "_clean_proportioned_focused_section_source_rows",
+            None,
+        )
+
+        if explicit_rows:
+            return list(explicit_rows)
+
+        return self._clean_proportioned_section_source_rows_from_tables_v1()
+
+    def _clean_proportioned_route_matches_section_row_v1(
+            self,
+            *,
+            route_label: str,
+            row: dict,
+    ) -> bool:
+        """
+        H-S33-L:
+        Match a focused route label against a section row route/subleg label.
+        """
+        route_text = str(route_label or "").strip().lower()
+        row_route = str(row.get("route", "") or "").strip().lower()
+
+        if not route_text or not row_route or row_route == "—":
+            return False
+
+        return (
+            route_text == row_route
+            or route_text in row_route
+            or row_route in route_text
+        )
+
+    def _clean_proportioned_section_rows_for_view_v1(
+            self,
+            *,
+            mode: str,
+            route_label: str,
+            source_rows: list[dict],
+    ) -> list[dict]:
+        """
+        H-S33-L:
+        Apply the clean section view mode.
+
+        Selected route only:
+            returns matching route/subleg rows only.
+
+        All routes:
+            returns all available section rows.
+        """
+        if mode == "All routes":
+            return list(source_rows)
+
+        if not route_label:
+            return []
+
+        return [
+            row
+            for row in source_rows
+            if self._clean_proportioned_route_matches_section_row_v1(
+                route_label=route_label,
+                row=row,
+            )
+        ]
+
+
+
     def _refresh_clean_proportioned_focused_section_view_v1(self) -> None:
         """
-        H-S33-K:
-        Refresh the focused route/subleg pipe-section shell.
+        H-S33-L:
+        Refresh the focused route/subleg pipe-section table from existing
+        section evidence where available.
 
-        This milestone shows the intended drill-down surface only:
-        selected-route-only or all-routes. Real pipe/section rows are
-        populated later.
+        This remains read-only display wiring:
+        • no new hydraulic calculation
+        • no ProjectState mutation
+        • no valve product / Kv / Kvs
+        • no pump selection
+        • no pipe resizing
         """
         if not hasattr(self, "_clean_proportioned_focused_section_table"):
             return
 
         mode = self._clean_proportioned_section_view_mode_v1()
         route_label = self._clean_proportioned_focused_route_label_v1()
+        source_rows = self._clean_proportioned_section_source_rows_v1()
+
+        rows = self._clean_proportioned_section_rows_for_view_v1(
+            mode=mode,
+            route_label=route_label,
+            source_rows=source_rows,
+        )
 
         if mode == "All routes":
             label_text = "Focused route: all routes"
-            route_cell = "All routes"
-            status = (
-                "Pipe-section view shell — all routes; "
-                "section evidence population pending"
-            )
+
+            if rows:
+                status_rows = rows
+            else:
+                status_rows = [
+                    {
+                        "route": "All routes",
+                        "section": "—",
+                        "from": "—",
+                        "to": "—",
+                        "flow_kg_s": "—",
+                        "pipe_dn": "—",
+                        "dp_per_m": "—",
+                        "length": "—",
+                        "k": "—",
+                        "section_dp": "—",
+                        "status": (
+                            "No pipe-section evidence rows available yet"
+                        ),
+                    }
+                ]
+
         elif route_label:
             label_text = f"Focused route: {route_label}"
-            route_cell = route_label
-            status = (
-                "Pipe-section view shell — selected route only; "
-                "section evidence population pending"
-            )
+
+            if rows:
+                status_rows = rows
+            else:
+                status_rows = [
+                    {
+                        "route": route_label,
+                        "section": "—",
+                        "from": "—",
+                        "to": "—",
+                        "flow_kg_s": "—",
+                        "pipe_dn": "—",
+                        "dp_per_m": "—",
+                        "length": "—",
+                        "k": "—",
+                        "section_dp": "—",
+                        "status": (
+                            "No matching pipe-section rows available for "
+                            "selected route yet"
+                        ),
+                    }
+                ]
+
         else:
             label_text = "Focused route: —"
-            route_cell = "—"
-            status = "Select a route row above to show its pipe sections"
-
-        if hasattr(self, "_clean_proportioned_focused_section_label"):
-            try:
-                self._clean_proportioned_focused_section_label.setText(
-                    label_text
-                )
-            except Exception:
-                pass
-
-        self._set_clean_proportioned_focused_section_rows_v1(
-            [
+            status_rows = [
                 {
-                    "route": route_cell,
+                    "route": "—",
                     "section": "—",
                     "from": "—",
                     "to": "—",
@@ -5462,10 +5791,21 @@ class HydronicsSchematicPanel(QWidget):
                     "length": "—",
                     "k": "—",
                     "section_dp": "—",
-                    "status": status,
+                    "status": (
+                        "Select a route row above to show its pipe sections"
+                    ),
                 }
             ]
-        )
+
+        if hasattr(self, "_clean_proportioned_focused_section_label"):
+            try:
+                self._clean_proportioned_focused_section_label.setText(
+                    label_text
+                )
+            except Exception:
+                pass
+
+        self._set_clean_proportioned_focused_section_rows_v1(status_rows)
 
 
 
