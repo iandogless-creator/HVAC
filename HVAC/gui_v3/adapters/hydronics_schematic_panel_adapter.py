@@ -1627,6 +1627,433 @@ class HydronicsSchematicPanelAdapter:
 
         return "Preview route output evidence only"
 
+    def _clean_proportioned_adapter_first_value_v1(
+            self,
+            row: dict,
+            *keys: str,
+    ) -> str:
+        """
+        H-S33-M:
+        Read the first available display value from an adapter evidence row.
+
+        Display mapping only:
+            no new hydraulic calculation
+            no ProjectState mutation
+            no pipe resizing
+        """
+        if not isinstance(row, dict):
+            return "—"
+
+        for key in keys:
+            if key in row and row.get(key) not in (None, ""):
+                return str(row.get(key)).strip()
+
+        wanted = {
+            str(key or "").strip().lower()
+            for key in keys
+        }
+
+        for row_key, value in row.items():
+            if str(row_key or "").strip().lower() in wanted:
+                if value not in (None, ""):
+                    return str(value).strip()
+
+        return "—"
+
+    def _normalise_clean_proportioned_adapter_section_row_v1(
+            self,
+            row: dict,
+    ) -> dict:
+        """
+        H-S33-M:
+        Normalise adapter-held pipe/section evidence into the focused
+        clean Proportioned section-table schema.
+
+        Adapter wiring only:
+            no new hydraulic calculation
+            no valve product / Kv / Kvs
+            no pump selection
+            no pipe resizing
+            no ProjectState mutation
+        """
+        route = self._clean_proportioned_adapter_first_value_v1(
+            row,
+            "route",
+            "Route",
+            "route_label",
+            "Route label",
+            "subleg",
+            "Subleg",
+            "subleg_label",
+            "Subleg label",
+            "target",
+            "Target",
+            "scope",
+            "Scope",
+        )
+
+        return {
+            "route": route,
+            "section": self._clean_proportioned_adapter_first_value_v1(
+                row,
+                "section",
+                "Section",
+                "section_id",
+                "section_label",
+                "order",
+                "Order",
+            ),
+            "from": self._clean_proportioned_adapter_first_value_v1(
+                row,
+                "from",
+                "From",
+                "from_label",
+                "from_node",
+            ),
+            "to": self._clean_proportioned_adapter_first_value_v1(
+                row,
+                "to",
+                "To",
+                "to_label",
+                "to_node",
+            ),
+            "flow_kg_s": self._clean_proportioned_adapter_first_value_v1(
+                row,
+                "flow_kg_s",
+                "Flow kg/s",
+                "flow",
+                "mass_flow_kg_s",
+            ),
+            "pipe_dn": self._clean_proportioned_adapter_first_value_v1(
+                row,
+                "pipe_dn",
+                "Pipe DN",
+                "pipe",
+                "Pipe",
+                "dn",
+            ),
+            "dp_per_m": self._clean_proportioned_adapter_first_value_v1(
+                row,
+                "dp_per_m",
+                "Δp/m",
+                "dp_m",
+                "pressure_gradient",
+            ),
+            "length": self._clean_proportioned_adapter_first_value_v1(
+                row,
+                "length",
+                "Length",
+                "length_m",
+            ),
+            "k": self._clean_proportioned_adapter_first_value_v1(
+                row,
+                "k",
+                "K",
+                "local_k",
+                "k_total",
+            ),
+            "section_dp": self._clean_proportioned_adapter_first_value_v1(
+                row,
+                "section_dp",
+                "Section Δp",
+                "section_dp_pa",
+                "total_dp",
+            ),
+            "iter": self._clean_proportioned_adapter_first_value_v1(
+                row,
+                "iter",
+                "Iter",
+                "colebrook_iter",
+                "colebrook_iterations",
+                "iteration_count",
+                "iterations",
+                "friction_iterations",
+            ),
+            "status": self._clean_proportioned_adapter_first_value_v1(
+                row,
+                "status",
+                "Status",
+            ),
+        }
+
+    def _clean_proportioned_adapter_mapping_from_object_v1(
+            self,
+            value: object,
+    ) -> dict:
+        """
+        H-S33-M:
+        Convert dict-like/dataclass-like evidence objects to a mapping.
+        """
+        if isinstance(value, dict):
+            return value
+
+        if hasattr(value, "__dict__"):
+            try:
+                return dict(vars(value))
+            except Exception:
+                return {}
+
+        return {}
+
+    def _clean_proportioned_adapter_row_looks_like_section_v1(
+            self,
+            row: dict,
+    ) -> bool:
+        """
+        H-S33-M:
+        Identify pipe/section evidence rows without relying on one brittle
+        adapter attribute name.
+        """
+        if not isinstance(row, dict):
+            return False
+
+        keys = {
+            str(key or "").strip().lower()
+            for key in row.keys()
+        }
+
+        has_from = bool(
+            keys.intersection(
+                {
+                    "from",
+                    "from_label",
+                    "from_node",
+                }
+            )
+        )
+        has_to = bool(
+            keys.intersection(
+                {
+                    "to",
+                    "to_label",
+                    "to_node",
+                }
+            )
+        )
+        has_section_evidence = bool(
+            keys.intersection(
+                {
+                    "section",
+                    "section_id",
+                    "section_label",
+                    "order",
+                    "flow_kg_s",
+                    "flow kg/s",
+                    "mass_flow_kg_s",
+                    "pipe_dn",
+                    "pipe dn",
+                    "dp_per_m",
+                    "Δp/m",
+                    "length",
+                    "length_m",
+                    "k",
+                    "section_dp",
+                    "section Δp",
+                    "section_dp_pa",
+                    "iter",
+                    "colebrook_iter",
+                    "colebrook_iterations",
+                    "iteration_count",
+                    "iterations",
+                    "friction_iterations",
+                }
+            )
+        )
+
+        return has_from and has_to and has_section_evidence
+
+    def _iter_clean_proportioned_adapter_section_rows_v1(
+            self,
+            value: object,
+            *,
+            depth: int = 0,
+            seen: set[int] | None = None,
+    ):
+        """
+        H-S33-M:
+        Walk adapter evidence structures and yield section-like rows.
+
+        Defensive traversal only. Qt/panel objects are not walked.
+        """
+        if seen is None:
+            seen = set()
+
+        if depth > 6:
+            return
+
+        value_id = id(value)
+
+        if value_id in seen:
+            return
+
+        seen.add(value_id)
+
+        if isinstance(value, dict):
+            if self._clean_proportioned_adapter_row_looks_like_section_v1(
+                    value
+            ):
+                yield self._normalise_clean_proportioned_adapter_section_row_v1(
+                    value
+                )
+
+            for child in value.values():
+                yield from self._iter_clean_proportioned_adapter_section_rows_v1(
+                    child,
+                    depth=depth + 1,
+                    seen=seen,
+                )
+            return
+
+        if isinstance(value, (list, tuple, set)):
+            for child in value:
+                yield from self._iter_clean_proportioned_adapter_section_rows_v1(
+                    child,
+                    depth=depth + 1,
+                    seen=seen,
+                )
+            return
+
+        mapping = self._clean_proportioned_adapter_mapping_from_object_v1(
+            value
+        )
+
+        if mapping:
+            yield from self._iter_clean_proportioned_adapter_section_rows_v1(
+                mapping,
+                depth=depth + 1,
+                seen=seen,
+            )
+
+    def _clean_proportioned_adapter_section_source_objects_v1(self) -> list:
+        """
+        H-S33-M:
+        Gather likely adapter-held section evidence sources.
+
+        This deliberately avoids walking the panel/widget tree.
+        """
+        sources = []
+
+        for attr_name, value in vars(self).items():
+            attr_key = str(attr_name or "").lower()
+
+            if attr_key in {
+                "_panel",
+                "panel",
+                "_view",
+                "view",
+                "_window",
+                "window",
+            }:
+                continue
+
+            if any(
+                    token in attr_key
+                    for token in (
+                        "section",
+                        "snapshot",
+                        "proportion",
+                        "route",
+                        "basis",
+                        "preview",
+                        "burden",
+                        "pressure",
+                        "input",
+                    )
+            ):
+                sources.append(value)
+
+        return sources
+
+    def _build_clean_proportioned_focused_section_source_rows_v1(
+            self,
+            *,
+            source_objects: list | None = None,
+    ) -> list[dict]:
+        """
+        H-S33-M:
+        Build focused pipe/section source rows for the clean Proportioned tab.
+
+        This is adapter display wiring only:
+            no ProjectState mutation
+            no new hydraulic calculation
+            no valve product / Kv / Kvs
+            no pump selection
+            no pipe resizing
+        """
+        if source_objects is None:
+            source_objects = (
+                self._clean_proportioned_adapter_section_source_objects_v1()
+            )
+
+        rows: list[dict] = []
+
+        for source in source_objects:
+            rows.extend(
+                list(
+                    self._iter_clean_proportioned_adapter_section_rows_v1(
+                        source
+                    )
+                )
+            )
+
+        unique_rows: list[dict] = []
+        seen_keys: set[tuple] = set()
+
+        columns = (
+            "route",
+            "section",
+            "from",
+            "to",
+            "flow_kg_s",
+            "pipe_dn",
+            "dp_per_m",
+            "length",
+            "k",
+            "section_dp",
+            "iter",
+            "status",
+        )
+
+        for row in rows:
+            key = tuple(
+                str(row.get(column, "") or "")
+                for column in columns
+            )
+
+            if key in seen_keys:
+                continue
+
+            seen_keys.add(key)
+            unique_rows.append(row)
+
+        return unique_rows
+
+    def _push_clean_proportioned_focused_section_source_rows_v1(self) -> None:
+        """
+        H-S33-M:
+        Push adapter-held focused pipe/section source rows into the clean
+        Proportioned panel section view.
+
+        If no rows are available, the panel keeps its H-S33-L fallback /
+        placeholder behaviour.
+        """
+        panel = getattr(self, "_panel", None)
+
+        if panel is None:
+            return
+
+        if not hasattr(
+                panel,
+                "set_clean_proportioned_focused_section_source_rows_v1",
+        ):
+            return
+
+        rows = self._build_clean_proportioned_focused_section_source_rows_v1()
+
+        panel.set_clean_proportioned_focused_section_source_rows_v1(rows)
+
+
+
     def _build_clean_proportioned_route_output_rows_v1(
             self,
             *,
@@ -4039,7 +4466,7 @@ class HydronicsSchematicPanelAdapter:
                 else "—"
             )
 
-            link_labels.append(f"{flow_text}\n{size_text}")
+            link_labels.append(f"{flow_text}\n        self._push_clean_proportioned_focused_section_source_rows_v1()\n{size_text}")
 
         excluded = list(
             getattr(index_route, "excluded_room_labels", tuple()) or tuple()
