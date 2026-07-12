@@ -650,6 +650,7 @@ class HydronicsSchematicPanel(QWidget):
                 "Length",
                 "K",
                 "Section Δp",
+                "Iter",
                 "Status",
             ]
         )
@@ -5337,6 +5338,7 @@ class HydronicsSchematicPanel(QWidget):
             80,   # Length
             55,   # K
             95,   # Section Δp
+            55,   # Iter
             330,  # Status
         ]
 
@@ -5377,6 +5379,7 @@ class HydronicsSchematicPanel(QWidget):
             "length",
             "k",
             "section_dp",
+            "iter",
             "status",
         ]
 
@@ -5516,6 +5519,15 @@ class HydronicsSchematicPanel(QWidget):
                 "section_dp_pa",
                 "total_dp",
             ),
+            "iter": first_value(
+                "iter",
+                "Iter",
+                "colebrook_iter",
+                "colebrook_iterations",
+                "iteration_count",
+                "iterations",
+                "friction_iterations",
+            ),
             "status": first_value(
                 "status",
                 "Status",
@@ -5642,9 +5654,13 @@ class HydronicsSchematicPanel(QWidget):
         )
 
         if explicit_rows:
-            return list(explicit_rows)
+            return self._enrich_clean_proportioned_section_route_labels_v1(
+                list(explicit_rows)
+            )
 
-        return self._clean_proportioned_section_source_rows_from_tables_v1()
+        return self._enrich_clean_proportioned_section_route_labels_v1(
+            self._clean_proportioned_section_source_rows_from_tables_v1()
+        )
 
     def _clean_proportioned_route_matches_section_row_v1(
             self,
@@ -5702,6 +5718,182 @@ class HydronicsSchematicPanel(QWidget):
 
 
 
+    def _clean_proportioned_route_labels_from_output_table_v1(self) -> list[str]:
+        """
+        H-S33-M1:
+        Read clean route labels from the clean Proportioned route-output table.
+        """
+        if not hasattr(self, "_clean_proportioned_route_output_table"):
+            return []
+
+        table = self._clean_proportioned_route_output_table
+        labels: list[str] = []
+
+        try:
+            row_count = table.rowCount()
+        except Exception:
+            return []
+
+        for row_index in range(row_count):
+            label = self._clean_proportioned_route_label_for_row_v1(row_index)
+
+            if label and label not in labels:
+                labels.append(label)
+
+        return labels
+
+    def _clean_proportioned_route_token_from_text_v1(
+            self,
+            text: object,
+    ) -> str:
+        """
+        H-S33-M1:
+        Extract route token from labels such as:
+            Leg 1A Common subleg
+            R1 L1A-R01
+            L2B
+        """
+        import re
+
+        value = str(text or "").upper()
+
+        match = re.search(r"\bL\s*(\d+[A-Z])\b", value)
+
+        if match:
+            return match.group(1)
+
+        match = re.search(r"\bLEG\s*(\d+[A-Z])\b", value)
+
+        if match:
+            return match.group(1)
+
+        return ""
+
+    def _infer_clean_proportioned_route_label_for_section_row_v1(
+            self,
+            row: dict,
+    ) -> str:
+        """
+        H-S33-M1:
+        Infer section-row route label from endpoint text when the source
+        section evidence does not already carry a route/subleg label.
+
+        Display matching only:
+        • no hydraulic calculation
+        • no ProjectState mutation
+        • no pipe resizing
+        """
+        existing = str(row.get("route", "") or "").strip()
+
+        if existing and existing != "—":
+            return existing
+
+        endpoint_text = " ".join(
+            str(row.get(key, "") or "")
+            for key in (
+                "from",
+                "to",
+                "section",
+                "status",
+            )
+        )
+
+        section_token = self._clean_proportioned_route_token_from_text_v1(
+            endpoint_text
+        )
+
+        if not section_token:
+            return existing or "—"
+
+        for route_label in self._clean_proportioned_route_labels_from_output_table_v1():
+            route_token = self._clean_proportioned_route_token_from_text_v1(
+                route_label
+            )
+
+            if route_token and route_token == section_token:
+                return route_label
+
+        return existing or "—"
+
+    def _enrich_clean_proportioned_section_route_labels_v1(
+            self,
+            rows: list[dict],
+    ) -> list[dict]:
+        """
+        H-S33-M1:
+        Add inferred route labels to section rows where possible.
+        """
+        enriched: list[dict] = []
+
+        for row in rows:
+            new_row = dict(row)
+            new_row["route"] = (
+                self._infer_clean_proportioned_route_label_for_section_row_v1(
+                    new_row
+                )
+            )
+            enriched.append(new_row)
+
+        return enriched
+
+
+
+    def _clean_proportioned_section_row_has_engineering_values_v1(
+            self,
+            row: dict,
+    ) -> bool:
+        """
+        H-S33-M3:
+        True when a focused section row carries real pipe/section engineering
+        evidence rather than only endpoint/schematic text.
+
+        Display filtering only:
+        • no hydraulic calculation
+        • no ProjectState mutation
+        • no pipe resizing
+        """
+        for key in (
+            "flow_kg_s",
+            "pipe_dn",
+            "dp_per_m",
+            "length",
+            "k",
+            "section_dp",
+            "iter",
+        ):
+            value = str(row.get(key, "") or "").strip()
+
+            if value and value not in {"—", "-"}:
+                return True
+
+        return False
+
+    def _clean_proportioned_prefer_engineering_section_rows_v1(
+            self,
+            rows: list[dict],
+    ) -> list[dict]:
+        """
+        H-S33-M3:
+        Prefer real pipe/section evidence rows over endpoint-only rows.
+
+        If no engineering rows exist yet, keep the original rows so the
+        fallback/placeholder behaviour remains visible.
+        """
+        engineering_rows = [
+            row
+            for row in rows
+            if self._clean_proportioned_section_row_has_engineering_values_v1(
+                row
+            )
+        ]
+
+        if engineering_rows:
+            return engineering_rows
+
+        return rows
+
+
+
     def _refresh_clean_proportioned_focused_section_view_v1(self) -> None:
         """
         H-S33-L:
@@ -5727,6 +5919,9 @@ class HydronicsSchematicPanel(QWidget):
             route_label=route_label,
             source_rows=source_rows,
         )
+        rows = self._clean_proportioned_prefer_engineering_section_rows_v1(
+            rows
+        )
 
         if mode == "All routes":
             label_text = "Focused route: all routes"
@@ -5746,6 +5941,7 @@ class HydronicsSchematicPanel(QWidget):
                         "length": "—",
                         "k": "—",
                         "section_dp": "—",
+                        "iter": "—",
                         "status": (
                             "No pipe-section evidence rows available yet"
                         ),
@@ -5770,6 +5966,7 @@ class HydronicsSchematicPanel(QWidget):
                         "length": "—",
                         "k": "—",
                         "section_dp": "—",
+                        "iter": "—",
                         "status": (
                             "No matching pipe-section rows available for "
                             "selected route yet"
@@ -5791,6 +5988,7 @@ class HydronicsSchematicPanel(QWidget):
                     "length": "—",
                     "k": "—",
                     "section_dp": "—",
+                    "iter": "—",
                     "status": (
                         "Select a route row above to show its pipe sections"
                     ),
