@@ -14,6 +14,7 @@ def main() -> None:
 
     assert "def _clean_proportioned_section_row_has_engineering_values_v1" in source
     assert "def _clean_proportioned_prefer_engineering_section_rows_v1" in source
+    assert "_clean_proportioned_prefer_engineering_section_rows_v1(" in source
 
     panel = HydronicsSchematicPanel.__new__(HydronicsSchematicPanel)
 
