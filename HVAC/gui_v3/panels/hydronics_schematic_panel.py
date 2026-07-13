@@ -5353,6 +5353,35 @@ class HydronicsSchematicPanel(QWidget):
         except AttributeError:
             pass
 
+    def _clean_proportioned_section_display_row_v1(
+            self,
+            row: dict,
+    ) -> dict:
+        """
+        H-S33-M5A:
+        Final display guard for focused section rows.
+
+        Iter means Colebrook iteration count only. Even if an upstream
+        adapter/source row already carries an iter value, the final table
+        display must suppress it unless the row explicitly says Colebrook.
+
+        Display guard only:
+        • no hydraulic calculation
+        • no ProjectState mutation
+        • no pipe resizing
+        """
+        display_row = dict(row or {})
+
+        display_row["iter"] = self._clean_proportioned_iter_display_value_v1(
+            row=display_row,
+            raw_iter=display_row.get("iter", "—"),
+            status=display_row.get("status", "—"),
+        )
+
+        return display_row
+
+
+
     def _set_clean_proportioned_focused_section_rows_v1(
             self,
             rows: list[dict],
@@ -5386,8 +5415,10 @@ class HydronicsSchematicPanel(QWidget):
         table.setRowCount(len(rows))
 
         for row_index, row in enumerate(rows):
+            display_row = self._clean_proportioned_section_display_row_v1(row)
+
             values = [
-                row.get(column, "—")
+                display_row.get(column, "—")
                 for column in columns
             ]
 
