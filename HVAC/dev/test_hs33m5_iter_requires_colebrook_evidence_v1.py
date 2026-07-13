@@ -23,11 +23,14 @@ def main() -> None:
 
     haaland_row = panel._normalise_clean_proportioned_section_source_row_v1(
         {
-            "Route": "Leg 1A Common subleg",
-            "From": "L1A-R01",
-            "To": "L1A-R02",
+            "Route": "Leg 1B Branch subleg",
+            "From": "L1B-R01",
+            "To": "L1B-R02",
             "colebrook_iter": "6",
-            "Status": "Branch-aware carried-flow basis / First-pass Haaland estimate",
+            "Status": (
+                "Branch-aware carried-flow basis / "
+                "First-pass Haaland estimate"
+            ),
         }
     )
 
@@ -35,9 +38,9 @@ def main() -> None:
 
     unknown_row = panel._normalise_clean_proportioned_section_source_row_v1(
         {
-            "Route": "Leg 1A Common subleg",
-            "From": "L1A-R01",
-            "To": "L1A-R02",
+            "Route": "Leg 1B Branch subleg",
+            "From": "L1B-R01",
+            "To": "L1B-R02",
             "iteration_count": "5",
             "Status": "Existing section evidence",
         }
@@ -47,9 +50,9 @@ def main() -> None:
 
     colebrook_row = panel._normalise_clean_proportioned_section_source_row_v1(
         {
-            "Route": "Leg 1A Common subleg",
-            "From": "L1A-R01",
-            "To": "L1A-R02",
+            "Route": "Leg 1B Branch subleg",
+            "From": "L1B-R01",
+            "To": "L1B-R02",
             "colebrook_iter": "7",
             "Status": "Colebrook friction solve converged",
         }
@@ -59,9 +62,9 @@ def main() -> None:
 
     method_row = panel._normalise_clean_proportioned_section_source_row_v1(
         {
-            "Route": "Leg 1A Common subleg",
-            "From": "L1A-R01",
-            "To": "L1A-R02",
+            "Route": "Leg 1B Branch subleg",
+            "From": "L1B-R01",
+            "To": "L1B-R02",
             "iteration_count": "4",
             "friction_method": "Colebrook",
         }
