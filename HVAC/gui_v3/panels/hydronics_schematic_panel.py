@@ -5423,6 +5423,66 @@ class HydronicsSchematicPanel(QWidget):
         except Exception:
             return str(item or "").strip()
 
+    def _clean_proportioned_iter_display_value_v1(
+            self,
+            *,
+            row: dict,
+            raw_iter: object,
+            status: object = "",
+    ) -> str:
+        """
+        H-S33-M5:
+        Display Iter only when the row explicitly represents a Colebrook
+        friction solve.
+
+        Iter means Colebrook iteration count only:
+        • Haaland / first-pass Haaland rows show —
+        • unknown method rows show —
+        • no hydraulic calculation is performed here
+        • no ProjectState mutation
+        """
+        iter_text = str(raw_iter or "").strip()
+
+        if not iter_text or iter_text in {"—", "-"}:
+            return "—"
+
+        evidence_parts: list[str] = []
+
+        for key in (
+            "friction_method",
+            "Friction method",
+            "method",
+            "Method",
+            "solver",
+            "Solver",
+            "status",
+            "Status",
+            "friction_status",
+            "Friction status",
+            "calculation_method",
+            "Calculation method",
+            "source",
+            "Source",
+            "note",
+            "Note",
+            "notes",
+            "Notes",
+        ):
+            if key in row and row.get(key) not in (None, ""):
+                evidence_parts.append(str(row.get(key)))
+
+        if status:
+            evidence_parts.append(str(status))
+
+        evidence_text = " ".join(evidence_parts).lower()
+
+        if "colebrook" not in evidence_text:
+            return "—"
+
+        return iter_text
+
+
+
     def _normalise_clean_proportioned_section_source_row_v1(
             self,
             row: dict,
@@ -5519,14 +5579,21 @@ class HydronicsSchematicPanel(QWidget):
                 "section_dp_pa",
                 "total_dp",
             ),
-            "iter": first_value(
-                "iter",
-                "Iter",
-                "colebrook_iter",
-                "colebrook_iterations",
-                "iteration_count",
-                "iterations",
-                "friction_iterations",
+            "iter": self._clean_proportioned_iter_display_value_v1(
+                row=row,
+                raw_iter=first_value(
+                    "iter",
+                    "Iter",
+                    "colebrook_iter",
+                    "colebrook_iterations",
+                    "iteration_count",
+                    "iterations",
+                    "friction_iterations",
+                ),
+                status=first_value(
+                    "status",
+                    "Status",
+                ),
             ),
             "status": first_value(
                 "status",
@@ -5894,6 +5961,32 @@ class HydronicsSchematicPanel(QWidget):
 
 
 
+    def _clean_proportioned_focused_section_count_label_v1(
+            self,
+            *,
+            base_label: str,
+            rows: list[dict],
+    ) -> str:
+        """
+        H-S33-M4:
+        Build the focused section view label with a visible section count.
+
+        Display polish only:
+        • no hydraulic calculation
+        • no ProjectState mutation
+        • no pipe resizing
+        """
+        count = len(rows or [])
+
+        if count <= 0:
+            return f"{base_label} — no sections available"
+
+        suffix = "section" if count == 1 else "sections"
+
+        return f"{base_label} — showing {count} {suffix}"
+
+
+
     def _refresh_clean_proportioned_focused_section_view_v1(self) -> None:
         """
         H-S33-L:
@@ -5924,7 +6017,10 @@ class HydronicsSchematicPanel(QWidget):
         )
 
         if mode == "All routes":
-            label_text = "Focused route: all routes"
+            label_text = self._clean_proportioned_focused_section_count_label_v1(
+                base_label="Focused route: all routes",
+                rows=rows,
+            )
 
             if rows:
                 status_rows = rows
@@ -5949,7 +6045,10 @@ class HydronicsSchematicPanel(QWidget):
                 ]
 
         elif route_label:
-            label_text = f"Focused route: {route_label}"
+            label_text = self._clean_proportioned_focused_section_count_label_v1(
+                base_label=f"Focused route: {route_label}",
+                rows=rows,
+            )
 
             if rows:
                 status_rows = rows

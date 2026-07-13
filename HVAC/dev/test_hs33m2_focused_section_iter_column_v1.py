@@ -34,7 +34,7 @@ def main() -> None:
             "K": "1.5",
             "Section Δp": "1029.0 Pa",
             "colebrook_iter": "7",
-            "Status": "Existing section evidence",
+            "Status": "Colebrook friction solve converged",
         }
     )
 
@@ -46,6 +46,7 @@ def main() -> None:
             "From": "Boiler / Heat Source",
             "To": "Kitchen",
             "iteration_count": 5,
+            "friction_method": "Colebrook",
         }
     )
 

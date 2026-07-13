@@ -1660,6 +1660,62 @@ class HydronicsSchematicPanelAdapter:
 
         return "—"
 
+    def _clean_proportioned_adapter_iter_display_value_v1(
+            self,
+            *,
+            row: dict,
+            raw_iter: object,
+            status: object = "",
+    ) -> str:
+        """
+        H-S33-M5:
+        Display Iter only when adapter evidence explicitly represents a
+        Colebrook friction solve.
+
+        Iter means Colebrook iteration count only.
+        """
+        iter_text = str(raw_iter or "").strip()
+
+        if not iter_text or iter_text in {"—", "-"}:
+            return "—"
+
+        evidence_parts: list[str] = []
+
+        for key in (
+            "friction_method",
+            "Friction method",
+            "method",
+            "Method",
+            "solver",
+            "Solver",
+            "status",
+            "Status",
+            "friction_status",
+            "Friction status",
+            "calculation_method",
+            "Calculation method",
+            "source",
+            "Source",
+            "note",
+            "Note",
+            "notes",
+            "Notes",
+        ):
+            if key in row and row.get(key) not in (None, ""):
+                evidence_parts.append(str(row.get(key)))
+
+        if status:
+            evidence_parts.append(str(status))
+
+        evidence_text = " ".join(evidence_parts).lower()
+
+        if "colebrook" not in evidence_text:
+            return "—"
+
+        return iter_text
+
+
+
     def _normalise_clean_proportioned_adapter_section_row_v1(
             self,
             row: dict,
@@ -1759,15 +1815,23 @@ class HydronicsSchematicPanelAdapter:
                 "section_dp_pa",
                 "total_dp",
             ),
-            "iter": self._clean_proportioned_adapter_first_value_v1(
-                row,
-                "iter",
-                "Iter",
-                "colebrook_iter",
-                "colebrook_iterations",
-                "iteration_count",
-                "iterations",
-                "friction_iterations",
+            "iter": self._clean_proportioned_adapter_iter_display_value_v1(
+                row=row,
+                raw_iter=self._clean_proportioned_adapter_first_value_v1(
+                    row,
+                    "iter",
+                    "Iter",
+                    "colebrook_iter",
+                    "colebrook_iterations",
+                    "iteration_count",
+                    "iterations",
+                    "friction_iterations",
+                ),
+                status=self._clean_proportioned_adapter_first_value_v1(
+                    row,
+                    "status",
+                    "Status",
+                ),
             ),
             "status": self._clean_proportioned_adapter_first_value_v1(
                 row,
