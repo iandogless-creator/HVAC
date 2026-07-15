@@ -596,6 +596,53 @@ class HydronicsSchematicPanel(QWidget):
 
         self._configure_clean_proportioned_route_output_table_v1()
 
+        # --------------------------------------------------
+        # H-S34-B — separate clean Proportioned schematic
+        # --------------------------------------------------
+        # This is a second widget instance. It deliberately does not use
+        # the existing Proportioning schematic focus callback.
+        #
+        # Display only:
+        # • no ProjectState mutation
+        # • no hydraulic recalculation
+        # • no pipe resizing
+        # • no pump or valve selection
+        self._clean_proportioned_common_main_leg_subleg_schematic_widget = (
+            CommonMainLegSublegSchematicWidgetV1(self)
+        )
+
+        self._clean_proportioned_common_main_leg_subleg_schematic_scroll = (
+            QScrollArea(self)
+        )
+        self._clean_proportioned_common_main_leg_subleg_schematic_scroll.setWidgetResizable(
+            False
+        )
+        self._clean_proportioned_common_main_leg_subleg_schematic_scroll.setFrameShape(
+            QFrame.NoFrame
+        )
+        self._clean_proportioned_common_main_leg_subleg_schematic_scroll.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarAsNeeded
+        )
+        self._clean_proportioned_common_main_leg_subleg_schematic_scroll.setVerticalScrollBarPolicy(
+            Qt.ScrollBarAsNeeded
+        )
+        self._clean_proportioned_common_main_leg_subleg_schematic_scroll.setWidget(
+            self._clean_proportioned_common_main_leg_subleg_schematic_widget
+        )
+
+        self._add_section(
+            self._clean_proportioned_tab,
+            title=(
+                "Proportioned hydronic topology schematic "
+                "— read-only"
+            ),
+            table=(
+                self._clean_proportioned_common_main_leg_subleg_schematic_scroll
+            ),
+            min_height=300,
+            expanded=True,
+        )
+
         self._clean_proportioned_section_view_controls = QWidget()
         controls_layout = QHBoxLayout(
             self._clean_proportioned_section_view_controls
@@ -4140,6 +4187,24 @@ class HydronicsSchematicPanel(QWidget):
             schematic
         )
 
+        # H-S34-B:
+        # Feed the same display-only DTO to the separate clean
+        # Proportioned schematic instance. Focus state remains local to
+        # each widget instance.
+        clean_proportioned_schematic = getattr(
+            self,
+            "_clean_proportioned_common_main_leg_subleg_schematic_widget",
+            None,
+        )
+
+        if clean_proportioned_schematic is not None:
+            clean_proportioned_schematic.set_schematic(schematic)
+
+        # H-S34-G: retain the clean display DTO for route-focus resolution.
+        # This remains transient display state and is never persisted.
+        self._clean_proportioned_schematic_dto_v1 = schematic
+        self._refresh_clean_proportioned_schematic_focus_v1()
+
     def set_common_main_leg_subleg_rows(self, rows: list[dict]) -> None:
         """
         H-S19-J:
@@ -5121,6 +5186,95 @@ class HydronicsSchematicPanel(QWidget):
         self._clean_proportioned_focused_route_label = str(
             route_label or ""
         ).strip()
+
+        # H-S34-G: every present or future clean route-selection surface uses
+        # this central state setter, so the clean schematic follows without
+        # direct table-to-widget coupling.
+        self._refresh_clean_proportioned_schematic_focus_v1()
+
+    def _clean_proportioned_schematic_route_token_v1(
+            self,
+            value: object,
+    ) -> str:
+        # Reuse the H-S33 table token convention first, then recognise the
+        # separate schematic DTO's labels such as "Subleg 1B".
+        token = self._clean_proportioned_route_token_from_text_v1(value)
+
+        if token:
+            return token
+
+        import re
+
+        match = re.search(
+            r"\bSUBLEG\s*(\d+[A-Z])\b",
+            str(value or "").upper(),
+        )
+
+        return match.group(1) if match else ""
+
+    def _clean_proportioned_schematic_focus_for_route_label_v1(
+            self,
+            route_label: object,
+    ) -> dict | None:
+        # Resolve the clean route label to stable IDs from the display DTO.
+        route_token = self._clean_proportioned_schematic_route_token_v1(
+            route_label
+        )
+
+        if not route_token:
+            return None
+
+        schematic = getattr(
+            self,
+            "_clean_proportioned_schematic_dto_v1",
+            None,
+        )
+        routes = tuple(getattr(schematic, "routes", ()) or ())
+
+        for route in routes:
+            candidate_values = (
+                getattr(route, "route_label", ""),
+                getattr(route, "subleg_label", ""),
+                getattr(route, "subleg_id", ""),
+            )
+            candidate_tokens = {
+                self._clean_proportioned_schematic_route_token_v1(value)
+                for value in candidate_values
+                if str(value or "").strip()
+            }
+
+            if route_token not in candidate_tokens:
+                continue
+
+            return {
+                "leg_id": str(getattr(route, "leg_id", "") or ""),
+                "subleg_id": str(
+                    getattr(route, "subleg_id", "") or ""
+                ),
+                "room_id": "",
+            }
+
+        return None
+
+    def _refresh_clean_proportioned_schematic_focus_v1(self) -> None:
+        # Apply shared route-focus state only to the separate clean schematic.
+        schematic_widget = getattr(
+            self,
+            "_clean_proportioned_common_main_leg_subleg_schematic_widget",
+            None,
+        )
+
+        if schematic_widget is None or not hasattr(
+                schematic_widget,
+                "set_focus",
+        ):
+            return
+
+        route_label = self._clean_proportioned_focused_route_label_v1()
+        focus = self._clean_proportioned_schematic_focus_for_route_label_v1(
+            route_label
+        )
+        schematic_widget.set_focus(focus)
 
     def _clean_proportioned_route_label_for_row_v1(self, row_index: int) -> str:
         """
