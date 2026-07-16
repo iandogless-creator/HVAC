@@ -15,6 +15,9 @@ from HVAC.hydronics.sizing.basic_ps_pipe_sizing_v1 import (
     BasicPSPipeSizingProjectionV1,
     build_basic_ps_pipe_sizing_v1,
 )
+from HVAC.hydronics.sizing.basic_ps_velocity_limit_resolver_v1 import (
+    resolve_basic_ps_max_velocity_v1,
+)
 from HVAC.hydronics.sizing.basic_ps_pressure_preview_v1 import (
     BasicPSPressurePreviewProjectionV1,
     build_basic_ps_pressure_preview_v1,
@@ -85,8 +88,24 @@ def build_basic_ps_readonly_projection_v1(
         subleg_id=subleg_id,
     )
 
+    velocity_resolutions = tuple(
+        resolve_basic_ps_max_velocity_v1(
+            project_state,
+            section_id=section.section_id,
+        )
+        for section in sections_projection.sections
+    )
+
     pipe_sizing_projection = build_basic_ps_pipe_sizing_v1(
         sections_projection.sections,
+        max_velocity_m_s_by_section_id={
+            resolution.section_id: resolution.effective_max_velocity_m_s
+            for resolution in velocity_resolutions
+        },
+        max_velocity_source_by_section_id={
+            resolution.section_id: resolution.source
+            for resolution in velocity_resolutions
+        },
     )
 
     pressure_preview_projection = build_basic_ps_pressure_preview_v1(

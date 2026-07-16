@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from typing import Iterable
+from typing import Iterable, Mapping
 
 from HVAC.hydronics.sizing.basic_ps_topology_sections_v1 import (
     BasicPSTopologySectionV1,
@@ -66,6 +66,10 @@ class BasicPSPipeSizingResultV1:
     friction_factor: float
     pressure_gradient_Pa_per_m: float
 
+    # H-S37-B3 — Applied first-pass selection criterion evidence.
+    applied_max_velocity_m_s: float = 1.0
+    max_velocity_source: str = "Function argument"
+
     is_index_room: bool = False
     is_terminal: bool = False
     status: str = "First-pass Haaland estimate"
@@ -110,6 +114,9 @@ def build_basic_ps_pipe_sizing_v1(
     *,
     pipe_candidates: Iterable[BasicPSPipeCandidateV1] = DEFAULT_PIPE_CANDIDATES,
     max_velocity_m_s: float = 1.0,
+    max_velocity_source: str = "Function argument",
+    max_velocity_m_s_by_section_id: Mapping[str, float] | None = None,
+    max_velocity_source_by_section_id: Mapping[str, str] | None = None,
     min_velocity_m_s: float = 0.15,
     water_density_kg_m3: float = WATER_DENSITY_KG_M3,
     water_dynamic_viscosity_Pa_s: float = WATER_DYNAMIC_VISCOSITY_PA_S,
@@ -134,13 +141,26 @@ def build_basic_ps_pipe_sizing_v1(
     if not candidate_tuple:
         raise ValueError("At least one pipe candidate is required")
 
+    velocity_by_section = dict(max_velocity_m_s_by_section_id or {})
+    source_by_section = dict(max_velocity_source_by_section_id or {})
+
     results: list[BasicPSPipeSizingResultV1] = []
 
     for section in sections:
+        section_max_velocity = velocity_by_section.get(
+            section.section_id,
+            max_velocity_m_s,
+        )
+        section_max_velocity_source = source_by_section.get(
+            section.section_id,
+            max_velocity_source,
+        )
+
         result = size_basic_ps_section_v1(
             section,
             pipe_candidates=candidate_tuple,
-            max_velocity_m_s=max_velocity_m_s,
+            max_velocity_m_s=section_max_velocity,
+            max_velocity_source=section_max_velocity_source,
             min_velocity_m_s=min_velocity_m_s,
             water_density_kg_m3=water_density_kg_m3,
             water_dynamic_viscosity_Pa_s=water_dynamic_viscosity_Pa_s,
@@ -159,6 +179,7 @@ def size_basic_ps_section_v1(
     *,
     pipe_candidates: Iterable[BasicPSPipeCandidateV1] = DEFAULT_PIPE_CANDIDATES,
     max_velocity_m_s: float = 1.0,
+    max_velocity_source: str = "Function argument",
     min_velocity_m_s: float = 0.15,
     water_density_kg_m3: float = WATER_DENSITY_KG_M3,
     water_dynamic_viscosity_Pa_s: float = WATER_DYNAMIC_VISCOSITY_PA_S,
@@ -171,6 +192,14 @@ def size_basic_ps_section_v1(
     """
 
     candidate_tuple = tuple(pipe_candidates)
+
+    max_velocity_m_s = float(max_velocity_m_s)
+    if not math.isfinite(max_velocity_m_s) or max_velocity_m_s <= 0.0:
+        raise ValueError("max_velocity_m_s must be finite and greater than zero")
+
+    max_velocity_source = str(max_velocity_source or "").strip()
+    if not max_velocity_source:
+        raise ValueError("max_velocity_source is required")
 
     if section.carried_flow_kg_s <= 0.0:
         candidate = candidate_tuple[0]
@@ -187,6 +216,8 @@ def size_basic_ps_section_v1(
             reynolds_number=reynolds,
             friction_factor=friction_factor,
             pressure_gradient_Pa_per_m=pressure_gradient,
+            applied_max_velocity_m_s=max_velocity_m_s,
+            max_velocity_source=max_velocity_source,
             status=status,
         )
 
@@ -244,6 +275,8 @@ def size_basic_ps_section_v1(
         reynolds_number=selected_reynolds,
         friction_factor=selected_friction_factor,
         pressure_gradient_Pa_per_m=selected_pressure_gradient,
+        applied_max_velocity_m_s=max_velocity_m_s,
+        max_velocity_source=max_velocity_source,
         status=selected_status,
     )
 
@@ -338,6 +371,8 @@ def _result_from_values(
     reynolds_number: float,
     friction_factor: float,
     pressure_gradient_Pa_per_m: float,
+    applied_max_velocity_m_s: float,
+    max_velocity_source: str,
     status: str,
 ) -> BasicPSPipeSizingResultV1:
     return BasicPSPipeSizingResultV1(
@@ -353,7 +388,12 @@ def _result_from_values(
         reynolds_number=reynolds_number,
         friction_factor=friction_factor,
         pressure_gradient_Pa_per_m=pressure_gradient_Pa_per_m,
+        applied_max_velocity_m_s=applied_max_velocity_m_s,
+        max_velocity_source=max_velocity_source,
         is_index_room=section.is_index_room,
         is_terminal=section.is_terminal,
-        status=status,
+        status=(
+            f"{status} / Maximum velocity "
+            f"{applied_max_velocity_m_s:.2f} m/s — {max_velocity_source}"
+        ),
     )
