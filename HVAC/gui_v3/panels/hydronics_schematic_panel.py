@@ -58,6 +58,7 @@ from PySide6.QtGui import (
 
 from PySide6.QtWidgets import (
     QWidget,
+    QDialog,
     QFrame,
     QLabel,
     QPushButton,
@@ -76,6 +77,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QComboBox,
     QDoubleSpinBox,
+    QSplitter,
 )
 
 from HVAC.gui_v3.schematic.dto import (
@@ -529,9 +531,38 @@ class HydronicsSchematicPanel(QWidget):
         outer_layout.setContentsMargins(0, 0, 0, 0)
         outer_layout.setSpacing(0)
 
-        title = QLabel("Hydronics schematic")
+        # H-S35-A2 — fixed table-viewer launcher.
+        # This header sits outside every scrollable tab, keeping the action
+        # visible without overlay geometry or event-filter ownership.
+        header = QWidget(self)
+        header_layout = QHBoxLayout(header)
+        header_layout.setContentsMargins(0, 0, 4, 0)
+        header_layout.setSpacing(8)
+
+        title = QLabel("Hydronics schematic", header)
         title.setStyleSheet("font-weight:600; padding:6px;")
-        outer_layout.addWidget(title)
+        header_layout.addWidget(title)
+        header_layout.addStretch(1)
+
+        self._clean_proportioned_table_viewer_button = QPushButton(
+            "Open Proportioned table viewer",
+            header,
+        )
+        self._clean_proportioned_table_viewer_button.setToolTip(
+            "Open the draggable, resizable read-only Proportioned "
+            "table window."
+        )
+        self._clean_proportioned_table_viewer_button.setStyleSheet(
+            "QPushButton { font-weight: 600; padding: 5px 10px; }"
+        )
+        self._clean_proportioned_table_viewer_button.clicked.connect(
+            self._show_clean_proportioned_table_viewer_v1
+        )
+        header_layout.addWidget(
+            self._clean_proportioned_table_viewer_button
+        )
+
+        outer_layout.addWidget(header)
 
         self._tabs = QTabWidget(self)
         outer_layout.addWidget(self._tabs)
@@ -553,6 +584,8 @@ class HydronicsSchematicPanel(QWidget):
                 "is held in Proportioning Data."
             )
         )
+
+        # H-S35-A viewer launcher is held in the fixed panel header.
 
         self._clean_proportioned_output_table = self._make_table(
             columns=[
@@ -5191,6 +5224,9 @@ class HydronicsSchematicPanel(QWidget):
         # this central state setter, so the clean schematic follows without
         # direct table-to-widget coupling.
         self._refresh_clean_proportioned_schematic_focus_v1()
+        self._sync_clean_proportioned_route_selection_v1(
+            self._clean_proportioned_focused_route_label_v1()
+        )
 
     def _clean_proportioned_schematic_route_token_v1(
             self,
@@ -5275,6 +5311,363 @@ class HydronicsSchematicPanel(QWidget):
             route_label
         )
         schematic_widget.set_focus(focus)
+
+
+    def _build_clean_proportioned_table_viewer_v1(self) -> None:
+        """
+        H-S35-A:
+        Build one reusable non-modal clean Proportioned table viewer.
+
+        The viewer owns duplicate read-only table projections. It never
+        reparents the embedded tables and carries no engineering authority.
+        """
+        if getattr(self, "_clean_proportioned_table_viewer_dialog", None):
+            return
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Proportioned data viewer — read-only")
+        dialog.setModal(False)
+        dialog.setWindowModality(Qt.NonModal)
+        dialog.resize(1280, 720)
+
+        layout = QVBoxLayout(dialog)
+        layout.setContentsMargins(8, 8, 8, 8)
+        layout.setSpacing(6)
+
+        notice = QLabel(
+            "Display-only Proportioned route and pipe-section evidence. "
+            "Selection is shared with the Proportioned schematic.",
+            dialog,
+        )
+        notice.setWordWrap(True)
+        layout.addWidget(notice)
+
+        controls = QHBoxLayout()
+        controls.setContentsMargins(0, 0, 0, 0)
+        controls.addWidget(QLabel("Pipe-section view:", dialog))
+
+        mode_combo = QComboBox(dialog)
+        mode_combo.addItems(["Selected route only", "All routes"])
+        controls.addWidget(mode_combo)
+
+        focus_label = QLabel("Focused route: —", dialog)
+        controls.addWidget(focus_label, 1)
+        layout.addLayout(controls)
+
+        splitter = QSplitter(Qt.Vertical, dialog)
+        splitter.setChildrenCollapsible(False)
+
+        route_frame = QFrame(splitter)
+        route_frame.setFrameShape(QFrame.StyledPanel)
+        route_layout = QVBoxLayout(route_frame)
+        route_layout.setContentsMargins(4, 4, 4, 4)
+        route_layout.addWidget(QLabel(
+            "Proportioned route output — read-only",
+            route_frame,
+        ))
+
+        route_table = self._make_table(
+            columns=[
+                "Route",
+                "Basis",
+                "Sections",
+                "Flow kg/s",
+                "Pipe DN",
+                "Δp/m",
+                "Chosen Δp",
+                "Added Δp",
+                "Authority",
+                "Status",
+            ]
+        )
+        route_table.setWordWrap(False)
+        route_table.setAlternatingRowColors(True)
+        self._apply_clean_proportioned_table_focus_style_v1(route_table)
+        route_table.setToolTip(
+            "Read-only duplicate of the clean Proportioned route output."
+        )
+        route_layout.addWidget(route_table)
+
+        section_frame = QFrame(splitter)
+        section_frame.setFrameShape(QFrame.StyledPanel)
+        section_layout = QVBoxLayout(section_frame)
+        section_layout.setContentsMargins(4, 4, 4, 4)
+        section_layout.addWidget(QLabel(
+            "Focused route / subleg sections — read-only",
+            section_frame,
+        ))
+
+        section_table = self._make_table(
+            columns=[
+                "Route",
+                "Section",
+                "From",
+                "To",
+                "Flow kg/s",
+                "Pipe DN",
+                "Δp/m",
+                "Length",
+                "K",
+                "Section Δp",
+                "Iter",
+                "Status",
+            ]
+        )
+        section_table.setWordWrap(False)
+        section_table.setAlternatingRowColors(True)
+        self._apply_clean_proportioned_table_focus_style_v1(section_table)
+        section_table.setToolTip(
+            "Read-only duplicate of the focused pipe-section evidence."
+        )
+        section_layout.addWidget(section_table)
+
+        splitter.addWidget(route_frame)
+        splitter.addWidget(section_frame)
+        splitter.setSizes([270, 390])
+        layout.addWidget(splitter, 1)
+
+        self._clean_proportioned_table_viewer_dialog = dialog
+        self._clean_proportioned_table_viewer_mode_combo = mode_combo
+        self._clean_proportioned_table_viewer_focus_label = focus_label
+        self._clean_proportioned_table_viewer_route_table = route_table
+        self._clean_proportioned_table_viewer_section_table = section_table
+
+        mode_combo.currentTextChanged.connect(
+            self._on_clean_proportioned_table_viewer_mode_changed_v1
+        )
+        route_table.itemSelectionChanged.connect(
+            self._on_clean_proportioned_table_viewer_route_selection_changed_v1
+        )
+
+    @staticmethod
+    def _copy_clean_proportioned_table_projection_v1(
+            source_table: object,
+            target_table: object,
+    ) -> None:
+        """Copy one read-only table projection without sharing ownership."""
+        if source_table is None or target_table is None:
+            return
+
+        previous_signal_state = target_table.blockSignals(True)
+
+        try:
+            column_count = source_table.columnCount()
+            row_count = source_table.rowCount()
+
+            target_table.setColumnCount(column_count)
+            target_table.setHorizontalHeaderLabels(
+                [
+                    str(source_table.horizontalHeaderItem(index).text())
+                    if source_table.horizontalHeaderItem(index) is not None
+                    else ""
+                    for index in range(column_count)
+                ]
+            )
+            target_table.setRowCount(row_count)
+
+            for row_index in range(row_count):
+                target_table.setRowHeight(
+                    row_index,
+                    source_table.rowHeight(row_index),
+                )
+
+                for column_index in range(column_count):
+                    source_item = source_table.item(row_index, column_index)
+                    item = (
+                        QTableWidgetItem(source_item)
+                        if source_item is not None
+                        else QTableWidgetItem("—")
+                    )
+                    item.setFlags(item.flags() & ~Qt.ItemIsEditable)
+                    target_table.setItem(row_index, column_index, item)
+
+            for column_index in range(column_count):
+                target_table.setColumnWidth(
+                    column_index,
+                    source_table.columnWidth(column_index),
+                )
+
+            target_table.horizontalHeader().setStretchLastSection(
+                source_table.horizontalHeader().stretchLastSection()
+            )
+        finally:
+            target_table.blockSignals(previous_signal_state)
+
+    def _refresh_clean_proportioned_table_viewer_v1(self) -> None:
+        """Refresh the optional H-S35-A viewer from embedded projections."""
+        dialog = getattr(
+            self,
+            "_clean_proportioned_table_viewer_dialog",
+            None,
+        )
+
+        if dialog is None:
+            return
+
+        self._copy_clean_proportioned_table_projection_v1(
+            getattr(self, "_clean_proportioned_route_output_table", None),
+            getattr(
+                self,
+                "_clean_proportioned_table_viewer_route_table",
+                None,
+            ),
+        )
+        self._copy_clean_proportioned_table_projection_v1(
+            getattr(
+                self,
+                "_clean_proportioned_focused_section_table",
+                None,
+            ),
+            getattr(
+                self,
+                "_clean_proportioned_table_viewer_section_table",
+                None,
+            ),
+        )
+
+        source_label = getattr(
+            self,
+            "_clean_proportioned_focused_section_label",
+            None,
+        )
+        target_label = getattr(
+            self,
+            "_clean_proportioned_table_viewer_focus_label",
+            None,
+        )
+
+        if source_label is not None and target_label is not None:
+            target_label.setText(source_label.text())
+
+        source_combo = getattr(
+            self,
+            "_clean_proportioned_section_view_mode_combo",
+            None,
+        )
+        target_combo = getattr(
+            self,
+            "_clean_proportioned_table_viewer_mode_combo",
+            None,
+        )
+
+        if source_combo is not None and target_combo is not None:
+            previous_signal_state = target_combo.blockSignals(True)
+            try:
+                target_combo.setCurrentText(source_combo.currentText())
+            finally:
+                target_combo.blockSignals(previous_signal_state)
+
+        self._sync_clean_proportioned_route_selection_v1(
+            self._clean_proportioned_focused_route_label_v1()
+        )
+
+    def _sync_clean_proportioned_route_selection_v1(
+            self,
+            route_label: object,
+    ) -> None:
+        """Mirror transient route focus without recursive selection signals."""
+        label = str(route_label or "").strip()
+
+        for attribute_name in (
+            "_clean_proportioned_route_output_table",
+            "_clean_proportioned_table_viewer_route_table",
+        ):
+            table = getattr(self, attribute_name, None)
+
+            if table is None:
+                continue
+
+            # H-S35-A1: minimal table doubles used by focused regressions do
+            # not expose the complete QWidget/QTableWidget signal API.
+            required_methods = (
+                "blockSignals",
+                "clearSelection",
+                "rowCount",
+                "item",
+            )
+
+            if not all(hasattr(table, name) for name in required_methods):
+                continue
+
+            previous_signal_state = table.blockSignals(True)
+
+            try:
+                table.clearSelection()
+
+                if not label:
+                    continue
+
+                for row_index in range(table.rowCount()):
+                    item = table.item(row_index, 0)
+
+                    if item is None or str(item.text() or "").strip() != label:
+                        continue
+
+                    table.selectRow(row_index)
+                    table.setCurrentCell(row_index, 0)
+                    table.scrollToItem(item)
+                    break
+            finally:
+                table.blockSignals(previous_signal_state)
+
+    def _on_clean_proportioned_table_viewer_route_selection_changed_v1(
+            self,
+    ) -> None:
+        """Use viewer route selection as another transient focus surface."""
+        table = getattr(
+            self,
+            "_clean_proportioned_table_viewer_route_table",
+            None,
+        )
+
+        if table is None:
+            return
+
+        row_index = table.currentRow()
+
+        if row_index < 0:
+            return
+
+        item = table.item(row_index, 0)
+        route_label = str(item.text() if item is not None else "").strip()
+
+        if not route_label or route_label == "—":
+            return
+
+        self._set_clean_proportioned_focused_route_label_v1(route_label)
+        self._refresh_clean_proportioned_focused_section_view_v1()
+
+    def _on_clean_proportioned_table_viewer_mode_changed_v1(
+            self,
+            mode_text: object,
+    ) -> None:
+        """Mirror the viewer's display mode through the embedded control."""
+        source_combo = getattr(
+            self,
+            "_clean_proportioned_section_view_mode_combo",
+            None,
+        )
+
+        if source_combo is None:
+            return
+
+        value = str(mode_text or "").strip()
+
+        if source_combo.currentText() != value:
+            source_combo.setCurrentText(value)
+        else:
+            self._refresh_clean_proportioned_focused_section_view_v1()
+
+    def _show_clean_proportioned_table_viewer_v1(self) -> None:
+        """Show and activate the reusable draggable H-S35-A viewer."""
+        self._build_clean_proportioned_table_viewer_v1()
+        self._refresh_clean_proportioned_table_viewer_v1()
+
+        dialog = self._clean_proportioned_table_viewer_dialog
+        dialog.show()
+        dialog.raise_()
+        dialog.activateWindow()
+
 
     def _clean_proportioned_route_label_for_row_v1(self, row_index: int) -> str:
         """
@@ -6125,8 +6518,13 @@ class HydronicsSchematicPanel(QWidget):
             rows: list[dict],
     ) -> list[dict]:
         """
-        H-S33-M3:
+        H-S33-M3 / H-S35-A3:
         Prefer real pipe/section evidence rows over endpoint-only rows.
+
+        H-S35-A3: prefer named sections over matching fallbacks. When a
+        numbered/named engineering row and an unnumbered discovered fallback
+        share the same route and From → To endpoints, retain the named row and
+        omit only its weaker fallback duplicate.
 
         If no engineering rows exist yet, keep the original rows so the
         fallback/placeholder behaviour remains visible.
@@ -6139,10 +6537,40 @@ class HydronicsSchematicPanel(QWidget):
             )
         ]
 
-        if engineering_rows:
-            return engineering_rows
+        if not engineering_rows:
+            return rows
 
-        return rows
+        def row_identity(row: dict) -> tuple[str, str, str] | None:
+            values = tuple(
+                str(row.get(key, "") or "").strip().casefold()
+                for key in ("route", "from", "to")
+            )
+
+            if any(value in {"", "—", "-"} for value in values):
+                return None
+
+            return values
+
+        def has_named_section(row: dict) -> bool:
+            value = str(row.get("section", "") or "").strip()
+            return value not in {"", "—", "-"}
+
+        named_identities = {
+            identity
+            for row in engineering_rows
+            if has_named_section(row)
+            for identity in (row_identity(row),)
+            if identity is not None
+        }
+
+        return [
+            row
+            for row in engineering_rows
+            if (
+                has_named_section(row)
+                or row_identity(row) not in named_identities
+            )
+        ]
 
 
 
@@ -6288,6 +6716,7 @@ class HydronicsSchematicPanel(QWidget):
                 pass
 
         self._set_clean_proportioned_focused_section_rows_v1(status_rows)
+        self._refresh_clean_proportioned_table_viewer_v1()
 
 
 
