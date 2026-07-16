@@ -51,6 +51,9 @@ class EnvironmentPanel(QWidget):
     design_flow_temp_changed = Signal(float)
     design_return_temp_changed = Signal(float)
 
+    # H-S37-B1 — Environment-owned Basic PS default intent
+    basic_ps_max_velocity_changed = Signal(float)
+
     # ------------------------------------------------------------------
     # Construction
     # ------------------------------------------------------------------
@@ -128,6 +131,17 @@ class EnvironmentPanel(QWidget):
             self.design_return_temp_changed.emit
         )
 
+        # H-S37-B1 — Basic PS inherited maximum pipe velocity
+        self._basic_ps_max_velocity_input = QDoubleSpinBox(self)
+        self._basic_ps_max_velocity_input.setRange(0.10, 5.00)
+        self._basic_ps_max_velocity_input.setDecimals(2)
+        self._basic_ps_max_velocity_input.setSingleStep(0.05)
+        self._basic_ps_max_velocity_input.setMinimumWidth(110)
+        self._basic_ps_max_velocity_input.setValue(1.00)
+        self._basic_ps_max_velocity_input.valueChanged.connect(
+            self.basic_ps_max_velocity_changed.emit
+        )
+
         # --------------------------------------------------
         # Top form (Te only)
         # --------------------------------------------------
@@ -176,6 +190,10 @@ class EnvironmentPanel(QWidget):
             "Design return temperature (°C)",
             self._design_return_temp_input,
         )
+        form_hydronic.addRow(
+            "Basic PS maximum pipe velocity (m/s)",
+            self._basic_ps_max_velocity_input,
+        )
         root.addLayout(form_hydronic)
 
         root.addStretch(1)
@@ -212,3 +230,10 @@ class EnvironmentPanel(QWidget):
         self._design_return_temp_input.blockSignals(True)
         self._design_return_temp_input.setValue(value if value is not None else 65.0)
         self._design_return_temp_input.blockSignals(False)
+
+    def set_basic_ps_max_velocity(self, value: Optional[float]) -> None:
+        self._basic_ps_max_velocity_input.blockSignals(True)
+        self._basic_ps_max_velocity_input.setValue(
+            value if value is not None else 1.0
+        )
+        self._basic_ps_max_velocity_input.blockSignals(False)

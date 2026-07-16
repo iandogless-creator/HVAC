@@ -34,6 +34,9 @@ class EnvironmentPanelAdapter:
         panel.default_ach_changed.connect(self._on_default_ach_changed)
         panel.design_flow_temp_changed.connect(self._on_design_flow_temp_changed)
         panel.design_return_temp_changed.connect(self._on_design_return_temp_changed)
+        panel.basic_ps_max_velocity_changed.connect(
+            self._on_basic_ps_max_velocity_changed
+        )
 
     # ------------------------------------------------------------------
     # Observer refresh
@@ -72,6 +75,10 @@ class EnvironmentPanelAdapter:
 
         self._panel.set_design_return_temp(
             getattr(env, "design_return_temp_c", None)
+        )
+
+        self._panel.set_basic_ps_max_velocity(
+            getattr(env, "basic_ps_max_velocity_m_s", 1.0)
         )
 
     # ------------------------------------------------------------------
@@ -161,4 +168,15 @@ class EnvironmentPanelAdapter:
         env.design_return_temp_c = value
 
         # Hydronic design temperatures do not affect fabric heat-loss.
+        self._context.environment_changed.emit()
+
+    # ------------------------------------------------------------------
+    # H-S37-B1 — Basic PS maximum velocity default intent
+    # ------------------------------------------------------------------
+
+    def _on_basic_ps_max_velocity_changed(self, value: float) -> None:
+        env = self._ensure_env()
+        env.basic_ps_max_velocity_m_s = value
+
+        # Basic PS intent does not affect fabric heat-loss.
         self._context.environment_changed.emit()

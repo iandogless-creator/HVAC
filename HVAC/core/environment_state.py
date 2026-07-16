@@ -31,6 +31,10 @@ class EnvironmentStateV1:
     design_flow_temp_c: Optional[float] = 75.0
     design_return_temp_c: Optional[float] = 65.0
 
+    # H-S37-B1 — Inherited Basic PS first-pass velocity criterion.
+    # Local section overrides are a later, separate intent stage.
+    basic_ps_max_velocity_m_s: Optional[float] = 1.0
+
     def to_dict(self) -> dict:
         return {
             "external_design_temp_C": self.external_design_temp_C,
@@ -39,6 +43,7 @@ class EnvironmentStateV1:
             "default_ach": self.default_ach,
             "design_flow_temp_c": self.design_flow_temp_c,
             "design_return_temp_c": self.design_return_temp_c,
+            "basic_ps_max_velocity_m_s": self.basic_ps_max_velocity_m_s,
         }
 
     @classmethod
@@ -50,4 +55,8 @@ class EnvironmentStateV1:
             default_ach=data.get("default_ach"),
             design_flow_temp_c=data.get("design_flow_temp_c", 75.0),
             design_return_temp_c=data.get("design_return_temp_c", 65.0),
+            basic_ps_max_velocity_m_s=data.get(
+                "basic_ps_max_velocity_m_s",
+                1.0,
+            ),
         )
