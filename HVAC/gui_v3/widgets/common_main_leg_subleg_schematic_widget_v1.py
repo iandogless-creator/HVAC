@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import textwrap
 
 from PySide6.QtCore import QPointF, QRectF, Qt
 from PySide6.QtGui import (
@@ -26,7 +27,7 @@ from PySide6.QtGui import (
     QPainter,
     QPen,
 )
-from PySide6.QtWidgets import QWidget
+from PySide6.QtWidgets import QToolTip, QWidget
 
 
 @dataclass(frozen=True)
@@ -153,6 +154,17 @@ class CommonMainLegSublegSchematicWidgetV1(QWidget):
         self._room_hit_rects: list[tuple[QRectF, dict[str, str]]] = []
         self._subleg_hit_rects: list[tuple[QRectF, dict[str, str]]] = []
 
+        # H-S36-B — schematic section-evidence hover.
+        # Hit rectangles exist only for mapped room-entry trace segments.
+        self._section_trace_hit_rects: list[
+            tuple[
+                QRectF,
+                CommonMainLegSublegRouteV1,
+                CommonMainLegSublegSectionEvidenceV1,
+            ]
+        ] = []
+        self._hovered_section_trace_key: tuple[str, int, str] | None = None
+
         self.setMinimumSize(
             self._MIN_CANVAS_WIDTH,
             self._BASE_CANVAS_HEIGHT,
@@ -164,6 +176,9 @@ class CommonMainLegSublegSchematicWidgetV1(QWidget):
             schematic: CommonMainLegSublegSchematicV1 | None,
     ) -> None:
         self._schematic = schematic
+        self._hovered_section_trace_key = None
+        self._section_trace_hit_rects = []
+        QToolTip.hideText()
 
         routes = list(getattr(schematic, "routes", ()) or ())
         route_count = len(routes)
@@ -301,6 +316,7 @@ class CommonMainLegSublegSchematicWidgetV1(QWidget):
 
         self._room_hit_rects = []
         self._subleg_hit_rects = []
+        self._section_trace_hit_rects = []
 
         schematic = self._schematic
 
@@ -680,6 +696,100 @@ class CommonMainLegSublegSchematicWidgetV1(QWidget):
 
         return QPen(QColor(120, 120, 120), 1.8)
 
+
+    @staticmethod
+    def _section_evidence_for_trace_index_v1(
+            route: CommonMainLegSublegRouteV1,
+            trace_index: int,
+    ) -> CommonMainLegSublegSectionEvidenceV1 | None:
+        """Return existing evidence for one mapped room-entry trace."""
+        for evidence in tuple(
+                getattr(route, "section_evidence", ()) or ()
+        ):
+            if int(getattr(evidence, "trace_index", -1)) == int(trace_index):
+                return evidence
+
+        return None
+
+    @staticmethod
+    def _section_evidence_key_v1(
+            route: CommonMainLegSublegRouteV1,
+            evidence: CommonMainLegSublegSectionEvidenceV1,
+    ) -> tuple[str, int, str]:
+        return (
+            str(getattr(route, "subleg_id", "") or ""),
+            int(getattr(evidence, "trace_index", -1)),
+            str(getattr(evidence, "section_id", "") or ""),
+        )
+
+    @staticmethod
+    def _section_evidence_tooltip_text_v1(
+            route: CommonMainLegSublegRouteV1,
+            evidence: CommonMainLegSublegSectionEvidenceV1,
+    ) -> str:
+        """Format existing evidence only; no engineering derivation."""
+        def shown(value: object) -> str:
+            text = str(value or "").strip()
+            return text if text and text not in {"-", "—"} else "—"
+
+        status = shown(getattr(evidence, "status", ""))
+        status_lines = textwrap.wrap(status, width=72) or ["—"]
+        ordinal = int(getattr(evidence, "section_ordinal", 0) or 0)
+        route_label = shown(
+            getattr(route, "subleg_label", "")
+            or getattr(route, "subleg_id", "")
+        )
+
+        lines = [
+            f"{route_label} — Section {ordinal or '—'}",
+            f"From: {shown(getattr(evidence, 'from_label', ''))}",
+            f"To: {shown(getattr(evidence, 'to_label', ''))}",
+            f"Flow: {shown(getattr(evidence, 'flow_kg_s', ''))}",
+            f"Pipe DN: {shown(getattr(evidence, 'pipe_dn', ''))}",
+            f"Δp/m: {shown(getattr(evidence, 'dp_per_m', ''))}",
+            f"Length: {shown(getattr(evidence, 'length', ''))}",
+            f"K: {shown(getattr(evidence, 'k', ''))}",
+            f"Section Δp: {shown(getattr(evidence, 'section_dp', ''))}",
+            f"Iter: {shown(getattr(evidence, 'iter', ''))}",
+            f"Status: {status_lines[0]}",
+        ]
+        lines.extend(f"        {line}" for line in status_lines[1:])
+        return "\n".join(lines)
+
+    def _register_section_trace_hit_rect_v1(
+            self,
+            *,
+            rect: QRectF,
+            route: CommonMainLegSublegRouteV1,
+            trace_index: int,
+    ) -> CommonMainLegSublegSectionEvidenceV1 | None:
+        evidence = self._section_evidence_for_trace_index_v1(
+            route,
+            trace_index,
+        )
+
+        if evidence is not None:
+            self._section_trace_hit_rects.append((rect, route, evidence))
+
+        return evidence
+
+    def _section_trace_pen_v1(
+            self,
+            *,
+            default_pen: QPen,
+            route: CommonMainLegSublegRouteV1,
+            evidence: CommonMainLegSublegSectionEvidenceV1 | None,
+    ) -> QPen:
+        if evidence is None:
+            return default_pen
+
+        evidence_key = self._section_evidence_key_v1(route, evidence)
+
+        if evidence_key == self._hovered_section_trace_key:
+            return QPen(QColor(35, 125, 185), 3.2)
+
+        return default_pen
+
     def _paint_route(
             self,
             painter: QPainter,
@@ -775,7 +885,25 @@ class CommonMainLegSublegSchematicWidgetV1(QWidget):
                 + self._SUBLEG_TO_ROOM_GAP
             )
 
-            painter.setPen(trace_pen)
+            first_trace_evidence = (
+                self._register_section_trace_hit_rect_v1(
+                    rect=QRectF(
+                        previous_x,
+                        line_y - 7.0,
+                        first_room_x - previous_x,
+                        14.0,
+                    ),
+                    route=route,
+                    trace_index=0,
+                )
+            )
+            painter.setPen(
+                self._section_trace_pen_v1(
+                    default_pen=trace_pen,
+                    route=route,
+                    evidence=first_trace_evidence,
+                )
+            )
             painter.drawLine(
                 QPointF(previous_x, line_y),
                 QPointF(first_room_x, line_y),
@@ -842,8 +970,26 @@ class CommonMainLegSublegSchematicWidgetV1(QWidget):
                             or index <= focused_room_index
                         )
                     )
+                    connector_evidence = (
+                        self._register_section_trace_hit_rect_v1(
+                            rect=QRectF(
+                                prev_right,
+                                line_y - 7.0,
+                                x - prev_right,
+                                14.0,
+                            ),
+                            route=route,
+                            trace_index=index,
+                        )
+                    )
                     painter.setPen(
-                        self._trace_pen(focused=connector_focused)
+                        self._section_trace_pen_v1(
+                            default_pen=self._trace_pen(
+                                focused=connector_focused
+                            ),
+                            route=route,
+                            evidence=connector_evidence,
+                        )
                     )
                     painter.drawLine(
                         QPointF(prev_right, line_y),
@@ -1053,6 +1199,45 @@ class CommonMainLegSublegSchematicWidgetV1(QWidget):
             Qt.AlignLeft | Qt.AlignVCenter,
             status,
         )
+
+
+    def mouseMoveEvent(self, event) -> None:  # noqa: N802
+        pos = event.position()
+
+        for rect, route, evidence in reversed(
+                self._section_trace_hit_rects
+        ):
+            if not rect.contains(pos):
+                continue
+
+            evidence_key = self._section_evidence_key_v1(route, evidence)
+
+            if evidence_key != self._hovered_section_trace_key:
+                self._hovered_section_trace_key = evidence_key
+                self.update()
+
+            QToolTip.showText(
+                event.globalPosition().toPoint(),
+                self._section_evidence_tooltip_text_v1(route, evidence),
+                self,
+            )
+            event.accept()
+            return
+
+        if self._hovered_section_trace_key is not None:
+            self._hovered_section_trace_key = None
+            QToolTip.hideText()
+            self.update()
+
+        event.accept()
+
+    def leaveEvent(self, event) -> None:  # noqa: N802
+        if self._hovered_section_trace_key is not None:
+            self._hovered_section_trace_key = None
+            self.update()
+
+        QToolTip.hideText()
+        event.accept()
 
     def mousePressEvent(self, event) -> None:  # noqa: N802
         if event.button() != Qt.LeftButton:
