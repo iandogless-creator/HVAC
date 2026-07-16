@@ -105,6 +105,9 @@ from HVAC.gui_v3.widgets.common_main_leg_subleg_schematic_widget_v1 import (
     CommonMainLegSublegRouteV1,
     CommonMainLegSublegSchematicV1,
 )
+from HVAC.hydronics.proportioning.section_route_identity_v1 import (
+    infer_section_route_identity_v1,
+)
 from HVAC.hydronics.proportioning.return_arrangement_acceptance_intent_v1 import (
     DIRECT_RETURN,
     REVERSE_RETURN,
@@ -933,6 +936,13 @@ class HydronicsSchematicPanelAdapter:
         )
 
         # --------------------------------------------------
+        # H-S36-A1 — explicit section-evidence delivery
+        # --------------------------------------------------
+        # Run after the adapter pass has assembled its read-only evidence.
+        # This is display wiring only; no calculation or ProjectState change.
+        self._push_clean_proportioned_focused_section_source_rows_v1()
+
+        # --------------------------------------------------
         # Legacy drawn topology schematic
         # --------------------------------------------------
         snapshot = self._resolve_topology_snapshot()
@@ -1732,6 +1742,20 @@ class HydronicsSchematicPanelAdapter:
             no pipe resizing
             no ProjectState mutation
         """
+        # H-S36-A1 — explicit section-evidence delivery.
+        # Preserve stable identity alongside display text. Identity inference
+        # is deterministic and does not model branch take-off geometry.
+        identity = infer_section_route_identity_v1(row)
+
+        def stable_value(value: object, inferred: object = "") -> str:
+            text = str(value or "").strip()
+
+            if text and text not in {"—", "-"}:
+                return text
+
+            inferred_text = str(inferred or "").strip()
+            return inferred_text or "—"
+
         route = self._clean_proportioned_adapter_first_value_v1(
             row,
             "route",
@@ -1747,17 +1771,51 @@ class HydronicsSchematicPanelAdapter:
             "scope",
             "Scope",
         )
+        route = stable_value(
+            route,
+            identity.route_code or identity.subleg_id,
+        )
+
+        section_id = self._clean_proportioned_adapter_first_value_v1(
+            row,
+            "section_id",
+        )
 
         return {
             "route": route,
+            "section_id": stable_value(section_id),
+            "route_code": stable_value(
+                row.get("route_code"),
+                identity.route_code,
+            ),
+            "leg_id": stable_value(
+                row.get("leg_id"),
+                identity.leg_id,
+            ),
+            "subleg_id": stable_value(
+                row.get("subleg_id"),
+                identity.subleg_id,
+            ),
+            "route_id": stable_value(
+                row.get("route_id"),
+                identity.route_id,
+            ),
+            "subleg_role": stable_value(
+                row.get("subleg_role"),
+                identity.subleg_role,
+            ),
+            "takeoff_status": stable_value(
+                row.get("takeoff_status"),
+                identity.takeoff_status,
+            ),
             "section": self._clean_proportioned_adapter_first_value_v1(
                 row,
                 "section",
                 "Section",
-                "section_id",
-                "section_label",
                 "order",
                 "Order",
+                "section_label",
+                "section_id",
             ),
             "from": self._clean_proportioned_adapter_first_value_v1(
                 row,
@@ -2064,6 +2122,9 @@ class HydronicsSchematicPanelAdapter:
         seen_keys: set[tuple] = set()
 
         columns = (
+            "route_id",
+            "subleg_id",
+            "section_id",
             "route",
             "section",
             "from",
@@ -2113,6 +2174,28 @@ class HydronicsSchematicPanelAdapter:
             return
 
         rows = self._build_clean_proportioned_focused_section_source_rows_v1()
+
+        # H-S36-A3 — runtime section-evidence fallback.
+        # The panel already owns the enriched Basic PS display snapshot. Use
+        # it only when the adapter's defensive evidence scan finds no rows.
+        # This remains read-only delivery; no calculation or ProjectState.
+        if not rows:
+            rows = [
+                dict(row or {})
+                for row in (
+                    getattr(
+                        panel,
+                        "_proportioning_snapshot_section_rows",
+                        [],
+                    )
+                    or []
+                )
+            ]
+
+        # Preserve the existing panel fallback/placeholder when neither
+        # explicit source contains section evidence.
+        if not rows:
+            return
 
         panel.set_clean_proportioned_focused_section_source_rows_v1(rows)
 
@@ -4530,7 +4613,7 @@ class HydronicsSchematicPanelAdapter:
                 else "—"
             )
 
-            link_labels.append(f"{flow_text}\n        self._push_clean_proportioned_focused_section_source_rows_v1()\n{size_text}")
+            link_labels.append(f"{flow_text}\n{size_text}")
 
         excluded = list(
             getattr(index_route, "excluded_room_labels", tuple()) or tuple()

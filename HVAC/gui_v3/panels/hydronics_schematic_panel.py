@@ -38,6 +38,7 @@ Proportioning
 """
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import Optional
 
 from PySide6.QtCore import (
@@ -93,6 +94,7 @@ from HVAC.gui_v3.widgets.proportioning_schematic_widget_v1 import (
 )
 from HVAC.gui_v3.widgets.common_main_leg_subleg_schematic_widget_v1 import (
     CommonMainLegSublegSchematicWidgetV1,
+    CommonMainLegSublegSectionEvidenceV1,
 )
 from HVAC.hydronics.proportioning.proportioning_input_snapshot_v1 import (
     ProportioningInputSnapshotV1,
@@ -4230,13 +4232,11 @@ class HydronicsSchematicPanel(QWidget):
             None,
         )
 
-        if clean_proportioned_schematic is not None:
-            clean_proportioned_schematic.set_schematic(schematic)
-
-        # H-S34-G: retain the clean display DTO for route-focus resolution.
-        # This remains transient display state and is never persisted.
-        self._clean_proportioned_schematic_dto_v1 = schematic
-        self._refresh_clean_proportioned_schematic_focus_v1()
+        # H-S36-A2: keep the topology DTO as the immutable base for
+        # a separate clean Proportioned evidence projection. The original
+        # Proportioning schematic above remains topology-only.
+        self._clean_proportioned_schematic_base_dto_v1 = schematic
+        self._refresh_clean_proportioned_schematic_section_evidence_v1()
 
     def set_common_main_leg_subleg_rows(self, rows: list[dict]) -> None:
         """
@@ -5228,6 +5228,222 @@ class HydronicsSchematicPanel(QWidget):
             self._clean_proportioned_focused_route_label_v1()
         )
 
+
+    @staticmethod
+    def _clean_proportioned_schematic_section_ordinal_v1(
+            row: dict,
+    ) -> int:
+        """Resolve a positive display section ordinal without calculation."""
+        import re
+
+        for key in ("section", "order"):
+            text = str(row.get(key, "") or "").strip()
+            match = re.fullmatch(r"0*(\d+)", text)
+
+            if match:
+                value = int(match.group(1))
+                return value if value > 0 else 0
+
+        section_id = str(row.get("section_id", "") or "").strip()
+        match = re.search(r"-section-0*(\d+)$", section_id)
+
+        if not match:
+            return 0
+
+        value = int(match.group(1))
+        return value if value > 0 else 0
+
+    def _clean_proportioned_schematic_route_matches_section_v1(
+            self,
+            *,
+            route: object,
+            row: dict,
+    ) -> bool:
+        """Match stable subleg identity first, then the existing route token."""
+        route_subleg_id = str(
+            getattr(route, "subleg_id", "") or ""
+        ).strip()
+        row_subleg_id = str(row.get("subleg_id", "") or "").strip()
+        row_route_id = str(row.get("route_id", "") or "").strip()
+
+        for stable_value in (row_subleg_id, row_route_id):
+            if (
+                    stable_value
+                    and stable_value not in {"—", "-"}
+                    and route_subleg_id
+                    and stable_value == route_subleg_id
+            ):
+                return True
+
+        row_token = ""
+
+        for value in (
+            row.get("route_code", ""),
+            row.get("route", ""),
+            row.get("to", ""),
+            row.get("from", ""),
+        ):
+            row_token = self._clean_proportioned_schematic_route_token_v1(
+                value
+            )
+            if row_token:
+                break
+
+        if not row_token:
+            return False
+
+        route_tokens = {
+            self._clean_proportioned_schematic_route_token_v1(value)
+            for value in (
+                getattr(route, "subleg_label", ""),
+                getattr(route, "subleg_id", ""),
+                getattr(route, "route_label", ""),
+            )
+            if str(value or "").strip()
+        }
+
+        return row_token in route_tokens
+
+    def _clean_proportioned_schematic_with_section_evidence_v1(
+            self,
+            schematic: object,
+            rows: list[dict],
+    ):
+        """
+        H-S36-A2 — clean schematic section-evidence mapping.
+
+        Map existing read-only section rows to room-entry trace ordinals.
+        No pressure, sizing, balancing, take-off, or ProjectState logic.
+        """
+        if schematic is None:
+            return None
+
+        routes = tuple(getattr(schematic, "routes", ()) or ())
+        preferred_rows = (
+            self._clean_proportioned_prefer_engineering_section_rows_v1(
+                [dict(row or {}) for row in (rows or [])]
+            )
+        )
+        mapped_routes = []
+
+        def identity_value(
+                row: dict,
+                key: str,
+                fallback: object,
+        ) -> str:
+            value = str(row.get(key, "") or "").strip()
+
+            if value and value not in {"—", "-"}:
+                return value
+
+            return str(fallback or "").strip()
+
+        for route in routes:
+            room_labels = tuple(getattr(route, "room_labels", ()) or ())
+            evidence_items = []
+            seen_segments: set[tuple[int, str, str]] = set()
+
+            for row in preferred_rows:
+                if not self._clean_proportioned_schematic_route_matches_section_v1(
+                        route=route,
+                        row=row,
+                ):
+                    continue
+
+                ordinal = self._clean_proportioned_schematic_section_ordinal_v1(
+                    row
+                )
+
+                if ordinal <= 0 or ordinal > len(room_labels):
+                    continue
+
+                from_label = str(row.get("from", "") or "")
+                to_label = str(row.get("to", "") or "")
+                segment_key = (ordinal, from_label, to_label)
+
+                if segment_key in seen_segments:
+                    continue
+
+                seen_segments.add(segment_key)
+                trace_index = ordinal - 1
+                evidence_items.append(
+                    CommonMainLegSublegSectionEvidenceV1(
+                        section_id=str(row.get("section_id", "") or ""),
+                        section_ordinal=ordinal,
+                        trace_index=trace_index,
+                        trace_room_id=str(room_labels[trace_index] or ""),
+                        route_id=identity_value(
+                            row,
+                            "route_id",
+                            getattr(route, "subleg_id", ""),
+                        ),
+                        leg_id=identity_value(
+                            row,
+                            "leg_id",
+                            getattr(route, "leg_id", ""),
+                        ),
+                        subleg_id=identity_value(
+                            row,
+                            "subleg_id",
+                            getattr(route, "subleg_id", ""),
+                        ),
+                        from_label=from_label,
+                        to_label=to_label,
+                        flow_kg_s=str(row.get("flow_kg_s", "") or ""),
+                        pipe_dn=str(row.get("pipe_dn", "") or ""),
+                        dp_per_m=str(row.get("dp_per_m", "") or ""),
+                        length=str(row.get("length", "") or ""),
+                        k=str(row.get("k", "") or ""),
+                        section_dp=str(row.get("section_dp", "") or ""),
+                        iter=str(row.get("iter", "") or ""),
+                        status=str(row.get("status", "") or ""),
+                    )
+                )
+
+            evidence_items.sort(key=lambda item: item.section_ordinal)
+            mapped_routes.append(
+                replace(route, section_evidence=tuple(evidence_items))
+            )
+
+        return replace(schematic, routes=tuple(mapped_routes))
+
+    def _refresh_clean_proportioned_schematic_section_evidence_v1(
+            self,
+    ) -> None:
+        """Rebuild only the separate clean Proportioned display DTO."""
+        base_schematic = getattr(
+            self,
+            "_clean_proportioned_schematic_base_dto_v1",
+            None,
+        )
+        rows = list(
+            getattr(
+                self,
+                "_clean_proportioned_focused_section_source_rows",
+                [],
+            )
+            or []
+        )
+        mapped_schematic = (
+            self._clean_proportioned_schematic_with_section_evidence_v1(
+                base_schematic,
+                rows,
+            )
+        )
+
+        self._clean_proportioned_schematic_dto_v1 = mapped_schematic
+
+        schematic_widget = getattr(
+            self,
+            "_clean_proportioned_common_main_leg_subleg_schematic_widget",
+            None,
+        )
+
+        if schematic_widget is not None:
+            schematic_widget.set_schematic(mapped_schematic)
+
+        self._refresh_clean_proportioned_schematic_focus_v1()
+
     def _clean_proportioned_schematic_route_token_v1(
             self,
             value: object,
@@ -6102,12 +6318,21 @@ class HydronicsSchematicPanel(QWidget):
 
         return {
             "route": route,
+            # H-S36-A1: preserve stable section/route identity for the
+            # later schematic trace mapping; display values remain unchanged.
+            "section_id": first_value("section_id"),
+            "route_code": first_value("route_code"),
+            "leg_id": first_value("leg_id"),
+            "subleg_id": first_value("subleg_id"),
+            "route_id": first_value("route_id"),
+            "subleg_role": first_value("subleg_role"),
+            "takeoff_status": first_value("takeoff_status"),
             "section": first_value(
                 "section",
-                "section_id",
-                "section_label",
                 "order",
                 "Order",
+                "section_label",
+                "section_id",
             ),
             "from": first_value(
                 "from",
@@ -6279,11 +6504,16 @@ class HydronicsSchematicPanel(QWidget):
         Adapter wiring can use this later; this milestone can also discover
         existing visible section evidence from current tables.
         """
+        identity_rows = enrich_basic_ps_section_rows_with_route_identity_v1(
+            [dict(row or {}) for row in (rows or [])]
+        )
+
         self._clean_proportioned_focused_section_source_rows = [
             self._normalise_clean_proportioned_section_source_row_v1(row)
-            for row in rows
+            for row in identity_rows
         ]
 
+        self._refresh_clean_proportioned_schematic_section_evidence_v1()
         self._refresh_clean_proportioned_focused_section_view_v1()
 
     def _clean_proportioned_section_source_rows_v1(self) -> list[dict]:

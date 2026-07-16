@@ -30,6 +30,34 @@ from PySide6.QtWidgets import QWidget
 
 
 @dataclass(frozen=True)
+class CommonMainLegSublegSectionEvidenceV1:
+    """
+    H-S36-A2:
+    Read-only pipe-section evidence mapped to one room-entry trace segment.
+
+    section_ordinal 1 maps to trace_index 0 entering the first room.
+    Branch take-off geometry remains TBA and is not inferred here.
+    """
+    section_id: str = ""
+    section_ordinal: int = 0
+    trace_index: int = -1
+    trace_room_id: str = ""
+    route_id: str = ""
+    leg_id: str = ""
+    subleg_id: str = ""
+    from_label: str = ""
+    to_label: str = ""
+    flow_kg_s: str = ""
+    pipe_dn: str = ""
+    dp_per_m: str = ""
+    length: str = ""
+    k: str = ""
+    section_dp: str = ""
+    iter: str = ""
+    status: str = ""
+
+
+@dataclass(frozen=True)
 class CommonMainLegSublegRouteV1:
     leg_id: str = ""
     leg_label: str = ""
@@ -37,6 +65,10 @@ class CommonMainLegSublegRouteV1:
     subleg_label: str = ""
     role: str = ""
     room_labels: tuple[str, ...] = ()
+
+    # H-S36-A2 — clean Proportioned display evidence only. The shared
+    # renderer ignores this until H-S36-B hover presentation is added.
+    section_evidence: tuple[CommonMainLegSublegSectionEvidenceV1, ...] = ()
 
     # H-S26-G2 display-only branch parentage.
     parent_subleg_id: str = ""
