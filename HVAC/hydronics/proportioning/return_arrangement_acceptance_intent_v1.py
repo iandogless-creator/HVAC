@@ -63,6 +63,41 @@ def _normalise_rr_added_length_m_v1(value: object) -> float:
     return length_m
 
 
+def _normalise_rr_added_length_basis_map_v1(value: object) -> dict[str, str]:
+    if not isinstance(value, dict):
+        return {}
+
+    result: dict[str, str] = {}
+
+    for raw_scope_id, raw_mode in value.items():
+        scope_id = str(raw_scope_id or "").strip()
+        if not scope_id:
+            continue
+
+        if str(raw_mode or "").strip().upper() == INHERIT:
+            continue
+
+        result[scope_id] = _normalise_rr_added_length_basis_mode_v1(raw_mode)
+
+    return result
+
+
+def _normalise_rr_added_length_map_v1(value: object) -> dict[str, float]:
+    if not isinstance(value, dict):
+        return {}
+
+    result: dict[str, float] = {}
+
+    for raw_scope_id, raw_length_m in value.items():
+        scope_id = str(raw_scope_id or "").strip()
+        if not scope_id:
+            continue
+
+        result[scope_id] = _normalise_rr_added_length_m_v1(raw_length_m)
+
+    return result
+
+
 @dataclass(slots=True)
 class ReturnArrangementIntentV1:
     """
@@ -98,6 +133,82 @@ class ReturnArrangementIntentV1:
     # return-arrangement design intent, not as a loose ProjectState attr.
     rr_added_length_basis_mode: str = "physical_loop_zero_extra"
     rr_added_length_m: float = 0.0
+
+    # H-S38-A1 — Lower-scope overrides. The existing singular fields above
+    # remain the backward-compatible System authority. Missing keys inherit.
+    leg_rr_added_length_basis_modes: dict[str, str] = field(
+        default_factory=dict
+    )
+    leg_rr_added_lengths_m: dict[str, float] = field(default_factory=dict)
+    subleg_rr_added_length_basis_modes: dict[str, str] = field(
+        default_factory=dict
+    )
+    subleg_rr_added_lengths_m: dict[str, float] = field(default_factory=dict)
+
+    def set_leg_rr_added_length_override(
+        self,
+        leg_id: str,
+        basis_mode: str | None,
+        added_length_m: float | None = None,
+    ) -> None:
+        self._set_rr_added_length_override(
+            scope_id=leg_id,
+            basis_mode=basis_mode,
+            added_length_m=added_length_m,
+            basis_modes=self.leg_rr_added_length_basis_modes,
+            added_lengths_m=self.leg_rr_added_lengths_m,
+        )
+
+    def clear_leg_rr_added_length_override(self, leg_id: str) -> None:
+        self.set_leg_rr_added_length_override(leg_id, None)
+
+    def set_subleg_rr_added_length_override(
+        self,
+        subleg_id: str,
+        basis_mode: str | None,
+        added_length_m: float | None = None,
+    ) -> None:
+        self._set_rr_added_length_override(
+            scope_id=subleg_id,
+            basis_mode=basis_mode,
+            added_length_m=added_length_m,
+            basis_modes=self.subleg_rr_added_length_basis_modes,
+            added_lengths_m=self.subleg_rr_added_lengths_m,
+        )
+
+    def clear_subleg_rr_added_length_override(self, subleg_id: str) -> None:
+        self.set_subleg_rr_added_length_override(subleg_id, None)
+
+    @staticmethod
+    def _set_rr_added_length_override(
+        *,
+        scope_id: str,
+        basis_mode: str | None,
+        added_length_m: float | None,
+        basis_modes: dict[str, str],
+        added_lengths_m: dict[str, float],
+    ) -> None:
+        key = str(scope_id or "").strip()
+        if not key:
+            raise ValueError("RR added-length override requires a scope id")
+
+        raw_mode = str(basis_mode or "").strip()
+        if not raw_mode or raw_mode.upper() == INHERIT:
+            basis_modes.pop(key, None)
+            added_lengths_m.pop(key, None)
+            return
+
+        if raw_mode not in _RR_ADDED_LENGTH_BASIS_MODES_V1:
+            raise ValueError(f"Unknown RR added-length basis mode: {raw_mode}")
+
+        basis_modes[key] = raw_mode
+
+        if added_length_m is not None:
+            added_lengths_m[key] = _normalise_rr_added_length_m_v1(
+                added_length_m
+            )
+        elif key not in added_lengths_m:
+            added_lengths_m[key] = 0.0
 
 
 @dataclass(slots=True)
@@ -358,6 +469,22 @@ def return_arrangement_intent_to_dict_v1(
         "rr_added_length_m": _normalise_rr_added_length_m_v1(
             getattr(intent, "rr_added_length_m", 0.0)
         ),
+        "leg_rr_added_length_basis_modes": (
+            _normalise_rr_added_length_basis_map_v1(
+                getattr(intent, "leg_rr_added_length_basis_modes", {})
+            )
+        ),
+        "leg_rr_added_lengths_m": _normalise_rr_added_length_map_v1(
+            getattr(intent, "leg_rr_added_lengths_m", {})
+        ),
+        "subleg_rr_added_length_basis_modes": (
+            _normalise_rr_added_length_basis_map_v1(
+                getattr(intent, "subleg_rr_added_length_basis_modes", {})
+            )
+        ),
+        "subleg_rr_added_lengths_m": _normalise_rr_added_length_map_v1(
+            getattr(intent, "subleg_rr_added_lengths_m", {})
+        ),
     }
 
 
@@ -398,5 +525,21 @@ def return_arrangement_intent_from_dict_v1(
         ),
         rr_added_length_m=_normalise_rr_added_length_m_v1(
             data.get("rr_added_length_m")
+        ),
+        leg_rr_added_length_basis_modes=(
+            _normalise_rr_added_length_basis_map_v1(
+                data.get("leg_rr_added_length_basis_modes", {})
+            )
+        ),
+        leg_rr_added_lengths_m=_normalise_rr_added_length_map_v1(
+            data.get("leg_rr_added_lengths_m", {})
+        ),
+        subleg_rr_added_length_basis_modes=(
+            _normalise_rr_added_length_basis_map_v1(
+                data.get("subleg_rr_added_length_basis_modes", {})
+            )
+        ),
+        subleg_rr_added_lengths_m=_normalise_rr_added_length_map_v1(
+            data.get("subleg_rr_added_lengths_m", {})
         ),
     )
