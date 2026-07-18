@@ -2012,7 +2012,7 @@ class HydronicsSchematicPanel(QWidget):
         )
 
         # --------------------------------------------------
-        # Received Basic PS sections + Local K preview
+        # H-S37-B5 — Basic selection vs Proportioning pressure evidence
         # --------------------------------------------------
         self._proportioning_basic_ps_sections_table = self._make_table(
             columns=[
@@ -2021,12 +2021,16 @@ class HydronicsSchematicPanel(QWidget):
                 "To",
                 "Q carried",
                 "Flow kg/s",
-                "Pipe",
-                "v m/s",
-                "Δp/m",
-                "Re",
-                "f",
-                "Method",
+                "Basic pipe",
+                "Basic v",
+                "Max v",
+                "v source",
+                "Basic basis",
+                "Prop v",
+                "Prop Δp/m",
+                "Prop Re",
+                "Prop f",
+                "Prop method",
                 "Iter",
                 "Length",
                 "K",
@@ -2035,7 +2039,7 @@ class HydronicsSchematicPanel(QWidget):
                 "Section Δp",
                 "Status",
             ],
-            stretch_columns={1, 2, 17},
+            stretch_columns={1, 2, 8, 21},
         )
         self._proportioning_basic_ps_sections_table.cellClicked.connect(
             self._on_basic_ps_velocity_section_table_clicked_v1
@@ -2043,7 +2047,9 @@ class HydronicsSchematicPanel(QWidget):
 
         self._add_section(
             proportioning_layout,
-            title="Received Basic PS sections + Local K preview",
+            title=(
+                "Basic PS selection + Proportioning / Local K evidence"
+            ),
             table=self._proportioning_basic_ps_sections_table,
             min_height=180,
             expanded=False,
@@ -4101,15 +4107,28 @@ class HydronicsSchematicPanel(QWidget):
                 row.get("q_carried", "—"),
                 row.get("flow_kg_s", "—"),
                 row.get("pipe", "—"),
-                row.get("velocity_m_s", "—"),
-                row.get("dp_per_m", "—"),
-                row.get("reynolds_number", row.get("re", "—")),
-                row.get("friction_factor", row.get("f", "—")),
-                row.get("friction_method", row.get("method", "—")),
                 row.get(
-                    "colebrook_iterations",
-                    row.get("colebrook_iteration_count", "—"),
+                    "basic_velocity_m_s",
+                    row.get("velocity_m_s", "—"),
                 ),
+                row.get(
+                    "basic_max_velocity_m_s",
+                    row.get("applied_max_velocity_m_s", "—"),
+                ),
+                row.get(
+                    "basic_velocity_source",
+                    row.get("max_velocity_source", "—"),
+                ),
+                row.get(
+                    "basic_friction_basis",
+                    "Velocity selection / Haaland Δp",
+                ),
+                row.get("proportioning_velocity_m_s", "—"),
+                row.get("proportioning_dp_per_m", "—"),
+                row.get("proportioning_reynolds_number", "—"),
+                row.get("proportioning_friction_factor", "—"),
+                row.get("proportioning_friction_method", "—"),
+                row.get("proportioning_colebrook_iterations", "—"),
                 row.get("length_m", "—"),
                 row.get("k_total", "0.00"),
                 row.get("local_dp", "0.0 Pa"),

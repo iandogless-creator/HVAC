@@ -3944,6 +3944,80 @@ class HydronicsSchematicPanelAdapter:
                         getattr(result, "carried_flow_kg_s", None)
                     ),
                     "pipe": str(getattr(result, "pipe_size_label", "") or "—"),
+
+                    # H-S37-B5 — keep Basic selection evidence explicit.
+                    # Pipe selection is the velocity criterion. Haaland is
+                    # the Basic first-pass friction / Δp estimate basis.
+                    "basic_velocity_m_s": self._format_velocity(
+                        getattr(result, "velocity_m_s", None)
+                    ),
+                    "basic_max_velocity_m_s": self._format_velocity(
+                        getattr(result, "applied_max_velocity_m_s", None)
+                    ),
+                    "basic_velocity_source": str(
+                        getattr(result, "max_velocity_source", "") or "—"
+                    ),
+                    "basic_friction_basis": (
+                        "Velocity selection / Haaland Δp"
+                    ),
+
+                    # Proportioning evidence is populated only when the
+                    # downstream route-section calculation exists. Do not
+                    # disguise the Basic Haaland fallback as Proportioning.
+                    "proportioning_velocity_m_s": (
+                        self._format_velocity(
+                            getattr(route_section, "velocity_m_s", None)
+                        )
+                        if route_section is not None
+                        else "—"
+                    ),
+                    "proportioning_dp_per_m": (
+                        self._format_dp_per_m(
+                            getattr(
+                                route_section,
+                                "pressure_gradient_Pa_per_m",
+                                None,
+                            )
+                        )
+                        if route_section is not None
+                        else "—"
+                    ),
+                    "proportioning_reynolds_number": (
+                        self._format_reynolds_number(
+                            getattr(route_section, "reynolds_number", None)
+                        )
+                        if route_section is not None
+                        else "—"
+                    ),
+                    "proportioning_friction_factor": (
+                        self._format_friction_factor(
+                            getattr(route_section, "friction_factor", None)
+                        )
+                        if route_section is not None
+                        else "—"
+                    ),
+                    "proportioning_friction_method": (
+                        str(
+                            getattr(route_section, "friction_method", "")
+                            or "—"
+                        )
+                        if route_section is not None
+                        else "—"
+                    ),
+                    "proportioning_colebrook_iterations": (
+                        str(
+                            getattr(
+                                route_section,
+                                "colebrook_iteration_count",
+                                "—",
+                            ) or "—"
+                        )
+                        if route_section is not None
+                        else "—"
+                    ),
+
+                    # Legacy downstream keys remain for the clean
+                    # Proportioned viewer and existing snapshot consumers.
                     "velocity_m_s": self._format_velocity(
                         getattr(pressure_source, "velocity_m_s", None)
                     ),
