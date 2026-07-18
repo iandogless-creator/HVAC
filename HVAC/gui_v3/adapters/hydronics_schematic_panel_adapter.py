@@ -117,6 +117,7 @@ from HVAC.hydronics.proportioning.return_arrangement_acceptance_intent_v1 import
     resolve_system_return_arrangement_v1,
     resolve_leg_return_arrangement_v1,
     resolve_subleg_return_arrangement_v1,
+    return_arrangement_intent_from_dict_v1,
 )
 from HVAC.hydronics.proportioning.effective_return_arrangement_resolver_v1 import (
     resolve_effective_return_arrangements_v1,
@@ -193,6 +194,14 @@ class HydronicsSchematicPanelAdapter:
         ):
             self._panel.set_scoped_return_arrangement_acceptance_callback(
                 self.set_scoped_return_arrangement_acceptance
+            )
+
+        # --------------------------------------------------
+        # H-S38-A2 — Scoped RR length authority callback
+        # --------------------------------------------------
+        if hasattr(self._panel, "set_scoped_rr_length_basis_callback"):
+            self._panel.set_scoped_rr_length_basis_callback(
+                self.set_scoped_rr_length_basis
             )
 
         # --------------------------------------------------
@@ -478,6 +487,62 @@ class HydronicsSchematicPanelAdapter:
                 next_intent = intent
 
         project.hydronic_return_arrangement_intent = next_intent
+
+        if hasattr(project, "mark_dirty"):
+            project.mark_dirty()
+
+        self.refresh()
+
+    def set_scoped_rr_length_basis(self, payload: dict) -> None:
+        """Persist one H-S38-A2 Leg/Common/Branch RR length override."""
+        if not isinstance(payload, dict):
+            raise ValueError("Scoped RR length payload must be a dictionary")
+
+        project = getattr(self, "_project_state", None)
+        if project is None:
+            return
+
+        scope = str(payload.get("scope") or "").strip().upper()
+        target_id = str(payload.get("target_id") or "").strip()
+        mode = str(payload.get("basis_mode") or "INHERIT").strip()
+        try:
+            added_length_m = max(
+                float(payload.get("added_length_m") or 0.0),
+                0.0,
+            )
+        except (TypeError, ValueError):
+            added_length_m = 0.0
+
+        if not target_id:
+            raise ValueError("Scoped RR length target_id is required")
+
+        intent = self._get_return_arrangement_acceptance_intent()
+        if isinstance(intent, dict):
+            intent = return_arrangement_intent_from_dict_v1(intent)
+
+        if scope == "LEG":
+            if mode.upper() == INHERIT:
+                intent.clear_leg_rr_added_length_override(target_id)
+            else:
+                intent.set_leg_rr_added_length_override(
+                    target_id,
+                    mode,
+                    added_length_m,
+                )
+        elif scope in {"COMMON_SUBLEG", "BRANCH_SUBLEG"}:
+            if mode.upper() == INHERIT:
+                intent.clear_subleg_rr_added_length_override(target_id)
+            else:
+                intent.set_subleg_rr_added_length_override(
+                    target_id,
+                    mode,
+                    added_length_m,
+                )
+        else:
+            raise ValueError(f"Unknown scoped RR length scope: {scope}")
+
+        self._return_arrangement_acceptance_intent = intent
+        project.hydronic_return_arrangement_intent = intent
 
         if hasattr(project, "mark_dirty"):
             project.mark_dirty()
@@ -921,6 +986,49 @@ class HydronicsSchematicPanelAdapter:
                 leg_arrangements=leg_arrangements,
                 subleg_arrangements=subleg_arrangements,
             )
+
+            if hasattr(self._panel, "set_scoped_rr_length_basis_overrides"):
+                if isinstance(intent, dict):
+                    leg_rr_modes = dict(
+                        intent.get("leg_rr_added_length_basis_modes", {}) or {}
+                    )
+                    leg_rr_lengths = dict(
+                        intent.get("leg_rr_added_lengths_m", {}) or {}
+                    )
+                    subleg_rr_modes = dict(
+                        intent.get("subleg_rr_added_length_basis_modes", {}) or {}
+                    )
+                    subleg_rr_lengths = dict(
+                        intent.get("subleg_rr_added_lengths_m", {}) or {}
+                    )
+                else:
+                    leg_rr_modes = dict(
+                        getattr(
+                            intent,
+                            "leg_rr_added_length_basis_modes",
+                            {},
+                        ) or {}
+                    )
+                    leg_rr_lengths = dict(
+                        getattr(intent, "leg_rr_added_lengths_m", {}) or {}
+                    )
+                    subleg_rr_modes = dict(
+                        getattr(
+                            intent,
+                            "subleg_rr_added_length_basis_modes",
+                            {},
+                        ) or {}
+                    )
+                    subleg_rr_lengths = dict(
+                        getattr(intent, "subleg_rr_added_lengths_m", {}) or {}
+                    )
+
+                self._panel.set_scoped_rr_length_basis_overrides(
+                    leg_basis_modes=leg_rr_modes,
+                    leg_lengths_m=leg_rr_lengths,
+                    subleg_basis_modes=subleg_rr_modes,
+                    subleg_lengths_m=subleg_rr_lengths,
+                )
 
         common_main_leg_subleg_schematic = None
 

@@ -1527,7 +1527,12 @@ class HydronicsSchematicPanel(QWidget):
         self._scoped_return_arrangement_acceptance_callback = None
         self._rr_length_basis_mode_callback = None
         self._rr_manual_extra_length_callback = None
+        self._scoped_rr_length_basis_callback = None
         self._return_arrangement_scope_controls = {}
+        self._leg_rr_added_length_basis_modes = {}
+        self._leg_rr_added_lengths_m = {}
+        self._subleg_rr_added_length_basis_modes = {}
+        self._subleg_rr_added_lengths_m = {}
 
         self._return_arrangement_tabs = QTabWidget(
             self._return_arrangement_acceptance_widget
@@ -1698,6 +1703,51 @@ class HydronicsSchematicPanel(QWidget):
             radio_row.addStretch(1)
 
             layout.addLayout(radio_row)
+
+            # H-S38-A2 — RR length authority is grouped with the matching
+            # arrangement scope. Lower scopes explicitly inherit or override.
+            rr_length_row = QHBoxLayout()
+            rr_length_row.setSpacing(8)
+
+            rr_basis_label = QLabel("RR length basis:", tab)
+            rr_basis_combo = QComboBox(tab)
+            rr_basis_combo.setMinimumWidth(230)
+            rr_basis_combo.setMaximumWidth(320)
+            rr_basis_combo.addItem(inherit_label, "INHERIT")
+            rr_basis_combo.addItem(
+                "Physical loop — no extra allowance",
+                "physical_loop_zero_extra",
+            )
+            rr_basis_combo.addItem(
+                "Downstream proxy allowance",
+                "downstream_proxy",
+            )
+            rr_basis_combo.addItem("Manual allowance", "manual_allowance")
+
+            rr_length_label = QLabel("Extra length:", tab)
+            rr_length_spin = QDoubleSpinBox(tab)
+            rr_length_spin.setDecimals(2)
+            rr_length_spin.setRange(0.0, 9999.0)
+            rr_length_spin.setSingleStep(0.25)
+            rr_length_spin.setSuffix(" m")
+            rr_length_spin.setMinimumWidth(105)
+            rr_length_spin.setMaximumWidth(135)
+
+            rr_length_row.addWidget(rr_basis_label)
+            rr_length_row.addWidget(rr_basis_combo)
+            rr_length_row.addSpacing(8)
+            rr_length_row.addWidget(rr_length_label)
+            rr_length_row.addWidget(rr_length_spin)
+            rr_length_row.addStretch(1)
+
+            rr_status_label = QLabel(
+                "RR length basis inherits its parent.",
+                tab,
+            )
+            rr_status_label.setWordWrap(True)
+
+            layout.addLayout(rr_length_row)
+            layout.addWidget(rr_status_label)
             layout.addStretch(1)
 
             self._return_arrangement_scope_controls[scope_key] = {
@@ -1708,6 +1758,11 @@ class HydronicsSchematicPanel(QWidget):
                 "direct_radio": direct_radio,
                 "reverse_radio": reverse_radio,
                 "parent_label": parent_label,
+                "rr_basis_label": rr_basis_label,
+                "rr_basis_combo": rr_basis_combo,
+                "rr_length_label": rr_length_label,
+                "rr_length_spin": rr_length_spin,
+                "rr_status_label": rr_status_label,
             }
 
             combo.currentIndexChanged.connect(
@@ -1737,6 +1792,15 @@ class HydronicsSchematicPanel(QWidget):
                     scope_key,
                     "REVERSE_RETURN",
                 )
+            )
+
+            rr_basis_combo.currentIndexChanged.connect(
+                lambda _index, scope_key=scope_key:
+                self._on_scoped_rr_length_basis_changed(scope_key)
+            )
+            rr_length_spin.valueChanged.connect(
+                lambda _value, scope_key=scope_key:
+                self._on_scoped_rr_length_basis_changed(scope_key)
             )
 
             return tab
@@ -1832,6 +1896,12 @@ class HydronicsSchematicPanel(QWidget):
             self._on_rr_length_basis_mode_changed
         )
 
+        self._rr_length_basis_status_label = QLabel(
+            "System RR length basis.",
+            self._return_arrangement_acceptance_widget,
+        )
+        self._rr_length_basis_status_label.setWordWrap(True)
+
         rr_length_basis_layout.addWidget(self._rr_length_basis_mode_label)
         rr_length_basis_layout.addWidget(self._rr_length_basis_mode_combo)
         rr_length_basis_layout.addSpacing(12)
@@ -1889,7 +1959,19 @@ class HydronicsSchematicPanel(QWidget):
         )
         return_tabs_row.addStretch(1)
 
-        return_acceptance_layout.addLayout(rr_length_basis_layout)
+        # H-S38-A2 — The former global RR length row is now the
+        # backward-compatible System editor inside the System tab.
+        system_layout.insertLayout(1, rr_length_basis_layout)
+        system_layout.insertWidget(2, self._rr_length_basis_status_label)
+        self._return_arrangement_scope_controls["SYSTEM"].update(
+            {
+                "rr_basis_label": self._rr_length_basis_mode_label,
+                "rr_basis_combo": self._rr_length_basis_mode_combo,
+                "rr_length_label": self._rr_manual_extra_length_label,
+                "rr_length_spin": self._rr_manual_extra_length_spin,
+                "rr_status_label": self._rr_length_basis_status_label,
+            }
+        )
         return_acceptance_layout.addLayout(return_tabs_row)
 
         footer_layout.addWidget(
@@ -1924,6 +2006,14 @@ class HydronicsSchematicPanel(QWidget):
                 "REVERSE_RETURN"
             )
         )
+        for rr_arrangement_radio in (
+            self._return_arrangement_undecided_radio,
+            self._return_arrangement_direct_radio,
+            self._return_arrangement_reverse_radio,
+        ):
+            rr_arrangement_radio.toggled.connect(
+                lambda _checked: self._update_rr_manual_extra_length_enabled()
+            )
 
         self._add_section(
             proportioning_layout,
@@ -2588,6 +2678,7 @@ class HydronicsSchematicPanel(QWidget):
                     (
                         subleg_label or subleg_id,
                         parent_subleg_label or "Parent: TBA",
+                        parent_subleg_id,
                     ),
                 )
 
@@ -2638,7 +2729,8 @@ class HydronicsSchematicPanel(QWidget):
             "BRANCH_SUBLEG",
             [
                 (label, key, parent_label)
-                for key, (label, parent_label) in branch_items.items()
+                for key, (label, parent_label, _parent_id)
+                in branch_items.items()
             ],
         )
 
@@ -2651,7 +2743,16 @@ class HydronicsSchematicPanel(QWidget):
                 "parent_labels_by_id",
                 {
                     key: parent_label
-                    for key, (_label, parent_label) in branch_items.items()
+                    for key, (_label, parent_label, _parent_id)
+                    in branch_items.items()
+                },
+            )
+            branch_combo.setProperty(
+                "parent_ids_by_id",
+                {
+                    key: parent_id
+                    for key, (_label, _parent_label, parent_id)
+                    in branch_items.items()
                 },
             )
 
@@ -2707,7 +2808,162 @@ class HydronicsSchematicPanel(QWidget):
             parent_label.setText(parent_text)
 
         self._apply_scoped_return_arrangement_selection_for_scope(scope_key)
+        self._apply_scoped_rr_length_basis_selection_for_scope(scope_key)
         self._refresh_return_arrangement_evidence_for_current_scope()
+
+    def set_scoped_rr_length_basis_callback(self, callback) -> None:
+        """H-S38-A2 adapter callback for one scoped RR length edit."""
+        self._scoped_rr_length_basis_callback = callback
+
+    def set_scoped_rr_length_basis_overrides(
+            self,
+            *,
+            leg_basis_modes: dict[str, str],
+            leg_lengths_m: dict[str, float],
+            subleg_basis_modes: dict[str, str],
+            subleg_lengths_m: dict[str, float],
+    ) -> None:
+        """Restore scoped RR length intent without emitting user changes."""
+        self._leg_rr_added_length_basis_modes = dict(leg_basis_modes or {})
+        self._leg_rr_added_lengths_m = dict(leg_lengths_m or {})
+        self._subleg_rr_added_length_basis_modes = dict(
+            subleg_basis_modes or {}
+        )
+        self._subleg_rr_added_lengths_m = dict(subleg_lengths_m or {})
+
+        for scope_key in ("LEG", "COMMON_SUBLEG", "BRANCH_SUBLEG"):
+            self._apply_scoped_rr_length_basis_selection_for_scope(scope_key)
+
+    def _apply_scoped_rr_length_basis_selection_for_scope(
+            self,
+            scope_key: str,
+    ) -> None:
+        control = getattr(
+            self,
+            "_return_arrangement_scope_controls",
+            {},
+        ).get(scope_key, {})
+        target_combo = control.get("combo")
+        basis_combo = control.get("rr_basis_combo")
+        length_spin = control.get("rr_length_spin")
+
+        if target_combo is None or basis_combo is None or length_spin is None:
+            return
+
+        target_id = str(target_combo.currentData() or "")
+        if scope_key == "LEG":
+            modes = getattr(self, "_leg_rr_added_length_basis_modes", {})
+            lengths = getattr(self, "_leg_rr_added_lengths_m", {})
+        else:
+            modes = getattr(self, "_subleg_rr_added_length_basis_modes", {})
+            lengths = getattr(self, "_subleg_rr_added_lengths_m", {})
+
+        mode = str(modes.get(target_id, "INHERIT") or "INHERIT")
+        try:
+            added_length_m = max(float(lengths.get(target_id, 0.0)), 0.0)
+        except (TypeError, ValueError):
+            added_length_m = 0.0
+
+        basis_index = basis_combo.findData(mode)
+        if basis_index < 0:
+            basis_index = basis_combo.findData("INHERIT")
+
+        basis_combo.blockSignals(True)
+        length_spin.blockSignals(True)
+        try:
+            basis_combo.setCurrentIndex(max(basis_index, 0))
+            length_spin.setValue(added_length_m)
+        finally:
+            length_spin.blockSignals(False)
+            basis_combo.blockSignals(False)
+
+        self._update_scoped_rr_length_controls_enabled(scope_key)
+
+    def _update_scoped_rr_length_controls_enabled(
+            self,
+            scope_key: str,
+    ) -> None:
+        control = getattr(
+            self,
+            "_return_arrangement_scope_controls",
+            {},
+        ).get(scope_key, {})
+        target_combo = control.get("combo")
+        basis_combo = control.get("rr_basis_combo")
+        basis_label = control.get("rr_basis_label")
+        length_spin = control.get("rr_length_spin")
+        length_label = control.get("rr_length_label")
+        status_label = control.get("rr_status_label")
+
+        if target_combo is None or basis_combo is None or length_spin is None:
+            return
+
+        has_target = bool(str(target_combo.currentData() or ""))
+        direct_selected = bool(
+            control.get("direct_radio") is not None
+            and control["direct_radio"].isChecked()
+        )
+        mode = str(basis_combo.currentData() or "INHERIT")
+        rr_editable = has_target and not direct_selected
+        manual_editable = rr_editable and mode == "manual_allowance"
+
+        basis_combo.setEnabled(rr_editable)
+        length_spin.setEnabled(manual_editable)
+        if basis_label is not None:
+            basis_label.setEnabled(rr_editable)
+        if length_label is not None:
+            length_label.setEnabled(manual_editable)
+
+        if status_label is not None:
+            if not has_target:
+                status = "Select a stable scope target."
+            elif direct_selected:
+                status = "RR length basis is dormant while this scope is F&R."
+            elif mode == "INHERIT":
+                status = "RR length basis inherits its parent authority."
+            elif mode == "manual_allowance":
+                status = "Explicit Manual RR allowance for this scope."
+            else:
+                status = "Explicit RR length basis for this scope."
+            status_label.setText(status)
+
+    def _on_scoped_rr_length_basis_changed(self, scope_key: str) -> None:
+        control = getattr(
+            self,
+            "_return_arrangement_scope_controls",
+            {},
+        ).get(scope_key, {})
+        target_combo = control.get("combo")
+        basis_combo = control.get("rr_basis_combo")
+        length_spin = control.get("rr_length_spin")
+
+        if target_combo is None or basis_combo is None or length_spin is None:
+            return
+
+        target_id = str(target_combo.currentData() or "")
+        if not target_id:
+            return
+
+        parent_id = ""
+        if scope_key == "BRANCH_SUBLEG":
+            parent_ids = target_combo.property("parent_ids_by_id") or {}
+            parent_id = str(parent_ids.get(target_id) or "")
+
+        mode = str(basis_combo.currentData() or "INHERIT")
+        self._update_scoped_rr_length_controls_enabled(scope_key)
+
+        callback = getattr(self, "_scoped_rr_length_basis_callback", None)
+        if callback is not None:
+            callback(
+                {
+                    "scope": scope_key,
+                    "target_id": target_id,
+                    "target_label": str(target_combo.currentText() or ""),
+                    "parent_subleg_id": parent_id,
+                    "basis_mode": mode,
+                    "added_length_m": float(length_spin.value()),
+                }
+            )
 
     def set_scoped_return_arrangement_acceptance_callback(
             self,
@@ -2756,6 +3012,7 @@ class HydronicsSchematicPanel(QWidget):
             None,
         )
 
+        self._update_scoped_rr_length_controls_enabled(scope_key)
         self._refresh_return_arrangement_evidence_for_current_scope()
 
         if callback is not None:
@@ -3516,12 +3773,33 @@ class HydronicsSchematicPanel(QWidget):
         mode = self._normalise_rr_length_basis_mode_ui(
             str(combo.currentData() or "")
         )
-        enabled = mode == "manual_allowance"
+        direct_selected = bool(
+            getattr(self, "_return_arrangement_direct_radio", None)
+            is not None
+            and self._return_arrangement_direct_radio.isChecked()
+        )
+        rr_editable = not direct_selected
+        enabled = rr_editable and mode == "manual_allowance"
 
+        combo.setEnabled(rr_editable)
         spin.setEnabled(enabled)
 
+        basis_label = getattr(self, "_rr_length_basis_mode_label", None)
+        if basis_label is not None:
+            basis_label.setEnabled(rr_editable)
         if label is not None:
             label.setEnabled(enabled)
+
+        status_label = getattr(self, "_rr_length_basis_status_label", None)
+        if status_label is not None:
+            if direct_selected:
+                status_label.setText(
+                    "System RR length basis is dormant while F&R is selected."
+                )
+            elif mode == "manual_allowance":
+                status_label.setText("System Manual RR allowance is active.")
+            else:
+                status_label.setText("System RR length basis is active for F+RR.")
 
     def _on_rr_manual_extra_length_changed(self, value: float) -> None:
         """
