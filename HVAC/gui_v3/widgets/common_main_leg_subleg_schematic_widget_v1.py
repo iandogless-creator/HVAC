@@ -59,6 +59,25 @@ class CommonMainLegSublegSectionEvidenceV1:
 
 
 @dataclass(frozen=True)
+class CommonMainLegSublegRoomEvidenceV1:
+    """
+    H-S39-A:
+    Read-only room, heat-loss, emitter and emitter-flow evidence.
+
+    Values are prepared outside the widget. This DTO carries no sizing,
+    pressure, balancing, pump, valve or persistence authority.
+    """
+    room_id: str = ""
+    room_label: str = ""
+    design_heat_loss_W: str = ""
+    emitter_summary: str = ""
+    emitter_output_W: str = ""
+    emitter_flow_kg_s: str = ""
+    flow_basis: str = ""
+    status: str = ""
+
+
+@dataclass(frozen=True)
 class CommonMainLegSublegRouteV1:
     leg_id: str = ""
     leg_label: str = ""
@@ -66,6 +85,9 @@ class CommonMainLegSublegRouteV1:
     subleg_label: str = ""
     role: str = ""
     room_labels: tuple[str, ...] = ()
+
+    # H-S39-A — shared read-only room hover evidence.
+    room_evidence: tuple[CommonMainLegSublegRoomEvidenceV1, ...] = ()
 
     # H-S36-A2 — clean Proportioned display evidence only. The shared
     # renderer ignores this until H-S36-B hover presentation is added.
@@ -154,6 +176,18 @@ class CommonMainLegSublegSchematicWidgetV1(QWidget):
         self._room_hit_rects: list[tuple[QRectF, dict[str, str]]] = []
         self._subleg_hit_rects: list[tuple[QRectF, dict[str, str]]] = []
 
+        # H-S39-A — room authority-evidence hover hit regions.
+        self._room_hover_hit_rects: list[
+            tuple[
+                QRectF,
+                CommonMainLegSublegRouteV1,
+                CommonMainLegSublegRoomEvidenceV1,
+                int,
+            ]
+        ] = []
+        # H-S39-B — blue room-node hover presentation only.
+        self._hovered_room_key: tuple[str, str] | None = None
+
         # H-S36-B — schematic section-evidence hover.
         # Hit rectangles exist only for mapped room-entry trace segments.
         self._section_trace_hit_rects: list[
@@ -177,7 +211,9 @@ class CommonMainLegSublegSchematicWidgetV1(QWidget):
     ) -> None:
         self._schematic = schematic
         self._hovered_section_trace_key = None
+        self._hovered_room_key = None
         self._section_trace_hit_rects = []
+        self._room_hover_hit_rects = []
         QToolTip.hideText()
 
         routes = list(getattr(schematic, "routes", ()) or ())
@@ -317,6 +353,7 @@ class CommonMainLegSublegSchematicWidgetV1(QWidget):
         self._room_hit_rects = []
         self._subleg_hit_rects = []
         self._section_trace_hit_rects = []
+        self._room_hover_hit_rects = []
 
         schematic = self._schematic
 
@@ -698,6 +735,75 @@ class CommonMainLegSublegSchematicWidgetV1(QWidget):
 
 
     @staticmethod
+    def _room_evidence_for_room_id_v1(
+            route: CommonMainLegSublegRouteV1,
+            room_id: str,
+    ) -> CommonMainLegSublegRoomEvidenceV1 | None:
+        """Return prepared evidence for one stable room identity."""
+        wanted = str(room_id or "")
+
+        for evidence in tuple(getattr(route, "room_evidence", ()) or ()):
+            if str(getattr(evidence, "room_id", "") or "") == wanted:
+                return evidence
+
+        return None
+
+    @staticmethod
+    def _room_evidence_key_v1(
+            route: CommonMainLegSublegRouteV1,
+            evidence: CommonMainLegSublegRoomEvidenceV1,
+    ) -> tuple[str, str]:
+        return (
+            str(getattr(route, "subleg_id", "") or ""),
+            str(getattr(evidence, "room_id", "") or ""),
+        )
+
+    @staticmethod
+    def _room_evidence_tooltip_text_v1(
+            route: CommonMainLegSublegRouteV1,
+            evidence: CommonMainLegSublegRoomEvidenceV1,
+            incoming_section: CommonMainLegSublegSectionEvidenceV1 | None = None,
+    ) -> str:
+        """Format prepared evidence only; no engineering derivation."""
+        def shown(value: object) -> str:
+            text = str(value or "").strip()
+            return text if text and text not in {"-", "—"} else "—"
+
+        route_label = shown(
+            getattr(route, "subleg_label", "")
+            or getattr(route, "subleg_id", "")
+        )
+        room_label = shown(
+            getattr(evidence, "room_label", "")
+            or getattr(evidence, "room_id", "")
+        )
+        status = shown(getattr(evidence, "status", ""))
+        status_lines = textwrap.wrap(status, width=72) or ["—"]
+
+        lines = [
+            room_label,
+            f"Room ID: {shown(getattr(evidence, 'room_id', ''))}",
+            f"Route: {route_label}",
+            f"Design heat loss: {shown(getattr(evidence, 'design_heat_loss_W', ''))}",
+            f"Emitter(s): {shown(getattr(evidence, 'emitter_summary', ''))}",
+            f"Emitter design output: {shown(getattr(evidence, 'emitter_output_W', ''))}",
+            f"Emitter design flow: {shown(getattr(evidence, 'emitter_flow_kg_s', ''))}",
+            f"Flow basis: {shown(getattr(evidence, 'flow_basis', ''))}",
+        ]
+
+        if incoming_section is not None:
+            lines.extend(
+                [
+                    f"Incoming Basic PS carried flow: {shown(getattr(incoming_section, 'flow_kg_s', ''))}",
+                    f"Incoming Basic PS pipe: {shown(getattr(incoming_section, 'pipe_dn', ''))}",
+                ]
+            )
+
+        lines.append(f"Status: {status_lines[0]}")
+        lines.extend(f"        {line}" for line in status_lines[1:])
+        return "\n".join(lines)
+
+    @staticmethod
     def _section_evidence_for_trace_index_v1(
             route: CommonMainLegSublegRouteV1,
             trace_index: int,
@@ -912,6 +1018,15 @@ class CommonMainLegSublegSchematicWidgetV1(QWidget):
             for index, room_label in enumerate(room_labels):
                 x = first_room_x + (index * (room_w + room_gap))
                 room_rect = QRectF(x, y - 4.5, room_w, room_h)
+                room_evidence = self._room_evidence_for_room_id_v1(
+                    route,
+                    str(room_label),
+                )
+                room_hovered = (
+                    room_evidence is not None
+                    and self._room_evidence_key_v1(route, room_evidence)
+                    == self._hovered_room_key
+                )
 
                 room_focused = (
                     str(self._focus.get("room_id", "") or "")
@@ -928,7 +1043,10 @@ class CommonMainLegSublegSchematicWidgetV1(QWidget):
                     )
                 )
 
-                if room_focused:
+                if room_hovered:
+                    room_border = QColor(35, 125, 185)
+                    room_border_width = 3.0
+                elif room_focused:
                     room_border = QColor(190, 115, 35)
                     room_border_width = 2.4
                 elif room_on_focused_path:
@@ -960,6 +1078,11 @@ class CommonMainLegSublegSchematicWidgetV1(QWidget):
                         },
                     )
                 )
+
+                if room_evidence is not None:
+                    self._room_hover_hit_rects.append(
+                        (room_rect, route, room_evidence, index)
+                    )
 
                 if index > 0:
                     prev_right = x - room_gap
@@ -1204,6 +1327,40 @@ class CommonMainLegSublegSchematicWidgetV1(QWidget):
     def mouseMoveEvent(self, event) -> None:  # noqa: N802
         pos = event.position()
 
+        # H-S39-A — room evidence has priority inside the room node.
+        for rect, route, evidence, trace_index in reversed(
+                self._room_hover_hit_rects
+        ):
+            if not rect.contains(pos):
+                continue
+
+            incoming_section = self._section_evidence_for_trace_index_v1(
+                route,
+                trace_index,
+            )
+            room_key = self._room_evidence_key_v1(route, evidence)
+            needs_update = room_key != self._hovered_room_key
+            self._hovered_room_key = room_key
+
+            if self._hovered_section_trace_key is not None:
+                self._hovered_section_trace_key = None
+                needs_update = True
+
+            if needs_update:
+                self.update()
+
+            QToolTip.showText(
+                event.globalPosition().toPoint(),
+                self._room_evidence_tooltip_text_v1(
+                    route,
+                    evidence,
+                    incoming_section,
+                ),
+                self,
+            )
+            event.accept()
+            return
+
         for rect, route, evidence in reversed(
                 self._section_trace_hit_rects
         ):
@@ -1211,9 +1368,14 @@ class CommonMainLegSublegSchematicWidgetV1(QWidget):
                 continue
 
             evidence_key = self._section_evidence_key_v1(route, evidence)
+            needs_update = evidence_key != self._hovered_section_trace_key
+            self._hovered_section_trace_key = evidence_key
 
-            if evidence_key != self._hovered_section_trace_key:
-                self._hovered_section_trace_key = evidence_key
+            if self._hovered_room_key is not None:
+                self._hovered_room_key = None
+                needs_update = True
+
+            if needs_update:
                 self.update()
 
             QToolTip.showText(
@@ -1224,16 +1386,28 @@ class CommonMainLegSublegSchematicWidgetV1(QWidget):
             event.accept()
             return
 
+        needs_update = False
         if self._hovered_section_trace_key is not None:
             self._hovered_section_trace_key = None
-            QToolTip.hideText()
+            needs_update = True
+        if self._hovered_room_key is not None:
+            self._hovered_room_key = None
+            needs_update = True
+        if needs_update:
             self.update()
 
+        QToolTip.hideText()
         event.accept()
 
     def leaveEvent(self, event) -> None:  # noqa: N802
+        needs_update = False
         if self._hovered_section_trace_key is not None:
             self._hovered_section_trace_key = None
+            needs_update = True
+        if self._hovered_room_key is not None:
+            self._hovered_room_key = None
+            needs_update = True
+        if needs_update:
             self.update()
 
         QToolTip.hideText()

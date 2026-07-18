@@ -102,8 +102,12 @@ from HVAC.hydronics.proportioning.chosen_basis_route_pressure_preview_v1 import 
     build_chosen_basis_route_pressure_preview_v1,
 )
 from HVAC.gui_v3.widgets.common_main_leg_subleg_schematic_widget_v1 import (
+    CommonMainLegSublegRoomEvidenceV1,
     CommonMainLegSublegRouteV1,
     CommonMainLegSublegSchematicV1,
+)
+from HVAC.hydronics.proportioning.branch_aware_carried_flow_basis_v1 import (
+    _room_flow_kg_s,
 )
 from HVAC.hydronics.proportioning.section_route_identity_v1 import (
     infer_section_route_identity_v1,
@@ -3513,6 +3517,10 @@ class HydronicsSchematicPanelAdapter:
                     room_labels = tuple(
                         self._subleg_room_ids_for_display(subleg)
                     )
+                    room_evidence = tuple(
+                        self._build_schematic_room_evidence_v1(room_id)
+                        for room_id in room_labels
+                    )
 
                     routes.append(
                         CommonMainLegSublegRouteV1(
@@ -3522,6 +3530,7 @@ class HydronicsSchematicPanelAdapter:
                             subleg_label=subleg_label,
                             role=role_label,
                             room_labels=room_labels,
+                            room_evidence=room_evidence,
                             parent_subleg_id=effective_parent_id,
                             parent_subleg_label=effective_parent_label,
                             parent_takeoff_label=(
@@ -3554,6 +3563,102 @@ class HydronicsSchematicPanelAdapter:
                 "DEV topology schematic preview only — branch take-offs are "
                 "display-only TBA markers; no pressure, balancing, pump, "
                 "valve, or pipe-resize result"
+            ),
+        )
+
+    def _build_schematic_room_evidence_v1(
+            self,
+            room_id: str,
+    ) -> CommonMainLegSublegRoomEvidenceV1:
+        """
+        H-S39-A — compose existing room authority evidence for display.
+
+        The existing branch-aware carried-flow resolver remains the only
+        emitter-flow authority used here. No rule-of-thumb pipe size is
+        introduced and the schematic does not resize any section.
+        """
+        project = self._project_state
+        stable_room_id = str(room_id or "")
+        room = (getattr(project, "rooms", {}) or {}).get(stable_room_id)
+        room_label = str(
+            getattr(room, "name", None)
+            or getattr(room, "label", None)
+            or stable_room_id
+            or "Room"
+        )
+
+        status_parts: list[str] = []
+        heat_loss_W = None
+        if bool(getattr(project, "heatloss_valid", False)):
+            totals_reader = getattr(project, "get_room_heatloss_totals", None)
+            if callable(totals_reader):
+                totals = totals_reader(stable_room_id)
+                if totals is not None:
+                    heat_loss_W = float(totals[2])
+        if heat_loss_W is None:
+            status_parts.append("Heat-loss evidence unavailable or stale")
+
+        room_emitters = [
+            emitter
+            for emitter in (getattr(project, "emitters", {}) or {}).values()
+            if str(getattr(emitter, "room_id", "") or "") == stable_room_id
+        ]
+        emitter_labels = [
+            str(
+                getattr(emitter, "name", None)
+                or getattr(emitter, "emitter_id", None)
+                or "Emitter"
+            )
+            for emitter in room_emitters
+        ]
+
+        emitter_output_W = 0.0
+        has_output = False
+        for emitter in room_emitters:
+            try:
+                output = float(getattr(emitter, "design_output_W", None))
+            except (TypeError, ValueError):
+                continue
+            if output > 0.0:
+                emitter_output_W += output
+                has_output = True
+
+        if not room_emitters:
+            status_parts.append("No assigned emitter")
+        elif not has_output:
+            status_parts.append("Emitter design output unavailable")
+
+        try:
+            emitter_flow_kg_s = _room_flow_kg_s(project, stable_room_id)
+        except Exception:
+            emitter_flow_kg_s = None
+        if emitter_flow_kg_s is None:
+            status_parts.append("Emitter design flow unavailable")
+
+        return CommonMainLegSublegRoomEvidenceV1(
+            room_id=stable_room_id,
+            room_label=room_label,
+            design_heat_loss_W=(
+                "" if heat_loss_W is None else f"{heat_loss_W:.1f} W"
+            ),
+            emitter_summary=", ".join(emitter_labels),
+            emitter_output_W=(
+                "" if not has_output else f"{emitter_output_W:.1f} W"
+            ),
+            emitter_flow_kg_s=(
+                ""
+                if emitter_flow_kg_s is None
+                else f"{float(emitter_flow_kg_s):.4f} kg/s"
+            ),
+            flow_basis=(
+                ""
+                if emitter_flow_kg_s is None
+                else "Existing branch-aware carried-flow basis"
+            ),
+            status=(
+                "; ".join(status_parts)
+                if status_parts
+                else "Read-only room design evidence"
             ),
         )
 
