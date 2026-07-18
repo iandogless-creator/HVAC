@@ -2037,6 +2037,9 @@ class HydronicsSchematicPanel(QWidget):
             ],
             stretch_columns={1, 2, 17},
         )
+        self._proportioning_basic_ps_sections_table.cellClicked.connect(
+            self._on_basic_ps_velocity_section_table_clicked_v1
+        )
 
         self._add_section(
             proportioning_layout,
@@ -2044,6 +2047,125 @@ class HydronicsSchematicPanel(QWidget):
             table=self._proportioning_basic_ps_sections_table,
             min_height=180,
             expanded=False,
+        )
+
+        # --------------------------------------------------
+        # H-S37-B4 — Local section maximum-velocity editor
+        # --------------------------------------------------
+        velocity_editor = QFrame(self)
+        velocity_editor.setFrameShape(QFrame.StyledPanel)
+        velocity_layout = QGridLayout(velocity_editor)
+        velocity_layout.setContentsMargins(8, 8, 8, 8)
+        velocity_layout.setHorizontalSpacing(10)
+        velocity_layout.setVerticalSpacing(6)
+
+        velocity_notice = QLabel(
+            "Select one stable Basic PS section. Changing the value does "
+            "nothing until Apply is pressed; Clear restores Environment "
+            "inheritance for this section only.",
+            velocity_editor,
+        )
+        velocity_notice.setWordWrap(True)
+        velocity_layout.addWidget(velocity_notice, 0, 0, 1, 4)
+
+        velocity_layout.addWidget(QLabel("Local section:", velocity_editor), 1, 0)
+        self._basic_ps_velocity_section_combo = QComboBox(velocity_editor)
+        self._basic_ps_velocity_section_combo.currentIndexChanged.connect(
+            self._on_basic_ps_velocity_section_changed_v1
+        )
+        velocity_layout.addWidget(
+            self._basic_ps_velocity_section_combo,
+            1,
+            1,
+            1,
+            3,
+        )
+
+        velocity_layout.addWidget(QLabel("Section ID:", velocity_editor), 2, 0)
+        self._basic_ps_velocity_section_id_label = QLabel("—", velocity_editor)
+        self._basic_ps_velocity_section_id_label.setTextInteractionFlags(
+            Qt.TextSelectableByMouse
+        )
+        velocity_layout.addWidget(
+            self._basic_ps_velocity_section_id_label,
+            2,
+            1,
+            1,
+            3,
+        )
+
+        velocity_layout.addWidget(
+            QLabel("Environment default:", velocity_editor),
+            3,
+            0,
+        )
+        self._basic_ps_velocity_environment_label = QLabel("—", velocity_editor)
+        velocity_layout.addWidget(
+            self._basic_ps_velocity_environment_label,
+            3,
+            1,
+        )
+
+        velocity_layout.addWidget(
+            QLabel("Local override:", velocity_editor),
+            3,
+            2,
+        )
+        self._basic_ps_velocity_override_spin = QDoubleSpinBox(velocity_editor)
+        self._basic_ps_velocity_override_spin.setRange(0.10, 5.00)
+        self._basic_ps_velocity_override_spin.setDecimals(2)
+        self._basic_ps_velocity_override_spin.setSingleStep(0.05)
+        self._basic_ps_velocity_override_spin.setSuffix(" m/s")
+        velocity_layout.addWidget(
+            self._basic_ps_velocity_override_spin,
+            3,
+            3,
+        )
+
+        velocity_layout.addWidget(QLabel("Effective basis:", velocity_editor), 4, 0)
+        self._basic_ps_velocity_effective_label = QLabel("—", velocity_editor)
+        self._basic_ps_velocity_effective_label.setWordWrap(True)
+        velocity_layout.addWidget(
+            self._basic_ps_velocity_effective_label,
+            4,
+            1,
+            1,
+            3,
+        )
+
+        self._basic_ps_velocity_apply_button = QPushButton(
+            "Apply to this section",
+            velocity_editor,
+        )
+        self._basic_ps_velocity_clear_button = QPushButton(
+            "Clear local override — inherit Environment",
+            velocity_editor,
+        )
+        self._basic_ps_velocity_apply_button.clicked.connect(
+            self._on_apply_basic_ps_velocity_override_v1
+        )
+        self._basic_ps_velocity_clear_button.clicked.connect(
+            self._on_clear_basic_ps_velocity_override_v1
+        )
+        velocity_layout.addWidget(
+            self._basic_ps_velocity_apply_button,
+            5,
+            2,
+        )
+        velocity_layout.addWidget(
+            self._basic_ps_velocity_clear_button,
+            5,
+            3,
+        )
+        velocity_layout.setColumnStretch(1, 1)
+        velocity_layout.setColumnStretch(3, 1)
+
+        self._add_section(
+            proportioning_layout,
+            title="Local section maximum velocity — authority editor",
+            table=velocity_editor,
+            min_height=175,
+            expanded=True,
         )
 
         # --------------------------------------------------
@@ -4000,11 +4122,205 @@ class HydronicsSchematicPanel(QWidget):
                 item = QTableWidgetItem(str(value))
                 item.setFlags(item.flags() & ~Qt.ItemIsEditable)
                 table.setItem(row_index, col_index, item)
+
+        self._set_basic_ps_velocity_editor_rows_v1(rows)
         self._refresh_proportioning_input_snapshot()
         self._fit_table_height(table, min_height=180, max_height=300)
 
         if not getattr(self, "_suppress_basic_ps_scroll_to_top", False):
             table.scrollToTop()
+
+    def set_basic_ps_section_velocity_override_callback(
+            self,
+            callback,
+    ) -> None:
+        """Register the adapter-owned H-S37-B4 authority callback."""
+        self._basic_ps_section_velocity_override_callback = callback
+
+    @staticmethod
+    def _basic_ps_velocity_optional_float_v1(value) -> float | None:
+        try:
+            return None if value is None else float(value)
+        except (TypeError, ValueError):
+            return None
+
+    def _set_basic_ps_velocity_editor_rows_v1(self, rows: list[dict]) -> None:
+        combo = getattr(self, "_basic_ps_velocity_section_combo", None)
+        if combo is None:
+            return
+
+        previous_section_id = str(
+            combo.currentData()
+            or getattr(self, "_basic_ps_velocity_selected_section_id", "")
+            or ""
+        )
+        row_copies = [dict(row) for row in (rows or [])]
+        self._basic_ps_velocity_editor_rows_by_section_id = {
+            str(row.get("section_id") or ""): row
+            for row in row_copies
+            if str(row.get("section_id") or "")
+        }
+        self._basic_ps_velocity_editor_section_ids = [
+            str(row.get("section_id") or "")
+            for row in row_copies
+        ]
+
+        previous_signal_state = combo.blockSignals(True)
+        try:
+            combo.clear()
+            for row in row_copies:
+                section_id = str(row.get("section_id") or "")
+                if not section_id:
+                    continue
+                route = str(row.get("route") or "Route")
+                order = str(row.get("order") or "—")
+                from_label = str(row.get("from") or "—")
+                to_label = str(row.get("to") or "—")
+                combo.addItem(
+                    f"{route} | {order} — {from_label} → {to_label}",
+                    section_id,
+                )
+
+            wanted_index = combo.findData(previous_section_id)
+            if wanted_index < 0 and combo.count():
+                wanted_index = 0
+            combo.setCurrentIndex(wanted_index)
+        finally:
+            combo.blockSignals(previous_signal_state)
+
+        self._on_basic_ps_velocity_section_changed_v1(combo.currentIndex())
+
+    def _on_basic_ps_velocity_section_table_clicked_v1(
+            self,
+            row_index: int,
+            _column_index: int,
+    ) -> None:
+        section_ids = getattr(
+            self,
+            "_basic_ps_velocity_editor_section_ids",
+            [],
+        )
+        if not (0 <= row_index < len(section_ids)):
+            return
+
+        section_id = str(section_ids[row_index] or "")
+        combo = getattr(self, "_basic_ps_velocity_section_combo", None)
+        if combo is None or not section_id:
+            return
+        combo_index = combo.findData(section_id)
+        if combo_index >= 0:
+            combo.setCurrentIndex(combo_index)
+
+    def _on_basic_ps_velocity_section_changed_v1(
+            self,
+            _index: int = -1,
+    ) -> None:
+        combo = getattr(self, "_basic_ps_velocity_section_combo", None)
+        if combo is None:
+            return
+
+        section_id = str(combo.currentData() or "")
+        rows_by_id = getattr(
+            self,
+            "_basic_ps_velocity_editor_rows_by_section_id",
+            {},
+        )
+        row = rows_by_id.get(section_id, {})
+        has_section = bool(section_id and row)
+        self._basic_ps_velocity_selected_section_id = section_id
+
+        section_id_label = self._basic_ps_velocity_section_id_label
+        environment_label = self._basic_ps_velocity_environment_label
+        effective_label = self._basic_ps_velocity_effective_label
+        spin = self._basic_ps_velocity_override_spin
+        apply_button = self._basic_ps_velocity_apply_button
+        clear_button = self._basic_ps_velocity_clear_button
+
+        if not has_section:
+            section_id_label.setText("—")
+            environment_label.setText("—")
+            effective_label.setText("—")
+            spin.setEnabled(False)
+            apply_button.setEnabled(False)
+            clear_button.setEnabled(False)
+            return
+
+        environment_value = self._basic_ps_velocity_optional_float_v1(
+            row.get("environment_max_velocity_m_s")
+        )
+        local_value = self._basic_ps_velocity_optional_float_v1(
+            row.get("local_max_velocity_override_m_s")
+        )
+        effective_value = self._basic_ps_velocity_optional_float_v1(
+            row.get("applied_max_velocity_m_s")
+        )
+        source = str(row.get("max_velocity_source") or "—")
+
+        section_id_label.setText(section_id)
+        environment_label.setText(
+            "—" if environment_value is None else f"{environment_value:.2f} m/s"
+        )
+        if local_value is not None:
+            spin.setValue(local_value)
+        elif environment_value is not None:
+            spin.setValue(environment_value)
+        elif effective_value is not None:
+            spin.setValue(effective_value)
+
+        effective_value_text = (
+            "—" if effective_value is None else f"{effective_value:.2f} m/s"
+        )
+        local_state = (
+            f"Local override {local_value:.2f} m/s"
+            if local_value is not None
+            else "No local override — inherits Environment"
+        )
+        effective_label.setText(
+            f"{effective_value_text} — {source}. {local_state}."
+        )
+        spin.setEnabled(True)
+        apply_button.setEnabled(True)
+        clear_button.setEnabled(local_value is not None)
+        self.focus_proportioning_basic_ps_section(section_id)
+
+    def _on_apply_basic_ps_velocity_override_v1(self) -> None:
+        section_id = str(
+            getattr(self, "_basic_ps_velocity_selected_section_id", "") or ""
+        )
+        callback = getattr(
+            self,
+            "_basic_ps_section_velocity_override_callback",
+            None,
+        )
+        if not section_id or not callable(callback):
+            return
+        callback(
+            {
+                "action": "set",
+                "section_id": section_id,
+                "max_velocity_m_s": float(
+                    self._basic_ps_velocity_override_spin.value()
+                ),
+            }
+        )
+
+    def _on_clear_basic_ps_velocity_override_v1(self) -> None:
+        section_id = str(
+            getattr(self, "_basic_ps_velocity_selected_section_id", "") or ""
+        )
+        callback = getattr(
+            self,
+            "_basic_ps_section_velocity_override_callback",
+            None,
+        )
+        if not section_id or not callable(callback):
+            return
+        callback(
+            {
+                "action": "clear",
+                "section_id": section_id,
+            }
+        )
 
     def _preliminary_focus_row_matches(
             self,

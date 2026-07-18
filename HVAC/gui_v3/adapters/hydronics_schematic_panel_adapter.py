@@ -225,9 +225,77 @@ class HydronicsSchematicPanelAdapter:
                 self.commit_proportioning_basis_snapshot
             )
 
+        # --------------------------------------------------
+        # H-S37-B4 — Local Basic PS section velocity callback
+        # --------------------------------------------------
+        if hasattr(
+                self._panel,
+                "set_basic_ps_section_velocity_override_callback",
+        ):
+            self._panel.set_basic_ps_section_velocity_override_callback(
+                self.set_basic_ps_section_velocity_override
+            )
+
         self.refresh()
 
 
+
+    def set_basic_ps_section_velocity_override(self, payload: dict) -> None:
+        """Persist one explicit H-S37-B4 section override or clear it.
+
+        This callback is the authority boundary. It mutates only the selected
+        stable Basic PS section_id, invalidates hydronics, and refreshes the
+        read-only projections. It does not alter Environment or other sections.
+        """
+        if not isinstance(payload, dict):
+            raise ValueError("Basic PS section velocity payload must be a dictionary")
+
+        project = self._project_state
+        if project is None:
+            return
+
+        section_id = str(payload.get("section_id") or "").strip()
+        if not section_id:
+            raise ValueError("section_id is required")
+
+        action = str(payload.get("action") or "").strip().lower()
+        intent = getattr(project, "basic_hydronic_sizing_intent", None)
+
+        if action == "set":
+            if intent is None:
+                from HVAC.hydronics.models.basic_hydronic_sizing_intent_v1 import (
+                    BasicHydronicSizingIntentV1,
+                )
+
+                intent = BasicHydronicSizingIntentV1()
+                project.basic_hydronic_sizing_intent = intent
+            intent.set_section_max_velocity_override(
+                section_id,
+                payload.get("max_velocity_m_s"),
+            )
+        elif action == "clear":
+            if intent is None:
+                self.refresh()
+                return
+            intent.clear_section_max_velocity_override(section_id)
+        else:
+            raise ValueError("action must be 'set' or 'clear'")
+
+        project.hydronics_valid = False
+        self.refresh()
+
+        for signal_name in ("project_state_changed", "project_changed"):
+            signal = getattr(self._context, signal_name, None)
+            emit = getattr(signal, "emit", None)
+            if not callable(emit):
+                continue
+            try:
+                emit()
+            except TypeError:
+                try:
+                    emit(project)
+                except TypeError:
+                    pass
 
     def _restore_return_arrangement_acceptance_basis_to_panel(self) -> None:
         """
@@ -3817,6 +3885,32 @@ class HydronicsSchematicPanelAdapter:
             )
 
             takeoff_status = "TBA" if subleg_role == "branch" else ""
+
+            environment = getattr(self._project_state, "environment", None)
+            environment_max_velocity_m_s = getattr(
+                environment,
+                "basic_ps_max_velocity_m_s",
+                1.0,
+            )
+            if environment_max_velocity_m_s is None:
+                environment_max_velocity_m_s = 1.0
+
+            sizing_intent = getattr(
+                self._project_state,
+                "basic_hydronic_sizing_intent",
+                None,
+            )
+            velocity_overrides = getattr(
+                sizing_intent,
+                "section_max_velocity_overrides_m_s",
+                {},
+            ) or {}
+            local_max_velocity_override_m_s = (
+                velocity_overrides.get(section_id)
+                if isinstance(velocity_overrides, dict)
+                else None
+            )
+
             rows.append(
                 {
                     "leg_id": leg_id,
@@ -3826,6 +3920,20 @@ class HydronicsSchematicPanelAdapter:
                     "subleg_role": subleg_role,
                     "takeoff_status": takeoff_status,
                     "section_id": section_id,
+                    "environment_max_velocity_m_s": float(
+                        environment_max_velocity_m_s
+                    ),
+                    "local_max_velocity_override_m_s": (
+                        None
+                        if local_max_velocity_override_m_s is None
+                        else float(local_max_velocity_override_m_s)
+                    ),
+                    "applied_max_velocity_m_s": float(
+                        getattr(result, "applied_max_velocity_m_s", 1.0)
+                    ),
+                    "max_velocity_source": str(
+                        getattr(result, "max_velocity_source", "") or "—"
+                    ),
                     "order": getattr(result, "order", "—"),
                     "from": getattr(result, "from_label", "—"),
                     "to": getattr(result, "to_room_label", "—"),
