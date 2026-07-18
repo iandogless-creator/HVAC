@@ -30,6 +30,13 @@ from HVAC.hydronics.proportioning.route_pressure_accumulator_v1 import (
 from HVAC.hydronics.pipes.dp.mass_flow_pressure_drop_v1 import (
     calculate_hydronic_pipe_pressure_drop_from_mass_flow_v1,
 )
+from HVAC.hydronics.proportioning.effective_rr_length_basis_resolver_v1 import (
+    EffectiveRRAddedLengthBasisV1,
+    resolve_subleg_rr_added_length_basis_v1,
+)
+from HVAC.hydronics.topology.primary_subleg_helpers_v1 import (
+    find_primary_subleg_for_leg,
+)
 
 @dataclass(frozen=True, slots=True)
 class CircuitReturnPathComparisonRowV1:
@@ -62,6 +69,12 @@ class CircuitReturnPathComparisonRowV1:
     controlling_reverse_return: bool
 
     status: str
+
+    # H-S38-A3 route-specific RR length authority evidence.
+    # Defaults retain compatibility with older direct DTO construction.
+    rr_added_length_basis_mode: str = "physical_loop_zero_extra"
+    rr_added_length_source: str = "system"
+    rr_added_length_inherited_from: str = ""
 
 @dataclass(frozen=True, slots=True)
 class ReverseReturnSuitabilityV1:
@@ -110,8 +123,13 @@ def build_circuit_return_path_comparison_v1(
 
     for leg in getattr(topology, "legs", []) or []:
         leg_id = str(getattr(leg, "leg_id", "") or "")
+        leg_sublegs = list(getattr(leg, "sublegs", []) or [])
+        primary_subleg = find_primary_subleg_for_leg(leg)
+        primary_subleg_id = str(
+            getattr(primary_subleg, "subleg_id", "") or ""
+        )
 
-        for subleg in getattr(leg, "sublegs", []) or []:
+        for subleg in leg_sublegs:
             subleg_id = str(getattr(subleg, "subleg_id", "") or "")
             subleg_label = str(
                 getattr(subleg, "label", None)
@@ -151,8 +169,22 @@ def build_circuit_return_path_comparison_v1(
                 subleg_id=subleg_id,
             )
 
-            rr_added_length_basis_mode = _rr_added_length_basis_mode(
-                project_state
+            # H-S38-A3: resolve one most-specific RR length authority
+            # for this route. Current v1 branch siblings inherit from
+            # the leg primary/common subleg, matching arrangement scope.
+            parent_subleg_id = (
+                primary_subleg_id
+                if primary_subleg_id and subleg_id != primary_subleg_id
+                else ""
+            )
+            rr_length_resolution = _resolve_route_rr_added_length_basis_v1(
+                project_state,
+                leg_id=leg_id,
+                subleg_id=subleg_id,
+                parent_subleg_id=parent_subleg_id,
+            )
+            rr_added_length_basis_mode = (
+                rr_length_resolution.effective_basis_mode
             )
 
             rr_suitability = _appraise_reverse_return_suitability_v1(
@@ -181,6 +213,9 @@ def build_circuit_return_path_comparison_v1(
                     basis_mode=rr_added_length_basis_mode,
                     section_length_by_id=section_length_by_id,
                     reverse_return_section_ids=reverse_return_section_ids,
+                    manual_added_length_m=(
+                        rr_length_resolution.effective_added_length_m
+                    ),
                 )
 
                 flow_dp_Pa = _sum_section_dp(
@@ -257,6 +292,17 @@ def build_circuit_return_path_comparison_v1(
                             rr_added_length_basis_mode=rr_added_length_basis_mode,
                             rr_added_length_m=rr_added_length_m,
                             rr_added_pressure_drop_Pa=rr_added_pressure_drop_Pa,
+                            rr_added_length_source=rr_length_resolution.source,
+                            rr_added_length_inherited_from=(
+                                rr_length_resolution.inherited_from
+                            ),
+                        ),
+                        rr_added_length_basis_mode=(
+                            rr_length_resolution.effective_basis_mode
+                        ),
+                        rr_added_length_source=rr_length_resolution.source,
+                        rr_added_length_inherited_from=(
+                            rr_length_resolution.inherited_from
                         ),
                     )
                 )
@@ -549,6 +595,31 @@ def _section_length_by_id(
     return result
 
 
+def _resolve_route_rr_added_length_basis_v1(
+    project_state: Any,
+    *,
+    leg_id: str,
+    subleg_id: str,
+    parent_subleg_id: str = "",
+) -> EffectiveRRAddedLengthBasisV1:
+    """Resolve the single effective RR length basis for one route.
+
+    H-S38-A3 consumes the H-S38-A1 hierarchy without combining values
+    from System, Leg, Common and Branch scopes.
+    """
+    intent = getattr(
+        project_state,
+        "hydronic_return_arrangement_intent",
+        None,
+    )
+    return resolve_subleg_rr_added_length_basis_v1(
+        intent,
+        leg_id=leg_id,
+        subleg_id=subleg_id,
+        parent_subleg_id=parent_subleg_id,
+    )
+
+
 def _rr_added_length_basis_mode(project_state: Any) -> str:
     """
     H-S29-K / H-S29-M1:
@@ -637,9 +708,10 @@ def _rr_added_length_for_row_v1(
     basis_mode: str,
     section_length_by_id: dict[str, float | None],
     reverse_return_section_ids: tuple[str, ...],
+    manual_added_length_m: float | None = None,
 ) -> float:
     """
-    H-S29-K:
+    H-S29-K / H-S38-A3:
     Calculate the RR extra/additional length for one comparison row.
 
     physical_loop_zero_extra:
@@ -661,6 +733,12 @@ def _rr_added_length_for_row_v1(
         )
 
     if mode == "manual_allowance":
+        if manual_added_length_m is not None:
+            try:
+                return max(float(manual_added_length_m), 0.0)
+            except (TypeError, ValueError):
+                return 0.0
+        # Backward-compatible H-S29 helper behaviour for direct calls.
         return _rr_added_length_m(project_state)
 
     return 0.0
@@ -865,15 +943,25 @@ def _return_comparison_status_v1(
     rr_added_length_basis_mode: str,
     rr_added_length_m: float,
     rr_added_pressure_drop_Pa: float,
+    rr_added_length_source: str = "",
+    rr_added_length_inherited_from: str = "",
 ) -> str:
     if reverse_return_section_ids:
         base = "Flow + direct + reverse return paths ready"
         basis = _rr_added_length_basis_label_v1(rr_added_length_basis_mode)
+        source = str(rr_added_length_source or "system")
+        inherited = (
+            f" from {rr_added_length_inherited_from}"
+            if rr_added_length_inherited_from
+            else ""
+        )
 
         return (
             f"{base} | RR length basis: {basis}; "
             f"extra {rr_added_length_m:.2f} m adds "
-            f"{rr_added_pressure_drop_Pa:.1f} Pa"
+            f"{rr_added_pressure_drop_Pa:.1f} Pa; "
+            f"authority {source}{inherited}; "
+            "one effective allowance only — no scope summing"
         )
 
     if flow_section_ids:

@@ -3829,6 +3829,20 @@ class HydronicsSchematicPanelAdapter:
                     "rr_added_length": self._format_length(
                         getattr(row, "rr_added_length_m", None)
                     ),
+                    "rr_added_length_m": getattr(
+                        row, "rr_added_length_m", None
+                    ),
+                    "rr_added_length_basis_mode": getattr(
+                        row,
+                        "rr_added_length_basis_mode",
+                        "physical_loop_zero_extra",
+                    ),
+                    "rr_added_length_source": getattr(
+                        row, "rr_added_length_source", "system"
+                    ),
+                    "rr_added_length_inherited_from": getattr(
+                        row, "rr_added_length_inherited_from", ""
+                    ),
                     "rr_added_dp": self._format_pa(
                         getattr(row, "rr_added_pressure_drop_Pa", None)
                     ),
