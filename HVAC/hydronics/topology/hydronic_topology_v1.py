@@ -125,6 +125,10 @@ class HydronicTopologyV1:
     Important:
     - ProjectState.rooms remains stable room/spatial identity.
     - HydronicTopologyV1 owns hydronic route ordering.
+    - The persisted legs list is physical common-main take-off order,
+      starting at the heat source and proceeding outwards.
+    - Reordering legs changes that physical take-off order; the first leg is
+      the nearest take-off and the last leg is the furthest take-off.
     - Basic PS should eventually consume this object.
     - Proportioning schematic should eventually consume this object.
     - This object does not perform physics.
