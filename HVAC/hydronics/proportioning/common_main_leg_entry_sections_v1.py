@@ -18,6 +18,16 @@ COMMON_MAIN_SECTION_KIND = "common_main"
 LEG_ENTRY_SECTION_KIND = "leg_entry"
 
 
+def common_main_section_id_for_leg_v1(leg_id: str) -> str:
+    """Return the canonical stable common-main section id for one leg."""
+    return f"common-main-to-{str(leg_id or '').strip()}-section-001"
+
+
+def leg_entry_section_id_for_leg_v1(leg_id: str) -> str:
+    """Return the canonical stable leg-entry section id for one leg."""
+    return f"{str(leg_id or '').strip()}-entry-section-001"
+
+
 @dataclass(frozen=True, slots=True)
 class CommonMainLegEntrySectionV1:
     """One stable read-only common-main or leg-entry topology section."""
@@ -139,7 +149,7 @@ def build_common_main_leg_entry_sections_v1(
         downstream = leg_bases[index:]
         common_main_sections.append(
             CommonMainLegEntrySectionV1(
-                section_id=f"common-main-to-{basis.leg_id}-section-001",
+                section_id=common_main_section_id_for_leg_v1(basis.leg_id),
                 section_kind=COMMON_MAIN_SECTION_KIND,
                 order=order,
                 takeoff_leg_id=basis.leg_id,
@@ -170,7 +180,7 @@ def build_common_main_leg_entry_sections_v1(
 
         leg_entry_sections.append(
             CommonMainLegEntrySectionV1(
-                section_id=f"{basis.leg_id}-entry-section-001",
+                section_id=leg_entry_section_id_for_leg_v1(basis.leg_id),
                 section_kind=LEG_ENTRY_SECTION_KIND,
                 order=order,
                 takeoff_leg_id=basis.leg_id,
