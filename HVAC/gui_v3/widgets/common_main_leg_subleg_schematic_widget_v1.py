@@ -199,6 +199,12 @@ class CommonMainLegSublegSchematicWidgetV1(QWidget):
         ] = []
         self._hovered_section_trace_key: tuple[str, int, str] | None = None
 
+        # H-S41-A — display-only common-main / leg / subleg hover.
+        self._hierarchy_hover_hit_rects: list[
+            tuple[QRectF, str, str]
+        ] = []
+        self._hovered_hierarchy_key: tuple[str, str] | None = None
+
         self.setMinimumSize(
             self._MIN_CANVAS_WIDTH,
             self._BASE_CANVAS_HEIGHT,
@@ -212,8 +218,10 @@ class CommonMainLegSublegSchematicWidgetV1(QWidget):
         self._schematic = schematic
         self._hovered_section_trace_key = None
         self._hovered_room_key = None
+        self._hovered_hierarchy_key = None
         self._section_trace_hit_rects = []
         self._room_hover_hit_rects = []
+        self._hierarchy_hover_hit_rects = []
         QToolTip.hideText()
 
         routes = list(getattr(schematic, "routes", ()) or ())
@@ -354,6 +362,7 @@ class CommonMainLegSublegSchematicWidgetV1(QWidget):
         self._subleg_hit_rects = []
         self._section_trace_hit_rects = []
         self._room_hover_hit_rects = []
+        self._hierarchy_hover_hit_rects = []
 
         schematic = self._schematic
 
@@ -434,6 +443,7 @@ class CommonMainLegSublegSchematicWidgetV1(QWidget):
             )
             y = self._paint_leg_heading(
                 painter,
+                leg_id,
                 leg_label,
                 y,
                 focused=leg_focused,
@@ -588,14 +598,25 @@ class CommonMainLegSublegSchematicWidgetV1(QWidget):
             common_height,
         )
 
-        # H-S34-F4: common main is an included path element, not the exact
-        # selected object. Match the focus-red path hierarchy.
-        common_border = (
-            QColor(170, 35, 35)
-            if focused
-            else QColor(45, 100, 180)
+        # H-S41-A: hover is display-only and takes visual priority over
+        # the existing focus outline without changing focus itself.
+        common_hovered = self._hovered_hierarchy_key == (
+            "common_main",
+            "common_main",
         )
-        common_border_width = 1.8 if focused else 1.6
+        if common_hovered:
+            common_border = QColor(35, 125, 185)
+            common_border_width = 3.0
+        elif focused:
+            common_border = QColor(170, 35, 35)
+            common_border_width = 1.8
+        else:
+            common_border = QColor(45, 100, 180)
+            common_border_width = 1.6
+
+        self._hierarchy_hover_hit_rects.append(
+            (common_rect, "common_main", "common_main")
+        )
         painter.setPen(QPen(common_border, common_border_width))
         painter.setBrush(QBrush(QColor(230, 240, 255)))
         painter.drawRoundedRect(
@@ -642,6 +663,7 @@ class CommonMainLegSublegSchematicWidgetV1(QWidget):
     def _paint_leg_heading(
             self,
             painter: QPainter,
+            leg_id: str,
             leg_label: str,
             y: float,
             *,
@@ -656,13 +678,22 @@ class CommonMainLegSublegSchematicWidgetV1(QWidget):
             self._LEG_HEIGHT,
         )
 
-        # H-S34-F4: the leg is also an included upstream path element.
-        leg_border = (
-            QColor(170, 35, 35)
-            if focused
-            else QColor(70, 105, 150)
+        # H-S41-A: blue hierarchy hover does not alter route focus.
+        leg_key = str(leg_id or "")
+        leg_hovered = self._hovered_hierarchy_key == ("leg", leg_key)
+        if leg_hovered:
+            leg_border = QColor(35, 125, 185)
+            leg_border_width = 3.0
+        elif focused:
+            leg_border = QColor(170, 35, 35)
+            leg_border_width = 1.4
+        else:
+            leg_border = QColor(70, 105, 150)
+            leg_border_width = 1.3
+
+        self._hierarchy_hover_hit_rects.append(
+            (leg_rect, "leg", leg_key)
         )
-        leg_border_width = 1.4 if focused else 1.3
         painter.setPen(QPen(leg_border, leg_border_width))
         painter.setBrush(QBrush(QColor(242, 247, 255)))
         painter.drawRoundedRect(leg_rect, 5.0, 5.0)
@@ -733,6 +764,153 @@ class CommonMainLegSublegSchematicWidgetV1(QWidget):
 
         return QPen(QColor(120, 120, 120), 1.8)
 
+
+    @staticmethod
+    def _shown_hierarchy_value_v1(value: object) -> str:
+        text = str(value or "").strip()
+        return text if text and text not in {"-", "—"} else "—"
+
+    @staticmethod
+    def _unique_route_values_v1(
+            routes: tuple[CommonMainLegSublegRouteV1, ...],
+            attribute: str,
+    ) -> tuple[str, ...]:
+        values: list[str] = []
+        for route in routes:
+            value = str(getattr(route, attribute, "") or "").strip()
+            if value and value not in values:
+                values.append(value)
+        return tuple(values)
+
+    @staticmethod
+    def _first_section_evidence_v1(
+            route: CommonMainLegSublegRouteV1 | None,
+    ) -> CommonMainLegSublegSectionEvidenceV1 | None:
+        evidence_rows = tuple(
+            getattr(route, "section_evidence", ()) or ()
+        )
+        if not evidence_rows:
+            return None
+        return min(
+            evidence_rows,
+            key=lambda row: (
+                int(getattr(row, "section_ordinal", 0) or 0),
+                int(getattr(row, "trace_index", -1)),
+            ),
+        )
+
+    def _hierarchy_tooltip_text_v1(
+            self,
+            scope: str,
+            stable_id: str,
+    ) -> str:
+        # Summarise prepared topology/evidence; derive no hydraulics.
+        shown = self._shown_hierarchy_value_v1
+        schematic = self._schematic
+        routes = tuple(getattr(schematic, "routes", ()) or ())
+
+        if scope == "common_main":
+            leg_ids = self._unique_route_values_v1(routes, "leg_id")
+            leg_labels = self._unique_route_values_v1(routes, "leg_label")
+            subleg_ids = self._unique_route_values_v1(routes, "subleg_id")
+            # room_labels is tuple-valued, so count stable room identities
+            # separately while preserving their displayed order.
+            rooms: list[str] = []
+            for route in routes:
+                for room_id in tuple(getattr(route, "room_labels", ()) or ()):
+                    room_key = str(room_id or "")
+                    if room_key and room_key not in rooms:
+                        rooms.append(room_key)
+            label = shown(
+                getattr(schematic, "common_main_label", "") or "Common main"
+            )
+            status = shown(getattr(schematic, "status", ""))
+            status_lines = textwrap.wrap(status, width=72) or ["—"]
+            leg_text = ", ".join(leg_labels) if leg_labels else "—"
+            lines = [
+                label,
+                "Scope: Common main",
+                f"Legs supplied: {len(leg_ids)} ({leg_text})",
+                f"Sublegs supplied: {len(subleg_ids)}",
+                f"Unique rooms supplied: {len(rooms)}",
+                f"Status: {status_lines[0]}",
+            ]
+            lines.extend(f"        {line}" for line in status_lines[1:])
+            return "\n".join(lines)
+
+        if scope == "leg":
+            leg_routes = tuple(
+                route for route in routes
+                if str(getattr(route, "leg_id", "") or "") == stable_id
+            )
+            if not leg_routes:
+                return f"Leg\nLeg ID: {shown(stable_id)}"
+            primary = next(
+                (
+                    route for route in leg_routes
+                    if not str(getattr(route, "parent_subleg_id", "") or "")
+                ),
+                leg_routes[0],
+            )
+            rooms: list[str] = []
+            for route in leg_routes:
+                for room_id in tuple(getattr(route, "room_labels", ()) or ()):
+                    room_key = str(room_id or "")
+                    if room_key and room_key not in rooms:
+                        rooms.append(room_key)
+            subleg_labels = self._unique_route_values_v1(
+                leg_routes,
+                "subleg_label",
+            )
+            entry = self._first_section_evidence_v1(primary)
+            return "\n".join(
+                [
+                    shown(getattr(primary, "leg_label", "") or stable_id),
+                    "Scope: Leg",
+                    f"Leg ID: {shown(stable_id)}",
+                    f"Sublegs: {len(leg_routes)} ({', '.join(subleg_labels) or '—'})",
+                    f"Unique rooms: {len(rooms)}",
+                    f"Entry carried flow: {shown(getattr(entry, 'flow_kg_s', ''))}",
+                    f"Entry pipe: {shown(getattr(entry, 'pipe_dn', ''))}",
+                ]
+            )
+
+        route = next(
+            (
+                candidate for candidate in routes
+                if str(getattr(candidate, "subleg_id", "") or "") == stable_id
+            ),
+            None,
+        )
+        if route is None:
+            return f"Subleg\nSubleg ID: {shown(stable_id)}"
+        entry = self._first_section_evidence_v1(route)
+        parent = (
+            shown(
+                getattr(route, "parent_subleg_label", "")
+                or getattr(route, "parent_subleg_id", "")
+            )
+            if str(getattr(route, "parent_subleg_id", "") or "")
+            else "Common main / leg entry"
+        )
+        role = shown(getattr(route, "role", "") or "Subleg")
+        room_labels = tuple(getattr(route, "room_labels", ()) or ())
+        return "\n".join(
+            [
+                shown(
+                    getattr(route, "subleg_label", "")
+                    or getattr(route, "subleg_id", "")
+                ),
+                f"Scope: {role}",
+                f"Subleg ID: {shown(stable_id)}",
+                f"Leg: {shown(getattr(route, 'leg_label', ''))} ({shown(getattr(route, 'leg_id', ''))})",
+                f"Parent: {parent}",
+                f"Rooms: {len(room_labels)}",
+                f"Entry carried flow: {shown(getattr(entry, 'flow_kg_s', ''))}",
+                f"Entry pipe: {shown(getattr(entry, 'pipe_dn', ''))}",
+                f"Entry Δp/m: {shown(getattr(entry, 'dp_per_m', ''))}",
+            ]
+        )
 
     @staticmethod
     def _room_evidence_for_room_id_v1(
@@ -923,7 +1101,15 @@ class CommonMainLegSublegSchematicWidgetV1(QWidget):
         )
         subleg_exactly_focused = route_focused and not room_focus_active
 
-        if subleg_exactly_focused:
+        subleg_key = str(getattr(route, "subleg_id", "") or "")
+        subleg_hovered = self._hovered_hierarchy_key == (
+            "subleg",
+            subleg_key,
+        )
+        if subleg_hovered:
+            border = QColor(35, 125, 185)
+            border_width = 3.0
+        elif subleg_exactly_focused:
             border = QColor(190, 115, 35)
             border_width = 2.6
         elif route_focused:
@@ -953,6 +1139,9 @@ class CommonMainLegSublegSchematicWidgetV1(QWidget):
             "room_id": "",
         }
         self._subleg_hit_rects.append((subleg_rect, focus))
+        self._hierarchy_hover_hit_rects.append(
+            (subleg_rect, "subleg", subleg_key)
+        )
 
         role_text = str(route.role or "")
         if role_text:
@@ -1345,6 +1534,9 @@ class CommonMainLegSublegSchematicWidgetV1(QWidget):
             if self._hovered_section_trace_key is not None:
                 self._hovered_section_trace_key = None
                 needs_update = True
+            if self._hovered_hierarchy_key is not None:
+                self._hovered_hierarchy_key = None
+                needs_update = True
 
             if needs_update:
                 self.update()
@@ -1374,6 +1566,9 @@ class CommonMainLegSublegSchematicWidgetV1(QWidget):
             if self._hovered_room_key is not None:
                 self._hovered_room_key = None
                 needs_update = True
+            if self._hovered_hierarchy_key is not None:
+                self._hovered_hierarchy_key = None
+                needs_update = True
 
             if needs_update:
                 self.update()
@@ -1386,12 +1581,44 @@ class CommonMainLegSublegSchematicWidgetV1(QWidget):
             event.accept()
             return
 
+        # H-S41-A — hierarchy nodes follow room and pipe-section priority.
+        for rect, scope, stable_id in reversed(
+                self._hierarchy_hover_hit_rects
+        ):
+            if not rect.contains(pos):
+                continue
+
+            hierarchy_key = (scope, stable_id)
+            needs_update = hierarchy_key != self._hovered_hierarchy_key
+            self._hovered_hierarchy_key = hierarchy_key
+
+            if self._hovered_room_key is not None:
+                self._hovered_room_key = None
+                needs_update = True
+            if self._hovered_section_trace_key is not None:
+                self._hovered_section_trace_key = None
+                needs_update = True
+
+            if needs_update:
+                self.update()
+
+            QToolTip.showText(
+                event.globalPosition().toPoint(),
+                self._hierarchy_tooltip_text_v1(scope, stable_id),
+                self,
+            )
+            event.accept()
+            return
+
         needs_update = False
         if self._hovered_section_trace_key is not None:
             self._hovered_section_trace_key = None
             needs_update = True
         if self._hovered_room_key is not None:
             self._hovered_room_key = None
+            needs_update = True
+        if self._hovered_hierarchy_key is not None:
+            self._hovered_hierarchy_key = None
             needs_update = True
         if needs_update:
             self.update()
@@ -1406,6 +1633,9 @@ class CommonMainLegSublegSchematicWidgetV1(QWidget):
             needs_update = True
         if self._hovered_room_key is not None:
             self._hovered_room_key = None
+            needs_update = True
+        if self._hovered_hierarchy_key is not None:
+            self._hovered_hierarchy_key = None
             needs_update = True
         if needs_update:
             self.update()

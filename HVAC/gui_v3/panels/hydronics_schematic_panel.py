@@ -698,6 +698,23 @@ class HydronicsSchematicPanel(QWidget):
             self._on_clean_proportioned_section_view_mode_changed_v1
         )
 
+        # H-S41-B — evidence stage is independent of route filtering.
+        self._clean_proportioned_evidence_view_label = QLabel("Evidence:")
+        self._clean_proportioned_evidence_view_button = QPushButton(
+            "Proportioning"
+        )
+        self._clean_proportioned_evidence_view_button.setCheckable(True)
+        self._clean_proportioned_evidence_view_button.setChecked(True)
+        self._clean_proportioned_evidence_view_button.setMaximumWidth(130)
+        self._set_clean_proportioned_evidence_button_style_v1(
+            self._clean_proportioned_evidence_view_button,
+            "Proportioning",
+        )
+        self._clean_proportioned_evidence_view_button.toggled.connect(
+            self._on_clean_proportioned_evidence_view_toggled_v1
+        )
+        self._clean_proportioned_evidence_view_mode_v1 = "Proportioning"
+
         self._clean_proportioned_focused_section_label = QLabel(
             "Focused route: —"
         )
@@ -707,6 +724,13 @@ class HydronicsSchematicPanel(QWidget):
         )
         controls_layout.addWidget(
             self._clean_proportioned_section_view_mode_combo
+        )
+        controls_layout.addSpacing(10)
+        controls_layout.addWidget(
+            self._clean_proportioned_evidence_view_label
+        )
+        controls_layout.addWidget(
+            self._clean_proportioned_evidence_view_button
         )
         controls_layout.addWidget(
             self._clean_proportioned_focused_section_label,
@@ -719,6 +743,20 @@ class HydronicsSchematicPanel(QWidget):
             )
         except Exception:
             pass
+
+        focused_section_widget = QWidget(self)
+        focused_section_layout = QVBoxLayout(focused_section_widget)
+        focused_section_layout.setContentsMargins(0, 0, 0, 0)
+        focused_section_layout.setSpacing(4)
+
+        self._clean_proportioned_section_mode_table = (
+            self._make_pipe_section_mode_table_v1(focused_section_widget)
+        )
+        focused_section_layout.addWidget(
+            self._clean_proportioned_section_mode_table,
+            0,
+            Qt.AlignLeft,
+        )
 
         self._clean_proportioned_focused_section_table = self._make_table(
             columns=[
@@ -736,12 +774,16 @@ class HydronicsSchematicPanel(QWidget):
                 "Status",
             ]
         )
+        focused_section_layout.addWidget(
+            self._clean_proportioned_focused_section_table,
+            1,
+        )
 
         self._add_section(
             self._clean_proportioned_tab,
             title="Focused route / subleg sections — read-only",
-            table=self._clean_proportioned_focused_section_table,
-            min_height=185,
+            table=focused_section_widget,
+            min_height=225,
             expanded=True,
         )
 
@@ -4420,6 +4462,7 @@ class HydronicsSchematicPanel(QWidget):
                 item.setFlags(item.flags() & ~Qt.ItemIsEditable)
                 table.setItem(row_index, col_index, item)
 
+        self._set_clean_proportioned_evidence_availability_v1(rows)
         self._set_basic_ps_velocity_editor_rows_v1(rows)
         self._refresh_proportioning_input_snapshot()
         self._fit_table_height(table, min_height=180, max_height=300)
@@ -6179,6 +6222,19 @@ class HydronicsSchematicPanel(QWidget):
         mode_combo.addItems(["Selected route only", "All routes"])
         controls.addWidget(mode_combo)
 
+        controls.addSpacing(10)
+        controls.addWidget(QLabel("Evidence:", dialog))
+        evidence_mode = self._clean_proportioned_evidence_view_v1()
+        evidence_button = QPushButton(evidence_mode, dialog)
+        evidence_button.setCheckable(True)
+        evidence_button.setMaximumWidth(130)
+        evidence_button.setChecked(evidence_mode == "Proportioning")
+        self._set_clean_proportioned_evidence_button_style_v1(
+            evidence_button,
+            evidence_mode,
+        )
+        controls.addWidget(evidence_button)
+
         focus_label = QLabel("Focused route: —", dialog)
         controls.addWidget(focus_label, 1)
         layout.addLayout(controls)
@@ -6226,6 +6282,11 @@ class HydronicsSchematicPanel(QWidget):
             section_frame,
         ))
 
+        section_mode_table = self._make_pipe_section_mode_table_v1(
+            section_frame
+        )
+        section_layout.addWidget(section_mode_table, 0, Qt.AlignLeft)
+
         section_table = self._make_table(
             columns=[
                 "Route",
@@ -6257,12 +6318,21 @@ class HydronicsSchematicPanel(QWidget):
 
         self._clean_proportioned_table_viewer_dialog = dialog
         self._clean_proportioned_table_viewer_mode_combo = mode_combo
+        self._clean_proportioned_table_viewer_evidence_button = (
+            evidence_button
+        )
         self._clean_proportioned_table_viewer_focus_label = focus_label
         self._clean_proportioned_table_viewer_route_table = route_table
+        self._clean_proportioned_table_viewer_section_mode_table = (
+            section_mode_table
+        )
         self._clean_proportioned_table_viewer_section_table = section_table
 
         mode_combo.currentTextChanged.connect(
             self._on_clean_proportioned_table_viewer_mode_changed_v1
+        )
+        evidence_button.toggled.connect(
+            self._on_clean_proportioned_evidence_view_toggled_v1
         )
         route_table.itemSelectionChanged.connect(
             self._on_clean_proportioned_table_viewer_route_selection_changed_v1
@@ -6351,6 +6421,21 @@ class HydronicsSchematicPanel(QWidget):
                 self,
                 "_clean_proportioned_table_viewer_section_table",
                 None,
+            ),
+        )
+        self._set_pipe_section_mode_table_v1(
+            getattr(
+                self,
+                "_clean_proportioned_table_viewer_section_mode_table",
+                None,
+            ),
+            list(
+                getattr(
+                    self,
+                    "_clean_proportioned_visible_section_rows_v1",
+                    [],
+                )
+                or []
             ),
         )
 
@@ -6601,6 +6686,161 @@ class HydronicsSchematicPanel(QWidget):
 
 
 
+    @staticmethod
+    def _set_clean_proportioned_evidence_button_style_v1(
+            button: object,
+            mode: str,
+    ) -> None:
+        """H-S41-B1: mirror the non-interactive mode indicator colours."""
+        if button is None:
+            return
+        proportioning = str(mode or "") == "Proportioning"
+        background = "rgb(46, 139, 87)" if proportioning else "rgb(232, 145, 55)"
+        foreground = "white" if proportioning else "black"
+        button.setStyleSheet(
+            "QPushButton {"
+            f"background-color: {background}; "
+            f"color: {foreground}; "
+            "font-weight: 600;"
+            "}"
+        )
+
+    def _clean_proportioned_evidence_view_v1(self) -> str:
+        """Return the selected read-only evidence stage."""
+        value = str(
+            getattr(
+                self,
+                "_clean_proportioned_evidence_view_mode_v1",
+                "Proportioning",
+            )
+            or "Proportioning"
+        )
+        return "Basic PS" if value == "Basic PS" else "Proportioning"
+
+    def _set_clean_proportioned_evidence_view_v1(
+            self,
+            mode: str,
+            *,
+            refresh: bool = True,
+    ) -> None:
+        """Synchronise embedded/viewer toggles without engineering mutation."""
+        resolved = "Basic PS" if str(mode or "") == "Basic PS" else "Proportioning"
+        self._clean_proportioned_evidence_view_mode_v1 = resolved
+        checked = resolved == "Proportioning"
+
+        for attribute in (
+            "_clean_proportioned_evidence_view_button",
+            "_clean_proportioned_table_viewer_evidence_button",
+        ):
+            button = getattr(self, attribute, None)
+            if button is None:
+                continue
+            previous = button.blockSignals(True)
+            try:
+                button.setChecked(checked)
+                button.setText(resolved)
+                self._set_clean_proportioned_evidence_button_style_v1(
+                    button,
+                    resolved,
+                )
+            finally:
+                button.blockSignals(previous)
+
+        if not refresh:
+            return
+        self._refresh_clean_proportioned_focused_section_view_v1()
+        if getattr(self, "_clean_proportioned_table_viewer_dialog", None):
+            self._refresh_clean_proportioned_table_viewer_v1()
+
+    def _on_clean_proportioned_evidence_view_toggled_v1(
+            self,
+            checked: bool,
+    ) -> None:
+        self._set_clean_proportioned_evidence_view_v1(
+            "Proportioning" if checked else "Basic PS"
+        )
+
+    def _set_clean_proportioned_evidence_availability_v1(
+            self,
+            rows: list[dict],
+    ) -> None:
+        """Disable Proportioning choice when no Colebrook evidence exists."""
+        explicit = [
+            str((row or {}).get("proportioning_friction_method", "") or "")
+            .strip()
+            .casefold()
+            for row in (rows or [])
+        ]
+        available = any(value.startswith("colebrook") for value in explicit)
+        self._clean_proportioned_proportioning_evidence_available_v1 = available
+
+        if rows and not available:
+            self._set_clean_proportioned_evidence_view_v1(
+                "Basic PS",
+                refresh=False,
+            )
+
+        for attribute in (
+            "_clean_proportioned_evidence_view_button",
+            "_clean_proportioned_table_viewer_evidence_button",
+        ):
+            button = getattr(self, attribute, None)
+            if button is not None:
+                button.setEnabled(available)
+
+    def _clean_proportioned_evidence_row_v1(
+            self,
+            row: dict,
+    ) -> dict:
+        """Project one existing row into Basic or Proportioning evidence."""
+        projected = dict(row or {})
+        mode = self._clean_proportioned_evidence_view_v1()
+
+        if mode == "Basic PS":
+            projected["pipe_dn"] = (
+                projected.get("basic_pipe_dn")
+                or projected.get("pipe_dn")
+                or "—"
+            )
+            projected["dp_per_m"] = (
+                projected.get("basic_dp_per_m") or "—"
+            )
+            projected["iter"] = "—"
+            projected["friction_method"] = (
+                projected.get("basic_friction_method") or "Haaland"
+            )
+            # Current K and section-Δp values use Proportioning evidence.
+            # Hide them rather than presenting mixed calculation stages.
+            projected["k"] = "—"
+            projected["section_dp"] = "—"
+            projected["status"] = (
+                "Basic PS evidence — velocity selection / Haaland estimate; "
+                "Proportioning Local K and section Δp hidden"
+            )
+            return projected
+
+        projected["pipe_dn"] = (
+            projected.get("proportioning_pipe_dn")
+            or projected.get("pipe_dn")
+            or "—"
+        )
+        projected["dp_per_m"] = (
+            projected.get("proportioning_dp_per_m")
+            or projected.get("dp_per_m")
+            or "—"
+        )
+        projected["iter"] = (
+            projected.get("proportioning_iter")
+            or projected.get("iter")
+            or "—"
+        )
+        projected["friction_method"] = (
+            projected.get("proportioning_friction_method")
+            or projected.get("friction_method")
+            or "—"
+        )
+        return projected
+
     def _clean_proportioned_section_view_mode_v1(self) -> str:
         """
         H-S33-K:
@@ -6758,6 +6998,86 @@ class HydronicsSchematicPanel(QWidget):
 
 
 
+    def _make_pipe_section_mode_table_v1(
+            self,
+            parent: object = None,
+    ) -> QTableWidget:
+        """Build the universal one-cell pipe-section friction-mode display."""
+        table = QTableWidget(1, 1, parent)
+        table.horizontalHeader().setVisible(False)
+        table.verticalHeader().setVisible(False)
+        table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        table.setSelectionMode(QAbstractItemView.NoSelection)
+        table.setFocusPolicy(Qt.NoFocus)
+        table.setFixedHeight(38)
+        table.setMaximumWidth(210)
+        table.setColumnWidth(0, 190)
+        self._set_pipe_section_mode_table_v1(table, [])
+        return table
+
+    @staticmethod
+    def _pipe_section_friction_mode_v1(rows: list[dict]) -> str:
+        """
+        Resolve the display mode from the rows actually shown in the table.
+
+        Unknown rows do not manufacture Colebrook authority. Colebrook is
+        shown only when every explicit visible method is Colebrook.
+        """
+        explicit_methods: set[str] = set()
+        for row in rows or []:
+            method = str(
+                (row or {}).get("friction_method", "") or ""
+            ).strip().casefold()
+            if method and method not in {"—", "-", "unknown"}:
+                explicit_methods.add(method)
+
+        colebrook_active = bool(explicit_methods) and all(
+            method.startswith("colebrook")
+            for method in explicit_methods
+        )
+        return "Colebrook" if colebrook_active else "Haaland estimate"
+
+    def _set_pipe_section_mode_table_v1(
+            self,
+            table: object,
+            rows: list[dict],
+    ) -> None:
+        """Render the universal mode cell without hydraulic calculation."""
+        if table is None:
+            return
+
+        evidence_view = self._clean_proportioned_evidence_view_v1()
+        mode_text = (
+            "Colebrook"
+            if evidence_view == "Proportioning"
+            else "Haaland estimate"
+        )
+        colebrook_active = mode_text == "Colebrook"
+        item = QTableWidgetItem(mode_text)
+        item.setFlags(item.flags() & ~Qt.ItemIsEditable)
+        item.setTextAlignment(Qt.AlignCenter)
+
+        font = item.font()
+        font.setBold(True)
+        point_size = font.pointSize()
+        font.setPointSize(point_size if point_size > 0 else 10)
+        item.setFont(font)
+        item.setForeground(
+            QBrush(
+                QColor(255, 255, 255)
+                if colebrook_active
+                else QColor(0, 0, 0)
+            )
+        )
+        item.setBackground(
+            QBrush(
+                QColor(46, 139, 87)
+                if colebrook_active
+                else QColor(232, 145, 55)
+            )
+        )
+        table.setItem(0, 0, item)
+
     def _set_clean_proportioned_focused_section_rows_v1(
             self,
             rows: list[dict],
@@ -6772,6 +7092,15 @@ class HydronicsSchematicPanel(QWidget):
             return
 
         table = self._clean_proportioned_focused_section_table
+        visible_rows = [
+            self._clean_proportioned_evidence_row_v1(dict(row or {}))
+            for row in (rows or [])
+        ]
+        self._clean_proportioned_visible_section_rows_v1 = visible_rows
+        self._set_pipe_section_mode_table_v1(
+            getattr(self, "_clean_proportioned_section_mode_table", None),
+            visible_rows,
+        )
 
         columns = [
             "route",
@@ -6788,9 +7117,10 @@ class HydronicsSchematicPanel(QWidget):
             "status",
         ]
 
-        table.setRowCount(len(rows))
+        # H-S41-B2 — render the explicitly selected evidence stage.
+        table.setRowCount(len(visible_rows))
 
-        for row_index, row in enumerate(rows):
+        for row_index, row in enumerate(visible_rows):
             display_row = self._clean_proportioned_section_display_row_v1(row)
 
             values = [
@@ -7010,6 +7340,50 @@ class HydronicsSchematicPanel(QWidget):
                     "status",
                     "Status",
                 ),
+            ),
+            "basic_pipe_dn": first_value(
+                "basic_pipe_dn",
+                "pipe",
+                "Pipe",
+            ),
+            "basic_dp_per_m": first_value(
+                "basic_dp_per_m",
+                "Basic Δp/m",
+            ),
+            "basic_friction_method": first_value(
+                "basic_friction_method",
+                "Basic method",
+            ),
+            "proportioning_pipe_dn": first_value(
+                "proportioning_pipe_dn",
+                "pipe_dn",
+                "Pipe DN",
+                "pipe",
+            ),
+            "proportioning_dp_per_m": first_value(
+                "proportioning_dp_per_m",
+                "dp_per_m",
+                "Δp/m",
+            ),
+            "proportioning_iter": first_value(
+                "proportioning_colebrook_iterations",
+                "proportioning_iter",
+                "iter",
+                "Iter",
+            ),
+            "proportioning_friction_method": first_value(
+                "proportioning_friction_method",
+                "friction_method",
+                "Friction method",
+                "method",
+                "Method",
+            ),
+            "friction_method": first_value(
+                "proportioning_friction_method",
+                "friction_method",
+                "Friction method",
+                "method",
+                "Method",
             ),
             "status": first_value(
                 "status",

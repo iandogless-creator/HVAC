@@ -843,6 +843,7 @@ class HydronicsSchematicPanelAdapter:
             self._panel.set_proportioning_basic_ps_sections(
                 received_basic_ps_rows
             )
+
         # --------------------------------------------------
         # H-S14 — Route Δp preview
         # H-S18 — Route Δp shortfall preview
@@ -4187,6 +4188,10 @@ class HydronicsSchematicPanelAdapter:
                     "basic_friction_basis": (
                         "Velocity selection / Haaland Δp"
                     ),
+                    "basic_dp_per_m": self._format_dp_per_m(
+                        getattr(result, "pressure_gradient_Pa_per_m", None)
+                    ),
+                    "basic_friction_method": "Haaland",
 
                     # Proportioning evidence is populated only when the
                     # downstream route-section calculation exists. Do not
