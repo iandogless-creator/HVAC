@@ -218,11 +218,44 @@ def _candidate_from_row_v1(
         blockers.append("Route label required")
 
     if controlling:
+        # H-S43-C: a controlling route is "None required" only when its
+        # canonical chosen-basis shortfall is present and zero/within
+        # tolerance. A positive resistance value is also inconsistent.
+        if required_added_dp_pa is None:
+            blockers.append("Controlling-route shortfall evidence required")
+        elif abs(required_added_dp_pa) > dp_tolerance_pa:
+            blockers.append("Controlling route must have zero added Δp")
+
+        if (
+                resistance_pa_per_kg_s2 is not None
+                and abs(resistance_pa_per_kg_s2) > dp_tolerance_pa
+        ):
+            blockers.append("Controlling route must have zero resistance")
+
+        if blockers:
+            return BalancingMethodCandidateV1(
+                route=route,
+                method_id=MANUAL_REVIEW_REQUIRED,
+                method_label="Manual review required",
+                ready=False,
+                controlling=True,
+                required_added_dp_pa=required_added_dp_pa,
+                flow_kg_s=flow_kg_s,
+                resistance_pa_per_kg_s2=resistance_pa_per_kg_s2,
+                status="Blocked — " + "; ".join(blockers),
+                blockers=tuple(blockers),
+                source_status=source_status,
+                note=(
+                    "Inconsistent controlling-route burden fails closed; "
+                    "no balancing method is selected."
+                ),
+            )
+
         return BalancingMethodCandidateV1(
             route=route,
             method_id=NONE_REQUIRED,
             method_label="None required",
-            ready=not blockers,
+            ready=True,
             controlling=True,
             required_added_dp_pa=required_added_dp_pa,
             flow_kg_s=flow_kg_s,
@@ -230,10 +263,8 @@ def _candidate_from_row_v1(
             status=(
                 "None required — controlling route has no added "
                 "resistance burden"
-                if not blockers
-                else "Blocked — " + "; ".join(blockers)
             ),
-            blockers=tuple(blockers),
+            blockers=(),
             source_status=source_status,
             note=(
                 "This does not prove final balance; it only records no "
