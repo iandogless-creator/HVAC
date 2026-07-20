@@ -62,6 +62,11 @@ class RoutePressureAccumulatorRowV1:
     sections: tuple[RoutePressureSectionContributionV1, ...]
     status: str
 
+    # H-S42-D — explicit pressure-scope evidence.
+    common_main_pressure_drop_total_Pa: float | None = 0.0
+    leg_entry_pressure_drop_total_Pa: float | None = 0.0
+    route_section_pressure_drop_total_Pa: float | None = 0.0
+
 
 @dataclass(frozen=True, slots=True)
 class RoutePressureAccumulatorProjectionV1:
@@ -167,6 +172,15 @@ def build_route_pressure_accumulator_v1(
                 rank=rank,
                 is_controlling_candidate=is_controlling,
                 sections=row.sections,
+                common_main_pressure_drop_total_Pa=(
+                    row.common_main_pressure_drop_total_Pa
+                ),
+                leg_entry_pressure_drop_total_Pa=(
+                    row.leg_entry_pressure_drop_total_Pa
+                ),
+                route_section_pressure_drop_total_Pa=(
+                    row.route_section_pressure_drop_total_Pa
+                ),
                 status=(
                     "Controlling route candidate — preview only"
                     if is_controlling
@@ -339,12 +353,37 @@ def _build_single_route_pressure_row_v1(
         rank=None,
         is_controlling_candidate=False,
         sections=tuple(contributions),
+        common_main_pressure_drop_total_Pa=_scope_pressure_total_v1(
+            contributions, COMMON_MAIN_SECTION_KIND
+        ),
+        leg_entry_pressure_drop_total_Pa=_scope_pressure_total_v1(
+            contributions, LEG_ENTRY_SECTION_KIND
+        ),
+        route_section_pressure_drop_total_Pa=_scope_pressure_total_v1(
+            contributions, "route_section"
+        ),
         status=(
             "Route Δp preview only — not final balancing"
             if complete
             else "Incomplete — one or more section lengths not set"
         ),
     )
+
+
+def _scope_pressure_total_v1(
+    contributions: list[RoutePressureSectionContributionV1],
+    section_scope: str,
+) -> float | None:
+    # Sum one authoritative scope, failing closed when it is incomplete.
+    scoped = tuple(
+        row for row in contributions
+        if str(row.section_scope) == str(section_scope)
+    )
+    if not scoped:
+        return 0.0
+    if any(row.section_total_pressure_drop_Pa is None for row in scoped):
+        return None
+    return sum(float(row.section_total_pressure_drop_Pa) for row in scoped)
 
 
 def _main_pressure_contribution_v1(

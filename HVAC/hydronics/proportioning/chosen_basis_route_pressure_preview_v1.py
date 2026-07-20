@@ -33,6 +33,11 @@ class ChosenBasisRoutePressurePreviewRowV1:
     source: str
     status: str
 
+    # H-S42-D evidence; chosen_dp_pa already includes this exactly once.
+    common_main_dp_pa: Optional[float] = 0.0
+    leg_entry_dp_pa: Optional[float] = 0.0
+    physical_main_entry_dp_pa: Optional[float] = 0.0
+
 
 @dataclass(frozen=True)
 class _RoutePressureEvidence:
@@ -40,6 +45,9 @@ class _RoutePressureEvidence:
     route_label: str
     direct_dp_pa: Optional[float]
     reverse_dp_pa: Optional[float]
+    common_main_dp_pa: Optional[float]
+    leg_entry_dp_pa: Optional[float]
+    physical_main_entry_dp_pa: Optional[float]
 
 
 def build_chosen_basis_route_pressure_preview_v1(
@@ -137,6 +145,9 @@ def build_chosen_basis_route_pressure_preview_v1(
                 difference_pa=difference,
                 source=_read_text_any(resolved_row, "source", default="—"),
                 status=_status_for(effective_basis, chosen_dp, alternative_dp, difference),
+                common_main_dp_pa=evidence.common_main_dp_pa,
+                leg_entry_dp_pa=evidence.leg_entry_dp_pa,
+                physical_main_entry_dp_pa=evidence.physical_main_entry_dp_pa,
             )
         )
 
@@ -201,6 +212,8 @@ def _build_route_pressure_evidence(
 
         direct_dp = _read_float_any(
             row,
+            # Canonical CircuitReturnPathComparisonRowV1 field first.
+            "direct_total_dp_Pa",
             "direct_dp_pa",
             "direct_route_dp_pa",
             "direct_total_dp_pa",
@@ -224,6 +237,8 @@ def _build_route_pressure_evidence(
 
         reverse_dp = _read_float_any(
             row,
+            # Canonical CircuitReturnPathComparisonRowV1 field first.
+            "reverse_return_total_dp_Pa",
             "reverse_dp_pa",
             "reverse_route_dp_pa",
             "reverse_total_dp_pa",
@@ -246,6 +261,16 @@ def _build_route_pressure_evidence(
                 required_any=("reverse", "f+rr", "rr"),
             )
 
+        common_main_dp = _read_float_any(
+            row, "common_main_dp_Pa", "common_main_dp_pa"
+        )
+        leg_entry_dp = _read_float_any(
+            row, "leg_entry_dp_Pa", "leg_entry_dp_pa"
+        )
+        physical_main_entry_dp = _read_float_any(
+            row, "physical_main_entry_dp_Pa", "physical_main_entry_dp_pa"
+        )
+
         previous = None
         for key in keys:
             previous = grouped.get(key)
@@ -258,6 +283,9 @@ def _build_route_pressure_evidence(
                 route_label=route_label,
                 direct_dp_pa=direct_dp,
                 reverse_dp_pa=reverse_dp,
+                common_main_dp_pa=common_main_dp,
+                leg_entry_dp_pa=leg_entry_dp,
+                physical_main_entry_dp_pa=physical_main_entry_dp,
             )
         else:
             updated = _RoutePressureEvidence(
@@ -265,12 +293,32 @@ def _build_route_pressure_evidence(
                 route_label=previous.route_label or route_label,
                 direct_dp_pa=_max_optional(previous.direct_dp_pa, direct_dp),
                 reverse_dp_pa=_max_optional(previous.reverse_dp_pa, reverse_dp),
+                common_main_dp_pa=_same_optional_v1(
+                    previous.common_main_dp_pa, common_main_dp
+                ),
+                leg_entry_dp_pa=_same_optional_v1(
+                    previous.leg_entry_dp_pa, leg_entry_dp
+                ),
+                physical_main_entry_dp_pa=_same_optional_v1(
+                    previous.physical_main_entry_dp_pa, physical_main_entry_dp
+                ),
             )
 
         for key in keys:
             grouped[key] = updated
 
     return grouped
+
+def _same_optional_v1(
+    previous: Optional[float],
+    current: Optional[float],
+) -> Optional[float]:
+    if previous is None:
+        return current
+    if current is None:
+        return previous
+    return previous if abs(previous - current) <= 1.0e-9 else None
+
 
 def _max_optional(a: Optional[float], b: Optional[float]) -> Optional[float]:
     if a is None:

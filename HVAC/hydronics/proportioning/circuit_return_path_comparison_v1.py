@@ -76,6 +76,11 @@ class CircuitReturnPathComparisonRowV1:
     rr_added_length_source: str = "system"
     rr_added_length_inherited_from: str = ""
 
+    # H-S42-D physical upstream contribution, applied once to both bases.
+    common_main_dp_Pa: float | None = 0.0
+    leg_entry_dp_Pa: float | None = 0.0
+    physical_main_entry_dp_Pa: float | None = 0.0
+
 @dataclass(frozen=True, slots=True)
 class ReverseReturnSuitabilityV1:
     suitable: bool
@@ -169,6 +174,19 @@ def build_circuit_return_path_comparison_v1(
                 subleg_id=subleg_id,
             )
 
+            # H-S42-D: one route-specific physical upstream contribution.
+            common_main_dp_Pa, leg_entry_dp_Pa = (
+                _main_entry_pressure_evidence_v1(
+                    project_state,
+                    leg_id=leg_id,
+                    subleg_id=subleg_id,
+                )
+            )
+            physical_main_entry_dp_Pa = _add_complete_dp_v1(
+                common_main_dp_Pa,
+                leg_entry_dp_Pa,
+            )
+
             # H-S38-A3: resolve one most-specific RR length authority
             # for this route. Current v1 branch siblings inherit from
             # the leg primary/common subleg, matching arrangement scope.
@@ -246,17 +264,18 @@ def build_circuit_return_path_comparison_v1(
                     ),
                 )
 
-                direct_total_dp_Pa = _add_optional_dp(
-                    flow_dp_Pa,
-                    direct_return_dp_Pa,
+                direct_total_dp_Pa = _add_complete_dp_v1(
+                    _add_optional_dp(flow_dp_Pa, direct_return_dp_Pa),
+                    physical_main_entry_dp_Pa,
                 )
 
-                reverse_return_total_dp_Pa = (
+                reverse_return_total_dp_Pa = _add_complete_dp_v1(
                     _reverse_return_total_with_rr_added_dp_v1(
                         flow_dp_Pa=flow_dp_Pa,
                         reverse_return_dp_Pa=reverse_return_dp_Pa,
                         rr_added_pressure_drop_Pa=rr_added_pressure_drop_Pa,
-                    )
+                    ),
+                    physical_main_entry_dp_Pa,
                 )
 
                 emitter_id = _find_emitter_id_for_room(
@@ -304,6 +323,9 @@ def build_circuit_return_path_comparison_v1(
                         rr_added_length_inherited_from=(
                             rr_length_resolution.inherited_from
                         ),
+                        common_main_dp_Pa=common_main_dp_Pa,
+                        leg_entry_dp_Pa=leg_entry_dp_Pa,
+                        physical_main_entry_dp_Pa=physical_main_entry_dp_Pa,
                     )
                 )
 
@@ -317,6 +339,37 @@ def build_circuit_return_path_comparison_v1(
             else "No room-carrying hydronic circuits found"
         ),
     )
+
+
+def _main_entry_pressure_evidence_v1(
+    project_state: Any,
+    *,
+    leg_id: str,
+    subleg_id: str,
+) -> tuple[float | None, float | None]:
+    # Read H-S42-C scope totals; never recalculate or persist pressure.
+    projection = build_route_pressure_accumulator_v1(
+        project_state,
+        leg_id=leg_id,
+        subleg_id=subleg_id,
+    )
+    rows = tuple(getattr(projection, "rows", ()) or ())
+    if len(rows) != 1:
+        return None, None
+    row = rows[0]
+    return (
+        row.common_main_pressure_drop_total_Pa,
+        row.leg_entry_pressure_drop_total_Pa,
+    )
+
+
+def _add_complete_dp_v1(
+    first: float | None,
+    second: float | None,
+) -> float | None:
+    if first is None or second is None:
+        return None
+    return float(first) + float(second)
 
 
 def _find_emitter_id_for_room(
