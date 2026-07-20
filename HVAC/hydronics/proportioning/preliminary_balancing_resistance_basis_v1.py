@@ -282,3 +282,164 @@ def build_preliminary_balancing_resistance_basis_v1(
         rows=rows,
         blockers=blockers,
     )
+
+
+# ======================================================================
+# H-S43-B — chosen-basis mains-aware resistance consumption
+# ======================================================================
+
+def _read_row_value_v1(row: object, name: str, default=None):
+    if isinstance(row, dict):
+        return row.get(name, default)
+    return getattr(row, name, default)
+
+
+def _chosen_row_is_controlling_v1(row: object) -> bool:
+    raw = _read_row_value_v1(row, "is_controlling", None)
+    if raw is None:
+        raw = _read_row_value_v1(row, "controlling", False)
+    if isinstance(raw, bool):
+        return raw
+    return str(raw or "").strip().lower() in {
+        "1", "true", "yes", "y", "controlling"
+    }
+
+
+def _flow_basis_row_for_chosen_route_v1(
+    chosen_row: object,
+    flow_rows: list[object],
+) -> object | None:
+    route_id = str(_read_row_value_v1(chosen_row, "route_id", "") or "")
+    route_label = str(_read_row_value_v1(chosen_row, "route", "") or "")
+
+    for flow_row in flow_rows:
+        candidate_id = str(
+            _read_row_value_v1(flow_row, "route_id", "") or ""
+        )
+        candidate_label = str(
+            _read_row_value_v1(flow_row, "route_label", "")
+            or _read_row_value_v1(flow_row, "route", "")
+            or ""
+        )
+        if _ids_match(route_id, candidate_id):
+            return flow_row
+        if _route_label_matches(route_label, candidate_label):
+            return flow_row
+
+    return None
+
+
+def build_chosen_basis_balancing_resistance_basis_v1(
+    *,
+    chosen_controlling_rows: object,
+    flow_basis: PreliminaryBalancingResistanceBasisV1 | None,
+) -> PreliminaryBalancingResistanceBasisV1:
+    """
+    H-S43-B mains-aware provisional resistance consumption.
+
+    The canonical required added pressure is the H-S43-A chosen-basis
+    shortfall. Existing preliminary resistance rows supply route flow only;
+    their older Δp and resistance values are deliberately not consumed.
+
+        R = chosen-basis shortfall / route flow²
+
+    This is theoretical preview evidence only. It does not select a valve,
+    calculate Kv/Kvs, select a pump, resize pipework, or commit balance.
+    """
+    chosen_rows = list(chosen_controlling_rows or ())
+    flow_rows = list(getattr(flow_basis, "rows", ()) or ())
+
+    if not chosen_rows:
+        return PreliminaryBalancingResistanceBasisV1(
+            ready=False,
+            status="Chosen-basis balancing resistance not ready",
+            blockers=["No chosen-basis controlling/shortfall rows available"],
+        )
+
+    rows: list[PreliminaryBalancingResistanceRowV1] = []
+    blockers: list[str] = []
+
+    for chosen_row in chosen_rows:
+        route_id = str(
+            _read_row_value_v1(chosen_row, "route_id", "") or ""
+        )
+        route_label = str(
+            _read_row_value_v1(chosen_row, "route", "")
+            or _read_row_value_v1(chosen_row, "route_label", "")
+            or route_id
+            or "—"
+        )
+        is_controlling = _chosen_row_is_controlling_v1(chosen_row)
+        added_dp = _parse_number(
+            _read_row_value_v1(
+                chosen_row,
+                "dp_below_controlling_pa",
+                _read_row_value_v1(chosen_row, "required_added_dp", None),
+            )
+        )
+
+        flow_row = _flow_basis_row_for_chosen_route_v1(
+            chosen_row,
+            flow_rows,
+        )
+        flow_kg_s = (
+            _parse_number(_read_row_value_v1(flow_row, "flow_kg_s", None))
+            if flow_row is not None
+            else None
+        )
+        sections = (
+            str(_read_row_value_v1(flow_row, "sections", "") or "")
+            if flow_row is not None
+            else ""
+        )
+
+        resistance: float | None = None
+
+        if added_dp is None:
+            status = "Chosen-basis required added Δp unavailable"
+            blockers.append(
+                f"{route_label}: chosen-basis required added Δp unavailable"
+            )
+        elif is_controlling and abs(added_dp) > 0.05:
+            status = "Inconsistent controlling-route shortfall"
+            blockers.append(
+                f"{route_label}: controlling route has non-zero shortfall"
+            )
+        elif added_dp <= 0.05:
+            resistance = 0.0
+            status = (
+                "Mains-aware chosen-basis resistance — none required"
+            )
+        elif flow_kg_s is None or flow_kg_s <= 0.0:
+            status = "Flow basis unavailable — resistance not calculated"
+            blockers.append(f"{route_label}: positive route flow unavailable")
+        else:
+            resistance = added_dp / (flow_kg_s ** 2)
+            status = (
+                "Mains-aware chosen-basis provisional resistance calculated"
+            )
+
+        rows.append(
+            PreliminaryBalancingResistanceRowV1(
+                route_id=route_id,
+                route_label=route_label,
+                sections=sections,
+                flow_kg_s=_format_flow(flow_kg_s),
+                required_added_dp=_format_pa(added_dp),
+                resistance_pa_per_kg_s2=_format_resistance(resistance),
+                controlling="Yes" if is_controlling else "No",
+                status=status,
+            )
+        )
+
+    ready = not blockers
+    return PreliminaryBalancingResistanceBasisV1(
+        ready=ready,
+        status=(
+            "Mains-aware chosen-basis balancing resistance ready"
+            if ready
+            else "Chosen-basis balancing resistance incomplete"
+        ),
+        rows=rows,
+        blockers=blockers,
+    )

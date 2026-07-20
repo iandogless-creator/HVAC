@@ -135,6 +135,9 @@ from HVAC.hydronics.proportioning.chosen_basis_route_pressure_preview_v1 import 
 from HVAC.hydronics.proportioning.chosen_basis_controlling_route_preview_v1 import (
     build_chosen_basis_controlling_route_preview_v1,
 )
+from HVAC.hydronics.proportioning.preliminary_balancing_resistance_basis_v1 import (
+    build_chosen_basis_balancing_resistance_basis_v1,
+)
 from HVAC.hydronics.proportioning.chosen_basis_proportioned_readiness_summary_v1 import (
     build_chosen_basis_proportioned_readiness_summary_v1,
 )
@@ -3176,14 +3179,21 @@ class HydronicsSchematicPanelAdapter:
                     )
                 )
 
-            provisional_burden_rows = (
-                self._build_provisional_proportioning_burden_rows_v1(
-                    chosen_controlling_rows,
-                    resistance_basis=getattr(
+            chosen_resistance_basis = (
+                build_chosen_basis_balancing_resistance_basis_v1(
+                    chosen_controlling_rows=chosen_controlling_rows,
+                    flow_basis=getattr(
                         self._panel,
                         "_preliminary_balancing_resistance_basis",
                         None,
                     ),
+                )
+            )
+
+            provisional_burden_rows = (
+                self._build_provisional_proportioning_burden_rows_v1(
+                    chosen_controlling_rows,
+                    resistance_basis=chosen_resistance_basis,
                 )
             )
 
