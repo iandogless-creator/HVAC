@@ -1436,6 +1436,15 @@ class HydronicsSchematicPanelAdapter:
                     "dp_below_controlling": self._format_pa(
                         getattr(row, "dp_below_controlling_pa", None)
                     ),
+                    "common_main_dp": self._format_pa(
+                        getattr(row, "common_main_dp_pa", None)
+                    ),
+                    "leg_entry_dp": self._format_pa(
+                        getattr(row, "leg_entry_dp_pa", None)
+                    ),
+                    "physical_main_entry_dp": self._format_pa(
+                        getattr(row, "physical_main_entry_dp_pa", None)
+                    ),
                     "source": str(getattr(row, "source", "") or "—"),
                     "status": str(getattr(row, "status", "") or "—"),
                 }
@@ -1450,6 +1459,9 @@ class HydronicsSchematicPanelAdapter:
                     "chosen_dp": "—",
                     "controlling": "No",
                     "dp_below_controlling": "—",
+                    "common_main_dp": "—",
+                    "leg_entry_dp": "—",
+                    "physical_main_entry_dp": "—",
                     "source": "—",
                     "status": (
                         "Preview only — no chosen-basis controlling route evidence"
@@ -1577,6 +1589,15 @@ class HydronicsSchematicPanelAdapter:
                     ),
                     "controlling": "Yes" if is_controlling else "No",
                     "required_added_dp": self._format_pa(required_added_dp),
+                    "common_main_dp": self._format_pa(
+                        getattr(row, "common_main_dp_pa", None)
+                    ),
+                    "leg_entry_dp": self._format_pa(
+                        getattr(row, "leg_entry_dp_pa", None)
+                    ),
+                    "physical_main_entry_dp": self._format_pa(
+                        getattr(row, "physical_main_entry_dp_pa", None)
+                    ),
                     "resistance_pa_per_kg_s2": resistance_pa_per_kg_s2,
                     "action": action,
                     "status": status,
@@ -1593,6 +1614,9 @@ class HydronicsSchematicPanelAdapter:
                     "chosen_dp": "—",
                     "controlling": "No",
                     "required_added_dp": "—",
+                    "common_main_dp": "—",
+                    "leg_entry_dp": "—",
+                    "physical_main_entry_dp": "—",
                     "resistance_pa_per_kg_s2": "—",
                     "action": "Waiting for chosen-basis burden evidence",
                     "status": "Preview only — no valve selected",

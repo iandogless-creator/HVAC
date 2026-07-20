@@ -24,6 +24,12 @@ class ChosenBasisControllingRoutePreviewRowV1:
     source: str
     status: str
 
+    # H-S43-A evidence copied from the canonical H-S42-D chosen row.
+    # chosen_dp_pa already includes these physical contributions exactly once.
+    common_main_dp_pa: Optional[float] = 0.0
+    leg_entry_dp_pa: Optional[float] = 0.0
+    physical_main_entry_dp_pa: Optional[float] = 0.0
+
 
 def build_chosen_basis_controlling_route_preview_v1(
     chosen_basis_route_pressure_rows: Iterable[Any],
@@ -95,9 +101,22 @@ def build_chosen_basis_controlling_route_preview_v1(
                 dp_below_controlling_pa=dp_below,
                 source=_read_text_any(row, "source", default="—"),
                 status=(
-                    "Preview only — chosen-basis controlling route"
+                    "Preview only — chosen-basis controlling route; "
+                    "chosen total includes physical main/entry evidence once"
                     if is_controlling
-                    else "Preview only — below chosen-basis controlling route"
+                    else "Preview only — below chosen-basis controlling route; "
+                    "shortfall uses mains-inclusive chosen totals"
+                ),
+                common_main_dp_pa=_read_float_any(
+                    row, "common_main_dp_pa", "common_main_dp_Pa"
+                ),
+                leg_entry_dp_pa=_read_float_any(
+                    row, "leg_entry_dp_pa", "leg_entry_dp_Pa"
+                ),
+                physical_main_entry_dp_pa=_read_float_any(
+                    row,
+                    "physical_main_entry_dp_pa",
+                    "physical_main_entry_dp_Pa",
                 ),
             )
         )
