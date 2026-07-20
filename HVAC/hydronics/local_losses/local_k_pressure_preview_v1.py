@@ -7,10 +7,23 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from HVAC.hydronics.local_losses.local_k_section_projection_v1 import (
-    WATER_DENSITY_KG_M3,
-    local_pressure_drop_from_k_v1,
-)
+# H-S42-B1: pressure evidence must not depend on the GUI selector
+# projection; keeping this primitive here breaks that import cycle.
+WATER_DENSITY_KG_M3 = 998.0
+
+
+def _local_pressure_drop_from_k_v1(
+    *,
+    k_total: float,
+    velocity_m_s: float,
+    density_kg_m3: float = WATER_DENSITY_KG_M3,
+) -> float:
+    return (
+        float(k_total)
+        * float(density_kg_m3)
+        * float(velocity_m_s) ** 2
+        / 2.0
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -71,7 +84,7 @@ def build_local_k_pressure_preview_v1(
         + float(getattr(section, "misc_k", 0.0) or 0.0)
     )
 
-    local_dp = local_pressure_drop_from_k_v1(
+    local_dp = _local_pressure_drop_from_k_v1(
         k_total=k_total,
         velocity_m_s=float(velocity_m_s or 0.0),
         density_kg_m3=WATER_DENSITY_KG_M3,

@@ -16,6 +16,13 @@ from HVAC.hydronics.local_losses.local_k_pressure_preview_v1 import (
 from HVAC.hydronics.pipes.dp.mass_flow_pressure_drop_v1 import (
     calculate_hydronic_pipe_pressure_drop_from_mass_flow_v1,
 )
+from HVAC.hydronics.proportioning.common_main_leg_entry_sections_v1 import (
+    COMMON_MAIN_SECTION_KIND,
+    LEG_ENTRY_SECTION_KIND,
+)
+from HVAC.hydronics.proportioning.common_main_leg_entry_pressure_authority_v1 import (
+    build_common_main_leg_entry_pressure_authority_v1,
+)
 
 @dataclass(frozen=True, slots=True)
 class RoutePressureSectionContributionV1:
@@ -36,6 +43,7 @@ class RoutePressureSectionContributionV1:
     local_pressure_drop_Pa: float
     section_total_pressure_drop_Pa: float | None
     status: str
+    section_scope: str = "route_section"
 
 
 @dataclass(frozen=True, slots=True)
@@ -202,15 +210,51 @@ def _build_single_route_pressure_row_v1(
         f"{basic_ps.sections_projection.subleg_label}"
     )
 
-    contributions: list[RoutePressureSectionContributionV1] = []
+    # H-S42-C — select physical common-main rows by carried-leg
+    # authority, then the one stable entry row for this leg.
+    main_projection = (
+        build_common_main_leg_entry_pressure_authority_v1(project_state)
+    )
+    applicable_main_rows = tuple(
+        row
+        for row in main_projection.rows
+        if (
+            row.section_kind == COMMON_MAIN_SECTION_KIND
+            and str(leg_id) in tuple(row.carried_leg_ids)
+        )
+        or (
+            row.section_kind == LEG_ENTRY_SECTION_KIND
+            and row.takeoff_leg_id == str(leg_id)
+        )
+    )
+    contributions: list[RoutePressureSectionContributionV1] = [
+        _main_pressure_contribution_v1(row)
+        for row in applicable_main_rows
+    ]
+    seen_section_ids = {row.section_id for row in contributions}
 
-    straight_total = 0.0
-    local_total = 0.0
-    route_total = 0.0
-    complete = True
+    straight_total = sum(
+        float(row.straight_pressure_drop_Pa or 0.0)
+        for row in contributions
+    )
+    local_total = sum(
+        float(row.local_pressure_drop_Pa or 0.0)
+        for row in contributions
+    )
+    route_total = sum(
+        float(row.section_total_pressure_drop_Pa or 0.0)
+        for row in contributions
+    )
+    complete = bool(main_projection.ready) and all(
+        row.section_total_pressure_drop_Pa is not None
+        for row in contributions
+    )
 
     for result in basic_ps.pipe_sizing_projection.results:
         section_id = str(result.section_id)
+        if section_id in seen_section_ids:
+            continue
+        seen_section_ids.add(section_id)
 
         section_length_m = _local_k_section_length_m_v1(
             project_state,
@@ -278,6 +322,7 @@ def _build_single_route_pressure_row_v1(
                     preview.section_total_pressure_drop_Pa
                 ),
                 status=preview.status,
+                section_scope="route_section",
             )
         )
 
@@ -299,6 +344,30 @@ def _build_single_route_pressure_row_v1(
             if complete
             else "Incomplete — one or more section lengths not set"
         ),
+    )
+
+
+def _main_pressure_contribution_v1(
+    row: Any,
+) -> RoutePressureSectionContributionV1:
+    """Adapt one H-S42-A row without recalculating or persisting it."""
+    return RoutePressureSectionContributionV1(
+        section_id=str(row.section_id),
+        order=int(row.order),
+        from_label=str(row.from_label),
+        to_label=str(row.to_label),
+        pressure_gradient_Pa_per_m=float(row.pressure_gradient_Pa_per_m),
+        velocity_m_s=float(row.velocity_m_s),
+        reynolds_number=float(row.reynolds_number),
+        friction_factor=float(row.friction_factor),
+        friction_method=str(row.friction_method),
+        colebrook_iteration_count=int(row.colebrook_iteration_count),
+        colebrook_converged=bool(row.colebrook_converged),
+        straight_pressure_drop_Pa=row.straight_pressure_drop_Pa,
+        local_pressure_drop_Pa=float(row.local_pressure_drop_Pa or 0.0),
+        section_total_pressure_drop_Pa=row.section_total_pressure_drop_Pa,
+        status=str(row.status),
+        section_scope=str(row.section_kind),
     )
 
 def _route_pressure_material_v1(project_state: Any) -> str:

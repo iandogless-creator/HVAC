@@ -10,6 +10,12 @@ from typing import Any
 from HVAC.hydronics.sizing.basic_ps_readonly_projection_v1 import (
     build_basic_ps_readonly_projection_v1,
 )
+from HVAC.hydronics.proportioning.common_main_leg_entry_sections_v1 import (
+    COMMON_MAIN_SECTION_KIND,
+)
+from HVAC.hydronics.proportioning.common_main_leg_entry_pressure_authority_v1 import (
+    build_common_main_leg_entry_pressure_authority_v1,
+)
 
 
 WATER_DENSITY_KG_M3 = 998.0
@@ -36,6 +42,7 @@ class LocalKSectionProjectionRowV1:
     carried_flow_kg_s: float
     velocity_m_s: float
     pressure_gradient_Pa_per_m: float
+    section_scope: str
 
     k_total: float = 0.0
     local_pressure_drop_Pa: float = 0.0
@@ -83,15 +90,52 @@ def build_local_k_section_projection_v1(
                 pressure_gradient_Pa_per_m=float(
                     result.pressure_gradient_Pa_per_m
                 ),
+                section_scope="Route section",
                 k_total=0.0,
                 local_pressure_drop_Pa=0.0,
                 status="Local K shell — no fittings persisted",
             )
         )
 
+    # H-S42-B — expose stable common-main and leg-entry identities in
+    # the same editor, using H-S42-A Colebrook evidence.
+    main_pressure = (
+        build_common_main_leg_entry_pressure_authority_v1(project_state)
+    )
+    if main_pressure.ready:
+        for result in main_pressure.rows:
+            rows.append(
+                LocalKSectionProjectionRowV1(
+                    section_id=str(result.section_id),
+                    order=int(result.order),
+                    from_label=str(result.from_label),
+                    to_room_label=str(result.to_label),
+                    pipe_size_label=str(result.pipe_size_label),
+                    carried_flow_kg_s=float(result.carried_flow_kg_s),
+                    velocity_m_s=float(result.velocity_m_s),
+                    pressure_gradient_Pa_per_m=float(
+                        result.pressure_gradient_Pa_per_m
+                    ),
+                    section_scope=(
+                        "Common main"
+                        if result.section_kind == COMMON_MAIN_SECTION_KIND
+                        else "Leg entry"
+                    ),
+                    k_total=float(result.k_total),
+                    local_pressure_drop_Pa=float(
+                        result.local_pressure_drop_Pa
+                    ),
+                    status=result.status,
+                )
+            )
+
     return LocalKSectionProjectionV1(
         rows=tuple(rows),
-        status="Local K section projection",
+        status=(
+            "Local K section projection — route + main sections"
+            if main_pressure.ready
+            else "Local K section projection — main sections unavailable"
+        ),
     )
 
 

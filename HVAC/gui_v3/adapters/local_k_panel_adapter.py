@@ -92,6 +92,7 @@ class LocalKPanelAdapter:
             rows.append(
                 {
                     "section_id": row.section_id,
+                    "scope": row.section_scope,
                     "order": row.order,
                     "from": row.from_label,
                     "to": row.to_room_label,

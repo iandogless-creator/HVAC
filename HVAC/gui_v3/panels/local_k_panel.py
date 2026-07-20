@@ -164,8 +164,10 @@ class LocalKPanel(QWidget):
         self._section_combo.clear()
 
         for row in rows:
+            scope = str(row.get("scope") or "").strip()
+            scope_prefix = f"{scope} | " if scope else ""
             label = (
-                f"{row.get('order', '—')} — "
+                f"{scope_prefix}{row.get('order', '—')} — "
                 f"{row.get('from', '—')} → {row.get('to', '—')}"
             )
             self._section_combo.addItem(label, row)
