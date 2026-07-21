@@ -78,6 +78,27 @@ class CommonMainLegSublegRoomEvidenceV1:
 
 
 @dataclass(frozen=True)
+class CommonMainLegSublegBalancingPointEvidenceV1:
+    """H-S44-E prepared allocation, method and valve-duty evidence."""
+    balancing_point_id: str = ""
+    point_scope: str = ""
+    point_role: str = ""
+    target_id: str = ""
+    label: str = ""
+    topology: str = ""
+    governed_routes: str = ""
+    point_flow: str = ""
+    allocated_dp: str = ""
+    resistance: str = ""
+    method: str = ""
+    valve_duty: str = ""
+    controlled_dp: str = ""
+    authority: str = ""
+    ready: str = ""
+    status: str = ""
+
+
+@dataclass(frozen=True)
 class CommonMainLegSublegRouteV1:
     leg_id: str = ""
     leg_label: str = ""
@@ -105,6 +126,9 @@ class CommonMainLegSublegSchematicV1:
     heat_source_label: str = "Boiler"
     common_main_label: str = "Common main"
     routes: tuple[CommonMainLegSublegRouteV1, ...] = ()
+    balancing_point_evidence: tuple[
+        CommonMainLegSublegBalancingPointEvidenceV1, ...
+    ] = ()
     status: str = ""
 
 
@@ -799,6 +823,48 @@ class CommonMainLegSublegSchematicWidgetV1(QWidget):
             ),
         )
 
+    def _balancing_point_tooltip_lines_v1(
+            self,
+            scope: str,
+            stable_id: str,
+    ) -> list[str]:
+        schematic = self._schematic
+        wanted_scope = "main" if scope == "common_main" else scope
+        evidence_rows = tuple(
+            row
+            for row in tuple(
+                getattr(schematic, "balancing_point_evidence", ()) or ()
+            )
+            if str(getattr(row, "point_scope", "") or "").lower()
+            == wanted_scope
+            and (
+                scope == "common_main"
+                or str(getattr(row, "target_id", "") or "") == stable_id
+            )
+        )
+        if not evidence_rows:
+            return []
+        shown = self._shown_hierarchy_value_v1
+        lines = ["Balancing-point evidence:"]
+        for index, row in enumerate(evidence_rows):
+            if index:
+                lines.append("—")
+            lines.extend(
+                [
+                    f"Point: {shown(getattr(row, 'label', ''))}",
+                    f"Topology: {shown(getattr(row, 'topology', ''))}",
+                    f"Governed routes: {shown(getattr(row, 'governed_routes', ''))}",
+                    f"Point flow: {shown(getattr(row, 'point_flow', ''))}",
+                    f"Allocated Δp: {shown(getattr(row, 'allocated_dp', ''))}",
+                    f"Resistance: {shown(getattr(row, 'resistance', ''))}",
+                    f"Method: {shown(getattr(row, 'method', ''))}",
+                    f"Valve duty: {shown(getattr(row, 'valve_duty', ''))}",
+                    f"Controlled circuit Δp: {shown(getattr(row, 'controlled_dp', ''))}",
+                    f"Authority: {shown(getattr(row, 'authority', ''))}",
+                ]
+            )
+        return lines
+
     def _hierarchy_tooltip_text_v1(
             self,
             scope: str,
@@ -833,6 +899,7 @@ class CommonMainLegSublegSchematicWidgetV1(QWidget):
                 f"Legs supplied: {len(leg_ids)} ({leg_text})",
                 f"Sublegs supplied: {len(subleg_ids)}",
                 f"Unique rooms supplied: {len(rooms)}",
+                *self._balancing_point_tooltip_lines_v1(scope, stable_id),
                 f"Status: {status_lines[0]}",
             ]
             lines.extend(f"        {line}" for line in status_lines[1:])
@@ -872,6 +939,7 @@ class CommonMainLegSublegSchematicWidgetV1(QWidget):
                     f"Unique rooms: {len(rooms)}",
                     f"Entry carried flow: {shown(getattr(entry, 'flow_kg_s', ''))}",
                     f"Entry pipe: {shown(getattr(entry, 'pipe_dn', ''))}",
+                    *self._balancing_point_tooltip_lines_v1(scope, stable_id),
                 ]
             )
 
@@ -909,6 +977,7 @@ class CommonMainLegSublegSchematicWidgetV1(QWidget):
                 f"Entry carried flow: {shown(getattr(entry, 'flow_kg_s', ''))}",
                 f"Entry pipe: {shown(getattr(entry, 'pipe_dn', ''))}",
                 f"Entry Δp/m: {shown(getattr(entry, 'dp_per_m', ''))}",
+                *self._balancing_point_tooltip_lines_v1(scope, stable_id),
             ]
         )
 

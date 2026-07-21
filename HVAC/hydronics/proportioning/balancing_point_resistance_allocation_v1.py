@@ -244,6 +244,26 @@ def build_balancing_point_resistance_allocation_v1(
     )
 
 
+def _topology_route_id_v1(
+    route_id: object,
+    *,
+    topology_route_ids: tuple[str, ...],
+) -> str:
+    """
+    H-S44-B1:
+    Bridge the chosen-pressure canonical key ``leg_id:subleg_id`` to the
+    stable H-S44 physical route identity ``subleg_id``.
+
+    Exact H-S44 identities remain valid for compatibility.  No label or
+    positional matching is allowed.
+    """
+    value = str(route_id or "").strip()
+    if value in topology_route_ids:
+        return value
+    suffix = value.rsplit(":", 1)[-1] if ":" in value else ""
+    return suffix if suffix in topology_route_ids else ""
+
+
 def _route_burdens_v1(
     resistance_basis: PreliminaryBalancingResistanceBasisV1,
     *,
@@ -253,17 +273,31 @@ def _route_burdens_v1(
     rows = tuple(resistance_basis.rows or ())
     blockers: list[str] = []
     rows_by_id: dict[str, object] = {}
+    unmatched_route_ids: list[str] = []
     for row in rows:
-        route_id = str(_row_value(row, "route_id", "") or "").strip()
-        if not route_id:
+        source_route_id = str(
+            _row_value(row, "route_id", "") or ""
+        ).strip()
+        route_id = _topology_route_id_v1(
+            source_route_id,
+            topology_route_ids=topology_route_ids,
+        )
+        if not source_route_id:
             blockers.append("Every H-S43 resistance row requires route_id")
+        elif not route_id:
+            unmatched_route_ids.append(source_route_id)
         elif route_id in rows_by_id:
-            blockers.append(f"Duplicate H-S43 route_id: {route_id}")
+            blockers.append(
+                "Duplicate H-S43 route identity after canonical bridge: "
+                f"{route_id}"
+            )
         else:
             rows_by_id[route_id] = row
 
-    missing = tuple(route_id for route_id in topology_route_ids if route_id not in rows_by_id)
-    extra = tuple(route_id for route_id in rows_by_id if route_id not in topology_route_ids)
+    missing = tuple(
+        route_id for route_id in topology_route_ids if route_id not in rows_by_id
+    )
+    extra = tuple(unmatched_route_ids)
     if missing:
         blockers.append("H-S43 route burdens missing for: " + ", ".join(missing))
     if extra:

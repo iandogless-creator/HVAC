@@ -1336,6 +1336,40 @@ class HydronicsSchematicPanel(QWidget):
         self.set_valve_authority_input_rows([])
 
         # --------------------------------------------------
+        # H-S44-E — point allocation / method / valve-duty evidence
+        # --------------------------------------------------
+        self._balancing_point_evidence_table = self._make_table(
+            columns=[
+                "Point",
+                "Scope",
+                "Role",
+                "Topology",
+                "Governed routes",
+                "Flow kg/s",
+                "Allocated Δp",
+                "Resistance Pa/(kg/s)²",
+                "Method",
+                "Valve duty",
+                "Controlled circuit Δp",
+                "Authority",
+                "Ready",
+                "Status",
+                "Blockers",
+            ],
+            stretch_columns={0, 4, 8, 9, 13, 14},
+        )
+        self._add_section(
+            proportioned_layout,
+            title=(
+                "Main / leg / subleg balancing-point evidence — read-only"
+            ),
+            table=self._balancing_point_evidence_table,
+            min_height=165,
+            expanded=True,
+        )
+        self.set_balancing_point_evidence_rows([])
+
+        # --------------------------------------------------
         # H-S27-F — Chosen-basis proportioned readiness summary
         # --------------------------------------------------
         self._chosen_basis_proportioned_readiness_table = self._make_table(
@@ -5719,6 +5753,63 @@ class HydronicsSchematicPanel(QWidget):
 
         for row_index in range(table.rowCount()):
             table.setRowHeight(row_index, 24)
+
+    def set_balancing_point_evidence_rows(
+            self,
+            rows: list[dict],
+    ) -> None:
+        """H-S44-E display-only point allocation and valve-duty evidence."""
+        if not hasattr(self, "_balancing_point_evidence_table"):
+            return
+        table = self._balancing_point_evidence_table
+        rows = list(rows or [])
+        if not rows:
+            rows = [
+                {
+                    "balancing_point_id": "—",
+                    "point_scope": "—",
+                    "point_role": "—",
+                    "topology": "—",
+                    "governed_routes": "—",
+                    "point_flow": "—",
+                    "allocated_dp": "—",
+                    "resistance": "—",
+                    "method": "—",
+                    "valve_duty": "—",
+                    "controlled_dp": "—",
+                    "authority": "—",
+                    "ready": "No",
+                    "status": "Waiting for H-S44 point evidence",
+                    "blockers": "—",
+                }
+            ]
+        table.setRowCount(len(rows))
+        for row_index, row in enumerate(rows):
+            values = [
+                row.get("balancing_point_id", "—"),
+                row.get("point_scope", "—"),
+                row.get("point_role", "—"),
+                row.get("topology", "—"),
+                row.get("governed_routes", "—"),
+                row.get("point_flow", "—"),
+                row.get("allocated_dp", "—"),
+                row.get("resistance", "—"),
+                row.get("method", "—"),
+                row.get("valve_duty", "—"),
+                row.get("controlled_dp", "—"),
+                row.get("authority", "—"),
+                row.get("ready", "No"),
+                row.get("status", "—"),
+                row.get("blockers", "—"),
+            ]
+            for col_index, value in enumerate(values):
+                item = QTableWidgetItem(str(value))
+                item.setFlags(item.flags() & ~Qt.ItemIsEditable)
+                table.setItem(row_index, col_index, item)
+        table.setWordWrap(False)
+        for row_index in range(table.rowCount()):
+            table.setRowHeight(row_index, 24)
+        self._fit_table_height(table, min_height=120, max_height=260)
 
     def set_valve_authority_input_rows(
             self,

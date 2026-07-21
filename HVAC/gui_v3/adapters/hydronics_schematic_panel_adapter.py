@@ -102,6 +102,7 @@ from HVAC.hydronics.proportioning.chosen_basis_route_pressure_preview_v1 import 
     build_chosen_basis_route_pressure_preview_v1,
 )
 from HVAC.gui_v3.widgets.common_main_leg_subleg_schematic_widget_v1 import (
+    CommonMainLegSublegBalancingPointEvidenceV1,
     CommonMainLegSublegRoomEvidenceV1,
     CommonMainLegSublegRouteV1,
     CommonMainLegSublegSchematicV1,
@@ -136,7 +137,21 @@ from HVAC.hydronics.proportioning.chosen_basis_controlling_route_preview_v1 impo
     build_chosen_basis_controlling_route_preview_v1,
 )
 from HVAC.hydronics.proportioning.preliminary_balancing_resistance_basis_v1 import (
+    PreliminaryBalancingResistanceBasisV1,
+    PreliminaryBalancingResistanceRowV1,
     build_chosen_basis_balancing_resistance_basis_v1,
+)
+from HVAC.hydronics.proportioning.balancing_point_topology_authority_v1 import (
+    build_balancing_point_topology_authority_v1,
+)
+from HVAC.hydronics.proportioning.balancing_point_resistance_allocation_v1 import (
+    build_balancing_point_resistance_allocation_v1,
+)
+from HVAC.hydronics.proportioning.balancing_point_method_candidate_mapping_v1 import (
+    build_balancing_point_method_candidate_mapping_v1,
+)
+from HVAC.hydronics.proportioning.balancing_point_valve_authority_input_mapping_v1 import (
+    build_balancing_point_valve_authority_input_mapping_v1,
 )
 from HVAC.hydronics.proportioning.chosen_basis_proportioned_readiness_summary_v1 import (
     build_chosen_basis_proportioned_readiness_summary_v1,
@@ -841,6 +856,14 @@ class HydronicsSchematicPanelAdapter:
         except Exception as exc:
             print("[PROPORTIONING BASIC PS SECTIONS ERROR]", repr(exc))
             received_basic_ps_rows = []
+
+        # H-S43-B1: adapter-owned flow evidence avoids refresh-order
+        # dependence on the panel's preliminary resistance cache.
+        self._received_basic_ps_route_flow_basis_v1 = (
+            self._build_received_basic_ps_route_flow_basis_v1(
+                received_basic_ps_rows
+            )
+        )
 
         if hasattr(self._panel, "set_proportioning_basic_ps_sections"):
             self._panel.set_proportioning_basic_ps_sections(
@@ -1662,6 +1685,360 @@ class HydronicsSchematicPanelAdapter:
             )
 
         return rows
+
+    @staticmethod
+    def _received_basic_ps_route_identity_v1(
+            result: object,
+            projection: object,
+    ) -> tuple[str, str]:
+        """
+        H-S43-B2 stable received-route identity.
+
+        Pipe-sizing result identity is retained when present. The composed
+        Basic PS sections projection is the authoritative fallback because it
+        owns the leg/subleg scope used to build the received rows.
+        """
+        sections_projection = getattr(
+            projection,
+            "sections_projection",
+            None,
+        )
+        leg_id = str(
+            getattr(result, "leg_id", "")
+            or getattr(sections_projection, "leg_id", "")
+            or ""
+        )
+        subleg_id = str(
+            getattr(result, "subleg_id", "")
+            or getattr(sections_projection, "subleg_id", "")
+            or ""
+        )
+        return leg_id, subleg_id
+
+    @staticmethod
+    def _build_received_basic_ps_route_flow_basis_v1(
+            rows: list[dict] | tuple[dict, ...],
+    ) -> PreliminaryBalancingResistanceBasisV1:
+        """
+        H-S43-B1 stable route-flow delivery from received Basic PS evidence.
+
+        This consumes existing carried-flow evidence only. For each stable
+        route/subleg identity it retains the largest section flow, matching
+        the established route-level balancing-point flow rule.
+        """
+        grouped: dict[str, dict[str, object]] = {}
+        blockers: list[str] = []
+
+        for raw_row in tuple(rows or ()):
+            row = dict(raw_row or {})
+            route_id = str(
+                row.get("route_id") or row.get("subleg_id") or ""
+            ).strip()
+            route_label = str(row.get("route") or route_id or "").strip()
+            if not route_id:
+                continue
+
+            raw_flow = row.get("flow_kg_s")
+            try:
+                flow_kg_s = float(str(raw_flow or "").split()[0])
+            except (TypeError, ValueError, IndexError):
+                continue
+            if flow_kg_s <= 0.0:
+                continue
+
+            current = grouped.get(route_id)
+            if current is None:
+                grouped[route_id] = {
+                    "route_label": route_label,
+                    "flow_kg_s": flow_kg_s,
+                    "section_count": 1,
+                }
+            else:
+                current["flow_kg_s"] = max(
+                    float(current["flow_kg_s"]),
+                    flow_kg_s,
+                )
+                current["section_count"] = int(current["section_count"]) + 1
+
+        basis_rows: list[PreliminaryBalancingResistanceRowV1] = []
+        for route_id, values in grouped.items():
+            flow_kg_s = float(values["flow_kg_s"])
+            basis_rows.append(
+                PreliminaryBalancingResistanceRowV1(
+                    route_id=route_id,
+                    route_label=str(values["route_label"] or route_id),
+                    sections=str(values["section_count"]),
+                    flow_kg_s=f"{flow_kg_s:.5f} kg/s",
+                    required_added_dp="—",
+                    resistance_pa_per_kg_s2="—",
+                    controlling="No",
+                    status="Received Basic PS stable route-flow basis",
+                )
+            )
+
+        if not basis_rows:
+            blockers.append("No positive received Basic PS route flows available")
+
+        return PreliminaryBalancingResistanceBasisV1(
+            ready=bool(basis_rows),
+            status=(
+                "Received Basic PS stable route-flow basis ready"
+                if basis_rows
+                else "Received Basic PS stable route-flow basis unavailable"
+            ),
+            rows=basis_rows,
+            blockers=blockers,
+        )
+
+    @staticmethod
+    def _balancing_point_target_id_v1(
+            balancing_point_id: object,
+            point_scope: object,
+    ) -> str:
+        point_id = str(balancing_point_id or "")
+        scope = str(point_scope or "").strip().lower()
+        if scope == "main":
+            return "common_main"
+        prefix = f"balancing-point:{scope}:"
+        return point_id[len(prefix):] if point_id.startswith(prefix) else ""
+
+    def _build_blocked_balancing_point_allocation_gui_rows_v1(
+            self,
+            allocation,
+    ) -> list[dict]:
+        """
+        H-S44-E1 display-only fallback for a valid but unconserved allocation.
+
+        H-S44-C/D correctly publish no method or valve rows when H-S44-B
+        cannot conserve every route burden.  Preserve the available H-S44-B
+        point rows and route residual evidence instead of displaying the
+        generic waiting row.
+        """
+
+        def number(value, suffix: str, digits: int) -> str:
+            if value is None:
+                return "—"
+            try:
+                return f"{float(value):.{digits}f}{suffix}"
+            except (TypeError, ValueError):
+                return "—"
+
+        conservation_rows = tuple(
+            getattr(allocation, "route_conservation", ()) or ()
+        )
+        allocation_blockers = tuple(
+            str(value)
+            for value in tuple(getattr(allocation, "blockers", ()) or ())
+            if str(value or "").strip()
+        )
+        display_rows: list[dict] = []
+
+        for row in tuple(getattr(allocation, "rows", ()) or ()):
+            governed_routes = tuple(
+                str(value or "")
+                for value in tuple(
+                    getattr(row, "downstream_route_ids", ()) or ()
+                )
+                if str(value or "").strip()
+            )
+            relevant_residuals: list[str] = []
+            for conservation in conservation_rows:
+                route_id = str(
+                    getattr(conservation, "route_id", "") or ""
+                )
+                if route_id not in governed_routes:
+                    continue
+                if bool(getattr(conservation, "conserved", False)):
+                    continue
+                difference = number(
+                    getattr(conservation, "difference_pa", None),
+                    " Pa",
+                    1,
+                )
+                relevant_residuals.append(
+                    f"{route_id}: unallocated residual {difference}"
+                )
+
+            shared = bool(getattr(row, "is_shared", False))
+            exclusive = bool(getattr(row, "is_route_exclusive", False))
+            topology = (
+                "Shared"
+                if shared
+                else "Route-exclusive"
+                if exclusive
+                else "Unresolved"
+            )
+            blockers = tuple(relevant_residuals) or allocation_blockers
+            point_status = str(getattr(row, "status", "") or "")
+            display_rows.append(
+                {
+                    "balancing_point_id": str(
+                        getattr(row, "balancing_point_id", "") or ""
+                    ),
+                    "point_scope": str(
+                        getattr(row, "point_scope", "") or "—"
+                    ),
+                    "point_role": str(
+                        getattr(row, "point_role", "") or "—"
+                    ),
+                    "label": str(getattr(row, "label", "") or "—"),
+                    "target_id": self._balancing_point_target_id_v1(
+                        getattr(row, "balancing_point_id", ""),
+                        getattr(row, "point_scope", ""),
+                    ),
+                    "topology": topology,
+                    "governed_routes": ", ".join(governed_routes) or "—",
+                    "point_flow": number(
+                        getattr(row, "point_flow_kg_s", None),
+                        " kg/s",
+                        5,
+                    ),
+                    "allocated_dp": number(
+                        getattr(row, "allocated_added_dp_pa", None),
+                        " Pa",
+                        1,
+                    ),
+                    "resistance": number(
+                        getattr(
+                            row,
+                            "allocated_resistance_pa_per_kg_s2",
+                            None,
+                        ),
+                        " Pa/(kg/s)²",
+                        1,
+                    ),
+                    "method": "Unavailable — allocation not conserved",
+                    "valve_duty": "Unavailable — allocation not conserved",
+                    "controlled_dp": "—",
+                    "authority": "—",
+                    "ready": "No",
+                    "status": (
+                        f"{point_status} / H-S44-B evidence retained; "
+                        "H-S44-C/D blocked"
+                    ).strip(" /"),
+                    "blockers": "; ".join(blockers) if blockers else "—",
+                }
+            )
+
+        return display_rows
+
+    def _build_balancing_point_gui_rows_v1(self, mapping) -> list[dict]:
+        """H-S44-E combined allocation, method and valve-duty evidence."""
+
+        def number(value, suffix: str, digits: int) -> str:
+            if value is None:
+                return "—"
+            try:
+                return f"{float(value):.{digits}f}{suffix}"
+            except (TypeError, ValueError):
+                return "—"
+
+        display_rows: list[dict] = []
+        for row in tuple(getattr(mapping, "rows", ()) or ()):
+            blockers = tuple(getattr(row, "blockers", ()) or ())
+            shared = bool(getattr(row, "is_shared", False))
+            exclusive = bool(getattr(row, "is_route_exclusive", False))
+            topology = (
+                "Shared"
+                if shared
+                else "Route-exclusive"
+                if exclusive
+                else "Unresolved"
+            )
+            display_rows.append(
+                {
+                    "balancing_point_id": str(
+                        getattr(row, "balancing_point_id", "") or ""
+                    ),
+                    "point_scope": str(
+                        getattr(row, "point_scope", "") or "—"
+                    ),
+                    "point_role": str(
+                        getattr(row, "point_role", "") or "—"
+                    ),
+                    "label": str(getattr(row, "label", "") or "—"),
+                    "target_id": self._balancing_point_target_id_v1(
+                        getattr(row, "balancing_point_id", ""),
+                        getattr(row, "point_scope", ""),
+                    ),
+                    "topology": topology,
+                    "is_shared": shared,
+                    "is_route_exclusive": exclusive,
+                    "governed_routes": ", ".join(
+                        str(value)
+                        for value in tuple(
+                            getattr(row, "downstream_route_ids", ()) or ()
+                        )
+                    ) or "—",
+                    "point_flow": number(
+                        getattr(row, "point_flow_kg_s", None),
+                        " kg/s",
+                        5,
+                    ),
+                    "allocated_dp": number(
+                        getattr(row, "design_valve_dp_pa", None),
+                        " Pa",
+                        1,
+                    ),
+                    "resistance": number(
+                        getattr(
+                            row,
+                            "candidate_resistance_pa_per_kg_s2",
+                            None,
+                        ),
+                        " Pa/(kg/s)²",
+                        1,
+                    ),
+                    "method": str(
+                        getattr(row, "balancing_method_label", "") or "—"
+                    ),
+                    "valve_duty": str(
+                        getattr(row, "authority_label", "") or "—"
+                    ),
+                    "controlled_dp": number(
+                        getattr(row, "controlled_circuit_dp_pa", None),
+                        " Pa",
+                        1,
+                    ),
+                    "authority": number(
+                        getattr(row, "authority", None),
+                        "",
+                        3,
+                    ),
+                    "ready": "Yes" if bool(getattr(row, "ready", False)) else "No",
+                    "status": str(getattr(row, "status", "") or "—"),
+                    "blockers": "; ".join(str(value) for value in blockers)
+                    if blockers
+                    else "—",
+                }
+            )
+        return display_rows
+
+    def _build_schematic_balancing_point_evidence_v1(
+            self,
+            mapping,
+    ) -> tuple[CommonMainLegSublegBalancingPointEvidenceV1, ...]:
+        return tuple(
+            CommonMainLegSublegBalancingPointEvidenceV1(
+                balancing_point_id=str(row.get("balancing_point_id", "") or ""),
+                point_scope=str(row.get("point_scope", "") or ""),
+                point_role=str(row.get("point_role", "") or ""),
+                target_id=str(row.get("target_id", "") or ""),
+                label=str(row.get("label", "") or ""),
+                topology=str(row.get("topology", "") or ""),
+                governed_routes=str(row.get("governed_routes", "") or ""),
+                point_flow=str(row.get("point_flow", "") or ""),
+                allocated_dp=str(row.get("allocated_dp", "") or ""),
+                resistance=str(row.get("resistance", "") or ""),
+                method=str(row.get("method", "") or ""),
+                valve_duty=str(row.get("valve_duty", "") or ""),
+                controlled_dp=str(row.get("controlled_dp", "") or ""),
+                authority=str(row.get("authority", "") or ""),
+                ready=str(row.get("ready", "") or ""),
+                status=str(row.get("status", "") or ""),
+            )
+            for row in self._build_balancing_point_gui_rows_v1(mapping)
+        )
 
     def _build_balancing_method_candidate_rows_v1(
             self,
@@ -3125,6 +3502,10 @@ class HydronicsSchematicPanelAdapter:
             self._panel,
             "set_valve_authority_input_rows",
         )
+        has_balancing_point_evidence_table = hasattr(
+            self._panel,
+            "set_balancing_point_evidence_rows",
+        )
         has_proportioned_status_table = hasattr(
             self._panel,
             "set_proportioned_status",
@@ -3138,6 +3519,7 @@ class HydronicsSchematicPanelAdapter:
                 and not has_provisional_burden_table
                 and not has_balancing_method_candidate_table
                 and not has_valve_authority_input_table
+                and not has_balancing_point_evidence_table
                 and not has_proportioned_status_table
         ):
             return
@@ -3182,10 +3564,12 @@ class HydronicsSchematicPanelAdapter:
             chosen_resistance_basis = (
                 build_chosen_basis_balancing_resistance_basis_v1(
                     chosen_controlling_rows=chosen_controlling_rows,
-                    flow_basis=getattr(
-                        self._panel,
-                        "_preliminary_balancing_resistance_basis",
-                        None,
+                    flow_basis=(
+                        getattr(
+                            self,
+                            "_received_basic_ps_route_flow_basis_v1",
+                            None,
+                        )
                     ),
                 )
             )
@@ -3196,6 +3580,46 @@ class HydronicsSchematicPanelAdapter:
                     resistance_basis=chosen_resistance_basis,
                 )
             )
+
+            # H-S44-E — point-scoped evidence chain for display only.
+            point_topology = build_balancing_point_topology_authority_v1(
+                self._project_state
+            )
+            point_allocation = build_balancing_point_resistance_allocation_v1(
+                topology=point_topology,
+                resistance_basis=chosen_resistance_basis,
+            )
+            point_candidates = build_balancing_point_method_candidate_mapping_v1(
+                point_allocation
+            )
+            point_valve_inputs = (
+                build_balancing_point_valve_authority_input_mapping_v1(
+                    point_candidates
+                )
+            )
+            self._balancing_point_valve_authority_input_mapping_preview = (
+                point_valve_inputs
+            )
+            point_display_rows = self._build_balancing_point_gui_rows_v1(
+                point_valve_inputs
+            )
+            if not point_display_rows and tuple(
+                    getattr(point_allocation, "rows", ()) or ()
+            ):
+                point_display_rows = (
+                    self._build_blocked_balancing_point_allocation_gui_rows_v1(
+                        point_allocation
+                    )
+                )
+            self._schematic_balancing_point_evidence_v1 = (
+                self._build_schematic_balancing_point_evidence_v1(
+                    point_valve_inputs
+                )
+            )
+            if has_balancing_point_evidence_table:
+                self._panel.set_balancing_point_evidence_rows(
+                    point_display_rows
+                )
 
             self._balancing_method_candidate_mapping_preview = (
                 self._build_balancing_method_candidate_mapping_preview_v1(
@@ -3594,6 +4018,14 @@ class HydronicsSchematicPanelAdapter:
             heat_source_label="Boiler",
             common_main_label="Common main",
             routes=tuple(routes),
+            balancing_point_evidence=tuple(
+                getattr(
+                    self,
+                    "_schematic_balancing_point_evidence_v1",
+                    (),
+                )
+                or ()
+            ),
             status=(
                 "DEV topology schematic preview only — branch take-offs are "
                 "display-only TBA markers; no pressure, balancing, pump, "
@@ -4135,8 +4567,12 @@ class HydronicsSchematicPanelAdapter:
                 f"{projection.sections_projection.subleg_label}"
             )
 
-            leg_id = str(getattr(result, "leg_id", "") or "")
-            subleg_id = str(getattr(result, "subleg_id", "") or "")
+            leg_id, subleg_id = (
+                self._received_basic_ps_route_identity_v1(
+                    result,
+                    projection,
+                )
+            )
 
             subleg_role = (
                 "common"
