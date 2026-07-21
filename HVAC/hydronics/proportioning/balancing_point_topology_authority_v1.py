@@ -28,6 +28,7 @@ SUBLEG_POINT_SCOPE = "subleg"
 
 COMMON_SUBLEG_ROLE = "common"
 BRANCH_SUBLEG_ROLE = "branch"
+COMMON_ROUTE_DOWNSTREAM_ROLE = "common_route_downstream"
 
 
 @dataclass(frozen=True, slots=True)
@@ -67,6 +68,9 @@ class BalancingPointTopologyProjectionV1:
     main_points: tuple[BalancingPointTopologyRowV1, ...]
     leg_points: tuple[BalancingPointTopologyRowV1, ...]
     subleg_points: tuple[BalancingPointTopologyRowV1, ...]
+    # H-S44-A2: additional conceptual route-exclusive children. Existing
+    # subleg_points remain the unchanged physical entry-point authority.
+    route_exclusive_points: tuple[BalancingPointTopologyRowV1, ...] = ()
     blockers: tuple[str, ...] = ()
     status: str = "H-S44-A balancing-point topology not ready"
 
@@ -89,6 +93,12 @@ def leg_balancing_point_id_v1(leg_id: str) -> str:
 
 def subleg_balancing_point_id_v1(subleg_id: str) -> str:
     return f"balancing-point:subleg:{str(subleg_id or '').strip()}"
+
+
+def common_subleg_downstream_balancing_point_id_v1(subleg_id: str) -> str:
+    """Stable identity for a common route's exclusive residual point."""
+    stable_id = str(subleg_id or '').strip()
+    return f"balancing-point:subleg:{stable_id}:downstream-exclusive"
 
 
 def build_balancing_point_topology_authority_v1(
@@ -124,6 +134,7 @@ def build_balancing_point_topology_authority_v1(
     main_points: list[BalancingPointTopologyRowV1] = []
     leg_points: list[BalancingPointTopologyRowV1] = []
     subleg_points: list[BalancingPointTopologyRowV1] = []
+    route_exclusive_points: list[BalancingPointTopologyRowV1] = []
 
     previous_main_point_id = ""
     for index, leg in enumerate(legs):
@@ -180,11 +191,11 @@ def build_balancing_point_topology_authority_v1(
                 if info.parent_subleg_id
                 else leg_point_id
             )
+            entry_point_id = subleg_balancing_point_id_v1(subleg.subleg_id)
+            governed_route_ids = descendants_by_subleg[subleg.subleg_id]
             subleg_points.append(
                 _point_v1(
-                    balancing_point_id=subleg_balancing_point_id_v1(
-                        subleg.subleg_id
-                    ),
+                    balancing_point_id=entry_point_id,
                     point_scope=SUBLEG_POINT_SCOPE,
                     point_role=(
                         COMMON_SUBLEG_ROLE if info.is_primary else BRANCH_SUBLEG_ROLE
@@ -195,7 +206,7 @@ def build_balancing_point_topology_authority_v1(
                     parent_balancing_point_id=parent_point_id,
                     anchor_section_id=f"{subleg.subleg_id}-section-001",
                     origin_room_id=str(subleg.origin_room_id or ""),
-                    downstream_route_ids=descendants_by_subleg[subleg.subleg_id],
+                    downstream_route_ids=governed_route_ids,
                     status=(
                         "Primary/common subleg entry point"
                         if info.is_primary
@@ -204,13 +215,44 @@ def build_balancing_point_topology_authority_v1(
                 )
             )
 
-    points = tuple(main_points + leg_points + subleg_points)
+            # H-S44-A2: a common entry that also feeds child routes is shared.
+            # Add a distinct child for the common route's residual burden. The
+            # point is deliberately not tied to a pipe section: branch take-off
+            # geometry remains TBA, so physical valve placement is not inferred.
+            if info.is_primary and len(governed_route_ids) > 1:
+                route_exclusive_points.append(
+                    _point_v1(
+                        balancing_point_id=(
+                            common_subleg_downstream_balancing_point_id_v1(
+                                subleg.subleg_id
+                            )
+                        ),
+                        point_scope=SUBLEG_POINT_SCOPE,
+                        point_role=COMMON_ROUTE_DOWNSTREAM_ROLE,
+                        label=f"{leg.label} / {subleg.label} downstream route",
+                        leg_id=leg.leg_id,
+                        subleg_id=subleg.subleg_id,
+                        parent_balancing_point_id=entry_point_id,
+                        anchor_section_id="",
+                        origin_room_id="",
+                        downstream_route_ids=(subleg.subleg_id,),
+                        status=(
+                            "Route-exclusive common-subleg residual point; "
+                            "physical placement TBA"
+                        ),
+                    )
+                )
+
+    points = tuple(
+        main_points + leg_points + subleg_points + route_exclusive_points
+    )
     return BalancingPointTopologyProjectionV1(
         ready=True,
         points=points,
         main_points=tuple(main_points),
         leg_points=tuple(leg_points),
         subleg_points=tuple(subleg_points),
+        route_exclusive_points=tuple(route_exclusive_points),
         blockers=(),
         status="H-S44-A main / leg / subleg balancing-point topology ready",
     )
@@ -376,6 +418,7 @@ def _blocked_projection(
         main_points=(),
         leg_points=(),
         subleg_points=(),
+        route_exclusive_points=(),
         blockers=tuple(blockers),
         status="H-S44-A balancing-point topology not ready",
     )

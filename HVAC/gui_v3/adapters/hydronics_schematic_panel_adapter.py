@@ -1800,7 +1800,16 @@ class HydronicsSchematicPanelAdapter:
         if scope == "main":
             return "common_main"
         prefix = f"balancing-point:{scope}:"
-        return point_id[len(prefix):] if point_id.startswith(prefix) else ""
+        if not point_id.startswith(prefix):
+            return ""
+        target_id = point_id[len(prefix):]
+        # H-S44-A2 route-exclusive common-route points retain their own
+        # stable identity while mapping to the owning schematic subleg.
+        if scope == "subleg" and target_id.endswith(
+                ":downstream-exclusive"
+        ):
+            return target_id.rsplit(":", 1)[0]
+        return target_id
 
     def _build_blocked_balancing_point_allocation_gui_rows_v1(
             self,

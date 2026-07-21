@@ -153,10 +153,25 @@ def main() -> None:
     )
 
     # A parent route requiring more burden than its descendants cannot be
-    # represented by entry points without overloading the child routes. It
-    # must fail closed rather than double count or create negative resistance.
+    # represented by entry points without overloading the child routes. Keep
+    # this fail-closed regression on an explicit pre-A2 entry-only projection;
+    # the authoritative A2 projection now contains a downstream-exclusive
+    # common-route point which correctly makes this burden representable.
+    legacy_entry_only_topology = type(topology)(
+        ready=topology.ready,
+        points=tuple(
+            point for point in topology.points
+            if point not in topology.route_exclusive_points
+        ),
+        main_points=topology.main_points,
+        leg_points=topology.leg_points,
+        subleg_points=topology.subleg_points,
+        route_exclusive_points=(),
+        blockers=topology.blockers,
+        status=topology.status,
+    )
     impossible = build_balancing_point_resistance_allocation_v1(
-        topology=topology,
+        topology=legacy_entry_only_topology,
         resistance_basis=_basis(
             {
                 "leg-001-primary-subleg": 120.0,
