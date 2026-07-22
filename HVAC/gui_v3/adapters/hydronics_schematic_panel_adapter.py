@@ -190,6 +190,10 @@ from HVAC.hydronics.proportioning.balancing_point_accepted_kvs_consequence_dispo
 from HVAC.hydronics.proportioning.balancing_point_valve_product_search_duty_envelope_v1 import (
     build_balancing_point_valve_product_search_duty_envelope_v1,
 )
+from HVAC.hydronics.proportioning.balancing_point_valve_product_search_criteria_intent_v1 import (
+    BalancingPointValveProductSearchCriteriaIntentV1,
+    resolve_balancing_point_valve_product_search_criteria_v1,
+)
 from HVAC.hydronics.proportioning.chosen_basis_proportioned_readiness_summary_v1 import (
     build_chosen_basis_proportioned_readiness_summary_v1,
 )
@@ -321,9 +325,94 @@ class HydronicsSchematicPanelAdapter:
                 self.set_accepted_kvs_consequence_disposition
             )
 
+        if hasattr(
+                self._panel,
+                "set_product_search_criteria_callback",
+        ):
+            self._panel.set_product_search_criteria_callback(
+                self.set_product_search_criteria
+            )
+
         self.refresh()
 
 
+
+    def set_product_search_criteria(self, payload: dict) -> None:
+        """Persist or clear H-S49-C manual criteria; never query a catalogue."""
+        if not isinstance(payload, dict):
+            raise ValueError("Product-search criteria payload must be a dictionary")
+        project = self._project_state
+        if project is None:
+            return
+        point_id = str(payload.get("balancing_point_id") or "").strip()
+        if not point_id:
+            raise ValueError("balancing_point_id is required")
+        action = str(payload.get("action") or "").strip().lower()
+        intent = getattr(
+            project,
+            "hydronic_point_valve_product_search_criteria_intent",
+            None,
+        )
+
+        if action == "set":
+            envelopes = getattr(
+                self,
+                "_balancing_point_valve_product_search_duty_envelope_preview",
+                None,
+            )
+            envelope = next(
+                (
+                    row for row in tuple(getattr(envelopes, "rows", ()) or ())
+                    if str(getattr(row, "balancing_point_id", "") or "").strip()
+                    == point_id
+                ),
+                None,
+            )
+            if (
+                envelope is None
+                or not bool(getattr(envelope, "envelope_available", False))
+                or not bool(
+                    getattr(envelope, "approved_for_product_search", False)
+                )
+            ):
+                raise ValueError("Current approved H-S49-A envelope required")
+            if intent is None:
+                intent = BalancingPointValveProductSearchCriteriaIntentV1()
+            intent.set_criteria(
+                balancing_point_id=point_id,
+                accepted_kvs_basis=getattr(envelope, "accepted_kvs", None),
+                catalog_id=payload.get("catalog_id"),
+                kv_tolerance_percent=payload.get(
+                    "kv_tolerance_percent", 0.0
+                ),
+                valve_ref_contains=payload.get("valve_ref_contains", ""),
+                note_contains=payload.get("note_contains", ""),
+            )
+        elif action == "clear":
+            if intent is None:
+                self.refresh()
+                return
+            intent.clear_criteria(point_id)
+        else:
+            raise ValueError("action must be 'set' or 'clear'")
+
+        project.hydronic_point_valve_product_search_criteria_intent = intent
+        project.hydronics_valid = False
+        if hasattr(project, "mark_dirty"):
+            project.mark_dirty()
+        self.refresh()
+        for signal_name in ("project_state_changed", "project_changed"):
+            signal = getattr(self._context, signal_name, None)
+            emit = getattr(signal, "emit", None)
+            if not callable(emit):
+                continue
+            try:
+                emit()
+            except TypeError:
+                try:
+                    emit(project)
+                except TypeError:
+                    pass
 
     def set_accepted_kvs_consequence_disposition(
             self,
@@ -2176,6 +2265,55 @@ class HydronicsSchematicPanelAdapter:
             )
 
         return display_rows
+
+    @staticmethod
+    def _build_product_search_criteria_editor_rows_v1(
+            envelopes,
+            criteria_resolution,
+    ) -> list[dict]:
+        """Expose approved envelope identities and resolved manual criteria."""
+        resolved_by_id = {
+            str(getattr(row, "balancing_point_id", "") or "").strip(): row
+            for row in tuple(getattr(criteria_resolution, "rows", ()) or ())
+        }
+        rows = []
+        for envelope in tuple(getattr(envelopes, "rows", ()) or ()):
+            if (
+                not bool(getattr(envelope, "envelope_available", False))
+                or not bool(
+                    getattr(envelope, "approved_for_product_search", False)
+                )
+            ):
+                continue
+            point_id = str(
+                getattr(envelope, "balancing_point_id", "") or ""
+            ).strip()
+            resolved = resolved_by_id.get(point_id)
+            rows.append({
+                "balancing_point_id": point_id,
+                "point_scope": getattr(envelope, "point_scope", "—"),
+                "point_role": getattr(envelope, "point_role", "—"),
+                "accepted_kvs": getattr(envelope, "accepted_kvs", None),
+                "catalog_id": getattr(resolved, "catalog_id", ""),
+                "kv_tolerance_percent": getattr(
+                    resolved, "kv_tolerance_percent", None
+                ),
+                "valve_ref_contains": getattr(
+                    resolved, "valve_ref_contains", ""
+                ),
+                "note_contains": getattr(resolved, "note_contains", ""),
+                "criteria_available": bool(
+                    getattr(resolved, "criteria_available", False)
+                ),
+                "status": str(
+                    getattr(resolved, "status", "")
+                    or "Manual product-search criteria pending"
+                ),
+                "blockers": tuple(
+                    getattr(resolved, "blockers", ()) or ()
+                ),
+            })
+        return rows
 
     @staticmethod
     def _build_product_search_duty_envelope_gui_rows_v1(envelopes) -> list[dict]:
@@ -4163,6 +4301,19 @@ class HydronicsSchematicPanelAdapter:
             self._balancing_point_valve_product_search_duty_envelope_preview = (
                 point_product_search_envelopes
             )
+            point_product_search_criteria = (
+                resolve_balancing_point_valve_product_search_criteria_v1(
+                    getattr(
+                        self._project_state,
+                        "hydronic_point_valve_product_search_criteria_intent",
+                        None,
+                    ),
+                    point_product_search_envelopes,
+                )
+            )
+            self._balancing_point_valve_product_search_criteria_resolution = (
+                point_product_search_criteria
+            )
             point_display_rows = self._build_balancing_point_gui_rows_v1(
                 point_kvs_utilisation
             )
@@ -4216,6 +4367,17 @@ class HydronicsSchematicPanelAdapter:
                 self._panel.set_product_search_duty_envelope_rows(
                     self._build_product_search_duty_envelope_gui_rows_v1(
                         point_product_search_envelopes
+                    )
+                )
+
+            if hasattr(
+                    self._panel,
+                    "set_product_search_criteria_editor_rows",
+            ):
+                self._panel.set_product_search_criteria_editor_rows(
+                    self._build_product_search_criteria_editor_rows_v1(
+                        point_product_search_envelopes,
+                        point_product_search_criteria,
                     )
                 )
 

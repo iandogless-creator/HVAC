@@ -77,6 +77,7 @@ from PySide6.QtWidgets import (
     QButtonGroup,
     QHBoxLayout,
     QComboBox,
+    QLineEdit,
     QDoubleSpinBox,
     QSplitter,
 )
@@ -1528,6 +1529,107 @@ class HydronicsSchematicPanel(QWidget):
             expanded=True,
         )
         self.set_product_search_duty_envelope_rows([])
+
+        # --------------------------------------------------
+        # H-S49-C — manual product-search criteria editor
+        # --------------------------------------------------
+        criteria_editor = QFrame(self)
+        criteria_editor.setFrameShape(QFrame.StyledPanel)
+        criteria_layout = QGridLayout(criteria_editor)
+        criteria_layout.setContentsMargins(8, 8, 8, 8)
+        criteria_layout.setHorizontalSpacing(10)
+        criteria_layout.setVerticalSpacing(6)
+
+        criteria_notice = QLabel(
+            "Records manual filters for a later search. Apply does not query "
+            "a catalogue, rank a product or select a valve.",
+            criteria_editor,
+        )
+        criteria_notice.setWordWrap(True)
+        criteria_layout.addWidget(criteria_notice, 0, 0, 1, 4)
+
+        criteria_layout.addWidget(QLabel("Approved point:", criteria_editor), 1, 0)
+        self._product_search_criteria_point_combo = QComboBox(criteria_editor)
+        self._product_search_criteria_point_combo.currentIndexChanged.connect(
+            self._on_product_search_criteria_point_changed_v1
+        )
+        criteria_layout.addWidget(
+            self._product_search_criteria_point_combo, 1, 1, 1, 3
+        )
+
+        criteria_layout.addWidget(QLabel("Accepted Kvs:", criteria_editor), 2, 0)
+        self._product_search_criteria_kvs_label = QLabel("—", criteria_editor)
+        criteria_layout.addWidget(self._product_search_criteria_kvs_label, 2, 1)
+        criteria_layout.addWidget(QLabel("Catalog ID:", criteria_editor), 2, 2)
+        self._product_search_criteria_catalog_id_edit = QLineEdit(criteria_editor)
+        self._product_search_criteria_catalog_id_edit.textChanged.connect(
+            self._on_product_search_criteria_input_changed_v1
+        )
+        criteria_layout.addWidget(
+            self._product_search_criteria_catalog_id_edit, 2, 3
+        )
+
+        criteria_layout.addWidget(QLabel("Kv tolerance:", criteria_editor), 3, 0)
+        self._product_search_criteria_tolerance_spin = QDoubleSpinBox(
+            criteria_editor
+        )
+        self._product_search_criteria_tolerance_spin.setRange(0.0, 100.0)
+        self._product_search_criteria_tolerance_spin.setDecimals(2)
+        self._product_search_criteria_tolerance_spin.setSingleStep(0.5)
+        self._product_search_criteria_tolerance_spin.setSuffix(" %")
+        self._product_search_criteria_tolerance_spin.valueChanged.connect(
+            self._on_product_search_criteria_input_changed_v1
+        )
+        criteria_layout.addWidget(
+            self._product_search_criteria_tolerance_spin, 3, 1
+        )
+        criteria_layout.addWidget(
+            QLabel("Valve reference contains:", criteria_editor), 3, 2
+        )
+        self._product_search_criteria_ref_edit = QLineEdit(criteria_editor)
+        criteria_layout.addWidget(self._product_search_criteria_ref_edit, 3, 3)
+
+        criteria_layout.addWidget(QLabel("Note contains:", criteria_editor), 4, 0)
+        self._product_search_criteria_note_edit = QLineEdit(criteria_editor)
+        criteria_layout.addWidget(
+            self._product_search_criteria_note_edit, 4, 1
+        )
+        criteria_layout.addWidget(QLabel("Resolved status:", criteria_editor), 4, 2)
+        self._product_search_criteria_status_label = QLabel("—", criteria_editor)
+        self._product_search_criteria_status_label.setWordWrap(True)
+        criteria_layout.addWidget(
+            self._product_search_criteria_status_label, 4, 3
+        )
+
+        self._product_search_criteria_apply_button = QPushButton(
+            "Apply manual search criteria", criteria_editor
+        )
+        self._product_search_criteria_clear_button = QPushButton(
+            "Clear point search criteria", criteria_editor
+        )
+        self._product_search_criteria_apply_button.clicked.connect(
+            self._on_apply_product_search_criteria_v1
+        )
+        self._product_search_criteria_clear_button.clicked.connect(
+            self._on_clear_product_search_criteria_v1
+        )
+        criteria_layout.addWidget(
+            self._product_search_criteria_apply_button, 5, 2
+        )
+        criteria_layout.addWidget(
+            self._product_search_criteria_clear_button, 5, 3
+        )
+        criteria_layout.setColumnStretch(1, 1)
+        criteria_layout.setColumnStretch(3, 2)
+
+        self._add_section(
+            proportioning_layout,
+            title="Manual valve product-search criteria — design intent",
+            table=criteria_editor,
+            min_height=205,
+            expanded=True,
+        )
+        self.set_product_search_criteria_editor_rows([])
 
         # --------------------------------------------------
         # H-S27-F — Chosen-basis proportioned readiness summary
@@ -6248,6 +6350,138 @@ class HydronicsSchematicPanel(QWidget):
             }
         )
 
+    def set_product_search_criteria_callback(self, callback) -> None:
+        """Register the adapter-owned H-S49-C criteria callback."""
+        self._product_search_criteria_callback = callback
+
+    def set_product_search_criteria_editor_rows(self, rows: list[dict]) -> None:
+        """Populate H-S49-C from approved envelopes and resolved intent."""
+        combo = getattr(self, "_product_search_criteria_point_combo", None)
+        if combo is None:
+            return
+        previous = str(combo.currentData() or "")
+        copies = [dict(row) for row in list(rows or [])]
+        self._product_search_criteria_rows_by_id = {
+            str(row.get("balancing_point_id") or ""): row
+            for row in copies
+            if str(row.get("balancing_point_id") or "")
+        }
+        blocked = combo.blockSignals(True)
+        try:
+            combo.clear()
+            for row in copies:
+                point_id = str(row.get("balancing_point_id") or "")
+                scope = str(row.get("point_scope") or "point")
+                role = str(row.get("point_role") or "—")
+                if point_id:
+                    combo.addItem(f"{scope} | {role} | {point_id}", point_id)
+            wanted = combo.findData(previous)
+            if wanted < 0 and combo.count():
+                wanted = 0
+            combo.setCurrentIndex(wanted)
+        finally:
+            combo.blockSignals(blocked)
+        self._on_product_search_criteria_point_changed_v1(combo.currentIndex())
+
+    def _on_product_search_criteria_point_changed_v1(
+            self,
+            _index: int = -1,
+    ) -> None:
+        combo = self._product_search_criteria_point_combo
+        point_id = str(combo.currentData() or "")
+        row = getattr(self, "_product_search_criteria_rows_by_id", {}).get(
+            point_id
+        )
+        self._product_search_criteria_selected_point_id = point_id
+        edits = (
+            self._product_search_criteria_catalog_id_edit,
+            self._product_search_criteria_ref_edit,
+            self._product_search_criteria_note_edit,
+        )
+        if row is None:
+            self._product_search_criteria_kvs_label.setText("—")
+            for edit in edits:
+                edit.clear()
+                edit.setEnabled(False)
+            self._product_search_criteria_tolerance_spin.setValue(0.0)
+            self._product_search_criteria_tolerance_spin.setEnabled(False)
+            self._product_search_criteria_status_label.setText(
+                "No approved product-search envelope"
+            )
+            self._product_search_criteria_apply_button.setEnabled(False)
+            self._product_search_criteria_clear_button.setEnabled(False)
+            return
+
+        for edit in edits:
+            edit.setEnabled(True)
+        self._product_search_criteria_tolerance_spin.setEnabled(True)
+        kvs = row.get("accepted_kvs")
+        self._product_search_criteria_kvs_label.setText(
+            "—" if kvs is None else f"{float(kvs):g}"
+        )
+        blockers = [
+            self._product_search_criteria_catalog_id_edit.blockSignals(True),
+            self._product_search_criteria_tolerance_spin.blockSignals(True),
+        ]
+        try:
+            self._product_search_criteria_catalog_id_edit.setText(
+                str(row.get("catalog_id") or "")
+            )
+            tolerance = row.get("kv_tolerance_percent")
+            self._product_search_criteria_tolerance_spin.setValue(
+                0.0 if tolerance is None else float(tolerance)
+            )
+            self._product_search_criteria_ref_edit.setText(
+                str(row.get("valve_ref_contains") or "")
+            )
+            self._product_search_criteria_note_edit.setText(
+                str(row.get("note_contains") or "")
+            )
+        finally:
+            self._product_search_criteria_catalog_id_edit.blockSignals(blockers[0])
+            self._product_search_criteria_tolerance_spin.blockSignals(blockers[1])
+        blocker_text = "; ".join(str(v) for v in row.get("blockers", ()) if v)
+        status = str(row.get("status") or "Manual criteria pending")
+        self._product_search_criteria_status_label.setText(
+            status if not blocker_text else f"{status} — {blocker_text}"
+        )
+        self._product_search_criteria_clear_button.setEnabled(
+            bool(row.get("criteria_available"))
+        )
+        self._on_product_search_criteria_input_changed_v1()
+
+    def _on_product_search_criteria_input_changed_v1(self, *_args) -> None:
+        self._product_search_criteria_apply_button.setEnabled(
+            bool(getattr(self, "_product_search_criteria_selected_point_id", ""))
+            and bool(self._product_search_criteria_catalog_id_edit.text().strip())
+        )
+
+    def _on_apply_product_search_criteria_v1(self) -> None:
+        callback = getattr(self, "_product_search_criteria_callback", None)
+        point_id = str(
+            getattr(self, "_product_search_criteria_selected_point_id", "")
+        )
+        if not point_id or not callable(callback):
+            return
+        callback({
+            "action": "set",
+            "balancing_point_id": point_id,
+            "catalog_id": self._product_search_criteria_catalog_id_edit.text(),
+            "kv_tolerance_percent": (
+                self._product_search_criteria_tolerance_spin.value()
+            ),
+            "valve_ref_contains": self._product_search_criteria_ref_edit.text(),
+            "note_contains": self._product_search_criteria_note_edit.text(),
+        })
+
+    def _on_clear_product_search_criteria_v1(self) -> None:
+        callback = getattr(self, "_product_search_criteria_callback", None)
+        point_id = str(
+            getattr(self, "_product_search_criteria_selected_point_id", "")
+        )
+        if point_id and callable(callback):
+            callback({"action": "clear", "balancing_point_id": point_id})
+
     def set_product_search_duty_envelope_rows(self, rows: list[dict]) -> None:
         """Display-only H-S49-A product-search handoff envelopes."""
         if not hasattr(self, "_product_search_duty_envelope_table"):
@@ -9138,6 +9372,9 @@ QTableWidget::item:selected:!active {
                     "Approved point valve product-search duty envelopes — "
                     "read-only"
                 ): 1100,
+                (
+                    "Manual valve product-search criteria — design intent"
+                ): 1200,
             }.get(title, 500)
             section.setProperty(
                 "hydraulic_dependency_order_v1",
