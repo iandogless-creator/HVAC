@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import replace
+import math
 from pathlib import Path
 
 from HVAC.hydronics.proportioning.balancing_method_design_v1 import (
@@ -11,8 +11,14 @@ from HVAC.hydronics.proportioning.balancing_point_controlled_circuit_dp_authorit
     build_balancing_point_controlled_circuit_dp_authority_v1,
 )
 from HVAC.hydronics.proportioning.balancing_point_low_authority_design_disposition_v1 import (
-    EVIDENCE_UNAVAILABLE,
     build_balancing_point_low_authority_design_disposition_v1,
+)
+from HVAC.hydronics.proportioning.balancing_point_required_kv_preview_v1 import (
+    DEFAULT_KV_WATER_DENSITY_KG_M3,
+    NO_REQUIRED_KV,
+    REQUIRED_KV_PREVIEW_AVAILABLE,
+    build_balancing_point_required_kv_preview_v1,
+    calculate_required_kv_v1,
 )
 from HVAC.hydronics.proportioning.balancing_point_valve_authority_input_mapping_v1 import (
     BalancingPointValveAuthorityInputMappingV1,
@@ -22,11 +28,7 @@ from HVAC.hydronics.proportioning.balancing_point_valve_authority_preview_v1 imp
     build_balancing_point_valve_authority_preview_v1,
 )
 from HVAC.hydronics.proportioning.balancing_point_valve_duty_design_basis_v1 import (
-    ENGINEERING_APPROVAL_NOT_APPLICABLE,
     MANUAL_ENGINEERING_APPROVAL_PENDING,
-    NO_VALVE_DUTY_REQUIRED,
-    POINT_VALVE_DUTY_BASIS_AVAILABLE,
-    POINT_VALVE_DUTY_EVIDENCE_UNAVAILABLE,
     build_balancing_point_valve_duty_design_basis_v1,
 )
 from HVAC.hydronics.proportioning.valve_authority_design_v1 import (
@@ -85,91 +87,72 @@ def main():
         rows=(
             _input("point:none", "route-none", 0.0),
             _input("point:low", "route-low", 100.0),
-            _input("point:acceptable", "route-acceptable", 300.0),
         ),
-    )
-    chosen = (
-        {"route_id": "route-low", "chosen_dp_pa": 900.0},
-        {"route_id": "route-acceptable", "chosen_dp_pa": 700.0},
     )
     pressure = build_balancing_point_controlled_circuit_dp_authority_v1(
         inputs,
-        chosen,
+        ({"route_id": "route-low", "chosen_dp_pa": 900.0},),
     )
     authority = build_balancing_point_valve_authority_preview_v1(pressure)
     disposition = build_balancing_point_low_authority_design_disposition_v1(
         authority
     )
-    basis = build_balancing_point_valve_duty_design_basis_v1(disposition)
-    assert basis.ready is True
-    none_row, low_row, acceptable_row = basis.rows
+    duty_basis = build_balancing_point_valve_duty_design_basis_v1(disposition)
+    preview = build_balancing_point_required_kv_preview_v1(duty_basis)
+    assert preview.ready is True
+    none_row, kv_row = preview.rows
 
-    assert none_row.valve_duty_state_id == NO_VALVE_DUTY_REQUIRED
-    assert none_row.valve_duty_required is False
-    assert none_row.valve_duty_basis_available is False
-    assert none_row.manual_engineering_approval_required is False
-    assert none_row.engineering_approval_state == (
-        ENGINEERING_APPROVAL_NOT_APPLICABLE
-    )
+    assert none_row.required_kv_state_id == NO_REQUIRED_KV
+    assert none_row.required_kv_available is False
+    assert none_row.required_kv is None
 
-    assert low_row.valve_duty_state_id == POINT_VALVE_DUTY_BASIS_AVAILABLE
-    assert low_row.valve_duty_required is True
-    assert low_row.valve_duty_basis_available is True
-    assert low_row.manual_engineering_approval_required is True
-    assert low_row.engineering_approval_state == (
-        MANUAL_ENGINEERING_APPROVAL_PENDING
-    )
-    assert low_row.point_flow_kg_s == 0.18
-    assert low_row.design_valve_dp_pa == 100.0
-    assert low_row.balancing_point_id == "point:low"
-    assert low_row.downstream_route_ids == ("route-low",)
-
-    assert acceptable_row.valve_duty_required is True
-    assert acceptable_row.valve_duty_basis_available is True
-    assert acceptable_row.engineering_approval_state == (
+    expected_flow = (0.18 / DEFAULT_KV_WATER_DENSITY_KG_M3) * 3600.0
+    expected_dp_bar = 100.0 / 100_000.0
+    expected_kv = expected_flow / math.sqrt(expected_dp_bar)
+    assert kv_row.required_kv_state_id == REQUIRED_KV_PREVIEW_AVAILABLE
+    assert kv_row.required_kv_available is True
+    assert math.isclose(kv_row.flow_m3_h or 0.0, expected_flow)
+    assert math.isclose(kv_row.design_valve_dp_bar or 0.0, expected_dp_bar)
+    assert math.isclose(kv_row.required_kv or 0.0, expected_kv)
+    assert kv_row.balancing_point_id == "point:low"
+    assert kv_row.downstream_route_ids == ("route-low",)
+    assert kv_row.engineering_approval_state == (
         MANUAL_ENGINEERING_APPROVAL_PENDING
     )
 
-    blocked_disposition_row = replace(
-        disposition.rows[1],
-        ready=False,
-        evidence_available=False,
-        design_disposition_id=EVIDENCE_UNAVAILABLE,
-        blockers=("required evidence unavailable",),
+    direct = calculate_required_kv_v1(
+        mass_flow_kg_s=0.18,
+        design_valve_dp_pa=100.0,
     )
-    blocked_disposition = replace(
-        disposition,
-        ready=False,
-        blockers=("required evidence unavailable",),
-        rows=(blocked_disposition_row,),
-    )
-    blocked = build_balancing_point_valve_duty_design_basis_v1(
-        blocked_disposition
+    assert math.isclose(direct[2], expected_kv)
+    blocked = build_balancing_point_required_kv_preview_v1(
+        duty_basis,
+        fluid_density_kg_m3=0.0,
     )
     assert blocked.ready is False
-    assert blocked.rows[0].valve_duty_state_id == (
-        POINT_VALVE_DUTY_EVIDENCE_UNAVAILABLE
-    )
-    assert blocked.rows[0].valve_duty_basis_available is False
+    assert any("density" in item for item in blocked.blockers)
 
     adapter_source = Path(
         "HVAC/gui_v3/adapters/hydronics_schematic_panel_adapter.py"
     ).read_text()
-    build_pos = adapter_source.find("point_valve_duty_basis =")
+    panel_source = Path(
+        "HVAC/gui_v3/panels/hydronics_schematic_panel.py"
+    ).read_text()
+    widget_source = Path(
+        "HVAC/gui_v3/widgets/common_main_leg_subleg_schematic_widget_v1.py"
+    ).read_text()
+    build_pos = adapter_source.find("point_required_kv =")
     assert build_pos >= 0
-    assert "point_design_disposition" in adapter_source[
-        build_pos:build_pos + 300
-    ]
-    required_kv_pos = adapter_source.find(
-        "build_balancing_point_required_kv_preview_v1(",
-        build_pos,
-    )
-    assert required_kv_pos > build_pos
-    assert "point_valve_duty_basis" in adapter_source[
-        required_kv_pos:required_kv_pos + 300
-    ]
+    assert "point_valve_duty_basis" in adapter_source[build_pos:build_pos + 300]
+    table_pos = adapter_source.find("point_display_rows =", build_pos)
+    assert table_pos > build_pos
+    assert "point_required_kv" in adapter_source[table_pos:table_pos + 300]
+    assert '"Required Kv"' in panel_source
+    assert 'row.get("required_kv", "—")' in panel_source
+    assert "required_kv: str" in widget_source
+    assert "Required Kv:" in widget_source
 
-    print("OK — H-S46-A point-scoped valve-duty design basis passed.")
+    print("OK — H-S47-A point-scoped required Kv preview passed.")
 
 
 if __name__ == "__main__":
