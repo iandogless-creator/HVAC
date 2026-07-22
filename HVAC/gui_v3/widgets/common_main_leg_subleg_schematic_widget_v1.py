@@ -93,6 +93,7 @@ class CommonMainLegSublegBalancingPointEvidenceV1:
     method: str = ""
     valve_duty: str = ""
     required_kv: str = ""
+    kvs_candidates: str = ""
     controlled_dp: str = ""
     authority: str = ""
     ready: str = ""
@@ -861,6 +862,7 @@ class CommonMainLegSublegSchematicWidgetV1(QWidget):
                     f"Method: {shown(getattr(row, 'method', ''))}",
                     f"Valve duty: {shown(getattr(row, 'valve_duty', ''))}",
                     f"Required Kv: {shown(getattr(row, 'required_kv', ''))}",
+                    f"Kvs candidates: {shown(getattr(row, 'kvs_candidates', ''))}",
                     f"Controlled circuit Δp: {shown(getattr(row, 'controlled_dp', ''))}",
                     f"Authority: {shown(getattr(row, 'authority', ''))}",
                 ]

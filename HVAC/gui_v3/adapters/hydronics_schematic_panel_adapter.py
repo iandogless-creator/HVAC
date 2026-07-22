@@ -168,6 +168,9 @@ from HVAC.hydronics.proportioning.balancing_point_valve_duty_design_basis_v1 imp
 from HVAC.hydronics.proportioning.balancing_point_required_kv_preview_v1 import (
     build_balancing_point_required_kv_preview_v1,
 )
+from HVAC.hydronics.proportioning.balancing_point_kvs_candidate_evidence_v1 import (
+    build_balancing_point_kvs_candidate_evidence_v1,
+)
 from HVAC.hydronics.proportioning.chosen_basis_proportioned_readiness_summary_v1 import (
     build_chosen_basis_proportioned_readiness_summary_v1,
 )
@@ -2024,6 +2027,9 @@ class HydronicsSchematicPanelAdapter:
                         "",
                         3,
                     ),
+                    "kvs_candidates": str(
+                        getattr(row, "kvs_candidate_summary", "") or "—"
+                    ),
                     "controlled_dp": number(
                         getattr(row, "controlled_circuit_dp_pa", None),
                         " Pa",
@@ -2062,6 +2068,7 @@ class HydronicsSchematicPanelAdapter:
                 method=str(row.get("method", "") or ""),
                 valve_duty=str(row.get("valve_duty", "") or ""),
                 required_kv=str(row.get("required_kv", "") or ""),
+                kvs_candidates=str(row.get("kvs_candidates", "") or ""),
                 controlled_dp=str(row.get("controlled_dp", "") or ""),
                 authority=str(row.get("authority", "") or ""),
                 ready=str(row.get("ready", "") or ""),
@@ -3667,8 +3674,16 @@ class HydronicsSchematicPanelAdapter:
                 point_valve_duty_basis
             )
             self._balancing_point_required_kv_preview = point_required_kv
+            point_kvs_candidates = (
+                build_balancing_point_kvs_candidate_evidence_v1(
+                    point_required_kv
+                )
+            )
+            self._balancing_point_kvs_candidate_evidence_preview = (
+                point_kvs_candidates
+            )
             point_display_rows = self._build_balancing_point_gui_rows_v1(
-                point_required_kv
+                point_kvs_candidates
             )
             if not point_display_rows and tuple(
                     getattr(point_allocation, "rows", ()) or ()
@@ -3680,7 +3695,7 @@ class HydronicsSchematicPanelAdapter:
                 )
             self._schematic_balancing_point_evidence_v1 = (
                 self._build_schematic_balancing_point_evidence_v1(
-                    point_required_kv
+                    point_kvs_candidates
                 )
             )
             if has_balancing_point_evidence_table:
