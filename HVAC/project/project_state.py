@@ -23,6 +23,11 @@ from HVAC.hydronics.proportioning.return_arrangement_acceptance_intent_v1 import
     return_arrangement_intent_from_dict_v1,
     return_arrangement_intent_to_dict_v1,
 )
+from HVAC.hydronics.proportioning.balancing_point_kvs_candidate_acceptance_intent_v1 import (
+    BalancingPointKvsCandidateAcceptanceIntentV1,
+    balancing_point_kvs_candidate_acceptance_intent_from_dict_v1,
+    balancing_point_kvs_candidate_acceptance_intent_to_dict_v1,
+)
 from HVAC.hydronics.proportioning.proportioned_basis_snapshot_v1 import (
     ProportionedBasisSnapshotV1,
     proportioned_basis_snapshot_from_dict_v1,
@@ -150,6 +155,9 @@ class ProjectState:
     # ------------------------------------------------------------------
     hydronic_local_k_intent: Optional[LocalKIntentV1] = None
     hydronic_return_arrangement_intent: Optional[ReturnArrangementIntentV1] = None
+    hydronic_point_kvs_candidate_acceptance_intent: Optional[
+        BalancingPointKvsCandidateAcceptanceIntentV1
+    ] = None
     hydronic_proportioned_basis_snapshot: Optional[ProportionedBasisSnapshotV1] = None
 
     # ------------------------------------------------------------------
@@ -334,6 +342,13 @@ class ProjectState:
                 if self.hydronic_return_arrangement_intent
                 else None
             ),
+            "hydronic_point_kvs_candidate_acceptance_intent": (
+                balancing_point_kvs_candidate_acceptance_intent_to_dict_v1(
+                    self.hydronic_point_kvs_candidate_acceptance_intent
+                )
+                if self.hydronic_point_kvs_candidate_acceptance_intent
+                else None
+            ),
             "hydronic_proportioned_basis_snapshot": (
                 proportioned_basis_snapshot_to_dict_v1(
                     self.hydronic_proportioned_basis_snapshot
@@ -420,6 +435,17 @@ class ProjectState:
             instance.hydronic_return_arrangement_intent = (
                 return_arrangement_intent_from_dict_v1(
                     raw_hydronic_return_arrangement_intent
+                )
+            )
+
+        raw_point_kvs_acceptance_intent = data.get(
+            "hydronic_point_kvs_candidate_acceptance_intent"
+        )
+
+        if isinstance(raw_point_kvs_acceptance_intent, dict):
+            instance.hydronic_point_kvs_candidate_acceptance_intent = (
+                balancing_point_kvs_candidate_acceptance_intent_from_dict_v1(
+                    raw_point_kvs_acceptance_intent
                 )
             )
 
