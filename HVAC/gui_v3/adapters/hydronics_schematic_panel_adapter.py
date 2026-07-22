@@ -194,6 +194,10 @@ from HVAC.hydronics.proportioning.balancing_point_valve_product_search_criteria_
     BalancingPointValveProductSearchCriteriaIntentV1,
     resolve_balancing_point_valve_product_search_criteria_v1,
 )
+from HVAC.hydronics.proportioning.balancing_point_valve_catalogue_candidate_match_evidence_v1 import (
+    build_balancing_point_valve_catalogue_candidate_match_evidence_v1,
+)
+from HVAC.hydronics_v3.dto.valve_catalog_dto import ValveCatalogDTO
 from HVAC.hydronics.proportioning.chosen_basis_proportioned_readiness_summary_v1 import (
     build_chosen_basis_proportioned_readiness_summary_v1,
 )
@@ -229,6 +233,8 @@ class HydronicsSchematicPanelAdapter:
         self._panel = panel
         self._project_state = project_state
         self._context = context
+        # H-S50-B transient, explicitly supplied catalogue evidence only.
+        self._supplied_valve_catalog_dto_v1 = None
 
         self._subscribe_if_present("room_state_changed", self.refresh)
         self._subscribe_if_present("project_state_changed", self.refresh)
@@ -336,6 +342,27 @@ class HydronicsSchematicPanelAdapter:
         self.refresh()
 
 
+
+    def supply_valve_catalog_dto_v1(
+            self,
+            catalog: ValveCatalogDTO | None,
+    ) -> None:
+        """Supply or clear transient H-S50-B catalogue evidence.
+
+        The DTO is copied into adapter-owned memory. No ProjectState field is
+        written and no candidate is ranked, recommended or selected.
+        """
+        if catalog is not None and not isinstance(catalog, ValveCatalogDTO):
+            raise ValueError("catalog must be ValveCatalogDTO or None")
+        self._supplied_valve_catalog_dto_v1 = (
+            None
+            if catalog is None
+            else ValveCatalogDTO(
+                catalog_id=str(catalog.catalog_id or "").strip(),
+                kv_options=list(catalog.kv_options or []),
+            )
+        )
+        self.refresh()
 
     def set_product_search_criteria(self, payload: dict) -> None:
         """Persist or clear H-S49-C manual criteria; never query a catalogue."""
@@ -2265,6 +2292,68 @@ class HydronicsSchematicPanelAdapter:
             )
 
         return display_rows
+
+    @staticmethod
+    def _build_catalogue_candidate_match_gui_rows_v1(evidence) -> list[dict]:
+        """Flatten H-S50-A evidence without sorting or selecting candidates."""
+        rows = []
+        for point_row in tuple(getattr(evidence, "rows", ()) or ()):
+            if getattr(point_row, "match_state_id", "") == (
+                "catalogue_match_not_applicable"
+            ):
+                continue
+            candidates = tuple(getattr(point_row, "candidates", ()) or ())
+            blockers = "; ".join(
+                tuple(getattr(point_row, "blockers", ()) or ())
+            ) or "—"
+            if not candidates:
+                rows.append({
+                    "balancing_point_id": getattr(
+                        point_row, "balancing_point_id", "—"
+                    ),
+                    "catalog_id": getattr(point_row, "catalog_id", "") or (
+                        getattr(evidence, "catalog_id", "") or "—"
+                    ),
+                    "valve_ref": "—",
+                    "kv": "—",
+                    "deviation": "—",
+                    "note": "—",
+                    "ready": "Yes" if getattr(point_row, "ready", False) else "No",
+                    "status": getattr(point_row, "status", "—"),
+                    "blockers": blockers,
+                })
+                continue
+            for candidate in candidates:
+                rows.append({
+                    "balancing_point_id": getattr(
+                        point_row, "balancing_point_id", "—"
+                    ),
+                    "catalog_id": getattr(candidate, "catalog_id", "—"),
+                    "valve_ref": getattr(candidate, "valve_ref", "—"),
+                    "kv": f"{float(getattr(candidate, 'kv_m3_h', 0.0)):g}",
+                    "deviation": (
+                        f"{float(getattr(candidate, 'kv_deviation_percent', 0.0)):.2f}%"
+                    ),
+                    "note": getattr(candidate, "note", "") or "—",
+                    "ready": "Yes" if getattr(point_row, "ready", False) else "No",
+                    "status": getattr(point_row, "status", "—"),
+                    "blockers": blockers,
+                })
+        if rows:
+            return rows
+        return [{
+            "balancing_point_id": "—",
+            "catalog_id": getattr(evidence, "catalog_id", "") or "—",
+            "valve_ref": "—",
+            "kv": "—",
+            "deviation": "—",
+            "note": "—",
+            "ready": "Yes" if getattr(evidence, "ready", False) else "No",
+            "status": getattr(evidence, "status", "No candidate-match evidence"),
+            "blockers": "; ".join(
+                tuple(getattr(evidence, "blockers", ()) or ())
+            ) or "—",
+        }]
 
     @staticmethod
     def _build_product_search_criteria_editor_rows_v1(
@@ -4314,6 +4403,16 @@ class HydronicsSchematicPanelAdapter:
             self._balancing_point_valve_product_search_criteria_resolution = (
                 point_product_search_criteria
             )
+            point_catalogue_candidate_matches = (
+                build_balancing_point_valve_catalogue_candidate_match_evidence_v1(
+                    point_product_search_envelopes,
+                    point_product_search_criteria,
+                    getattr(self, "_supplied_valve_catalog_dto_v1", None),
+                )
+            )
+            self._balancing_point_valve_catalogue_candidate_match_evidence = (
+                point_catalogue_candidate_matches
+            )
             point_display_rows = self._build_balancing_point_gui_rows_v1(
                 point_kvs_utilisation
             )
@@ -4378,6 +4477,16 @@ class HydronicsSchematicPanelAdapter:
                     self._build_product_search_criteria_editor_rows_v1(
                         point_product_search_envelopes,
                         point_product_search_criteria,
+                    )
+                )
+
+            if hasattr(
+                    self._panel,
+                    "set_catalogue_candidate_match_rows",
+            ):
+                self._panel.set_catalogue_candidate_match_rows(
+                    self._build_catalogue_candidate_match_gui_rows_v1(
+                        point_catalogue_candidate_matches
                     )
                 )
 

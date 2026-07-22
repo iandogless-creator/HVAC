@@ -1632,6 +1632,25 @@ class HydronicsSchematicPanel(QWidget):
         self.set_product_search_criteria_editor_rows([])
 
         # --------------------------------------------------
+        # H-S50-B — supplied catalogue candidate-match evidence
+        # --------------------------------------------------
+        self._catalogue_candidate_match_table = self._make_table(
+            columns=[
+                "Point", "Catalog ID", "Valve reference", "Kv m³/h",
+                "Kv deviation", "Note", "Ready", "Status", "Blockers",
+            ],
+            stretch_columns={0, 5, 7, 8},
+        )
+        self._add_section(
+            proportioning_layout,
+            title="Valve catalogue candidate-match evidence — read-only",
+            table=self._catalogue_candidate_match_table,
+            min_height=145,
+            expanded=True,
+        )
+        self.set_catalogue_candidate_match_rows([])
+
+        # --------------------------------------------------
         # H-S27-F — Chosen-basis proportioned readiness summary
         # --------------------------------------------------
         self._chosen_basis_proportioned_readiness_table = self._make_table(
@@ -6350,6 +6369,35 @@ class HydronicsSchematicPanel(QWidget):
             }
         )
 
+    def set_catalogue_candidate_match_rows(self, rows: list[dict]) -> None:
+        """Display-only H-S50-B supplied-catalogue candidate evidence."""
+        if not hasattr(self, "_catalogue_candidate_match_table"):
+            return
+        table = self._catalogue_candidate_match_table
+        rows = list(rows or [])
+        if not rows:
+            rows = [{
+                "balancing_point_id": "—", "catalog_id": "—",
+                "valve_ref": "—", "kv": "—", "deviation": "—",
+                "note": "—", "ready": "No",
+                "status": "No supplied ValveCatalogDTO",
+                "blockers": "Supplied ValveCatalogDTO required",
+            }]
+        keys = (
+            "balancing_point_id", "catalog_id", "valve_ref", "kv",
+            "deviation", "note", "ready", "status", "blockers",
+        )
+        table.setRowCount(len(rows))
+        for row_index, row in enumerate(rows):
+            for col_index, key in enumerate(keys):
+                item = QTableWidgetItem(str(row.get(key, "—")))
+                item.setFlags(item.flags() & ~Qt.ItemIsEditable)
+                table.setItem(row_index, col_index, item)
+        table.setWordWrap(False)
+        for row_index in range(table.rowCount()):
+            table.setRowHeight(row_index, 24)
+        self._fit_table_height(table, min_height=105, max_height=240)
+
     def set_product_search_criteria_callback(self, callback) -> None:
         """Register the adapter-owned H-S49-C criteria callback."""
         self._product_search_criteria_callback = callback
@@ -9375,6 +9423,9 @@ QTableWidget::item:selected:!active {
                 (
                     "Manual valve product-search criteria — design intent"
                 ): 1200,
+                (
+                    "Valve catalogue candidate-match evidence — read-only"
+                ): 1300,
             }.get(title, 500)
             section.setProperty(
                 "hydraulic_dependency_order_v1",
