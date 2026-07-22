@@ -174,6 +174,14 @@ from HVAC.hydronics.proportioning.balancing_point_kvs_candidate_evidence_v1 impo
 from HVAC.hydronics.proportioning.balancing_point_kvs_candidate_utilisation_evidence_v1 import (
     build_balancing_point_kvs_candidate_utilisation_evidence_v1,
 )
+from HVAC.hydronics.proportioning.balancing_point_kvs_candidate_acceptance_intent_v1 import (
+    BalancingPointKvsCandidateAcceptanceIntentV1,
+    resolve_balancing_point_kvs_candidate_acceptance_v1,
+)
+from HVAC.hydronics.proportioning.balancing_point_kvs_candidate_acceptance_intent_v1 import (
+    BalancingPointKvsCandidateAcceptanceIntentV1,
+    resolve_balancing_point_kvs_candidate_acceptance_v1,
+)
 from HVAC.hydronics.proportioning.chosen_basis_proportioned_readiness_summary_v1 import (
     build_chosen_basis_proportioned_readiness_summary_v1,
 )
@@ -288,9 +296,228 @@ class HydronicsSchematicPanelAdapter:
                 self.set_basic_ps_section_velocity_override
             )
 
+        # H-S48-B — explicit manual generic-Kvs acceptance callback.
+        if hasattr(
+                self._panel,
+                "set_balancing_point_kvs_acceptance_callback",
+        ):
+            self._panel.set_balancing_point_kvs_acceptance_callback(
+                self.set_balancing_point_kvs_candidate_acceptance
+            )
+
         self.refresh()
 
 
+
+    def set_balancing_point_kvs_candidate_acceptance(
+            self,
+            payload: dict,
+    ) -> None:
+        """Persist or clear one explicit H-S48-B generic-Kvs acceptance.
+
+        This is the manual intent boundary only. It does not choose a valve
+        product, size or setting and it does not alter hydraulic calculations.
+        """
+        if not isinstance(payload, dict):
+            raise ValueError("Point Kvs acceptance payload must be a dictionary")
+
+        project = self._project_state
+        if project is None:
+            return
+
+        point_id = str(payload.get("balancing_point_id") or "").strip()
+        if not point_id:
+            raise ValueError("balancing_point_id is required")
+
+        action = str(payload.get("action") or "").strip().lower()
+        intent = getattr(
+            project,
+            "hydronic_point_kvs_candidate_acceptance_intent",
+            None,
+        )
+
+        if action == "accept":
+            evidence = getattr(
+                self,
+                "_balancing_point_kvs_utilisation_evidence_preview",
+                None,
+            )
+            if evidence is None:
+                raise ValueError("Current H-S47-C Kvs evidence is required")
+
+            evidence_row = next(
+                (
+                    row for row in tuple(getattr(evidence, "rows", ()) or ())
+                    if str(getattr(row, "balancing_point_id", "") or "").strip()
+                    == point_id
+                ),
+                None,
+            )
+            if evidence_row is None:
+                raise ValueError("Balancing point has no current H-S47-C evidence")
+
+            try:
+                requested_kvs = float(payload.get("accepted_kvs"))
+            except (TypeError, ValueError):
+                raise ValueError("accepted_kvs must be a current candidate")
+
+            matching_kvs = next(
+                (
+                    float(candidate)
+                    for candidate in tuple(
+                        getattr(evidence_row, "kvs_candidates", ()) or ()
+                    )
+                    if abs(float(candidate) - requested_kvs) <= 1e-9
+                ),
+                None,
+            )
+            if matching_kvs is None:
+                raise ValueError("accepted_kvs must be a current H-S47-C candidate")
+
+            series_id = str(
+                getattr(evidence_row, "kvs_series_id", "") or ""
+            ).strip()
+            if not series_id:
+                raise ValueError("Current Kvs series identity is unavailable")
+
+            if intent is None:
+                intent = BalancingPointKvsCandidateAcceptanceIntentV1()
+            intent.accept_candidate(
+                balancing_point_id=point_id,
+                accepted_kvs=matching_kvs,
+                kvs_series_id=series_id,
+            )
+        elif action == "clear":
+            if intent is None:
+                self.refresh()
+                return
+            intent.clear_candidate(point_id)
+        else:
+            raise ValueError("action must be 'accept' or 'clear'")
+
+        project.hydronic_point_kvs_candidate_acceptance_intent = intent
+        project.hydronics_valid = False
+        if hasattr(project, "mark_dirty"):
+            project.mark_dirty()
+
+        self.refresh()
+        for signal_name in ("project_state_changed", "project_changed"):
+            signal = getattr(self._context, signal_name, None)
+            emit = getattr(signal, "emit", None)
+            if not callable(emit):
+                continue
+            try:
+                emit()
+            except TypeError:
+                try:
+                    emit(project)
+                except TypeError:
+                    pass
+
+    def set_balancing_point_kvs_candidate_acceptance(
+            self,
+            payload: dict,
+    ) -> None:
+        """Persist or clear one explicit H-S48-B generic-Kvs acceptance.
+
+        This is the manual intent boundary only. It does not choose a valve
+        product, size or setting and it does not alter hydraulic calculations.
+        """
+        if not isinstance(payload, dict):
+            raise ValueError("Point Kvs acceptance payload must be a dictionary")
+
+        project = self._project_state
+        if project is None:
+            return
+
+        point_id = str(payload.get("balancing_point_id") or "").strip()
+        if not point_id:
+            raise ValueError("balancing_point_id is required")
+
+        action = str(payload.get("action") or "").strip().lower()
+        intent = getattr(
+            project,
+            "hydronic_point_kvs_candidate_acceptance_intent",
+            None,
+        )
+
+        if action == "accept":
+            evidence = getattr(
+                self,
+                "_balancing_point_kvs_utilisation_evidence_preview",
+                None,
+            )
+            if evidence is None:
+                raise ValueError("Current H-S47-C Kvs evidence is required")
+
+            evidence_row = next(
+                (
+                    row for row in tuple(getattr(evidence, "rows", ()) or ())
+                    if str(getattr(row, "balancing_point_id", "") or "").strip()
+                    == point_id
+                ),
+                None,
+            )
+            if evidence_row is None:
+                raise ValueError("Balancing point has no current H-S47-C evidence")
+
+            try:
+                requested_kvs = float(payload.get("accepted_kvs"))
+            except (TypeError, ValueError):
+                raise ValueError("accepted_kvs must be a current candidate")
+
+            matching_kvs = next(
+                (
+                    float(candidate)
+                    for candidate in tuple(
+                        getattr(evidence_row, "kvs_candidates", ()) or ()
+                    )
+                    if abs(float(candidate) - requested_kvs) <= 1e-9
+                ),
+                None,
+            )
+            if matching_kvs is None:
+                raise ValueError("accepted_kvs must be a current H-S47-C candidate")
+
+            series_id = str(
+                getattr(evidence_row, "kvs_series_id", "") or ""
+            ).strip()
+            if not series_id:
+                raise ValueError("Current Kvs series identity is unavailable")
+
+            if intent is None:
+                intent = BalancingPointKvsCandidateAcceptanceIntentV1()
+            intent.accept_candidate(
+                balancing_point_id=point_id,
+                accepted_kvs=matching_kvs,
+                kvs_series_id=series_id,
+            )
+        elif action == "clear":
+            if intent is None:
+                self.refresh()
+                return
+            intent.clear_candidate(point_id)
+        else:
+            raise ValueError("action must be 'accept' or 'clear'")
+
+        project.hydronic_point_kvs_candidate_acceptance_intent = intent
+        project.hydronics_valid = False
+        if hasattr(project, "mark_dirty"):
+            project.mark_dirty()
+
+        self.refresh()
+        for signal_name in ("project_state_changed", "project_changed"):
+            signal = getattr(self._context, signal_name, None)
+            emit = getattr(signal, "emit", None)
+            if not callable(emit):
+                continue
+            try:
+                emit()
+            except TypeError:
+                try:
+                    emit(project)
+                except TypeError:
+                    pass
 
     def set_basic_ps_section_velocity_override(self, payload: dict) -> None:
         """Persist one explicit H-S37-B4 section override or clear it.
@@ -1951,6 +2178,68 @@ class HydronicsSchematicPanelAdapter:
             )
 
         return display_rows
+
+    @staticmethod
+    def _build_balancing_point_kvs_acceptance_editor_rows_v1(
+            *,
+            point_display_rows,
+            utilisation_evidence,
+            acceptance_resolution,
+    ) -> list[dict]:
+        """Join prepared H-S47-C evidence to resolved H-S48-A intent."""
+        display_by_id = {
+            str(row.get("balancing_point_id") or "").strip(): dict(row)
+            for row in list(point_display_rows or [])
+            if str(row.get("balancing_point_id") or "").strip()
+        }
+        resolved_by_id = {
+            str(getattr(row, "balancing_point_id", "") or "").strip(): row
+            for row in tuple(
+                getattr(acceptance_resolution, "rows", ()) or ()
+            )
+        }
+        rows: list[dict] = []
+        for evidence_row in tuple(
+                getattr(utilisation_evidence, "rows", ()) or ()
+        ):
+            point_id = str(
+                getattr(evidence_row, "balancing_point_id", "") or ""
+            ).strip()
+            candidates = tuple(
+                float(value)
+                for value in tuple(
+                    getattr(evidence_row, "kvs_candidates", ()) or ()
+                )
+            )
+            # H-S48-B edits only points for which a valve/Kvs is required.
+            if not point_id or not candidates:
+                continue
+            display = display_by_id.get(point_id, {})
+            resolved = resolved_by_id.get(point_id)
+            rows.append(
+                {
+                    "balancing_point_id": point_id,
+                    "point_scope": display.get("point_scope", "—"),
+                    "point_role": display.get("point_role", "—"),
+                    "required_kv": display.get("required_kv", "—"),
+                    "kvs_candidates": candidates,
+                    "kvs_candidates_text": display.get(
+                        "kvs_candidates",
+                        ", ".join(f"{value:g}" for value in candidates),
+                    ),
+                    "kvs_utilisation": display.get("kvs_utilisation", "—"),
+                    "accepted_kvs": getattr(resolved, "accepted_kvs", None),
+                    "accepted": bool(getattr(resolved, "accepted", False)),
+                    "status": str(
+                        getattr(resolved, "status", "")
+                        or "Manual Kvs candidate acceptance pending"
+                    ),
+                    "blockers": tuple(
+                        getattr(resolved, "blockers", ()) or ()
+                    ),
+                }
+            )
+        return rows
 
     def _build_balancing_point_gui_rows_v1(self, mapping) -> list[dict]:
         """H-S44-E combined allocation, method and valve-duty evidence."""
@@ -3697,6 +3986,19 @@ class HydronicsSchematicPanelAdapter:
             self._balancing_point_kvs_utilisation_evidence_preview = (
                 point_kvs_utilisation
             )
+            point_kvs_acceptance = (
+                resolve_balancing_point_kvs_candidate_acceptance_v1(
+                    getattr(
+                        self._project_state,
+                        "hydronic_point_kvs_candidate_acceptance_intent",
+                        None,
+                    ),
+                    point_kvs_utilisation,
+                )
+            )
+            self._balancing_point_kvs_candidate_acceptance_resolution = (
+                point_kvs_acceptance
+            )
             point_display_rows = self._build_balancing_point_gui_rows_v1(
                 point_kvs_utilisation
             )
@@ -3716,6 +4018,17 @@ class HydronicsSchematicPanelAdapter:
             if has_balancing_point_evidence_table:
                 self._panel.set_balancing_point_evidence_rows(
                     point_display_rows
+                )
+            if hasattr(
+                    self._panel,
+                    "set_balancing_point_kvs_acceptance_editor_rows",
+            ):
+                self._panel.set_balancing_point_kvs_acceptance_editor_rows(
+                    self._build_balancing_point_kvs_acceptance_editor_rows_v1(
+                        point_display_rows=point_display_rows,
+                        utilisation_evidence=point_kvs_utilisation,
+                        acceptance_resolution=point_kvs_acceptance,
+                    )
                 )
 
             self._balancing_method_candidate_mapping_preview = (

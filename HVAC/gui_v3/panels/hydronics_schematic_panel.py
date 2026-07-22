@@ -1373,6 +1373,93 @@ class HydronicsSchematicPanel(QWidget):
         self.set_balancing_point_evidence_rows([])
 
         # --------------------------------------------------
+        # H-S48-B — Manual point generic-Kvs acceptance editor
+        # --------------------------------------------------
+        kvs_editor = QFrame(self)
+        kvs_editor.setFrameShape(QFrame.StyledPanel)
+        kvs_layout = QGridLayout(kvs_editor)
+        kvs_layout.setContentsMargins(8, 8, 8, 8)
+        kvs_layout.setHorizontalSpacing(10)
+        kvs_layout.setVerticalSpacing(6)
+
+        kvs_notice = QLabel(
+            "Select a point and a current generic Kvs candidate, then press "
+            "Accept. This records manual design intent only; it does not "
+            "select a valve product, size or setting or alter hydraulics.",
+            kvs_editor,
+        )
+        kvs_notice.setWordWrap(True)
+        kvs_layout.addWidget(kvs_notice, 0, 0, 1, 4)
+
+        kvs_layout.addWidget(QLabel("Balancing point:", kvs_editor), 1, 0)
+        self._point_kvs_acceptance_point_combo = QComboBox(kvs_editor)
+        self._point_kvs_acceptance_point_combo.currentIndexChanged.connect(
+            self._on_point_kvs_acceptance_point_changed_v1
+        )
+        kvs_layout.addWidget(
+            self._point_kvs_acceptance_point_combo, 1, 1, 1, 3
+        )
+
+        kvs_layout.addWidget(QLabel("Required Kv:", kvs_editor), 2, 0)
+        self._point_kvs_acceptance_required_kv_label = QLabel("—", kvs_editor)
+        kvs_layout.addWidget(
+            self._point_kvs_acceptance_required_kv_label, 2, 1
+        )
+        kvs_layout.addWidget(QLabel("Current evidence:", kvs_editor), 2, 2)
+        self._point_kvs_acceptance_evidence_label = QLabel("—", kvs_editor)
+        self._point_kvs_acceptance_evidence_label.setWordWrap(True)
+        kvs_layout.addWidget(
+            self._point_kvs_acceptance_evidence_label, 2, 3
+        )
+
+        kvs_layout.addWidget(QLabel("Accept Kvs:", kvs_editor), 3, 0)
+        self._point_kvs_acceptance_candidate_combo = QComboBox(kvs_editor)
+        self._point_kvs_acceptance_candidate_combo.currentIndexChanged.connect(
+            self._on_point_kvs_acceptance_candidate_changed_v1
+        )
+        kvs_layout.addWidget(
+            self._point_kvs_acceptance_candidate_combo, 3, 1
+        )
+        kvs_layout.addWidget(QLabel("Resolved status:", kvs_editor), 3, 2)
+        self._point_kvs_acceptance_status_label = QLabel("—", kvs_editor)
+        self._point_kvs_acceptance_status_label.setWordWrap(True)
+        kvs_layout.addWidget(
+            self._point_kvs_acceptance_status_label, 3, 3
+        )
+
+        self._point_kvs_acceptance_apply_button = QPushButton(
+            "Accept selected generic Kvs",
+            kvs_editor,
+        )
+        self._point_kvs_acceptance_clear_button = QPushButton(
+            "Clear point acceptance",
+            kvs_editor,
+        )
+        self._point_kvs_acceptance_apply_button.clicked.connect(
+            self._on_apply_point_kvs_acceptance_v1
+        )
+        self._point_kvs_acceptance_clear_button.clicked.connect(
+            self._on_clear_point_kvs_acceptance_v1
+        )
+        kvs_layout.addWidget(
+            self._point_kvs_acceptance_apply_button, 4, 2
+        )
+        kvs_layout.addWidget(
+            self._point_kvs_acceptance_clear_button, 4, 3
+        )
+        kvs_layout.setColumnStretch(1, 1)
+        kvs_layout.setColumnStretch(3, 2)
+
+        self._add_section(
+            proportioned_layout,
+            title="Manual point Kvs candidate acceptance — design intent",
+            table=kvs_editor,
+            min_height=175,
+            expanded=True,
+        )
+        self.set_balancing_point_kvs_acceptance_editor_rows([])
+
+        # --------------------------------------------------
         # H-S27-F — Chosen-basis proportioned readiness summary
         # --------------------------------------------------
         self._chosen_basis_proportioned_readiness_table = self._make_table(
@@ -5819,6 +5906,153 @@ class HydronicsSchematicPanel(QWidget):
         for row_index in range(table.rowCount()):
             table.setRowHeight(row_index, 24)
         self._fit_table_height(table, min_height=120, max_height=260)
+
+    def set_balancing_point_kvs_acceptance_callback(
+            self,
+            callback,
+    ) -> None:
+        """Register the adapter-owned H-S48-B intent callback."""
+        self._point_kvs_acceptance_callback = callback
+
+    def set_balancing_point_kvs_acceptance_editor_rows(
+            self,
+            rows: list[dict],
+    ) -> None:
+        """Populate the manual editor from prepared evidence only."""
+        combo = getattr(self, "_point_kvs_acceptance_point_combo", None)
+        if combo is None:
+            return
+        previous_id = str(
+            combo.currentData()
+            or getattr(self, "_point_kvs_acceptance_selected_point_id", "")
+            or ""
+        )
+        row_copies = [dict(row) for row in list(rows or [])]
+        self._point_kvs_acceptance_rows_by_id = {
+            str(row.get("balancing_point_id") or ""): row
+            for row in row_copies
+            if str(row.get("balancing_point_id") or "")
+        }
+
+        blocked = combo.blockSignals(True)
+        try:
+            combo.clear()
+            for row in row_copies:
+                point_id = str(row.get("balancing_point_id") or "")
+                if not point_id:
+                    continue
+                scope = str(row.get("point_scope") or "point")
+                role = str(row.get("point_role") or "—")
+                combo.addItem(f"{scope} | {role} | {point_id}", point_id)
+            wanted = combo.findData(previous_id)
+            if wanted < 0 and combo.count():
+                wanted = 0
+            combo.setCurrentIndex(wanted)
+        finally:
+            combo.blockSignals(blocked)
+        self._on_point_kvs_acceptance_point_changed_v1(combo.currentIndex())
+
+    def _on_point_kvs_acceptance_point_changed_v1(
+            self,
+            _index: int = -1,
+    ) -> None:
+        point_combo = self._point_kvs_acceptance_point_combo
+        candidate_combo = self._point_kvs_acceptance_candidate_combo
+        point_id = str(point_combo.currentData() or "")
+        row = getattr(self, "_point_kvs_acceptance_rows_by_id", {}).get(
+            point_id,
+            {},
+        )
+        self._point_kvs_acceptance_selected_point_id = point_id
+        candidates = tuple(row.get("kvs_candidates", ()) or ())
+        accepted_kvs = row.get("accepted_kvs")
+
+        blocked = candidate_combo.blockSignals(True)
+        try:
+            candidate_combo.clear()
+            candidate_combo.addItem("Select a current candidate…", None)
+            for candidate in candidates:
+                value = float(candidate)
+                candidate_combo.addItem(f"Kvs {value:g}", value)
+            accepted_index = candidate_combo.findData(accepted_kvs)
+            candidate_combo.setCurrentIndex(
+                accepted_index if accepted_index >= 0 else 0
+            )
+        finally:
+            candidate_combo.blockSignals(blocked)
+
+        if not point_id or not row:
+            self._point_kvs_acceptance_required_kv_label.setText("—")
+            self._point_kvs_acceptance_evidence_label.setText("—")
+            self._point_kvs_acceptance_status_label.setText(
+                "No valve-duty point requires Kvs acceptance"
+            )
+            candidate_combo.setEnabled(False)
+            self._point_kvs_acceptance_apply_button.setEnabled(False)
+            self._point_kvs_acceptance_clear_button.setEnabled(False)
+            return
+
+        self._point_kvs_acceptance_required_kv_label.setText(
+            str(row.get("required_kv") or "—")
+        )
+        self._point_kvs_acceptance_evidence_label.setText(
+            f"Candidates {row.get('kvs_candidates_text') or '—'}; "
+            f"utilisation {row.get('kvs_utilisation') or '—'}"
+        )
+        blockers = "; ".join(str(v) for v in row.get("blockers", ()) if v)
+        status = str(row.get("status") or "Manual acceptance pending")
+        self._point_kvs_acceptance_status_label.setText(
+            status if not blockers else f"{status} — {blockers}"
+        )
+        candidate_combo.setEnabled(bool(candidates))
+        self._point_kvs_acceptance_clear_button.setEnabled(
+            accepted_kvs is not None
+        )
+        self._on_point_kvs_acceptance_candidate_changed_v1(
+            candidate_combo.currentIndex()
+        )
+
+    def _on_point_kvs_acceptance_candidate_changed_v1(
+            self,
+            _index: int = -1,
+    ) -> None:
+        point_id = str(
+            getattr(self, "_point_kvs_acceptance_selected_point_id", "") or ""
+        )
+        candidate = self._point_kvs_acceptance_candidate_combo.currentData()
+        self._point_kvs_acceptance_apply_button.setEnabled(
+            bool(point_id) and candidate is not None
+        )
+
+    def _on_apply_point_kvs_acceptance_v1(self) -> None:
+        point_id = str(
+            getattr(self, "_point_kvs_acceptance_selected_point_id", "") or ""
+        )
+        candidate = self._point_kvs_acceptance_candidate_combo.currentData()
+        callback = getattr(self, "_point_kvs_acceptance_callback", None)
+        if not point_id or candidate is None or not callable(callback):
+            return
+        callback(
+            {
+                "action": "accept",
+                "balancing_point_id": point_id,
+                "accepted_kvs": float(candidate),
+            }
+        )
+
+    def _on_clear_point_kvs_acceptance_v1(self) -> None:
+        point_id = str(
+            getattr(self, "_point_kvs_acceptance_selected_point_id", "") or ""
+        )
+        callback = getattr(self, "_point_kvs_acceptance_callback", None)
+        if not point_id or not callable(callback):
+            return
+        callback(
+            {
+                "action": "clear",
+                "balancing_point_id": point_id,
+            }
+        )
 
     def set_valve_authority_input_rows(
             self,
