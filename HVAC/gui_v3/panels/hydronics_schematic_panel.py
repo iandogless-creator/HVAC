@@ -1366,7 +1366,7 @@ class HydronicsSchematicPanel(QWidget):
             stretch_columns={0, 4, 8, 9, 11, 12, 14, 15, 20, 21},
         )
         self._add_section(
-            proportioned_layout,
+            proportioning_layout,
             title=(
                 "Main / leg / subleg balancing-point evidence — read-only"
             ),
@@ -1496,7 +1496,7 @@ class HydronicsSchematicPanel(QWidget):
         kvs_layout.setColumnStretch(3, 2)
 
         self._add_section(
-            proportioned_layout,
+            proportioning_layout,
             title="Manual point Kvs candidate acceptance — design intent",
             table=kvs_editor,
             min_height=255,
@@ -9048,20 +9048,58 @@ QTableWidget::item:selected:!active {
         table: QWidget,
         min_height: int,
         expanded: bool = True,
-    ) -> None:
+    ) -> _CollapsibleSection:
         """
         Add a widget inside a collapsible hydronics section.
+
+        H-S48-D2 gives the active Proportioning controls a presentation-only
+        hydraulic dependency order. Ordinary diagnostic sections retain their
+        construction order; no calculation, intent or persistence is changed.
         """
         table.setMinimumHeight(min_height)
 
-        layout.addWidget(
-            _CollapsibleSection(
-                title,
-                table,
-                expanded=expanded,
-                parent=self,
-            )
+        section = _CollapsibleSection(
+            title,
+            table,
+            expanded=expanded,
+            parent=self,
         )
+
+        if layout is getattr(self, "_proportioning_tab", None):
+            dependency_order = {
+                "Return arrangement acceptance — user design basis": 100,
+                "Local section maximum velocity — authority editor": 200,
+                (
+                    "Main / leg / subleg balancing-point evidence — "
+                    "read-only"
+                ): 900,
+                (
+                    "Manual point Kvs candidate acceptance — design intent"
+                ): 1000,
+            }.get(title, 500)
+            section.setProperty(
+                "hydraulic_dependency_order_v1",
+                dependency_order,
+            )
+
+            insert_index = layout.count()
+            for item_index in range(layout.count()):
+                existing = layout.itemAt(item_index).widget()
+                if existing is None:
+                    continue
+                existing_order = existing.property(
+                    "hydraulic_dependency_order_v1"
+                )
+                if existing_order is None:
+                    existing_order = 500
+                if int(existing_order) > dependency_order:
+                    insert_index = item_index
+                    break
+            layout.insertWidget(insert_index, section)
+        else:
+            layout.addWidget(section)
+
+        return section
 
     def _fit_table_height(
         self,
