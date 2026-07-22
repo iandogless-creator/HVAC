@@ -1505,6 +1505,31 @@ class HydronicsSchematicPanel(QWidget):
         self.set_balancing_point_kvs_acceptance_editor_rows([])
 
         # --------------------------------------------------
+        # H-S49-A — approved product-search duty envelopes
+        # --------------------------------------------------
+        self._product_search_duty_envelope_table = self._make_table(
+            columns=[
+                "Point", "Scope", "Role", "Topology", "Governed routes",
+                "Flow kg/s", "Required Kv", "Accepted Kvs", "Kvs series",
+                "Implied valve Δp", "Controlled circuit Δp",
+                "Implied authority", "Design authority", "Ready",
+                "Status", "Blockers",
+            ],
+            stretch_columns={0, 4, 14, 15},
+        )
+        self._add_section(
+            proportioning_layout,
+            title=(
+                "Approved point valve product-search duty envelopes — "
+                "read-only"
+            ),
+            table=self._product_search_duty_envelope_table,
+            min_height=145,
+            expanded=True,
+        )
+        self.set_product_search_duty_envelope_rows([])
+
+        # --------------------------------------------------
         # H-S27-F — Chosen-basis proportioned readiness summary
         # --------------------------------------------------
         self._chosen_basis_proportioned_readiness_table = self._make_table(
@@ -6223,6 +6248,39 @@ class HydronicsSchematicPanel(QWidget):
             }
         )
 
+    def set_product_search_duty_envelope_rows(self, rows: list[dict]) -> None:
+        """Display-only H-S49-A product-search handoff envelopes."""
+        if not hasattr(self, "_product_search_duty_envelope_table"):
+            return
+        table = self._product_search_duty_envelope_table
+        rows = list(rows or [])
+        if not rows:
+            rows = [{
+                "balancing_point_id": "—", "point_scope": "—",
+                "point_role": "—", "topology": "—", "governed_routes": "—",
+                "point_flow": "—", "required_kv": "—", "accepted_kvs": "—",
+                "kvs_series": "—", "implied_dp": "—", "controlled_dp": "—",
+                "implied_authority": "—", "design_authority": "—",
+                "ready": "No", "status": "No approved product-search envelope",
+                "blockers": "—",
+            }]
+        table.setRowCount(len(rows))
+        keys = (
+            "balancing_point_id", "point_scope", "point_role", "topology",
+            "governed_routes", "point_flow", "required_kv", "accepted_kvs",
+            "kvs_series", "implied_dp", "controlled_dp", "implied_authority",
+            "design_authority", "ready", "status", "blockers",
+        )
+        for row_index, row in enumerate(rows):
+            for col_index, key in enumerate(keys):
+                item = QTableWidgetItem(str(row.get(key, "—")))
+                item.setFlags(item.flags() & ~Qt.ItemIsEditable)
+                table.setItem(row_index, col_index, item)
+        table.setWordWrap(False)
+        for row_index in range(table.rowCount()):
+            table.setRowHeight(row_index, 24)
+        self._fit_table_height(table, min_height=105, max_height=220)
+
     def set_valve_authority_input_rows(
             self,
             rows: list[dict],
@@ -9076,6 +9134,10 @@ QTableWidget::item:selected:!active {
                 (
                     "Manual point Kvs candidate acceptance — design intent"
                 ): 1000,
+                (
+                    "Approved point valve product-search duty envelopes — "
+                    "read-only"
+                ): 1100,
             }.get(title, 500)
             section.setProperty(
                 "hydraulic_dependency_order_v1",

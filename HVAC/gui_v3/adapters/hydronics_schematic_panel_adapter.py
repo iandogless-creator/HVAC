@@ -187,6 +187,9 @@ from HVAC.hydronics.proportioning.balancing_point_accepted_kvs_consequence_dispo
     BalancingPointAcceptedKvsConsequenceDispositionIntentV1,
     resolve_balancing_point_accepted_kvs_consequence_disposition_v1,
 )
+from HVAC.hydronics.proportioning.balancing_point_valve_product_search_duty_envelope_v1 import (
+    build_balancing_point_valve_product_search_duty_envelope_v1,
+)
 from HVAC.hydronics.proportioning.chosen_basis_proportioned_readiness_summary_v1 import (
     build_chosen_basis_proportioned_readiness_summary_v1,
 )
@@ -2175,6 +2178,43 @@ class HydronicsSchematicPanelAdapter:
         return display_rows
 
     @staticmethod
+    def _build_product_search_duty_envelope_gui_rows_v1(envelopes) -> list[dict]:
+        """Format H-S49-A envelopes without granting product authority."""
+        def number(value, suffix: str, digits: int) -> str:
+            if value is None:
+                return "—"
+            try:
+                return f"{float(value):.{digits}f}{suffix}"
+            except (TypeError, ValueError):
+                return "—"
+
+        rows = []
+        for source in tuple(getattr(envelopes, "rows", ()) or ()):
+            if not bool(getattr(source, "product_search_required", False)):
+                continue
+            rows.append({
+                "balancing_point_id": getattr(source, "balancing_point_id", "—"),
+                "point_scope": getattr(source, "point_scope", "—"),
+                "point_role": getattr(source, "point_role", "—"),
+                "topology": getattr(source, "topology", "—"),
+                "governed_routes": ", ".join(
+                    tuple(getattr(source, "governed_route_ids", ()) or ())
+                ) or "—",
+                "point_flow": number(getattr(source, "point_flow_kg_s", None), " kg/s", 5),
+                "required_kv": number(getattr(source, "required_kv", None), "", 3),
+                "accepted_kvs": number(getattr(source, "accepted_kvs", None), "", 3),
+                "kvs_series": getattr(source, "kvs_series_id", "") or "—",
+                "implied_dp": number(getattr(source, "implied_valve_dp_pa", None), " Pa", 1),
+                "controlled_dp": number(getattr(source, "controlled_circuit_dp_pa", None), " Pa", 1),
+                "implied_authority": number(getattr(source, "implied_authority", None), "", 3),
+                "design_authority": number(getattr(source, "design_authority", None), "", 3),
+                "ready": "Yes" if getattr(source, "ready", False) else "No",
+                "status": getattr(source, "status", "—"),
+                "blockers": "; ".join(tuple(getattr(source, "blockers", ()) or ())) or "—",
+            })
+        return rows
+
+    @staticmethod
     def _build_balancing_point_kvs_acceptance_editor_rows_v1(
             *,
             point_display_rows,
@@ -4113,6 +4153,16 @@ class HydronicsSchematicPanelAdapter:
             self._balancing_point_accepted_kvs_consequence_disposition_resolution = (
                 point_kvs_consequence_disposition
             )
+            point_product_search_envelopes = (
+                build_balancing_point_valve_product_search_duty_envelope_v1(
+                    point_kvs_utilisation,
+                    point_kvs_consequence,
+                    point_kvs_consequence_disposition,
+                )
+            )
+            self._balancing_point_valve_product_search_duty_envelope_preview = (
+                point_product_search_envelopes
+            )
             point_display_rows = self._build_balancing_point_gui_rows_v1(
                 point_kvs_utilisation
             )
@@ -4156,6 +4206,16 @@ class HydronicsSchematicPanelAdapter:
                         acceptance_resolution=point_kvs_acceptance,
                         consequence_evidence=point_kvs_consequence,
                         disposition_resolution=point_kvs_consequence_disposition,
+                    )
+                )
+
+            if hasattr(
+                    self._panel,
+                    "set_product_search_duty_envelope_rows",
+            ):
+                self._panel.set_product_search_duty_envelope_rows(
+                    self._build_product_search_duty_envelope_gui_rows_v1(
+                        point_product_search_envelopes
                     )
                 )
 
