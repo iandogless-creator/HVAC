@@ -181,6 +181,12 @@ from HVAC.hydronics.proportioning.balancing_point_kvs_candidate_acceptance_inten
 from HVAC.hydronics.proportioning.balancing_point_accepted_kvs_hydraulic_consequence_v1 import (
     build_balancing_point_accepted_kvs_hydraulic_consequence_v1,
 )
+from HVAC.hydronics.proportioning.balancing_point_accepted_kvs_consequence_disposition_intent_v1 import (
+    APPROVED_FOR_PRODUCT_SEARCH,
+    KVS_REVISION_REQUIRED,
+    BalancingPointAcceptedKvsConsequenceDispositionIntentV1,
+    resolve_balancing_point_accepted_kvs_consequence_disposition_v1,
+)
 from HVAC.hydronics.proportioning.chosen_basis_proportioned_readiness_summary_v1 import (
     build_chosen_basis_proportioned_readiness_summary_v1,
 )
@@ -304,21 +310,25 @@ class HydronicsSchematicPanelAdapter:
                 self.set_balancing_point_kvs_candidate_acceptance
             )
 
+        if hasattr(
+                self._panel,
+                "set_accepted_kvs_consequence_disposition_callback",
+        ):
+            self._panel.set_accepted_kvs_consequence_disposition_callback(
+                self.set_accepted_kvs_consequence_disposition
+            )
+
         self.refresh()
 
 
 
-    def set_balancing_point_kvs_candidate_acceptance(
+    def set_accepted_kvs_consequence_disposition(
             self,
             payload: dict,
     ) -> None:
-        """Persist or clear one explicit H-S48-B generic-Kvs acceptance.
-
-        This is the manual intent boundary only. It does not choose a valve
-        product, size or setting and it does not alter hydraulic calculations.
-        """
+        """Persist or clear one explicit H-S48-D consequence disposition."""
         if not isinstance(payload, dict):
-            raise ValueError("Point Kvs acceptance payload must be a dictionary")
+            raise ValueError("Kvs consequence disposition payload must be a dictionary")
 
         project = self._project_state
         if project is None:
@@ -331,70 +341,56 @@ class HydronicsSchematicPanelAdapter:
         action = str(payload.get("action") or "").strip().lower()
         intent = getattr(
             project,
-            "hydronic_point_kvs_candidate_acceptance_intent",
+            "hydronic_point_accepted_kvs_consequence_disposition_intent",
             None,
         )
 
-        if action == "accept":
-            evidence = getattr(
+        if action == "set":
+            consequence = getattr(
                 self,
-                "_balancing_point_kvs_utilisation_evidence_preview",
+                "_balancing_point_accepted_kvs_hydraulic_consequence_preview",
                 None,
             )
-            if evidence is None:
-                raise ValueError("Current H-S47-C Kvs evidence is required")
-
-            evidence_row = next(
+            consequence_row = next(
                 (
-                    row for row in tuple(getattr(evidence, "rows", ()) or ())
+                    row for row in tuple(getattr(consequence, "rows", ()) or ())
                     if str(getattr(row, "balancing_point_id", "") or "").strip()
                     == point_id
                 ),
                 None,
             )
-            if evidence_row is None:
-                raise ValueError("Balancing point has no current H-S47-C evidence")
+            if (
+                consequence_row is None
+                or not bool(getattr(consequence_row, "consequence_available", False))
+            ):
+                raise ValueError(
+                    "Current H-S48-C accepted-Kvs consequence is required"
+                )
 
-            try:
-                requested_kvs = float(payload.get("accepted_kvs"))
-            except (TypeError, ValueError):
-                raise ValueError("accepted_kvs must be a current candidate")
+            disposition = str(payload.get("disposition") or "").strip()
+            if disposition not in {
+                APPROVED_FOR_PRODUCT_SEARCH,
+                KVS_REVISION_REQUIRED,
+            }:
+                raise ValueError("Unknown accepted-Kvs consequence disposition")
 
-            matching_kvs = next(
-                (
-                    float(candidate)
-                    for candidate in tuple(
-                        getattr(evidence_row, "kvs_candidates", ()) or ()
-                    )
-                    if abs(float(candidate) - requested_kvs) <= 1e-9
-                ),
-                None,
-            )
-            if matching_kvs is None:
-                raise ValueError("accepted_kvs must be a current H-S47-C candidate")
-
-            series_id = str(
-                getattr(evidence_row, "kvs_series_id", "") or ""
-            ).strip()
-            if not series_id:
-                raise ValueError("Current Kvs series identity is unavailable")
-
+            accepted_kvs = getattr(consequence_row, "accepted_kvs", None)
             if intent is None:
-                intent = BalancingPointKvsCandidateAcceptanceIntentV1()
-            intent.accept_candidate(
+                intent = BalancingPointAcceptedKvsConsequenceDispositionIntentV1()
+            intent.set_disposition(
                 balancing_point_id=point_id,
-                accepted_kvs=matching_kvs,
-                kvs_series_id=series_id,
+                disposition=disposition,
+                accepted_kvs_basis=accepted_kvs,
             )
         elif action == "clear":
             if intent is None:
                 self.refresh()
                 return
-            intent.clear_candidate(point_id)
+            intent.clear_disposition(point_id)
         else:
-            raise ValueError("action must be 'accept' or 'clear'")
+            raise ValueError("action must be 'set' or 'clear'")
 
-        project.hydronic_point_kvs_candidate_acceptance_intent = intent
+        project.hydronic_point_accepted_kvs_consequence_disposition_intent = intent
         project.hydronics_valid = False
         if hasattr(project, "mark_dirty"):
             project.mark_dirty()
@@ -2184,6 +2180,8 @@ class HydronicsSchematicPanelAdapter:
             point_display_rows,
             utilisation_evidence,
             acceptance_resolution,
+            consequence_evidence,
+            disposition_resolution,
     ) -> list[dict]:
         """Join prepared H-S47-C evidence to resolved H-S48-A intent."""
         display_by_id = {
@@ -2196,6 +2194,14 @@ class HydronicsSchematicPanelAdapter:
             for row in tuple(
                 getattr(acceptance_resolution, "rows", ()) or ()
             )
+        }
+        consequence_by_id = {
+            str(getattr(row, "balancing_point_id", "") or "").strip(): row
+            for row in tuple(getattr(consequence_evidence, "rows", ()) or ())
+        }
+        disposition_by_id = {
+            str(getattr(row, "balancing_point_id", "") or "").strip(): row
+            for row in tuple(getattr(disposition_resolution, "rows", ()) or ())
         }
         rows: list[dict] = []
         for evidence_row in tuple(
@@ -2215,6 +2221,8 @@ class HydronicsSchematicPanelAdapter:
                 continue
             display = display_by_id.get(point_id, {})
             resolved = resolved_by_id.get(point_id)
+            consequence = consequence_by_id.get(point_id)
+            disposition = disposition_by_id.get(point_id)
             rows.append(
                 {
                     "balancing_point_id": point_id,
@@ -2236,9 +2244,47 @@ class HydronicsSchematicPanelAdapter:
                     "blockers": tuple(
                         getattr(resolved, "blockers", ()) or ()
                     ),
+                    "consequence_available": bool(
+                        getattr(consequence, "consequence_available", False)
+                    ),
+                    "implied_valve_dp": display.get("implied_valve_dp", "—"),
+                    "implied_authority": display.get("implied_authority", "—"),
+                    "consequence_disposition": str(
+                        getattr(disposition, "disposition", "") or ""
+                    ),
+                    "consequence_disposition_status": str(
+                        getattr(disposition, "status", "")
+                        or "Manual consequence disposition pending"
+                    ),
+                    "consequence_disposition_blockers": tuple(
+                        getattr(disposition, "blockers", ()) or ()
+                    ),
                 }
             )
         return rows
+
+    @staticmethod
+    def _enrich_balancing_point_gui_rows_with_kvs_disposition_v1(
+            display_rows,
+            disposition_resolution,
+    ) -> list[dict]:
+        disposition_by_id = {
+            str(getattr(row, "balancing_point_id", "") or "").strip(): row
+            for row in tuple(
+                getattr(disposition_resolution, "rows", ()) or ()
+            )
+        }
+        enriched: list[dict] = []
+        for source in list(display_rows or []):
+            row = dict(source)
+            disposition = disposition_by_id.get(
+                str(row.get("balancing_point_id") or "").strip()
+            )
+            row["consequence_disposition"] = str(
+                getattr(disposition, "status", "") or "—"
+            )
+            enriched.append(row)
+        return enriched
 
     @staticmethod
     def _enrich_balancing_point_gui_rows_with_kvs_consequence_v1(
@@ -4054,6 +4100,19 @@ class HydronicsSchematicPanelAdapter:
             self._balancing_point_accepted_kvs_hydraulic_consequence_preview = (
                 point_kvs_consequence
             )
+            point_kvs_consequence_disposition = (
+                resolve_balancing_point_accepted_kvs_consequence_disposition_v1(
+                    getattr(
+                        self._project_state,
+                        "hydronic_point_accepted_kvs_consequence_disposition_intent",
+                        None,
+                    ),
+                    point_kvs_consequence,
+                )
+            )
+            self._balancing_point_accepted_kvs_consequence_disposition_resolution = (
+                point_kvs_consequence_disposition
+            )
             point_display_rows = self._build_balancing_point_gui_rows_v1(
                 point_kvs_utilisation
             )
@@ -4061,6 +4120,12 @@ class HydronicsSchematicPanelAdapter:
                 self._enrich_balancing_point_gui_rows_with_kvs_consequence_v1(
                     point_display_rows,
                     point_kvs_consequence,
+                )
+            )
+            point_display_rows = (
+                self._enrich_balancing_point_gui_rows_with_kvs_disposition_v1(
+                    point_display_rows,
+                    point_kvs_consequence_disposition,
                 )
             )
             if not point_display_rows and tuple(
@@ -4089,6 +4154,8 @@ class HydronicsSchematicPanelAdapter:
                         point_display_rows=point_display_rows,
                         utilisation_evidence=point_kvs_utilisation,
                         acceptance_resolution=point_kvs_acceptance,
+                        consequence_evidence=point_kvs_consequence,
+                        disposition_resolution=point_kvs_consequence_disposition,
                     )
                 )
 

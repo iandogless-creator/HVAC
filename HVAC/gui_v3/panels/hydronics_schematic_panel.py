@@ -1356,13 +1356,14 @@ class HydronicsSchematicPanel(QWidget):
                 "Accepted Kvs",
                 "Implied valve Δp",
                 "Implied authority",
+                "Consequence disposition",
                 "Controlled circuit Δp",
                 "Design authority",
                 "Ready",
                 "Status",
                 "Blockers",
             ],
-            stretch_columns={0, 4, 8, 9, 11, 12, 14, 19, 20},
+            stretch_columns={0, 4, 8, 9, 11, 12, 14, 15, 20, 21},
         )
         self._add_section(
             proportioned_layout,
@@ -1450,6 +1451,47 @@ class HydronicsSchematicPanel(QWidget):
         kvs_layout.addWidget(
             self._point_kvs_acceptance_clear_button, 4, 3
         )
+
+        kvs_layout.addWidget(QLabel("Consequence preview:", kvs_editor), 5, 0)
+        self._kvs_consequence_disposition_evidence_label = QLabel("—", kvs_editor)
+        self._kvs_consequence_disposition_evidence_label.setWordWrap(True)
+        kvs_layout.addWidget(
+            self._kvs_consequence_disposition_evidence_label, 5, 1, 1, 3
+        )
+
+        kvs_layout.addWidget(QLabel("Consequence disposition:", kvs_editor), 6, 0)
+        self._kvs_consequence_disposition_combo = QComboBox(kvs_editor)
+        self._kvs_consequence_disposition_combo.currentIndexChanged.connect(
+            self._on_kvs_consequence_disposition_changed_v1
+        )
+        kvs_layout.addWidget(self._kvs_consequence_disposition_combo, 6, 1)
+        kvs_layout.addWidget(QLabel("Disposition status:", kvs_editor), 6, 2)
+        self._kvs_consequence_disposition_status_label = QLabel("—", kvs_editor)
+        self._kvs_consequence_disposition_status_label.setWordWrap(True)
+        kvs_layout.addWidget(
+            self._kvs_consequence_disposition_status_label, 6, 3
+        )
+
+        self._kvs_consequence_disposition_apply_button = QPushButton(
+            "Apply consequence disposition",
+            kvs_editor,
+        )
+        self._kvs_consequence_disposition_clear_button = QPushButton(
+            "Clear consequence disposition",
+            kvs_editor,
+        )
+        self._kvs_consequence_disposition_apply_button.clicked.connect(
+            self._on_apply_kvs_consequence_disposition_v1
+        )
+        self._kvs_consequence_disposition_clear_button.clicked.connect(
+            self._on_clear_kvs_consequence_disposition_v1
+        )
+        kvs_layout.addWidget(
+            self._kvs_consequence_disposition_apply_button, 7, 2
+        )
+        kvs_layout.addWidget(
+            self._kvs_consequence_disposition_clear_button, 7, 3
+        )
         kvs_layout.setColumnStretch(1, 1)
         kvs_layout.setColumnStretch(3, 2)
 
@@ -1457,7 +1499,7 @@ class HydronicsSchematicPanel(QWidget):
             proportioned_layout,
             title="Manual point Kvs candidate acceptance — design intent",
             table=kvs_editor,
-            min_height=175,
+            min_height=255,
             expanded=True,
         )
         self.set_balancing_point_kvs_acceptance_editor_rows([])
@@ -5875,6 +5917,7 @@ class HydronicsSchematicPanel(QWidget):
                     "accepted_kvs": "—",
                     "implied_valve_dp": "—",
                     "implied_authority": "—",
+                    "consequence_disposition": "—",
                     "controlled_dp": "—",
                     "authority": "—",
                     "ready": "No",
@@ -5901,6 +5944,7 @@ class HydronicsSchematicPanel(QWidget):
                 row.get("accepted_kvs", "—"),
                 row.get("implied_valve_dp", "—"),
                 row.get("implied_authority", "—"),
+                row.get("consequence_disposition", "—"),
                 row.get("controlled_dp", "—"),
                 row.get("authority", "—"),
                 row.get("ready", "No"),
@@ -5915,6 +5959,13 @@ class HydronicsSchematicPanel(QWidget):
         for row_index in range(table.rowCount()):
             table.setRowHeight(row_index, 24)
         self._fit_table_height(table, min_height=120, max_height=260)
+
+    def set_accepted_kvs_consequence_disposition_callback(
+            self,
+            callback,
+    ) -> None:
+        """Register the adapter-owned H-S48-D disposition callback."""
+        self._accepted_kvs_consequence_disposition_callback = callback
 
     def set_balancing_point_kvs_acceptance_callback(
             self,
@@ -5975,6 +6026,27 @@ class HydronicsSchematicPanel(QWidget):
         self._point_kvs_acceptance_selected_point_id = point_id
         candidates = tuple(row.get("kvs_candidates", ()) or ())
         accepted_kvs = row.get("accepted_kvs")
+        disposition_combo = self._kvs_consequence_disposition_combo
+        disposition_value = str(row.get("consequence_disposition") or "")
+
+        disposition_blocked = disposition_combo.blockSignals(True)
+        try:
+            disposition_combo.clear()
+            disposition_combo.addItem("Select a manual disposition…", None)
+            disposition_combo.addItem(
+                "Approve preview for later product search",
+                "approved_for_product_search",
+            )
+            disposition_combo.addItem(
+                "Require Kvs revision",
+                "kvs_revision_required",
+            )
+            disposition_index = disposition_combo.findData(disposition_value)
+            disposition_combo.setCurrentIndex(
+                disposition_index if disposition_index >= 0 else 0
+            )
+        finally:
+            disposition_combo.blockSignals(disposition_blocked)
 
         blocked = candidate_combo.blockSignals(True)
         try:
@@ -5999,6 +6071,11 @@ class HydronicsSchematicPanel(QWidget):
             candidate_combo.setEnabled(False)
             self._point_kvs_acceptance_apply_button.setEnabled(False)
             self._point_kvs_acceptance_clear_button.setEnabled(False)
+            self._kvs_consequence_disposition_evidence_label.setText("—")
+            self._kvs_consequence_disposition_status_label.setText("—")
+            disposition_combo.setEnabled(False)
+            self._kvs_consequence_disposition_apply_button.setEnabled(False)
+            self._kvs_consequence_disposition_clear_button.setEnabled(False)
             return
 
         self._point_kvs_acceptance_required_kv_label.setText(
@@ -6019,6 +6096,37 @@ class HydronicsSchematicPanel(QWidget):
         )
         self._on_point_kvs_acceptance_candidate_changed_v1(
             candidate_combo.currentIndex()
+        )
+        consequence_available = bool(row.get("consequence_available", False))
+        self._kvs_consequence_disposition_evidence_label.setText(
+            (
+                f"Accepted Kvs {accepted_kvs:g}; implied valve Δp "
+                f"{row.get('implied_valve_dp') or '—'}; implied authority "
+                f"{row.get('implied_authority') or '—'}"
+                if consequence_available and accepted_kvs is not None
+                else "No accepted-Kvs consequence available"
+            )
+        )
+        disposition_blockers = "; ".join(
+            str(value)
+            for value in row.get("consequence_disposition_blockers", ())
+            if value
+        )
+        disposition_status = str(
+            row.get("consequence_disposition_status")
+            or "Manual consequence disposition pending"
+        )
+        self._kvs_consequence_disposition_status_label.setText(
+            disposition_status
+            if not disposition_blockers
+            else f"{disposition_status} — {disposition_blockers}"
+        )
+        disposition_combo.setEnabled(consequence_available)
+        self._kvs_consequence_disposition_clear_button.setEnabled(
+            bool(disposition_value)
+        )
+        self._on_kvs_consequence_disposition_changed_v1(
+            disposition_combo.currentIndex()
         )
 
     def _on_point_kvs_acceptance_candidate_changed_v1(
@@ -6054,6 +6162,58 @@ class HydronicsSchematicPanel(QWidget):
             getattr(self, "_point_kvs_acceptance_selected_point_id", "") or ""
         )
         callback = getattr(self, "_point_kvs_acceptance_callback", None)
+        if not point_id or not callable(callback):
+            return
+        callback(
+            {
+                "action": "clear",
+                "balancing_point_id": point_id,
+            }
+        )
+
+    def _on_kvs_consequence_disposition_changed_v1(
+            self,
+            _index: int = -1,
+    ) -> None:
+        point_id = str(
+            getattr(self, "_point_kvs_acceptance_selected_point_id", "") or ""
+        )
+        disposition = self._kvs_consequence_disposition_combo.currentData()
+        self._kvs_consequence_disposition_apply_button.setEnabled(
+            bool(point_id)
+            and disposition is not None
+            and self._kvs_consequence_disposition_combo.isEnabled()
+        )
+
+    def _on_apply_kvs_consequence_disposition_v1(self) -> None:
+        point_id = str(
+            getattr(self, "_point_kvs_acceptance_selected_point_id", "") or ""
+        )
+        disposition = self._kvs_consequence_disposition_combo.currentData()
+        callback = getattr(
+            self,
+            "_accepted_kvs_consequence_disposition_callback",
+            None,
+        )
+        if not point_id or disposition is None or not callable(callback):
+            return
+        callback(
+            {
+                "action": "set",
+                "balancing_point_id": point_id,
+                "disposition": str(disposition),
+            }
+        )
+
+    def _on_clear_kvs_consequence_disposition_v1(self) -> None:
+        point_id = str(
+            getattr(self, "_point_kvs_acceptance_selected_point_id", "") or ""
+        )
+        callback = getattr(
+            self,
+            "_accepted_kvs_consequence_disposition_callback",
+            None,
+        )
         if not point_id or not callable(callback):
             return
         callback(
