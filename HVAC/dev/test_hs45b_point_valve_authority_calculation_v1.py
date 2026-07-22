@@ -152,10 +152,13 @@ def main():
     assert "build_balancing_point_valve_authority_preview_v1(" in adapter_source
     assert "point_valve_authority" in adapter_source
     assert "_balancing_point_valve_authority_preview" in adapter_source
-    assert (
-        "_build_balancing_point_gui_rows_v1(\n"
-        "                point_valve_authority"
-    ) in adapter_source
+    disposition_pos = adapter_source.find(
+        "build_balancing_point_low_authority_design_disposition_v1("
+    )
+    assert disposition_pos >= 0
+    assert "point_valve_authority" in adapter_source[
+        disposition_pos:disposition_pos + 240
+    ]
 
     print("OK — H-S45-B point-scoped valve-authority calculation and classification passed.")
 
