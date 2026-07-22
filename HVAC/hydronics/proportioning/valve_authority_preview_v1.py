@@ -244,7 +244,7 @@ def _lookup_route_chosen_dp_v1(
     return None
 
 
-def _authority_v1(
+def calculate_valve_authority_v1(
         *,
         design_valve_dp_pa: float,
         controlled_circuit_dp_pa: float,
@@ -389,7 +389,7 @@ def _preview_row_from_input_v1(
             note="No authority preview calculated.",
         )
 
-    authority = _authority_v1(
+    authority = calculate_valve_authority_v1(
         design_valve_dp_pa=design_valve_dp_pa,
         controlled_circuit_dp_pa=controlled_dp,
     )

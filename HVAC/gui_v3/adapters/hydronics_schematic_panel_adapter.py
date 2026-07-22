@@ -156,6 +156,9 @@ from HVAC.hydronics.proportioning.balancing_point_valve_authority_input_mapping_
 from HVAC.hydronics.proportioning.balancing_point_controlled_circuit_dp_authority_v1 import (
     build_balancing_point_controlled_circuit_dp_authority_v1,
 )
+from HVAC.hydronics.proportioning.balancing_point_valve_authority_preview_v1 import (
+    build_balancing_point_valve_authority_preview_v1,
+)
 from HVAC.hydronics.proportioning.chosen_basis_proportioned_readiness_summary_v1 import (
     build_chosen_basis_proportioned_readiness_summary_v1,
 )
@@ -3621,8 +3624,16 @@ class HydronicsSchematicPanelAdapter:
             self._balancing_point_controlled_circuit_dp_authority_preview = (
                 point_controlled_circuit_dp
             )
+            point_valve_authority = (
+                build_balancing_point_valve_authority_preview_v1(
+                    point_controlled_circuit_dp
+                )
+            )
+            self._balancing_point_valve_authority_preview = (
+                point_valve_authority
+            )
             point_display_rows = self._build_balancing_point_gui_rows_v1(
-                point_controlled_circuit_dp
+                point_valve_authority
             )
             if not point_display_rows and tuple(
                     getattr(point_allocation, "rows", ()) or ()
@@ -3634,7 +3645,7 @@ class HydronicsSchematicPanelAdapter:
                 )
             self._schematic_balancing_point_evidence_v1 = (
                 self._build_schematic_balancing_point_evidence_v1(
-                    point_controlled_circuit_dp
+                    point_valve_authority
                 )
             )
             if has_balancing_point_evidence_table:
