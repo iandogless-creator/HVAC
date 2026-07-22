@@ -11,10 +11,12 @@ from HVAC.hydronics.proportioning.balancing_point_controlled_circuit_dp_authorit
     build_balancing_point_controlled_circuit_dp_authority_v1,
 )
 from HVAC.hydronics.proportioning.balancing_point_kvs_candidate_evidence_v1 import (
-    GENERIC_KVS_CANDIDATES_AVAILABLE,
-    GENERIC_PREFERRED_KVS_SERIES_V1,
-    NO_KVS_CANDIDATES_REQUIRED,
     build_balancing_point_kvs_candidate_evidence_v1,
+)
+from HVAC.hydronics.proportioning.balancing_point_kvs_candidate_utilisation_evidence_v1 import (
+    KVS_UTILISATION_EVIDENCE_AVAILABLE,
+    NO_KVS_UTILISATION_REQUIRED,
+    build_balancing_point_kvs_candidate_utilisation_evidence_v1,
 )
 from HVAC.hydronics.proportioning.balancing_point_low_authority_design_disposition_v1 import (
     build_balancing_point_low_authority_design_disposition_v1,
@@ -101,42 +103,42 @@ def main():
     )
     duty = build_balancing_point_valve_duty_design_basis_v1(disposition)
     required_kv = build_balancing_point_required_kv_preview_v1(duty)
-    evidence = build_balancing_point_kvs_candidate_evidence_v1(required_kv)
-    assert evidence.ready is True
-    assert evidence.kvs_series == GENERIC_PREFERRED_KVS_SERIES_V1
-    none_row, candidate_row = evidence.rows
-
-    assert none_row.kvs_candidate_state_id == NO_KVS_CANDIDATES_REQUIRED
-    assert none_row.kvs_candidates_available is False
-    assert none_row.kvs_candidates == ()
-
-    assert candidate_row.kvs_candidate_state_id == (
-        GENERIC_KVS_CANDIDATES_AVAILABLE
+    candidates = build_balancing_point_kvs_candidate_evidence_v1(required_kv)
+    utilisation = (
+        build_balancing_point_kvs_candidate_utilisation_evidence_v1(
+            candidates
+        )
     )
-    assert candidate_row.kvs_candidates_available is True
-    assert candidate_row.kvs_candidates == (25.0, 40.0, 63.0)
-    assert candidate_row.kvs_candidate_summary == "25, 40, 63"
-    assert candidate_row.balancing_point_id == "point:low"
-    assert candidate_row.engineering_approval_state == (
+    assert utilisation.ready is True
+    none_row, evidence_row = utilisation.rows
+
+    assert none_row.kvs_utilisation_state_id == NO_KVS_UTILISATION_REQUIRED
+    assert none_row.kvs_utilisation_available is False
+    assert none_row.kvs_utilisation_summary == ""
+
+    assert evidence_row.kvs_utilisation_state_id == (
+        KVS_UTILISATION_EVIDENCE_AVAILABLE
+    )
+    assert evidence_row.kvs_utilisation_available is True
+    assert evidence_row.kvs_candidates == (25.0, 40.0, 63.0)
+    assert evidence_row.kvs_utilisation_summary == (
+        "25: 82.1% | 40: 51.3% | 63: 32.6%"
+    )
+    assert evidence_row.balancing_point_id == "point:low"
+    assert evidence_row.engineering_approval_state == (
         MANUAL_ENGINEERING_APPROVAL_PENDING
     )
-    required_value = candidate_row.required_kv or 0.0
-    assert all(value >= required_value for value in candidate_row.kvs_candidates)
-    assert math.isclose(
-        candidate_row.kvs_capacity_ratios[0],
-        candidate_row.kvs_candidates[0] / required_value,
-    )
-    assert math.isclose(
-        candidate_row.kvs_operating_fractions[0],
-        required_value / candidate_row.kvs_candidates[0],
-    )
+    for percentage, fraction in zip(
+        evidence_row.kvs_utilisation_percentages,
+        evidence_row.kvs_operating_fractions,
+    ):
+        assert math.isclose(percentage, fraction * 100.0)
 
-    blocked = build_balancing_point_kvs_candidate_evidence_v1(
-        required_kv,
-        kvs_series=(0.1, 0.2),
+    blocked = build_balancing_point_kvs_candidate_utilisation_evidence_v1(
+        None
     )
     assert blocked.ready is False
-    assert any("no value at or above" in item for item in blocked.blockers)
+    assert any("H-S47-B" in item for item in blocked.blockers)
 
     adapter_source = Path(
         "HVAC/gui_v3/adapters/hydronics_schematic_panel_adapter.py"
@@ -147,23 +149,18 @@ def main():
     widget_source = Path(
         "HVAC/gui_v3/widgets/common_main_leg_subleg_schematic_widget_v1.py"
     ).read_text()
-    build_pos = adapter_source.find("point_kvs_candidates =")
+    build_pos = adapter_source.find("point_kvs_utilisation =")
     assert build_pos >= 0
-    assert "point_required_kv" in adapter_source[build_pos:build_pos + 300]
-    utilisation_pos = adapter_source.find(
-        "build_balancing_point_kvs_candidate_utilisation_evidence_v1(",
-        build_pos,
-    )
-    assert utilisation_pos > build_pos
-    assert "point_kvs_candidates" in adapter_source[
-        utilisation_pos:utilisation_pos + 300
-    ]
-    assert '"Kvs candidates"' in panel_source
-    assert 'row.get("kvs_candidates", "—")' in panel_source
-    assert "kvs_candidates: str" in widget_source
-    assert "Kvs candidates:" in widget_source
+    assert "point_kvs_candidates" in adapter_source[build_pos:build_pos + 300]
+    table_pos = adapter_source.find("point_display_rows =", build_pos)
+    assert table_pos > build_pos
+    assert "point_kvs_utilisation" in adapter_source[table_pos:table_pos + 300]
+    assert '"Kvs utilisation"' in panel_source
+    assert 'row.get("kvs_utilisation", "—")' in panel_source
+    assert "kvs_utilisation: str" in widget_source
+    assert "Kvs utilisation:" in widget_source
 
-    print("OK — H-S47-B non-product Kvs candidate evidence passed.")
+    print("OK — H-S47-C Kvs candidate utilisation evidence passed.")
 
 
 if __name__ == "__main__":
