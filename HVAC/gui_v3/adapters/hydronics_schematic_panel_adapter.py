@@ -178,9 +178,8 @@ from HVAC.hydronics.proportioning.balancing_point_kvs_candidate_acceptance_inten
     BalancingPointKvsCandidateAcceptanceIntentV1,
     resolve_balancing_point_kvs_candidate_acceptance_v1,
 )
-from HVAC.hydronics.proportioning.balancing_point_kvs_candidate_acceptance_intent_v1 import (
-    BalancingPointKvsCandidateAcceptanceIntentV1,
-    resolve_balancing_point_kvs_candidate_acceptance_v1,
+from HVAC.hydronics.proportioning.balancing_point_accepted_kvs_hydraulic_consequence_v1 import (
+    build_balancing_point_accepted_kvs_hydraulic_consequence_v1,
 )
 from HVAC.hydronics.proportioning.chosen_basis_proportioned_readiness_summary_v1 import (
     build_chosen_basis_proportioned_readiness_summary_v1,
@@ -2241,6 +2240,53 @@ class HydronicsSchematicPanelAdapter:
             )
         return rows
 
+    @staticmethod
+    def _enrich_balancing_point_gui_rows_with_kvs_consequence_v1(
+            display_rows,
+            consequence_evidence,
+    ) -> list[dict]:
+        """Add formatted H-S48-C fields without replacing design evidence."""
+        consequence_by_id = {
+            str(getattr(row, "balancing_point_id", "") or "").strip(): row
+            for row in tuple(
+                getattr(consequence_evidence, "rows", ()) or ()
+            )
+        }
+
+        def number(value, suffix: str, digits: int) -> str:
+            if value is None:
+                return "—"
+            try:
+                return f"{float(value):.{digits}f}{suffix}"
+            except (TypeError, ValueError):
+                return "—"
+
+        enriched: list[dict] = []
+        for source in list(display_rows or []):
+            row = dict(source)
+            consequence = consequence_by_id.get(
+                str(row.get("balancing_point_id") or "").strip()
+            )
+            row.update(
+                accepted_kvs=number(
+                    getattr(consequence, "accepted_kvs", None),
+                    "",
+                    3,
+                ),
+                implied_valve_dp=number(
+                    getattr(consequence, "implied_valve_dp_pa", None),
+                    " Pa",
+                    1,
+                ),
+                implied_authority=number(
+                    getattr(consequence, "implied_authority", None),
+                    "",
+                    3,
+                ),
+            )
+            enriched.append(row)
+        return enriched
+
     def _build_balancing_point_gui_rows_v1(self, mapping) -> list[dict]:
         """H-S44-E combined allocation, method and valve-duty evidence."""
 
@@ -3999,8 +4045,23 @@ class HydronicsSchematicPanelAdapter:
             self._balancing_point_kvs_candidate_acceptance_resolution = (
                 point_kvs_acceptance
             )
+            point_kvs_consequence = (
+                build_balancing_point_accepted_kvs_hydraulic_consequence_v1(
+                    point_kvs_utilisation,
+                    point_kvs_acceptance,
+                )
+            )
+            self._balancing_point_accepted_kvs_hydraulic_consequence_preview = (
+                point_kvs_consequence
+            )
             point_display_rows = self._build_balancing_point_gui_rows_v1(
                 point_kvs_utilisation
+            )
+            point_display_rows = (
+                self._enrich_balancing_point_gui_rows_with_kvs_consequence_v1(
+                    point_display_rows,
+                    point_kvs_consequence,
+                )
             )
             if not point_display_rows and tuple(
                     getattr(point_allocation, "rows", ()) or ()
