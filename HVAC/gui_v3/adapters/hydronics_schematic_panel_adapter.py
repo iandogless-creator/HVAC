@@ -190,6 +190,9 @@ from HVAC.hydronics.proportioning.balancing_point_accepted_kvs_consequence_dispo
 from HVAC.hydronics.proportioning.balancing_point_valve_product_search_duty_envelope_v1 import (
     build_balancing_point_valve_product_search_duty_envelope_v1,
 )
+from HVAC.hydronics.proportioning.balancing_point_proportioning_commit_readiness_v1 import (
+    build_point_proportioning_commit_readiness_v1,
+)
 from HVAC.hydronics.proportioning.balancing_point_valve_product_search_criteria_intent_v1 import (
     BalancingPointValveProductSearchCriteriaIntentV1,
     resolve_balancing_point_valve_product_search_criteria_v1,
@@ -4380,6 +4383,31 @@ class HydronicsSchematicPanelAdapter:
             self._balancing_point_accepted_kvs_consequence_disposition_resolution = (
                 point_kvs_consequence_disposition
             )
+            point_commit_readiness = (
+                build_point_proportioning_commit_readiness_v1(
+                    point_kvs_consequence_disposition
+                )
+            )
+            self._point_proportioning_commit_readiness_v1 = (
+                point_commit_readiness
+            )
+            basic_commit_readiness = build_proportioning_readiness_v1(
+                self._project_state
+            )
+            basic_commit_ready = bool(
+                basic_commit_readiness.return_arrangement_basis_ready
+            )
+            if hasattr(self._panel, "set_commit_proportioning_ready"):
+                self._panel.set_commit_proportioning_ready(
+                    ready=(
+                        basic_commit_ready and point_commit_readiness.ready
+                    ),
+                    reason=(
+                        point_commit_readiness.status
+                        if basic_commit_ready
+                        else basic_commit_readiness.proportioning_status
+                    ),
+                )
             point_product_search_envelopes = (
                 build_balancing_point_valve_product_search_duty_envelope_v1(
                     point_kvs_utilisation,
@@ -6016,6 +6044,31 @@ class HydronicsSchematicPanelAdapter:
                 "H-S26-G Commit Proportioning blocked: "
                 "no ProjectState is available"
             )
+            return
+
+        basic_commit_readiness = build_proportioning_readiness_v1(project)
+        point_commit_readiness = build_point_proportioning_commit_readiness_v1(
+            getattr(
+                self,
+                "_balancing_point_accepted_kvs_consequence_disposition_resolution",
+                None,
+            )
+        )
+        basic_commit_ready = bool(
+            basic_commit_readiness.return_arrangement_basis_ready
+        )
+        if not basic_commit_ready or not point_commit_readiness.ready:
+            reason = (
+                point_commit_readiness.status
+                if basic_commit_ready
+                else basic_commit_readiness.proportioning_status
+            )
+            if hasattr(self._panel, "set_commit_proportioning_ready"):
+                self._panel.set_commit_proportioning_ready(
+                    ready=False,
+                    reason=reason,
+                )
+            print("H-S51-A Commit Proportioning blocked:", reason)
             return
 
         result = build_proportioned_basis_snapshot_v1(project)
