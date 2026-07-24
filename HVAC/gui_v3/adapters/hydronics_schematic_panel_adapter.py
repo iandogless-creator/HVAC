@@ -201,6 +201,9 @@ from HVAC.hydronics.proportioning.balancing_point_valve_catalogue_candidate_matc
     build_balancing_point_valve_catalogue_candidate_match_evidence_v1,
 )
 from HVAC.hydronics_v3.dto.valve_catalog_dto import ValveCatalogDTO
+from HVAC.hydronics_v3.catalogues.local_valve_catalogue_loader_v1 import (
+    load_bundled_local_valve_catalogue_v1,
+)
 from HVAC.hydronics.proportioning.chosen_basis_proportioned_readiness_summary_v1 import (
     build_chosen_basis_proportioned_readiness_summary_v1,
 )
@@ -236,8 +239,15 @@ class HydronicsSchematicPanelAdapter:
         self._panel = panel
         self._project_state = project_state
         self._context = context
-        # H-S50-B transient, explicitly supplied catalogue evidence only.
-        self._supplied_valve_catalog_dto_v1 = None
+        # H-S50-C — bundled local catalogue evidence. This is adapter-memory
+        # input only: no ProjectState persistence, ranking or valve selection.
+        try:
+            self._supplied_valve_catalog_dto_v1 = (
+                load_bundled_local_valve_catalogue_v1()
+            )
+        except ValueError as exc:
+            print("[H-S50-C LOCAL VALVE CATALOGUE ERROR]", str(exc))
+            self._supplied_valve_catalog_dto_v1 = None
 
         self._subscribe_if_present("room_state_changed", self.refresh)
         self._subscribe_if_present("project_state_changed", self.refresh)

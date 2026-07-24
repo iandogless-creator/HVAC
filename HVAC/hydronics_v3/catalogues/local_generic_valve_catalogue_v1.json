@@ -1,0 +1,22 @@
+{
+  "schema": "local_valve_catalogue_v1",
+  "catalog_id": "local-generic-valves-v1",
+  "description": "Generic local Kv evidence only; not manufacturer product data.",
+  "kv_options": [
+    {
+      "valve_ref": "LOCAL-GENERIC-KV-6.3",
+      "kv_m3_h": 6.3,
+      "note": "Generic local evidence only; no manufacturer, size or setting implied."
+    },
+    {
+      "valve_ref": "LOCAL-GENERIC-KV-10",
+      "kv_m3_h": 10.0,
+      "note": "Generic local evidence only; no manufacturer, size or setting implied."
+    },
+    {
+      "valve_ref": "LOCAL-GENERIC-KV-16",
+      "kv_m3_h": 16.0,
+      "note": "Generic local evidence only; no manufacturer, size or setting implied."
+    }
+  ]
+}
