@@ -4043,6 +4043,51 @@ class HydronicsSchematicPanelAdapter:
             ),
         )
 
+    @staticmethod
+    def _build_committed_point_valve_basis_detail_rows_v1(
+            snapshot,
+    ) -> list[dict]:
+        """Flatten only frozen H-S51-B point-valve basis evidence."""
+        if snapshot is None:
+            return []
+
+        rows = []
+        for source in tuple(
+                getattr(snapshot, "committed_point_valve_bases", ()) or ()
+        ):
+            point_id = str(
+                getattr(source, "balancing_point_id", "") or ""
+            ).strip()
+            accepted_kvs = getattr(source, "accepted_kvs_basis", None)
+            try:
+                accepted_kvs_text = f"{float(accepted_kvs):.3f}"
+            except (TypeError, ValueError):
+                accepted_kvs_text = "—"
+
+            disposition_id = str(
+                getattr(source, "disposition", "") or ""
+            ).strip()
+            disposition = (
+                "Approved for later product search"
+                if disposition_id == "approved_for_product_search"
+                else (
+                    disposition_id.replace("_", " ").capitalize()
+                    if disposition_id
+                    else "—"
+                )
+            )
+            rows.append(
+                {
+                    "balancing_point_id": point_id or "—",
+                    "accepted_kvs": accepted_kvs_text,
+                    "disposition": disposition,
+                    "status": (
+                        "Committed basis only — no valve product selected"
+                    ),
+                }
+            )
+        return rows
+
     def _build_proportioned_output_status_rows_v1(
             self,
             *,
@@ -4241,6 +4286,10 @@ class HydronicsSchematicPanelAdapter:
             self._panel,
             "set_proportioned_status",
         )
+        has_committed_point_valve_basis_detail_table = hasattr(
+            self._panel,
+            "set_committed_point_valve_basis_detail_rows",
+        )
 
         if (
                 not has_resolved_table
@@ -4252,8 +4301,21 @@ class HydronicsSchematicPanelAdapter:
                 and not has_valve_authority_input_table
                 and not has_balancing_point_evidence_table
                 and not has_proportioned_status_table
+                and not has_committed_point_valve_basis_detail_table
         ):
             return
+
+        if has_committed_point_valve_basis_detail_table:
+            committed_snapshot = getattr(
+                self._project_state,
+                "hydronic_proportioned_basis_snapshot",
+                None,
+            )
+            self._panel.set_committed_point_valve_basis_detail_rows(
+                self._build_committed_point_valve_basis_detail_rows_v1(
+                    committed_snapshot
+                )
+            )
 
         try:
             resolution = resolve_effective_return_arrangements_v1(

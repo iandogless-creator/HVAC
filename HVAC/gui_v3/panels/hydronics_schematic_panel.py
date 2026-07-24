@@ -607,6 +607,38 @@ class HydronicsSchematicPanel(QWidget):
 
         self._configure_clean_proportioned_output_summary_table_v1()
 
+        # --------------------------------------------------
+        # H-S51-C — committed point-valve basis detail evidence
+        # --------------------------------------------------
+        self._committed_point_valve_basis_detail_table = self._make_table(
+            columns=[
+                "Balancing point",
+                "Accepted generic Kvs",
+                "Committed disposition",
+                "Basis status",
+            ],
+            stretch_columns={0, 2, 3},
+        )
+        self._add_section(
+            self._clean_proportioned_tab,
+            title="Committed point-valve basis detail — read-only",
+            table=self._committed_point_valve_basis_detail_table,
+            min_height=120,
+            expanded=True,
+        )
+        self._committed_point_valve_basis_detail_table.setWordWrap(False)
+        self._committed_point_valve_basis_detail_table.setAlternatingRowColors(
+            True
+        )
+        self._apply_clean_proportioned_table_focus_style_v1(
+            self._committed_point_valve_basis_detail_table
+        )
+        self._committed_point_valve_basis_detail_table.setToolTip(
+            "Frozen accepted generic Kvs basis only; no valve product, "
+            "setting or final hydraulic result is selected."
+        )
+        self.set_committed_point_valve_basis_detail_rows([])
+
         self._clean_proportioned_route_output_table = self._make_table(
             columns=[
                 "Route",
@@ -9089,6 +9121,47 @@ QTableWidget::item:selected:!active {
             pass
 
 
+
+    def set_committed_point_valve_basis_detail_rows(
+            self,
+            rows: list[dict],
+    ) -> None:
+        """H-S51-C display-only evidence from the committed basis snapshot."""
+        if not hasattr(self, "_committed_point_valve_basis_detail_table"):
+            return
+
+        table = self._committed_point_valve_basis_detail_table
+        display_rows = list(rows or [])
+        if not display_rows:
+            display_rows = [
+                {
+                    "balancing_point_id": "—",
+                    "accepted_kvs": "—",
+                    "disposition": "—",
+                    "status": (
+                        "Not committed — point-valve basis remains in "
+                        "Proportioning preview"
+                    ),
+                }
+            ]
+
+        keys = (
+            "balancing_point_id",
+            "accepted_kvs",
+            "disposition",
+            "status",
+        )
+        table.setRowCount(len(display_rows))
+        for row_index, row in enumerate(display_rows):
+            for col_index, key in enumerate(keys):
+                item = QTableWidgetItem(str(row.get(key, "—")))
+                item.setFlags(item.flags() & ~Qt.ItemIsEditable)
+                table.setItem(row_index, col_index, item)
+
+        table.setWordWrap(False)
+        for row_index in range(table.rowCount()):
+            table.setRowHeight(row_index, 24)
+        self._fit_table_height(table, min_height=105, max_height=220)
 
     def set_clean_proportioned_route_output_rows(
             self,
