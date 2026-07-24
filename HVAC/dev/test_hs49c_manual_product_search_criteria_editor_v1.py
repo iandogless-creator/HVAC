@@ -70,7 +70,7 @@ def main() -> None:
     assert "set_product_search_criteria_editor_rows" in adapter
     assert "Manual valve product-search criteria — design intent" in panel
     assert "Apply does not query" in panel
-    assert "_product_search_criteria_catalog_id_edit" in panel
+    assert "_product_search_criteria_catalog_id_combo" in panel
     assert "_product_search_criteria_tolerance_spin" in panel
     assert "_product_search_criteria_ref_edit" in panel
     assert "_product_search_criteria_note_edit" in panel

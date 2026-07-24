@@ -1561,12 +1561,14 @@ class HydronicsSchematicPanel(QWidget):
         self._product_search_criteria_kvs_label = QLabel("—", criteria_editor)
         criteria_layout.addWidget(self._product_search_criteria_kvs_label, 2, 1)
         criteria_layout.addWidget(QLabel("Catalog ID:", criteria_editor), 2, 2)
-        self._product_search_criteria_catalog_id_edit = QLineEdit(criteria_editor)
-        self._product_search_criteria_catalog_id_edit.textChanged.connect(
+        self._product_search_criteria_catalog_id_combo = QComboBox(
+            criteria_editor
+        )
+        self._product_search_criteria_catalog_id_combo.currentIndexChanged.connect(
             self._on_product_search_criteria_input_changed_v1
         )
         criteria_layout.addWidget(
-            self._product_search_criteria_catalog_id_edit, 2, 3
+            self._product_search_criteria_catalog_id_combo, 2, 3
         )
 
         criteria_layout.addWidget(QLabel("Kv tolerance:", criteria_editor), 3, 0)
@@ -6441,14 +6443,20 @@ class HydronicsSchematicPanel(QWidget):
             point_id
         )
         self._product_search_criteria_selected_point_id = point_id
-        edits = (
-            self._product_search_criteria_catalog_id_edit,
+        catalog_combo = self._product_search_criteria_catalog_id_combo
+        text_edits = (
             self._product_search_criteria_ref_edit,
             self._product_search_criteria_note_edit,
         )
         if row is None:
             self._product_search_criteria_kvs_label.setText("—")
-            for edit in edits:
+            catalog_blocked = catalog_combo.blockSignals(True)
+            try:
+                catalog_combo.clear()
+                catalog_combo.setEnabled(False)
+            finally:
+                catalog_combo.blockSignals(catalog_blocked)
+            for edit in text_edits:
                 edit.clear()
                 edit.setEnabled(False)
             self._product_search_criteria_tolerance_spin.setValue(0.0)
@@ -6460,7 +6468,8 @@ class HydronicsSchematicPanel(QWidget):
             self._product_search_criteria_clear_button.setEnabled(False)
             return
 
-        for edit in edits:
+        catalog_combo.setEnabled(True)
+        for edit in text_edits:
             edit.setEnabled(True)
         self._product_search_criteria_tolerance_spin.setEnabled(True)
         kvs = row.get("accepted_kvs")
@@ -6468,13 +6477,39 @@ class HydronicsSchematicPanel(QWidget):
             "—" if kvs is None else f"{float(kvs):g}"
         )
         blockers = [
-            self._product_search_criteria_catalog_id_edit.blockSignals(True),
+            catalog_combo.blockSignals(True),
             self._product_search_criteria_tolerance_spin.blockSignals(True),
         ]
         try:
-            self._product_search_criteria_catalog_id_edit.setText(
-                str(row.get("catalog_id") or "")
+            catalog_combo.clear()
+            saved_catalog_id = str(row.get("catalog_id") or "").strip()
+            available_catalog_ids = tuple(dict.fromkeys(
+                str(value or "").strip()
+                for value in tuple(row.get("available_catalog_ids") or ())
+                if str(value or "").strip()
+            ))
+            if not saved_catalog_id and len(available_catalog_ids) != 1:
+                catalog_combo.addItem("Select an available catalogue...", "")
+            for catalog_id in available_catalog_ids:
+                catalog_combo.addItem(catalog_id, catalog_id)
+            if (
+                    saved_catalog_id
+                    and catalog_combo.findData(saved_catalog_id) < 0
+            ):
+                catalog_combo.addItem(
+                    f"{saved_catalog_id} — unavailable",
+                    saved_catalog_id,
+                )
+            selected_catalog_id = (
+                saved_catalog_id
+                or (
+                    available_catalog_ids[0]
+                    if len(available_catalog_ids) == 1
+                    else ""
+                )
             )
+            catalog_index = catalog_combo.findData(selected_catalog_id)
+            catalog_combo.setCurrentIndex(catalog_index)
             tolerance = row.get("kv_tolerance_percent")
             self._product_search_criteria_tolerance_spin.setValue(
                 0.0 if tolerance is None else float(tolerance)
@@ -6486,7 +6521,7 @@ class HydronicsSchematicPanel(QWidget):
                 str(row.get("note_contains") or "")
             )
         finally:
-            self._product_search_criteria_catalog_id_edit.blockSignals(blockers[0])
+            catalog_combo.blockSignals(blockers[0])
             self._product_search_criteria_tolerance_spin.blockSignals(blockers[1])
         blocker_text = "; ".join(str(v) for v in row.get("blockers", ()) if v)
         status = str(row.get("status") or "Manual criteria pending")
@@ -6501,7 +6536,9 @@ class HydronicsSchematicPanel(QWidget):
     def _on_product_search_criteria_input_changed_v1(self, *_args) -> None:
         self._product_search_criteria_apply_button.setEnabled(
             bool(getattr(self, "_product_search_criteria_selected_point_id", ""))
-            and bool(self._product_search_criteria_catalog_id_edit.text().strip())
+            and bool(
+                self._product_search_criteria_catalog_id_combo.currentData()
+            )
         )
 
     def _on_apply_product_search_criteria_v1(self) -> None:
@@ -6514,7 +6551,10 @@ class HydronicsSchematicPanel(QWidget):
         callback({
             "action": "set",
             "balancing_point_id": point_id,
-            "catalog_id": self._product_search_criteria_catalog_id_edit.text(),
+            "catalog_id": str(
+                self._product_search_criteria_catalog_id_combo.currentData()
+                or ""
+            ),
             "kv_tolerance_percent": (
                 self._product_search_criteria_tolerance_spin.value()
             ),

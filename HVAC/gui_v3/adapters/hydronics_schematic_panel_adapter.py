@@ -2372,8 +2372,19 @@ class HydronicsSchematicPanelAdapter:
     def _build_product_search_criteria_editor_rows_v1(
             envelopes,
             criteria_resolution,
+            *,
+            available_catalog_ids=(),
     ) -> list[dict]:
-        """Expose approved envelope identities and resolved manual criteria."""
+        """Expose approved envelopes, persisted criteria and catalogues.
+
+        Available catalogue IDs are transient GUI choices. A default shown by
+        the panel is not persisted until the user presses Apply.
+        """
+        clean_catalog_ids = tuple(dict.fromkeys(
+            str(value or "").strip()
+            for value in tuple(available_catalog_ids or ())
+            if str(value or "").strip()
+        ))
         resolved_by_id = {
             str(getattr(row, "balancing_point_id", "") or "").strip(): row
             for row in tuple(getattr(criteria_resolution, "rows", ()) or ())
@@ -2397,6 +2408,7 @@ class HydronicsSchematicPanelAdapter:
                 "point_role": getattr(envelope, "point_role", "—"),
                 "accepted_kvs": getattr(envelope, "accepted_kvs", None),
                 "catalog_id": getattr(resolved, "catalog_id", ""),
+                "available_catalog_ids": clean_catalog_ids,
                 "kv_tolerance_percent": getattr(
                     resolved, "kv_tolerance_percent", None
                 ),
@@ -4149,6 +4161,20 @@ class HydronicsSchematicPanelAdapter:
                 "status": readiness_status,
             },
             {
+                "item": "Committed point-valve basis",
+                "status": (
+                    str(
+                        getattr(
+                            snapshot,
+                            "point_valve_basis_status",
+                            "No committed point-valve basis evidence",
+                        )
+                    )
+                    if snapshot is not None
+                    else "Not committed — point-valve basis remains preview"
+                ),
+            },
+            {
                 "item": "Basis-only export",
                 "status": (
                     f"{export_status}; pump, valve selection, final "
@@ -4515,6 +4541,17 @@ class HydronicsSchematicPanelAdapter:
                     self._build_product_search_criteria_editor_rows_v1(
                         point_product_search_envelopes,
                         point_product_search_criteria,
+                        available_catalog_ids=(
+                            getattr(
+                                getattr(
+                                    self,
+                                    "_supplied_valve_catalog_dto_v1",
+                                    None,
+                                ),
+                                "catalog_id",
+                                "",
+                            ),
+                        ),
                     )
                 )
 
@@ -6081,7 +6118,10 @@ class HydronicsSchematicPanelAdapter:
             print("H-S51-A Commit Proportioning blocked:", reason)
             return
 
-        result = build_proportioned_basis_snapshot_v1(project)
+        result = build_proportioned_basis_snapshot_v1(
+            project,
+            point_commit_readiness=point_commit_readiness,
+        )
 
         if not result.ready or result.snapshot is None:
             if hasattr(self._panel, "set_commit_proportioning_ready"):

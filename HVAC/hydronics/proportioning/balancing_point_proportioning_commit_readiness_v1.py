@@ -26,6 +26,8 @@ class PointProportioningCommitReadinessRowV1:
     readiness_state_id: str = ""
     ready: bool = False
     valve_duty_required: bool = False
+    accepted_kvs_basis: float | None = None
+    disposition: str = ""
     status: str = ""
     blockers: tuple[str, ...] = ()
 
@@ -145,6 +147,8 @@ def _resolve_row_v1(row) -> PointProportioningCommitReadinessRowV1:
             readiness_state_id=GENERIC_KVS_BASIS_APPROVED,
             ready=True,
             valve_duty_required=True,
+            accepted_kvs_basis=getattr(row, "accepted_kvs_basis", None),
+            disposition=disposition,
             status=(
                 "Ready — generic Kvs consequence manually approved; "
                 "catalogue/product deferred"
