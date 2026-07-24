@@ -60,9 +60,10 @@ def main() -> None:
     assert "Committed point-valve basis detail — read-only" in panel_source
     assert "set_committed_point_valve_basis_detail_rows" in panel_source
     assert (
-        "Not committed — point-valve basis remains in "
-        "Proportioning preview"
-    ) in panel_source
+        '"Not committed — point-valve basis remains in "'
+        in panel_source
+    )
+    assert '"Proportioning preview"' in panel_source
     assert "_build_committed_point_valve_basis_detail_rows_v1" in adapter_source
     assert '"hydronic_proportioned_basis_snapshot"' in adapter_source
     assert '"committed_point_valve_bases"' in adapter_source
