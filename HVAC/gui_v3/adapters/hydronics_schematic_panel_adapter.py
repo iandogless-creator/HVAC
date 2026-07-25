@@ -200,6 +200,10 @@ from HVAC.hydronics.proportioning.balancing_point_valve_product_search_criteria_
 from HVAC.hydronics.proportioning.balancing_point_valve_catalogue_candidate_match_evidence_v1 import (
     build_balancing_point_valve_catalogue_candidate_match_evidence_v1,
 )
+from HVAC.hydronics.proportioning.balancing_point_valve_candidate_acceptance_intent_v1 import (
+    BalancingPointValveCandidateAcceptanceIntentV1,
+    resolve_balancing_point_valve_candidate_acceptance_v1,
+)
 from HVAC.hydronics_v3.dto.valve_catalog_dto import ValveCatalogDTO
 from HVAC.hydronics_v3.catalogues.local_valve_catalogue_loader_v1 import (
     load_bundled_local_valve_catalogue_v1,
@@ -352,6 +356,15 @@ class HydronicsSchematicPanelAdapter:
                 self.set_product_search_criteria
             )
 
+        # H-S52-B — explicit manual catalogue-candidate intent callback.
+        if hasattr(
+                self._panel,
+                "set_point_valve_candidate_acceptance_callback",
+        ):
+            self._panel.set_point_valve_candidate_acceptance_callback(
+                self.set_point_valve_candidate_acceptance
+            )
+
         self.refresh()
 
 
@@ -440,6 +453,112 @@ class HydronicsSchematicPanelAdapter:
         project.hydronics_valid = False
         if hasattr(project, "mark_dirty"):
             project.mark_dirty()
+        self.refresh()
+        for signal_name in ("project_state_changed", "project_changed"):
+            signal = getattr(self._context, signal_name, None)
+            emit = getattr(signal, "emit", None)
+            if not callable(emit):
+                continue
+            try:
+                emit()
+            except TypeError:
+                try:
+                    emit(project)
+                except TypeError:
+                    pass
+
+    def set_point_valve_candidate_acceptance(
+            self,
+            payload: dict,
+    ) -> None:
+        """Persist or clear one explicit H-S52-B candidate identity.
+
+        The requested catalogue/reference pair must still be a current
+        H-S50-A match for the selected stable balancing-point ID.  This stores
+        manual intent only: no product hydraulics, valve setting or final
+        balancing result is committed.
+        """
+        if not isinstance(payload, dict):
+            raise ValueError(
+                "Point valve-candidate payload must be a dictionary"
+            )
+        project = self._project_state
+        if project is None:
+            return
+        point_id = str(payload.get("balancing_point_id") or "").strip()
+        if not point_id:
+            raise ValueError("balancing_point_id is required")
+        action = str(payload.get("action") or "").strip().lower()
+        intent = getattr(
+            project,
+            "hydronic_point_valve_candidate_acceptance_intent",
+            None,
+        )
+
+        if action == "accept":
+            evidence = getattr(
+                self,
+                "_balancing_point_valve_catalogue_candidate_match_evidence",
+                None,
+            )
+            point_row = next(
+                (
+                    row
+                    for row in tuple(getattr(evidence, "rows", ()) or ())
+                    if str(
+                        getattr(row, "balancing_point_id", "") or ""
+                    ).strip() == point_id
+                ),
+                None,
+            )
+            if point_row is None:
+                raise ValueError(
+                    "Balancing point has no current H-S50-A evidence"
+                )
+            catalog_id = str(payload.get("catalog_id") or "").strip()
+            valve_ref = str(payload.get("valve_ref") or "").strip()
+            matching = next(
+                (
+                    candidate
+                    for candidate in tuple(
+                        getattr(point_row, "candidates", ()) or ()
+                    )
+                    if (
+                        str(
+                            getattr(candidate, "catalog_id", "") or ""
+                        ).strip() == catalog_id
+                        and str(
+                            getattr(candidate, "valve_ref", "") or ""
+                        ).strip() == valve_ref
+                    )
+                ),
+                None,
+            )
+            if matching is None:
+                raise ValueError(
+                    "catalog_id and valve_ref must identify a current "
+                    "H-S50-A candidate for this point"
+                )
+            if intent is None:
+                intent = BalancingPointValveCandidateAcceptanceIntentV1()
+            intent.accept_candidate(
+                balancing_point_id=point_id,
+                catalog_id=catalog_id,
+                valve_ref=valve_ref,
+            )
+        elif action == "clear":
+            if intent is None:
+                self.refresh()
+                return
+            intent.clear_candidate(point_id)
+        else:
+            raise ValueError("action must be 'accept' or 'clear'")
+
+        project.hydronic_point_valve_candidate_acceptance_intent = intent
+        project.hydronics_valid = False
+        if hasattr(project, "mark_dirty"):
+            project.mark_dirty()
+
         self.refresh()
         for signal_name in ("project_state_changed", "project_changed"):
             signal = getattr(self._context, signal_name, None)
@@ -2367,6 +2486,81 @@ class HydronicsSchematicPanelAdapter:
                 tuple(getattr(evidence, "blockers", ()) or ())
             ) or "—",
         }]
+
+    @staticmethod
+    def _build_point_valve_candidate_acceptance_editor_rows_v1(
+            candidate_evidence,
+            acceptance_resolution,
+    ) -> list[dict]:
+        """Join H-S50-A candidates to resolved H-S52-A manual intent."""
+        resolved_by_id = {
+            str(getattr(row, "balancing_point_id", "") or "").strip(): row
+            for row in tuple(
+                getattr(acceptance_resolution, "rows", ()) or ()
+            )
+        }
+        rows: list[dict] = []
+        for point_row in tuple(
+                getattr(candidate_evidence, "rows", ()) or ()
+        ):
+            point_id = str(
+                getattr(point_row, "balancing_point_id", "") or ""
+            ).strip()
+            if not point_id:
+                continue
+            candidates = tuple(
+                {
+                    "catalog_id": str(
+                        getattr(candidate, "catalog_id", "") or ""
+                    ).strip(),
+                    "valve_ref": str(
+                        getattr(candidate, "valve_ref", "") or ""
+                    ).strip(),
+                    "kv_m3_h": float(
+                        getattr(candidate, "kv_m3_h", 0.0)
+                    ),
+                    "note": str(
+                        getattr(candidate, "note", "") or ""
+                    ).strip(),
+                }
+                for candidate in tuple(
+                    getattr(point_row, "candidates", ()) or ()
+                )
+            )
+            resolved = resolved_by_id.get(point_id)
+            accepted_catalog_id = str(
+                getattr(resolved, "catalog_id", "") or ""
+            ).strip()
+            accepted_valve_ref = str(
+                getattr(resolved, "valve_ref", "") or ""
+            ).strip()
+            has_acceptance = bool(
+                accepted_catalog_id and accepted_valve_ref
+            )
+            # Dormant/no-match rows without saved intent need no editor entry.
+            if not candidates and not has_acceptance:
+                continue
+            rows.append({
+                "balancing_point_id": point_id,
+                "catalog_id": str(
+                    getattr(point_row, "catalog_id", "")
+                    or getattr(candidate_evidence, "catalog_id", "")
+                    or ""
+                ).strip(),
+                "candidates": candidates,
+                "accepted_catalog_id": accepted_catalog_id,
+                "accepted_valve_ref": accepted_valve_ref,
+                "accepted": bool(getattr(resolved, "accepted", False)),
+                "has_acceptance": has_acceptance,
+                "status": str(
+                    getattr(resolved, "status", "")
+                    or "Manual valve-candidate acceptance pending"
+                ),
+                "blockers": tuple(
+                    getattr(resolved, "blockers", ()) or ()
+                ),
+            })
+        return rows
 
     @staticmethod
     def _build_product_search_criteria_editor_rows_v1(
@@ -4539,6 +4733,19 @@ class HydronicsSchematicPanelAdapter:
             self._balancing_point_valve_catalogue_candidate_match_evidence = (
                 point_catalogue_candidate_matches
             )
+            point_valve_candidate_acceptance = (
+                resolve_balancing_point_valve_candidate_acceptance_v1(
+                    getattr(
+                        self._project_state,
+                        "hydronic_point_valve_candidate_acceptance_intent",
+                        None,
+                    ),
+                    point_catalogue_candidate_matches,
+                )
+            )
+            self._balancing_point_valve_candidate_acceptance_resolution = (
+                point_valve_candidate_acceptance
+            )
             point_display_rows = self._build_balancing_point_gui_rows_v1(
                 point_kvs_utilisation
             )
@@ -4624,6 +4831,17 @@ class HydronicsSchematicPanelAdapter:
                 self._panel.set_catalogue_candidate_match_rows(
                     self._build_catalogue_candidate_match_gui_rows_v1(
                         point_catalogue_candidate_matches
+                    )
+                )
+
+            if hasattr(
+                    self._panel,
+                    "set_point_valve_candidate_acceptance_editor_rows",
+            ):
+                self._panel.set_point_valve_candidate_acceptance_editor_rows(
+                    self._build_point_valve_candidate_acceptance_editor_rows_v1(
+                        point_catalogue_candidate_matches,
+                        point_valve_candidate_acceptance,
                     )
                 )
 

@@ -1685,6 +1685,132 @@ class HydronicsSchematicPanel(QWidget):
         self.set_catalogue_candidate_match_rows([])
 
         # --------------------------------------------------
+        # H-S52-B — manual point valve-candidate acceptance editor
+        # --------------------------------------------------
+        self._point_valve_candidate_acceptance_editor = QFrame(self)
+        self._point_valve_candidate_acceptance_editor.setFrameShape(
+            QFrame.StyledPanel
+        )
+        candidate_layout = QGridLayout(
+            self._point_valve_candidate_acceptance_editor
+        )
+        candidate_layout.setContentsMargins(8, 8, 8, 8)
+        candidate_layout.setHorizontalSpacing(10)
+        candidate_layout.setVerticalSpacing(6)
+
+        candidate_notice = QLabel(
+            "Choose one current catalogue match and press Accept. This "
+            "records manual candidate identity only; it does not commit "
+            "product hydraulics, a valve setting or final balancing.",
+            self._point_valve_candidate_acceptance_editor,
+        )
+        candidate_notice.setWordWrap(True)
+        candidate_layout.addWidget(candidate_notice, 0, 0, 1, 4)
+
+        candidate_layout.addWidget(
+            QLabel(
+                "Balancing point:",
+                self._point_valve_candidate_acceptance_editor,
+            ),
+            1,
+            0,
+        )
+        self._point_valve_candidate_acceptance_point_combo = QComboBox(
+            self._point_valve_candidate_acceptance_editor
+        )
+        self._point_valve_candidate_acceptance_point_combo.currentIndexChanged.connect(
+            self._on_point_valve_candidate_acceptance_point_changed_v1
+        )
+        candidate_layout.addWidget(
+            self._point_valve_candidate_acceptance_point_combo,
+            1,
+            1,
+            1,
+            3,
+        )
+
+        candidate_layout.addWidget(
+            QLabel(
+                "Candidate:",
+                self._point_valve_candidate_acceptance_editor,
+            ),
+            2,
+            0,
+        )
+        self._point_valve_candidate_acceptance_candidate_combo = QComboBox(
+            self._point_valve_candidate_acceptance_editor
+        )
+        self._point_valve_candidate_acceptance_candidate_combo.currentIndexChanged.connect(
+            self._on_point_valve_candidate_acceptance_candidate_changed_v1
+        )
+        candidate_layout.addWidget(
+            self._point_valve_candidate_acceptance_candidate_combo,
+            2,
+            1,
+            1,
+            3,
+        )
+
+        candidate_layout.addWidget(
+            QLabel(
+                "Resolved status:",
+                self._point_valve_candidate_acceptance_editor,
+            ),
+            3,
+            0,
+        )
+        self._point_valve_candidate_acceptance_status_label = QLabel(
+            "—",
+            self._point_valve_candidate_acceptance_editor,
+        )
+        self._point_valve_candidate_acceptance_status_label.setWordWrap(True)
+        candidate_layout.addWidget(
+            self._point_valve_candidate_acceptance_status_label,
+            3,
+            1,
+            1,
+            3,
+        )
+
+        self._point_valve_candidate_acceptance_apply_button = QPushButton(
+            "Accept selected valve candidate",
+            self._point_valve_candidate_acceptance_editor,
+        )
+        self._point_valve_candidate_acceptance_clear_button = QPushButton(
+            "Clear point candidate",
+            self._point_valve_candidate_acceptance_editor,
+        )
+        self._point_valve_candidate_acceptance_apply_button.clicked.connect(
+            self._on_apply_point_valve_candidate_acceptance_v1
+        )
+        self._point_valve_candidate_acceptance_clear_button.clicked.connect(
+            self._on_clear_point_valve_candidate_acceptance_v1
+        )
+        candidate_layout.addWidget(
+            self._point_valve_candidate_acceptance_apply_button,
+            4,
+            2,
+        )
+        candidate_layout.addWidget(
+            self._point_valve_candidate_acceptance_clear_button,
+            4,
+            3,
+        )
+        candidate_layout.setColumnStretch(1, 1)
+        candidate_layout.setColumnStretch(3, 2)
+
+        self._add_section(
+            proportioning_layout,
+            title=(
+                "Manual point valve-candidate acceptance — design intent"
+            ),
+            table=self._point_valve_candidate_acceptance_editor,
+            min_height=170,
+            expanded=True,
+        )
+        self.set_point_valve_candidate_acceptance_editor_rows([])
+
+        # --------------------------------------------------
         # H-S27-F — Chosen-basis proportioned readiness summary
         # --------------------------------------------------
         self._chosen_basis_proportioned_readiness_table = self._make_table(
@@ -6456,6 +6582,219 @@ class HydronicsSchematicPanel(QWidget):
         for row_index in range(table.rowCount()):
             table.setRowHeight(row_index, 24)
         self._fit_table_height(table, min_height=105, max_height=240)
+
+    def set_point_valve_candidate_acceptance_callback(
+            self,
+            callback,
+    ) -> None:
+        """Register the adapter-owned H-S52-B intent callback."""
+        self._point_valve_candidate_acceptance_callback = callback
+
+    def set_point_valve_candidate_acceptance_editor_rows(
+            self,
+            rows: list[dict],
+    ) -> None:
+        """Populate the H-S52-B editor from prepared evidence only."""
+        combo = getattr(
+            self,
+            "_point_valve_candidate_acceptance_point_combo",
+            None,
+        )
+        if combo is None:
+            return
+        previous = str(
+            combo.currentData()
+            or getattr(
+                self,
+                "_point_valve_candidate_acceptance_selected_point_id",
+                "",
+            )
+            or ""
+        )
+        copies = [dict(row) for row in list(rows or [])]
+        self._point_valve_candidate_acceptance_rows_by_id = {
+            str(row.get("balancing_point_id") or ""): row
+            for row in copies
+            if str(row.get("balancing_point_id") or "")
+        }
+        blocked = combo.blockSignals(True)
+        try:
+            combo.clear()
+            for row in copies:
+                point_id = str(row.get("balancing_point_id") or "")
+                if point_id:
+                    combo.addItem(point_id, point_id)
+            wanted = combo.findData(previous)
+            if wanted < 0 and combo.count():
+                wanted = 0
+            combo.setCurrentIndex(wanted)
+        finally:
+            combo.blockSignals(blocked)
+        self._on_point_valve_candidate_acceptance_point_changed_v1(
+            combo.currentIndex()
+        )
+
+    def _on_point_valve_candidate_acceptance_point_changed_v1(
+            self,
+            _index: int = -1,
+    ) -> None:
+        point_combo = self._point_valve_candidate_acceptance_point_combo
+        candidate_combo = (
+            self._point_valve_candidate_acceptance_candidate_combo
+        )
+        point_id = str(point_combo.currentData() or "")
+        row = getattr(
+            self,
+            "_point_valve_candidate_acceptance_rows_by_id",
+            {},
+        ).get(point_id)
+        self._point_valve_candidate_acceptance_selected_point_id = point_id
+
+        blocked = candidate_combo.blockSignals(True)
+        try:
+            candidate_combo.clear()
+            candidate_combo.addItem("Select a current candidate…", None)
+            if row is not None:
+                for candidate in tuple(row.get("candidates") or ()):
+                    catalog_id = str(candidate.get("catalog_id") or "")
+                    valve_ref = str(candidate.get("valve_ref") or "")
+                    kv = float(candidate.get("kv_m3_h") or 0.0)
+                    note = str(candidate.get("note") or "").strip()
+                    label = f"{valve_ref} | Kv {kv:g} m³/h"
+                    if note:
+                        label += f" | {note}"
+                    candidate_combo.addItem(
+                        label,
+                        (catalog_id, valve_ref),
+                    )
+                accepted_identity = (
+                    str(row.get("accepted_catalog_id") or ""),
+                    str(row.get("accepted_valve_ref") or ""),
+                )
+                accepted_index = candidate_combo.findData(
+                    accepted_identity
+                )
+                if accepted_index >= 0:
+                    candidate_combo.setCurrentIndex(accepted_index)
+                elif all(accepted_identity):
+                    candidate_combo.addItem(
+                        (
+                            f"{accepted_identity[1]} | "
+                            f"{accepted_identity[0]} — unavailable"
+                        ),
+                        None,
+                    )
+                    candidate_combo.setCurrentIndex(
+                        candidate_combo.count() - 1
+                    )
+        finally:
+            candidate_combo.blockSignals(blocked)
+
+        if row is None:
+            candidate_combo.setEnabled(False)
+            self._point_valve_candidate_acceptance_status_label.setText(
+                "No current catalogue candidates require acceptance"
+            )
+            self._point_valve_candidate_acceptance_apply_button.setEnabled(
+                False
+            )
+            self._point_valve_candidate_acceptance_clear_button.setEnabled(
+                False
+            )
+            return
+
+        candidate_combo.setEnabled(bool(row.get("candidates")))
+        blocker_text = "; ".join(
+            str(value)
+            for value in tuple(row.get("blockers") or ())
+            if str(value or "").strip()
+        )
+        status = str(
+            row.get("status")
+            or "Manual valve-candidate acceptance pending"
+        )
+        self._point_valve_candidate_acceptance_status_label.setText(
+            status if not blocker_text else f"{status} — {blocker_text}"
+        )
+        self._point_valve_candidate_acceptance_clear_button.setEnabled(
+            bool(row.get("has_acceptance"))
+        )
+        self._on_point_valve_candidate_acceptance_candidate_changed_v1(
+            candidate_combo.currentIndex()
+        )
+
+    def _on_point_valve_candidate_acceptance_candidate_changed_v1(
+            self,
+            _index: int = -1,
+    ) -> None:
+        point_id = str(
+            getattr(
+                self,
+                "_point_valve_candidate_acceptance_selected_point_id",
+                "",
+            )
+            or ""
+        )
+        identity = (
+            self._point_valve_candidate_acceptance_candidate_combo.currentData()
+        )
+        self._point_valve_candidate_acceptance_apply_button.setEnabled(
+            bool(point_id)
+            and isinstance(identity, (tuple, list))
+            and len(identity) == 2
+            and all(str(value or "").strip() for value in identity)
+        )
+
+    def _on_apply_point_valve_candidate_acceptance_v1(self) -> None:
+        point_id = str(
+            getattr(
+                self,
+                "_point_valve_candidate_acceptance_selected_point_id",
+                "",
+            )
+            or ""
+        )
+        identity = (
+            self._point_valve_candidate_acceptance_candidate_combo.currentData()
+        )
+        callback = getattr(
+            self,
+            "_point_valve_candidate_acceptance_callback",
+            None,
+        )
+        if (
+                not point_id
+                or not isinstance(identity, (tuple, list))
+                or len(identity) != 2
+                or not callable(callback)
+        ):
+            return
+        callback({
+            "action": "accept",
+            "balancing_point_id": point_id,
+            "catalog_id": str(identity[0]),
+            "valve_ref": str(identity[1]),
+        })
+
+    def _on_clear_point_valve_candidate_acceptance_v1(self) -> None:
+        point_id = str(
+            getattr(
+                self,
+                "_point_valve_candidate_acceptance_selected_point_id",
+                "",
+            )
+            or ""
+        )
+        callback = getattr(
+            self,
+            "_point_valve_candidate_acceptance_callback",
+            None,
+        )
+        if point_id and callable(callback):
+            callback({
+                "action": "clear",
+                "balancing_point_id": point_id,
+            })
 
     def set_product_search_criteria_callback(self, callback) -> None:
         """Register the adapter-owned H-S49-C criteria callback."""
