@@ -3768,6 +3768,31 @@ class HydronicsSchematicPanel(QWidget):
             return
 
         rows = list(rows or [])
+        missing_upstream_length_section_ids = tuple(dict.fromkeys(
+            str(section_id or "").strip()
+            for row in rows
+            for section_id in tuple(
+                dict(row or {}).get(
+                    "missing_upstream_length_section_ids",
+                    (),
+                ) or ()
+            )
+            if str(section_id or "").strip()
+        ))
+
+        if missing_upstream_length_section_ids:
+            blocker_lines = "\n".join(
+                f"• {section_id}"
+                for section_id in missing_upstream_length_section_ids
+            )
+            label.setText(
+                f"{str(heading or 'Pressure evidence — preview only')}\n\n"
+                "F&R / F+RR pressure evidence blocked.\n"
+                "Enter Straight length in Local K / Fittings for:\n"
+                f"{blocker_lines}\n\n"
+                "No default length assumed; return basis unchanged."
+            )
+            return
 
         direct_values: list[float] = []
         reverse_values: list[float] = []

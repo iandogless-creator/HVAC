@@ -81,6 +81,9 @@ class CircuitReturnPathComparisonRowV1:
     leg_entry_dp_Pa: float | None = 0.0
     physical_main_entry_dp_Pa: float | None = 0.0
 
+    # H-S51-D — explicit fail-closed upstream-length evidence.
+    missing_upstream_length_section_ids: tuple[str, ...] = ()
+
 @dataclass(frozen=True, slots=True)
 class ReverseReturnSuitabilityV1:
     suitable: bool
@@ -175,12 +178,14 @@ def build_circuit_return_path_comparison_v1(
             )
 
             # H-S42-D: one route-specific physical upstream contribution.
-            common_main_dp_Pa, leg_entry_dp_Pa = (
-                _main_entry_pressure_evidence_v1(
-                    project_state,
-                    leg_id=leg_id,
-                    subleg_id=subleg_id,
-                )
+            (
+                common_main_dp_Pa,
+                leg_entry_dp_Pa,
+                missing_upstream_length_section_ids,
+            ) = _main_entry_pressure_evidence_v1(
+                project_state,
+                leg_id=leg_id,
+                subleg_id=subleg_id,
             )
             physical_main_entry_dp_Pa = _add_complete_dp_v1(
                 common_main_dp_Pa,
@@ -315,6 +320,9 @@ def build_circuit_return_path_comparison_v1(
                             rr_added_length_inherited_from=(
                                 rr_length_resolution.inherited_from
                             ),
+                            missing_upstream_length_section_ids=(
+                                missing_upstream_length_section_ids
+                            ),
                         ),
                         rr_added_length_basis_mode=(
                             rr_length_resolution.effective_basis_mode
@@ -326,6 +334,9 @@ def build_circuit_return_path_comparison_v1(
                         common_main_dp_Pa=common_main_dp_Pa,
                         leg_entry_dp_Pa=leg_entry_dp_Pa,
                         physical_main_entry_dp_Pa=physical_main_entry_dp_Pa,
+                        missing_upstream_length_section_ids=(
+                            missing_upstream_length_section_ids
+                        ),
                     )
                 )
 
@@ -346,8 +357,13 @@ def _main_entry_pressure_evidence_v1(
     *,
     leg_id: str,
     subleg_id: str,
-) -> tuple[float | None, float | None]:
-    # Read H-S42-C scope totals; never recalculate or persist pressure.
+) -> tuple[float | None, float | None, tuple[str, ...]]:
+    """Read route-specific H-S42-C scope totals and blockers.
+
+    H-S51-D exposes the stable upstream section identities whenever their
+    physical length / Local-K pressure evidence is incomplete.  It never
+    supplies a default length, recalculates pressure or persists intent.
+    """
     projection = build_route_pressure_accumulator_v1(
         project_state,
         leg_id=leg_id,
@@ -355,11 +371,26 @@ def _main_entry_pressure_evidence_v1(
     )
     rows = tuple(getattr(projection, "rows", ()) or ())
     if len(rows) != 1:
-        return None, None
+        return None, None, ()
     row = rows[0]
+    missing_ids = tuple(dict.fromkeys(
+        str(getattr(section, "section_id", "") or "").strip()
+        for section in tuple(getattr(row, "sections", ()) or ())
+        if (
+            str(getattr(section, "section_scope", "") or "")
+            in {"common_main", "leg_entry"}
+            and getattr(
+                section,
+                "section_total_pressure_drop_Pa",
+                None,
+            ) is None
+            and str(getattr(section, "section_id", "") or "").strip()
+        )
+    ))
     return (
         row.common_main_pressure_drop_total_Pa,
         row.leg_entry_pressure_drop_total_Pa,
+        missing_ids,
     )
 
 
@@ -998,7 +1029,20 @@ def _return_comparison_status_v1(
     rr_added_pressure_drop_Pa: float,
     rr_added_length_source: str = "",
     rr_added_length_inherited_from: str = "",
+    missing_upstream_length_section_ids: tuple[str, ...] = (),
 ) -> str:
+    missing_ids = tuple(dict.fromkeys(
+        str(section_id or "").strip()
+        for section_id in tuple(missing_upstream_length_section_ids or ())
+        if str(section_id or "").strip()
+    ))
+    upstream_blocker_prefix = (
+        "Blocked — upstream physical length missing: "
+        + ", ".join(missing_ids)
+        + " | "
+        if missing_ids
+        else ""
+    )
     if reverse_return_section_ids:
         base = "Flow + direct + reverse return paths ready"
         basis = _rr_added_length_basis_label_v1(rr_added_length_basis_mode)
@@ -1010,7 +1054,8 @@ def _return_comparison_status_v1(
         )
 
         return (
-            f"{base} | RR length basis: {basis}; "
+            f"{upstream_blocker_prefix}{base} | "
+            f"RR length basis: {basis}; "
             f"extra {rr_added_length_m:.2f} m adds "
             f"{rr_added_pressure_drop_Pa:.1f} Pa; "
             f"authority {source}{inherited}; "
@@ -1018,9 +1063,15 @@ def _return_comparison_status_v1(
         )
 
     if flow_section_ids:
-        return "Flow + direct return path ready — reverse return not generated"
+        return (
+            f"{upstream_blocker_prefix}Flow + direct return path ready — "
+            "reverse return not generated"
+        )
 
-    return "Missing flow path — return paths not modelled yet"
+    return (
+        f"{upstream_blocker_prefix}Missing flow path — "
+        "return paths not modelled yet"
+    )
 
 
 def _optional_float(value: Any) -> float | None:

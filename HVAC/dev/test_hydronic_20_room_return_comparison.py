@@ -19,6 +19,23 @@ def main() -> None:
 
     projection = build_circuit_return_path_comparison_v1(project_state)
 
+    # H-S51-D: this legacy fixture has no common-main / leg-entry lengths.
+    # Treat the incomplete result as explicit evidence, never a silent pass.
+    assert projection.rows
+    assert all(
+        row.missing_upstream_length_section_ids
+        for row in projection.rows
+    )
+    assert all(row.direct_total_dp_Pa is None for row in projection.rows)
+    assert all(
+        row.reverse_return_total_dp_Pa is None
+        for row in projection.rows
+    )
+    assert all(
+        "upstream physical length missing" in row.status
+        for row in projection.rows
+    )
+
     print("H-S19-A Circuit return path comparison")
     print(f"Status: {projection.status}")
     print(f"Rows: {len(projection.rows)}")

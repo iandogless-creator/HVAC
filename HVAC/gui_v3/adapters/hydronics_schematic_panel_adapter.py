@@ -5429,6 +5429,13 @@ class HydronicsSchematicPanelAdapter:
                         "rr_suitability_status",
                         "—",
                     ),
+                    "missing_upstream_length_section_ids": tuple(
+                        getattr(
+                            row,
+                            "missing_upstream_length_section_ids",
+                            (),
+                        ) or ()
+                    ),
                     "status": getattr(row, "status", "—"),
                 }
             )
