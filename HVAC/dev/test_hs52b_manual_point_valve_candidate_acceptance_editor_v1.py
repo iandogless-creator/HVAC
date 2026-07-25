@@ -186,7 +186,7 @@ def main() -> None:
         adapter_source
     )
     assert "set_point_valve_candidate_acceptance_callback" in adapter_source
-    assert "must identify a current H-S50-A candidate" in adapter_source
+    assert "H-S50-A candidate for this point" in adapter_source
     assert (
         "Manual point valve-candidate acceptance — design intent"
         in panel_source
