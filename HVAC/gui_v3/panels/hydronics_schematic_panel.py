@@ -1772,6 +1772,27 @@ class HydronicsSchematicPanel(QWidget):
             3,
         )
 
+        candidate_layout.addWidget(
+            QLabel(
+                "Hydraulic consequence:",
+                self._point_valve_candidate_acceptance_editor,
+            ),
+            4,
+            0,
+        )
+        self._point_valve_candidate_consequence_label = QLabel(
+            "—",
+            self._point_valve_candidate_acceptance_editor,
+        )
+        self._point_valve_candidate_consequence_label.setWordWrap(True)
+        candidate_layout.addWidget(
+            self._point_valve_candidate_consequence_label,
+            4,
+            1,
+            1,
+            3,
+        )
+
         self._point_valve_candidate_acceptance_apply_button = QPushButton(
             "Accept selected valve candidate",
             self._point_valve_candidate_acceptance_editor,
@@ -1788,12 +1809,12 @@ class HydronicsSchematicPanel(QWidget):
         )
         candidate_layout.addWidget(
             self._point_valve_candidate_acceptance_apply_button,
-            4,
+            5,
             2,
         )
         candidate_layout.addWidget(
             self._point_valve_candidate_acceptance_clear_button,
-            4,
+            5,
             3,
         )
         candidate_layout.setColumnStretch(1, 1)
@@ -1805,7 +1826,7 @@ class HydronicsSchematicPanel(QWidget):
                 "Manual point valve-candidate acceptance — design intent"
             ),
             table=self._point_valve_candidate_acceptance_editor,
-            min_height=170,
+            min_height=195,
             expanded=True,
         )
         self.set_point_valve_candidate_acceptance_editor_rows([])
@@ -6695,6 +6716,9 @@ class HydronicsSchematicPanel(QWidget):
             self._point_valve_candidate_acceptance_status_label.setText(
                 "No current catalogue candidates require acceptance"
             )
+            self._point_valve_candidate_consequence_label.setText(
+                "No accepted catalogue-candidate consequence available"
+            )
             self._point_valve_candidate_acceptance_apply_button.setEnabled(
                 False
             )
@@ -6715,6 +6739,31 @@ class HydronicsSchematicPanel(QWidget):
         )
         self._point_valve_candidate_acceptance_status_label.setText(
             status if not blocker_text else f"{status} — {blocker_text}"
+        )
+        consequence_blockers = "; ".join(
+            str(value)
+            for value in tuple(row.get("consequence_blockers") or ())
+            if str(value or "").strip()
+        )
+        if bool(row.get("consequence_available")):
+            consequence_text = (
+                f"Current catalogue Kv "
+                f"{row.get('current_catalogue_kv') or '—'}; "
+                f"implied valve Δp "
+                f"{row.get('catalogue_implied_valve_dp') or '—'}; "
+                f"implied authority "
+                f"{row.get('catalogue_implied_authority') or '—'} "
+                "— preview only"
+            )
+        else:
+            consequence_text = str(
+                row.get("consequence_status")
+                or "Catalogue-candidate consequence unavailable"
+            )
+        if consequence_blockers:
+            consequence_text += f" — {consequence_blockers}"
+        self._point_valve_candidate_consequence_label.setText(
+            consequence_text
         )
         self._point_valve_candidate_acceptance_clear_button.setEnabled(
             bool(row.get("has_acceptance"))

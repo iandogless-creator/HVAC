@@ -204,6 +204,9 @@ from HVAC.hydronics.proportioning.balancing_point_valve_candidate_acceptance_int
     BalancingPointValveCandidateAcceptanceIntentV1,
     resolve_balancing_point_valve_candidate_acceptance_v1,
 )
+from HVAC.hydronics.proportioning.balancing_point_accepted_valve_candidate_hydraulic_consequence_v1 import (
+    build_balancing_point_accepted_valve_candidate_hydraulic_consequence_v1,
+)
 from HVAC.hydronics_v3.dto.valve_catalog_dto import ValveCatalogDTO
 from HVAC.hydronics_v3.catalogues.local_valve_catalogue_loader_v1 import (
     load_bundled_local_valve_catalogue_v1,
@@ -2491,8 +2494,15 @@ class HydronicsSchematicPanelAdapter:
     def _build_point_valve_candidate_acceptance_editor_rows_v1(
             candidate_evidence,
             acceptance_resolution,
+            consequence_evidence=None,
     ) -> list[dict]:
-        """Join H-S50-A candidates to resolved H-S52-A manual intent."""
+        """Join candidates, resolved identity and H-S52-C consequence."""
+        consequence_by_id = {
+            str(getattr(row, "balancing_point_id", "") or "").strip(): row
+            for row in tuple(
+                getattr(consequence_evidence, "rows", ()) or ()
+            )
+        }
         resolved_by_id = {
             str(getattr(row, "balancing_point_id", "") or "").strip(): row
             for row in tuple(
@@ -2540,6 +2550,16 @@ class HydronicsSchematicPanelAdapter:
             # Dormant/no-match rows without saved intent need no editor entry.
             if not candidates and not has_acceptance:
                 continue
+            consequence = consequence_by_id.get(point_id)
+
+            def number(value, suffix: str, digits: int) -> str:
+                if value is None:
+                    return "—"
+                try:
+                    return f"{float(value):.{digits}f}{suffix}"
+                except (TypeError, ValueError):
+                    return "—"
+
             rows.append({
                 "balancing_point_id": point_id,
                 "catalog_id": str(
@@ -2558,6 +2578,31 @@ class HydronicsSchematicPanelAdapter:
                 ),
                 "blockers": tuple(
                     getattr(resolved, "blockers", ()) or ()
+                ),
+                "consequence_available": bool(
+                    getattr(consequence, "consequence_available", False)
+                ),
+                "current_catalogue_kv": number(
+                    getattr(consequence, "current_kv_m3_h", None),
+                    "",
+                    3,
+                ),
+                "catalogue_implied_valve_dp": number(
+                    getattr(consequence, "implied_valve_dp_pa", None),
+                    " Pa",
+                    1,
+                ),
+                "catalogue_implied_authority": number(
+                    getattr(consequence, "implied_authority", None),
+                    "",
+                    3,
+                ),
+                "consequence_status": str(
+                    getattr(consequence, "status", "")
+                    or "Catalogue-candidate consequence unavailable"
+                ),
+                "consequence_blockers": tuple(
+                    getattr(consequence, "blockers", ()) or ()
                 ),
             })
         return rows
@@ -4746,6 +4791,15 @@ class HydronicsSchematicPanelAdapter:
             self._balancing_point_valve_candidate_acceptance_resolution = (
                 point_valve_candidate_acceptance
             )
+            point_valve_candidate_consequence = (
+                build_balancing_point_accepted_valve_candidate_hydraulic_consequence_v1(
+                    point_product_search_envelopes,
+                    point_valve_candidate_acceptance,
+                )
+            )
+            self._balancing_point_accepted_valve_candidate_hydraulic_consequence_preview = (
+                point_valve_candidate_consequence
+            )
             point_display_rows = self._build_balancing_point_gui_rows_v1(
                 point_kvs_utilisation
             )
@@ -4842,6 +4896,7 @@ class HydronicsSchematicPanelAdapter:
                     self._build_point_valve_candidate_acceptance_editor_rows_v1(
                         point_catalogue_candidate_matches,
                         point_valve_candidate_acceptance,
+                        point_valve_candidate_consequence,
                     )
                 )
 
