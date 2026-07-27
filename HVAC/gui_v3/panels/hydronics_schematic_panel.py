@@ -1563,6 +1563,31 @@ class HydronicsSchematicPanel(QWidget):
         self.set_product_search_duty_envelope_rows([])
 
         # --------------------------------------------------
+        # H-S53-B — approved valve-candidate detailed-design duties
+        # --------------------------------------------------
+        self._approved_valve_candidate_design_duty_table = self._make_table(
+            columns=[
+                "Point", "Scope", "Role", "Topology", "Governed routes",
+                "Catalog ID", "Valve reference", "Kv m³/h", "Flow kg/s",
+                "Required Kv", "Implied valve Δp", "Controlled circuit Δp",
+                "Implied authority", "Design authority", "Ready", "Status",
+                "Blockers",
+            ],
+            stretch_columns={0, 4, 6, 15, 16},
+        )
+        self._add_section(
+            proportioning_layout,
+            title=(
+                "Approved catalogue valve-candidate detailed-design duty "
+                "envelopes — read-only"
+            ),
+            table=self._approved_valve_candidate_design_duty_table,
+            min_height=145,
+            expanded=False,
+        )
+        self.set_approved_valve_candidate_design_duty_envelope_rows([])
+
+        # --------------------------------------------------
         # H-S49-C — manual product-search criteria editor
         # --------------------------------------------------
         criteria_editor = QFrame(self)
@@ -7233,6 +7258,48 @@ class HydronicsSchematicPanel(QWidget):
         )
         if point_id and callable(callback):
             callback({"action": "clear", "balancing_point_id": point_id})
+
+    def set_approved_valve_candidate_design_duty_envelope_rows(
+            self,
+            rows: list[dict],
+    ) -> None:
+        """Display-only H-S53-A detailed valve-design duty evidence."""
+        if not hasattr(
+                self,
+                "_approved_valve_candidate_design_duty_table",
+        ):
+            return
+        table = self._approved_valve_candidate_design_duty_table
+        rows = list(rows or [])
+        if not rows:
+            rows = [{
+                "balancing_point_id": "—", "point_scope": "—",
+                "point_role": "—", "topology": "—",
+                "governed_routes": "—", "catalog_id": "—",
+                "valve_ref": "—", "current_kv": "—", "point_flow": "—",
+                "required_kv": "—", "implied_dp": "—",
+                "controlled_dp": "—", "implied_authority": "—",
+                "design_authority": "—", "ready": "No",
+                "status": "No approved detailed valve-design duty envelope",
+                "blockers": "—",
+            }]
+        table.setRowCount(len(rows))
+        keys = (
+            "balancing_point_id", "point_scope", "point_role", "topology",
+            "governed_routes", "catalog_id", "valve_ref", "current_kv",
+            "point_flow", "required_kv", "implied_dp", "controlled_dp",
+            "implied_authority", "design_authority", "ready", "status",
+            "blockers",
+        )
+        for row_index, row in enumerate(rows):
+            for col_index, key in enumerate(keys):
+                item = QTableWidgetItem(str(row.get(key, "—")))
+                item.setFlags(item.flags() & ~Qt.ItemIsEditable)
+                table.setItem(row_index, col_index, item)
+        table.setWordWrap(False)
+        for row_index in range(table.rowCount()):
+            table.setRowHeight(row_index, 24)
+        self._fit_table_height(table, min_height=105, max_height=220)
 
     def set_product_search_duty_envelope_rows(self, rows: list[dict]) -> None:
         """Display-only H-S49-A product-search handoff envelopes."""

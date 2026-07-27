@@ -213,6 +213,9 @@ from HVAC.hydronics.proportioning.balancing_point_accepted_valve_candidate_conse
     BalancingPointAcceptedValveCandidateConsequenceDispositionIntentV1,
     resolve_balancing_point_accepted_valve_candidate_consequence_disposition_v1,
 )
+from HVAC.hydronics.proportioning.balancing_point_approved_valve_candidate_design_duty_envelope_v1 import (
+    build_balancing_point_approved_valve_candidate_design_duty_envelope_v1,
+)
 from HVAC.hydronics_v3.dto.valve_catalog_dto import ValveCatalogDTO
 from HVAC.hydronics_v3.catalogues.local_valve_catalogue_loader_v1 import (
     load_bundled_local_valve_catalogue_v1,
@@ -2845,6 +2848,69 @@ class HydronicsSchematicPanelAdapter:
         return rows
 
     @staticmethod
+    def _build_approved_valve_candidate_design_duty_gui_rows_v1(
+            envelopes,
+    ) -> list[dict]:
+        """Format H-S53-A evidence without granting product authority."""
+
+        def number(value, suffix: str, digits: int) -> str:
+            if value is None:
+                return "—"
+            try:
+                return f"{float(value):.{digits}f}{suffix}"
+            except (TypeError, ValueError):
+                return "—"
+
+        rows: list[dict] = []
+        for source in tuple(getattr(envelopes, "rows", ()) or ()):
+            if not bool(
+                    getattr(source, "detailed_valve_design_required", False)
+            ):
+                continue
+            rows.append({
+                "balancing_point_id": getattr(
+                    source, "balancing_point_id", "—"
+                ),
+                "point_scope": getattr(source, "point_scope", "—"),
+                "point_role": getattr(source, "point_role", "—"),
+                "topology": getattr(source, "topology", "—"),
+                "governed_routes": ", ".join(
+                    tuple(getattr(source, "governed_route_ids", ()) or ())
+                ) or "—",
+                "catalog_id": getattr(source, "catalog_id", "") or "—",
+                "valve_ref": getattr(source, "valve_ref", "") or "—",
+                "current_kv": number(
+                    getattr(source, "current_kv_m3_h", None), "", 3
+                ),
+                "point_flow": number(
+                    getattr(source, "point_flow_kg_s", None), " kg/s", 5
+                ),
+                "required_kv": number(
+                    getattr(source, "required_kv", None), "", 3
+                ),
+                "implied_dp": number(
+                    getattr(source, "implied_valve_dp_pa", None), " Pa", 1
+                ),
+                "controlled_dp": number(
+                    getattr(source, "controlled_circuit_dp_pa", None),
+                    " Pa",
+                    1,
+                ),
+                "implied_authority": number(
+                    getattr(source, "implied_authority", None), "", 3
+                ),
+                "design_authority": number(
+                    getattr(source, "design_authority", None), "", 3
+                ),
+                "ready": "Yes" if getattr(source, "ready", False) else "No",
+                "status": getattr(source, "status", "—"),
+                "blockers": "; ".join(
+                    tuple(getattr(source, "blockers", ()) or ())
+                ) or "—",
+            })
+        return rows
+
+    @staticmethod
     def _build_product_search_duty_envelope_gui_rows_v1(envelopes) -> list[dict]:
         """Format H-S49-A envelopes without granting product authority."""
         def number(value, suffix: str, digits: int) -> str:
@@ -4990,6 +5056,16 @@ class HydronicsSchematicPanelAdapter:
             self._balancing_point_accepted_valve_candidate_consequence_disposition_resolution = (
                 point_valve_candidate_consequence_disposition
             )
+            approved_valve_candidate_design_duties = (
+                build_balancing_point_approved_valve_candidate_design_duty_envelope_v1(
+                    point_product_search_envelopes,
+                    point_valve_candidate_consequence,
+                    point_valve_candidate_consequence_disposition,
+                )
+            )
+            self._balancing_point_approved_valve_candidate_design_duty_envelope_preview = (
+                approved_valve_candidate_design_duties
+            )
             point_display_rows = self._build_balancing_point_gui_rows_v1(
                 point_kvs_utilisation
             )
@@ -5088,6 +5164,16 @@ class HydronicsSchematicPanelAdapter:
                         point_valve_candidate_acceptance,
                         point_valve_candidate_consequence,
                         point_valve_candidate_consequence_disposition,
+                    )
+                )
+
+            if hasattr(
+                    self._panel,
+                    "set_approved_valve_candidate_design_duty_envelope_rows",
+            ):
+                self._panel.set_approved_valve_candidate_design_duty_envelope_rows(
+                    self._build_approved_valve_candidate_design_duty_gui_rows_v1(
+                        approved_valve_candidate_design_duties
                     )
                 )
 
