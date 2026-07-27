@@ -1793,6 +1793,76 @@ class HydronicsSchematicPanel(QWidget):
             3,
         )
 
+        candidate_layout.addWidget(
+            QLabel(
+                "Consequence disposition:",
+                self._point_valve_candidate_acceptance_editor,
+            ),
+            6,
+            0,
+        )
+        self._point_valve_candidate_consequence_disposition_combo = (
+            QComboBox(self._point_valve_candidate_acceptance_editor)
+        )
+        self._point_valve_candidate_consequence_disposition_combo.currentIndexChanged.connect(
+            self._on_point_valve_candidate_consequence_disposition_changed_v1
+        )
+        candidate_layout.addWidget(
+            self._point_valve_candidate_consequence_disposition_combo,
+            6,
+            1,
+        )
+        candidate_layout.addWidget(
+            QLabel(
+                "Disposition status:",
+                self._point_valve_candidate_acceptance_editor,
+            ),
+            6,
+            2,
+        )
+        self._point_valve_candidate_consequence_disposition_status_label = (
+            QLabel(
+                "—",
+                self._point_valve_candidate_acceptance_editor,
+            )
+        )
+        self._point_valve_candidate_consequence_disposition_status_label.setWordWrap(
+            True
+        )
+        candidate_layout.addWidget(
+            self._point_valve_candidate_consequence_disposition_status_label,
+            6,
+            3,
+        )
+        self._point_valve_candidate_consequence_disposition_apply_button = (
+            QPushButton(
+                "Apply consequence disposition",
+                self._point_valve_candidate_acceptance_editor,
+            )
+        )
+        self._point_valve_candidate_consequence_disposition_clear_button = (
+            QPushButton(
+                "Clear consequence disposition",
+                self._point_valve_candidate_acceptance_editor,
+            )
+        )
+        self._point_valve_candidate_consequence_disposition_apply_button.clicked.connect(
+            self._on_apply_point_valve_candidate_consequence_disposition_v1
+        )
+        self._point_valve_candidate_consequence_disposition_clear_button.clicked.connect(
+            self._on_clear_point_valve_candidate_consequence_disposition_v1
+        )
+        candidate_layout.addWidget(
+            self._point_valve_candidate_consequence_disposition_apply_button,
+            7,
+            2,
+        )
+        candidate_layout.addWidget(
+            self._point_valve_candidate_consequence_disposition_clear_button,
+            7,
+            3,
+        )
+
         self._point_valve_candidate_acceptance_apply_button = QPushButton(
             "Accept selected valve candidate",
             self._point_valve_candidate_acceptance_editor,
@@ -1826,7 +1896,7 @@ class HydronicsSchematicPanel(QWidget):
                 "Manual point valve-candidate acceptance — design intent"
             ),
             table=self._point_valve_candidate_acceptance_editor,
-            min_height=195,
+            min_height=285,
             expanded=True,
         )
         self.set_point_valve_candidate_acceptance_editor_rows([])
@@ -6611,6 +6681,15 @@ class HydronicsSchematicPanel(QWidget):
         """Register the adapter-owned H-S52-B intent callback."""
         self._point_valve_candidate_acceptance_callback = callback
 
+    def set_point_valve_candidate_consequence_disposition_callback(
+            self,
+            callback,
+    ) -> None:
+        """Register the adapter-owned H-S52-E disposition callback."""
+        self._point_valve_candidate_consequence_disposition_callback = (
+            callback
+        )
+
     def set_point_valve_candidate_acceptance_editor_rows(
             self,
             rows: list[dict],
@@ -6725,6 +6804,9 @@ class HydronicsSchematicPanel(QWidget):
             self._point_valve_candidate_acceptance_clear_button.setEnabled(
                 False
             )
+            self._update_point_valve_candidate_consequence_disposition_v1(
+                None
+            )
             return
 
         candidate_combo.setEnabled(bool(row.get("candidates")))
@@ -6765,12 +6847,149 @@ class HydronicsSchematicPanel(QWidget):
         self._point_valve_candidate_consequence_label.setText(
             consequence_text
         )
+        self._update_point_valve_candidate_consequence_disposition_v1(
+            row
+        )
         self._point_valve_candidate_acceptance_clear_button.setEnabled(
             bool(row.get("has_acceptance"))
         )
         self._on_point_valve_candidate_acceptance_candidate_changed_v1(
             candidate_combo.currentIndex()
         )
+
+    def _update_point_valve_candidate_consequence_disposition_v1(
+            self,
+            row: dict | None,
+    ) -> None:
+        combo = (
+            self._point_valve_candidate_consequence_disposition_combo
+        )
+        blocked = combo.blockSignals(True)
+        try:
+            combo.clear()
+            combo.addItem("Select a manual disposition…", None)
+            combo.addItem(
+                "Approve for later detailed valve design",
+                "approved_for_later_valve_design",
+            )
+            combo.addItem(
+                "Require catalogue valve-candidate revision",
+                "valve_candidate_revision_required",
+            )
+            disposition = str(
+                (row or {}).get("consequence_disposition") or ""
+            )
+            wanted = combo.findData(disposition)
+            combo.setCurrentIndex(wanted if wanted >= 0 else 0)
+        finally:
+            combo.blockSignals(blocked)
+
+        consequence_available = bool(
+            (row or {}).get("consequence_available")
+        )
+        blockers = "; ".join(
+            str(value)
+            for value in tuple(
+                (row or {}).get(
+                    "consequence_disposition_blockers"
+                )
+                or ()
+            )
+            if str(value or "").strip()
+        )
+        status = str(
+            (row or {}).get("consequence_disposition_status")
+            or (
+                "Manual catalogue-candidate consequence "
+                "disposition pending"
+                if row is not None
+                else "No catalogue-candidate consequence selected"
+            )
+        )
+        self._point_valve_candidate_consequence_disposition_status_label.setText(
+            status if not blockers else f"{status} — {blockers}"
+        )
+        combo.setEnabled(consequence_available)
+        self._point_valve_candidate_consequence_disposition_clear_button.setEnabled(
+            bool((row or {}).get("consequence_disposition"))
+        )
+        self._on_point_valve_candidate_consequence_disposition_changed_v1(
+            combo.currentIndex()
+        )
+
+    def _on_point_valve_candidate_consequence_disposition_changed_v1(
+            self,
+            _index: int = -1,
+    ) -> None:
+        point_id = str(
+            getattr(
+                self,
+                "_point_valve_candidate_acceptance_selected_point_id",
+                "",
+            )
+            or ""
+        )
+        combo = (
+            self._point_valve_candidate_consequence_disposition_combo
+        )
+        self._point_valve_candidate_consequence_disposition_apply_button.setEnabled(
+            bool(point_id)
+            and combo.isEnabled()
+            and combo.currentData() is not None
+        )
+
+    def _on_apply_point_valve_candidate_consequence_disposition_v1(
+            self,
+    ) -> None:
+        point_id = str(
+            getattr(
+                self,
+                "_point_valve_candidate_acceptance_selected_point_id",
+                "",
+            )
+            or ""
+        )
+        disposition = (
+            self._point_valve_candidate_consequence_disposition_combo.currentData()
+        )
+        callback = getattr(
+            self,
+            "_point_valve_candidate_consequence_disposition_callback",
+            None,
+        )
+        if (
+            not point_id
+            or disposition is None
+            or not callable(callback)
+        ):
+            return
+        callback({
+            "action": "set",
+            "balancing_point_id": point_id,
+            "disposition": str(disposition),
+        })
+
+    def _on_clear_point_valve_candidate_consequence_disposition_v1(
+            self,
+    ) -> None:
+        point_id = str(
+            getattr(
+                self,
+                "_point_valve_candidate_acceptance_selected_point_id",
+                "",
+            )
+            or ""
+        )
+        callback = getattr(
+            self,
+            "_point_valve_candidate_consequence_disposition_callback",
+            None,
+        )
+        if point_id and callable(callback):
+            callback({
+                "action": "clear",
+                "balancing_point_id": point_id,
+            })
 
     def _on_point_valve_candidate_acceptance_candidate_changed_v1(
             self,

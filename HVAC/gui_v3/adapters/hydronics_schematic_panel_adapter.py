@@ -207,6 +207,12 @@ from HVAC.hydronics.proportioning.balancing_point_valve_candidate_acceptance_int
 from HVAC.hydronics.proportioning.balancing_point_accepted_valve_candidate_hydraulic_consequence_v1 import (
     build_balancing_point_accepted_valve_candidate_hydraulic_consequence_v1,
 )
+from HVAC.hydronics.proportioning.balancing_point_accepted_valve_candidate_consequence_disposition_intent_v1 import (
+    APPROVED_FOR_LATER_VALVE_DESIGN,
+    VALVE_CANDIDATE_REVISION_REQUIRED,
+    BalancingPointAcceptedValveCandidateConsequenceDispositionIntentV1,
+    resolve_balancing_point_accepted_valve_candidate_consequence_disposition_v1,
+)
 from HVAC.hydronics_v3.dto.valve_catalog_dto import ValveCatalogDTO
 from HVAC.hydronics_v3.catalogues.local_valve_catalogue_loader_v1 import (
     load_bundled_local_valve_catalogue_v1,
@@ -366,6 +372,14 @@ class HydronicsSchematicPanelAdapter:
         ):
             self._panel.set_point_valve_candidate_acceptance_callback(
                 self.set_point_valve_candidate_acceptance
+            )
+
+        if hasattr(
+                self._panel,
+                "set_point_valve_candidate_consequence_disposition_callback",
+        ):
+            self._panel.set_point_valve_candidate_consequence_disposition_callback(
+                self.set_point_valve_candidate_consequence_disposition
             )
 
         self.refresh()
@@ -564,6 +578,133 @@ class HydronicsSchematicPanelAdapter:
 
         self.refresh()
         for signal_name in ("project_state_changed", "project_changed"):
+            signal = getattr(self._context, signal_name, None)
+            emit = getattr(signal, "emit", None)
+            if not callable(emit):
+                continue
+            try:
+                emit()
+            except TypeError:
+                try:
+                    emit(project)
+                except TypeError:
+                    pass
+
+    def set_point_valve_candidate_consequence_disposition(
+            self,
+            payload: dict,
+    ) -> None:
+        """Persist or clear one explicit H-S52-E manual disposition."""
+        if not isinstance(payload, dict):
+            raise ValueError(
+                "Valve-candidate consequence disposition payload "
+                "must be a dictionary"
+            )
+        project = self._project_state
+        if project is None:
+            return
+        point_id = str(
+            payload.get("balancing_point_id") or ""
+        ).strip()
+        if not point_id:
+            raise ValueError("balancing_point_id is required")
+
+        action = str(payload.get("action") or "").strip().lower()
+        intent = getattr(
+            project,
+            "hydronic_point_accepted_valve_candidate_"
+            "consequence_disposition_intent",
+            None,
+        )
+
+        if action == "set":
+            consequence = getattr(
+                self,
+                "_balancing_point_accepted_valve_candidate_"
+                "hydraulic_consequence_preview",
+                None,
+            )
+            consequence_row = next(
+                (
+                    row
+                    for row in tuple(
+                        getattr(consequence, "rows", ()) or ()
+                    )
+                    if str(
+                        getattr(row, "balancing_point_id", "") or ""
+                    ).strip() == point_id
+                ),
+                None,
+            )
+            if (
+                consequence_row is None
+                or not bool(
+                    getattr(
+                        consequence_row,
+                        "consequence_available",
+                        False,
+                    )
+                )
+            ):
+                raise ValueError(
+                    "Current H-S52-C accepted catalogue valve-candidate "
+                    "consequence is required"
+                )
+
+            disposition = str(
+                payload.get("disposition") or ""
+            ).strip()
+            if disposition not in {
+                APPROVED_FOR_LATER_VALVE_DESIGN,
+                VALVE_CANDIDATE_REVISION_REQUIRED,
+            }:
+                raise ValueError(
+                    "Unknown accepted valve-candidate "
+                    "consequence disposition"
+                )
+            if intent is None:
+                intent = (
+                    BalancingPointAcceptedValveCandidateConsequenceDispositionIntentV1()
+                )
+            intent.set_disposition(
+                balancing_point_id=point_id,
+                disposition=disposition,
+                catalog_id_basis=getattr(
+                    consequence_row,
+                    "catalog_id",
+                    "",
+                ),
+                valve_ref_basis=getattr(
+                    consequence_row,
+                    "valve_ref",
+                    "",
+                ),
+                current_kv_m3_h_basis=getattr(
+                    consequence_row,
+                    "current_kv_m3_h",
+                    None,
+                ),
+            )
+        elif action == "clear":
+            if intent is None:
+                self.refresh()
+                return
+            intent.clear_disposition(point_id)
+        else:
+            raise ValueError("action must be 'set' or 'clear'")
+
+        project.hydronic_point_accepted_valve_candidate_consequence_disposition_intent = (
+            intent
+        )
+        project.hydronics_valid = False
+        if hasattr(project, "mark_dirty"):
+            project.mark_dirty()
+
+        self.refresh()
+        for signal_name in (
+            "project_state_changed",
+            "project_changed",
+        ):
             signal = getattr(self._context, signal_name, None)
             emit = getattr(signal, "emit", None)
             if not callable(emit):
@@ -2495,12 +2636,19 @@ class HydronicsSchematicPanelAdapter:
             candidate_evidence,
             acceptance_resolution,
             consequence_evidence=None,
+            disposition_resolution=None,
     ) -> list[dict]:
         """Join candidates, resolved identity and H-S52-C consequence."""
         consequence_by_id = {
             str(getattr(row, "balancing_point_id", "") or "").strip(): row
             for row in tuple(
                 getattr(consequence_evidence, "rows", ()) or ()
+            )
+        }
+        disposition_by_id = {
+            str(getattr(row, "balancing_point_id", "") or "").strip(): row
+            for row in tuple(
+                getattr(disposition_resolution, "rows", ()) or ()
             )
         }
         resolved_by_id = {
@@ -2551,6 +2699,7 @@ class HydronicsSchematicPanelAdapter:
             if not candidates and not has_acceptance:
                 continue
             consequence = consequence_by_id.get(point_id)
+            disposition = disposition_by_id.get(point_id)
 
             def number(value, suffix: str, digits: int) -> str:
                 if value is None:
@@ -2603,6 +2752,33 @@ class HydronicsSchematicPanelAdapter:
                 ),
                 "consequence_blockers": tuple(
                     getattr(consequence, "blockers", ()) or ()
+                ),
+                "consequence_disposition": str(
+                    getattr(disposition, "disposition", "") or ""
+                ),
+                "approved_for_later_valve_design": bool(
+                    getattr(
+                        disposition,
+                        "approved_for_later_valve_design",
+                        False,
+                    )
+                ),
+                "valve_candidate_revision_required": bool(
+                    getattr(
+                        disposition,
+                        "valve_candidate_revision_required",
+                        False,
+                    )
+                ),
+                "consequence_disposition_status": str(
+                    getattr(disposition, "status", "")
+                    or (
+                        "Manual catalogue-candidate consequence "
+                        "disposition pending"
+                    )
+                ),
+                "consequence_disposition_blockers": tuple(
+                    getattr(disposition, "blockers", ()) or ()
                 ),
             })
         return rows
@@ -4800,6 +4976,20 @@ class HydronicsSchematicPanelAdapter:
             self._balancing_point_accepted_valve_candidate_hydraulic_consequence_preview = (
                 point_valve_candidate_consequence
             )
+            point_valve_candidate_consequence_disposition = (
+                resolve_balancing_point_accepted_valve_candidate_consequence_disposition_v1(
+                    getattr(
+                        self._project_state,
+                        "hydronic_point_accepted_valve_candidate_"
+                        "consequence_disposition_intent",
+                        None,
+                    ),
+                    point_valve_candidate_consequence,
+                )
+            )
+            self._balancing_point_accepted_valve_candidate_consequence_disposition_resolution = (
+                point_valve_candidate_consequence_disposition
+            )
             point_display_rows = self._build_balancing_point_gui_rows_v1(
                 point_kvs_utilisation
             )
@@ -4897,6 +5087,7 @@ class HydronicsSchematicPanelAdapter:
                         point_catalogue_candidate_matches,
                         point_valve_candidate_acceptance,
                         point_valve_candidate_consequence,
+                        point_valve_candidate_consequence_disposition,
                     )
                 )
 
