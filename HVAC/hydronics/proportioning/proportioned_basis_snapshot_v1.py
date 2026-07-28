@@ -11,6 +11,11 @@ from typing import Any
 from HVAC.hydronics.proportioning.balancing_point_accepted_kvs_consequence_disposition_intent_v1 import (
     APPROVED_FOR_PRODUCT_SEARCH,
 )
+from HVAC.hydronics.proportioning.committed_proportioning_hydraulic_input_authority_v1 import (
+    CommittedProportioningHydraulicInputAuthorityV1,
+    committed_proportioning_hydraulic_input_authority_from_dict_v1,
+    committed_proportioning_hydraulic_input_authority_to_dict_v1,
+)
 from HVAC.hydronics.proportioning.balancing_point_proportioning_commit_readiness_v1 import (
     GENERIC_KVS_BASIS_APPROVED,
     PointProportioningCommitReadinessV1,
@@ -78,6 +83,14 @@ class ProportionedBasisSnapshotV1:
     committed_point_valve_bases: tuple[CommittedPointValveBasisV1, ...] = ()
     point_valve_basis_status: str = (
         "No committed point-valve basis evidence"
+    )
+
+    # H-S54-A — optional typed numeric authority; H-S54-B wires Commit.
+    hydraulic_input_authority: (
+        CommittedProportioningHydraulicInputAuthorityV1 | None
+    ) = None
+    hydraulic_input_authority_status: str = (
+        "No committed hydraulic-input authority"
     )
 
     basis_only_output_ready: bool = True
@@ -308,6 +321,19 @@ def proportioned_basis_snapshot_to_dict_v1(
             )
             or "No committed point-valve basis evidence"
         ),
+        "hydraulic_input_authority": (
+            committed_proportioning_hydraulic_input_authority_to_dict_v1(
+                getattr(snapshot, "hydraulic_input_authority", None)
+            )
+        ),
+        "hydraulic_input_authority_status": str(
+            getattr(
+                snapshot,
+                "hydraulic_input_authority_status",
+                "No committed hydraulic-input authority",
+            )
+            or "No committed hydraulic-input authority"
+        ),
         "basis_only_output_ready": bool(
             getattr(snapshot, "basis_only_output_ready", True)
         ),
@@ -377,6 +403,18 @@ def proportioned_basis_snapshot_from_dict_v1(
                 "No committed point-valve basis evidence",
             )
             or "No committed point-valve basis evidence"
+        ),
+        hydraulic_input_authority=(
+            committed_proportioning_hydraulic_input_authority_from_dict_v1(
+                data.get("hydraulic_input_authority")
+            )
+        ),
+        hydraulic_input_authority_status=str(
+            data.get(
+                "hydraulic_input_authority_status",
+                "No committed hydraulic-input authority",
+            )
+            or "No committed hydraulic-input authority"
         ),
         basis_only_output_ready=_bool_from_dict_v1(
             data.get("basis_only_output_ready"),

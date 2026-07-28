@@ -45,6 +45,13 @@ class RoutePressureSectionContributionV1:
     status: str
     section_scope: str = "route_section"
 
+    # H-S54-A — numeric source evidence copied into committed authority.
+    carried_flow_kg_s: float | None = None
+    pipe_size_label: str = ""
+    dn: int | None = None
+    length_m: float | None = None
+    k_total: float | None = None
+
 
 @dataclass(frozen=True, slots=True)
 class RoutePressureAccumulatorRowV1:
@@ -337,6 +344,11 @@ def _build_single_route_pressure_row_v1(
                 ),
                 status=preview.status,
                 section_scope="route_section",
+                carried_flow_kg_s=float(result.carried_flow_kg_s),
+                pipe_size_label=str(result.pipe_size_label),
+                dn=_dn_from_pipe_size_label_v1(result.pipe_size_label),
+                length_m=section_length_m,
+                k_total=float(preview.k_total),
             )
         )
 
@@ -407,6 +419,11 @@ def _main_pressure_contribution_v1(
         section_total_pressure_drop_Pa=row.section_total_pressure_drop_Pa,
         status=str(row.status),
         section_scope=str(row.section_kind),
+        carried_flow_kg_s=float(row.carried_flow_kg_s),
+        pipe_size_label=str(row.pipe_size_label),
+        dn=int(row.dn),
+        length_m=row.length_m,
+        k_total=float(row.k_total),
     )
 
 def _route_pressure_material_v1(project_state: Any) -> str:
