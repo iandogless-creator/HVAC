@@ -81,8 +81,9 @@ def main() -> None:
     )
     assert (
         "Approved catalogue valve-candidate detailed-design duty "
-        "envelopes — read-only" in panel_source
+        in panel_source
     )
+    assert "envelopes — read-only" in panel_source
     assert "_approved_valve_candidate_design_duty_table" in panel_source
     assert "expanded=False" in panel_source
 
