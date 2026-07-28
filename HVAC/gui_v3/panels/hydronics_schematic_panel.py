@@ -10114,6 +10114,44 @@ QTableWidget::item:selected:!active {
                 "committing proportioning."
             )
 
+    def set_commit_proportioning_committed(
+            self,
+            *,
+            committed: bool,
+    ) -> None:
+        """
+        H-S54-B committed-state presentation only.
+
+        The button remains an action and becomes Recommit Proportioning.
+        This method does not read or mutate ProjectState.
+        """
+        button = getattr(self, "_commit_proportioning_button", None)
+        if button is None:
+            return
+
+        committed = bool(committed)
+        button.setText(
+            "Recommit Proportioning"
+            if committed
+            else "Commit Proportioning"
+        )
+        if committed:
+            button.setToolTip(
+                "The current typed hydraulic input authority is committed. "
+                "Use this action again to recommit current evidence."
+            )
+            label = getattr(
+                self,
+                "_return_arrangement_acceptance_status_label",
+                None,
+            )
+            if label is not None:
+                label.setText(
+                    "Proportioning hydraulic basis is committed. "
+                    "No final pump, valve setting, pipe resizing or "
+                    "final balancing has been committed."
+                )
+
     def _on_commit_proportioning_button_clicked(self) -> None:
         """
         H-S26-G:

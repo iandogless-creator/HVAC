@@ -44,9 +44,9 @@ class CommittedProportioningHydraulicRouteV1:
     controlling: bool
     required_added_pressure_drop_Pa: float
     preliminary_resistance_Pa_per_kg_s2: float
-    common_main_pressure_drop_Pa: float
-    leg_entry_pressure_drop_Pa: float
-    physical_main_entry_pressure_drop_Pa: float
+    common_main_pressure_drop_Pa: float | None
+    leg_entry_pressure_drop_Pa: float | None
+    physical_main_entry_pressure_drop_Pa: float | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -258,7 +258,7 @@ def committed_proportioning_hydraulic_input_authority_from_dict_v1(
                     reynolds_number=_positive(raw.get("reynolds_number")),
                     friction_factor=_positive(raw.get("friction_factor")),
                     friction_method=_required_text(raw, "friction_method"),
-                    colebrook_iteration_count=_positive_int(
+                    colebrook_iteration_count=_non_negative_int(
                         raw.get("colebrook_iteration_count")
                     ),
                     colebrook_converged=bool(
@@ -294,13 +294,13 @@ def committed_proportioning_hydraulic_input_authority_from_dict_v1(
                     preliminary_resistance_Pa_per_kg_s2=_non_negative(
                         raw.get("preliminary_resistance_Pa_per_kg_s2")
                     ),
-                    common_main_pressure_drop_Pa=_non_negative(
+                    common_main_pressure_drop_Pa=_optional_non_negative(
                         raw.get("common_main_pressure_drop_Pa")
                     ),
-                    leg_entry_pressure_drop_Pa=_non_negative(
+                    leg_entry_pressure_drop_Pa=_optional_non_negative(
                         raw.get("leg_entry_pressure_drop_Pa")
                     ),
-                    physical_main_entry_pressure_drop_Pa=_non_negative(
+                    physical_main_entry_pressure_drop_Pa=_optional_non_negative(
                         raw.get("physical_main_entry_pressure_drop_Pa")
                     ),
                 )
@@ -350,7 +350,7 @@ def _freeze_section(
         reynolds_number=_positive(getattr(row, "reynolds_number", None)),
         friction_factor=_positive(getattr(row, "friction_factor", None)),
         friction_method=_required_attr_text(row, "friction_method"),
-        colebrook_iteration_count=_positive_int(
+        colebrook_iteration_count=_non_negative_int(
             getattr(row, "colebrook_iteration_count", None)
         ),
         colebrook_converged=True,
@@ -383,19 +383,21 @@ def _freeze_route(
             getattr(row, "chosen_dp_pa", None)
         ),
         controlling=bool(getattr(row, "is_controlling", False)),
-        required_added_pressure_drop_Pa=_non_negative(
-            getattr(resistance, "required_added_dp", None)
+        required_added_pressure_drop_Pa=_named_non_negative(
+            getattr(resistance, "required_added_dp", None),
+            "required_added_pressure_drop_Pa",
         ),
-        preliminary_resistance_Pa_per_kg_s2=_non_negative(
-            getattr(resistance, "resistance_pa_per_kg_s2", None)
+        preliminary_resistance_Pa_per_kg_s2=_named_non_negative(
+            getattr(resistance, "resistance_pa_per_kg_s2", None),
+            "preliminary_resistance_Pa_per_kg_s2",
         ),
-        common_main_pressure_drop_Pa=_non_negative(
+        common_main_pressure_drop_Pa=_optional_non_negative(
             getattr(row, "common_main_dp_pa", None)
         ),
-        leg_entry_pressure_drop_Pa=_non_negative(
+        leg_entry_pressure_drop_Pa=_optional_non_negative(
             getattr(row, "leg_entry_dp_pa", None)
         ),
-        physical_main_entry_pressure_drop_Pa=_non_negative(
+        physical_main_entry_pressure_drop_Pa=_optional_non_negative(
             getattr(row, "physical_main_entry_dp_pa", None)
         ),
     )
@@ -451,6 +453,26 @@ def _positive_int(value: object) -> int:
     if number <= 0:
         raise ValueError("positive integer evidence required")
     return number
+
+
+def _non_negative_int(value: object) -> int:
+    number = int(_number(value))
+    if number < 0:
+        raise ValueError("non-negative integer evidence required")
+    return number
+
+
+def _optional_non_negative(value: object) -> float | None:
+    if value is None:
+        return None
+    return _non_negative(value)
+
+
+def _named_non_negative(value: object, name: str) -> float:
+    try:
+        return _non_negative(value)
+    except ValueError as exc:
+        raise ValueError(f"{name}: {exc}") from exc
 
 
 def _text(value: object) -> str:

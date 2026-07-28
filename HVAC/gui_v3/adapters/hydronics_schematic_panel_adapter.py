@@ -130,6 +130,9 @@ from HVAC.hydronics.proportioning.effective_return_arrangement_resolver_v1 impor
 from HVAC.hydronics.proportioning.proportioned_basis_snapshot_v1 import (
     build_proportioned_basis_snapshot_v1,
 )
+from HVAC.hydronics.proportioning.committed_proportioning_hydraulic_input_authority_v1 import (
+    build_committed_proportioning_hydraulic_input_authority_v1,
+)
 from HVAC.hydronics.proportioning.chosen_basis_route_pressure_preview_v1 import (
     build_chosen_basis_route_pressure_preview_v1,
 )
@@ -1426,6 +1429,7 @@ class HydronicsSchematicPanelAdapter:
         route_pressure_projection = None
         route_pressure_rows = []
         route_shortfall_rows = []
+        self._committed_hydraulic_route_pressure_projection_v1 = None
 
         if getattr(self._project_state, "hydronic_topology", None) is not None:
             try:
@@ -1433,6 +1437,9 @@ class HydronicsSchematicPanelAdapter:
                     build_route_pressure_accumulator_v1(
                         self._project_state,
                     )
+                )
+                self._committed_hydraulic_route_pressure_projection_v1 = (
+                    route_pressure_projection
                 )
 
                 route_pressure_rows = (
@@ -4792,11 +4799,27 @@ class HydronicsSchematicPanelAdapter:
                 "hydronic_proportioned_basis_snapshot",
                 None,
             )
+            if hasattr(
+                self._panel,
+                "set_commit_proportioning_committed",
+            ):
+                self._panel.set_commit_proportioning_committed(
+                    committed=bool(
+                        getattr(
+                            committed_snapshot,
+                            "hydraulic_input_authority",
+                            None,
+                        )
+                    )
+                )
             self._panel.set_committed_point_valve_basis_detail_rows(
                 self._build_committed_point_valve_basis_detail_rows_v1(
                     committed_snapshot
                 )
             )
+
+        self._committed_hydraulic_chosen_controlling_rows_v1 = ()
+        self._committed_hydraulic_resistance_basis_v1 = None
 
         try:
             resolution = resolve_effective_return_arrangements_v1(
@@ -4846,6 +4869,12 @@ class HydronicsSchematicPanelAdapter:
                         )
                     ),
                 )
+            )
+            self._committed_hydraulic_chosen_controlling_rows_v1 = tuple(
+                chosen_controlling_rows or ()
+            )
+            self._committed_hydraulic_resistance_basis_v1 = (
+                chosen_resistance_basis
             )
 
             provisional_burden_rows = (
@@ -6737,9 +6766,39 @@ class HydronicsSchematicPanelAdapter:
             print("H-S51-A Commit Proportioning blocked:", reason)
             return
 
+        hydraulic_input_authority = (
+            build_committed_proportioning_hydraulic_input_authority_v1(
+                route_pressure_projection=getattr(
+                    self,
+                    "_committed_hydraulic_route_pressure_projection_v1",
+                    None,
+                ),
+                chosen_controlling_rows=getattr(
+                    self,
+                    "_committed_hydraulic_chosen_controlling_rows_v1",
+                    (),
+                ),
+                resistance_basis=getattr(
+                    self,
+                    "_committed_hydraulic_resistance_basis_v1",
+                    None,
+                ),
+            )
+        )
+        if not hydraulic_input_authority.ready:
+            reason = hydraulic_input_authority.status
+            if hasattr(self._panel, "set_commit_proportioning_ready"):
+                self._panel.set_commit_proportioning_ready(
+                    ready=False,
+                    reason=reason,
+                )
+            print("H-S54-B Commit Proportioning blocked:", reason)
+            return
+
         result = build_proportioned_basis_snapshot_v1(
             project,
             point_commit_readiness=point_commit_readiness,
+            hydraulic_input_authority=hydraulic_input_authority,
         )
 
         if not result.ready or result.snapshot is None:
@@ -6756,6 +6815,25 @@ class HydronicsSchematicPanelAdapter:
             return
 
         project.hydronic_proportioned_basis_snapshot = result.snapshot
+        project.hydronics_valid = False
+        if hasattr(project, "mark_dirty"):
+            project.mark_dirty()
+
+        for signal_name in (
+            "project_state_changed",
+            "project_changed",
+        ):
+            signal = getattr(self._context, signal_name, None)
+            emit = getattr(signal, "emit", None)
+            if not callable(emit):
+                continue
+            try:
+                emit()
+            except TypeError:
+                try:
+                    emit(project)
+                except TypeError:
+                    pass
 
         print(
             "H-S26-G committed proportioning basis snapshot:",

@@ -114,6 +114,9 @@ def build_proportioned_basis_snapshot_v1(
         project_state: Any,
         *,
         point_commit_readiness: PointProportioningCommitReadinessV1 | None = None,
+        hydraulic_input_authority: (
+            CommittedProportioningHydraulicInputAuthorityV1 | None
+        ) = None,
 ) -> ProportionedBasisSnapshotBuildResultV1:
     """
     Build a frozen accepted proportioning-basis snapshot.
@@ -155,6 +158,28 @@ def build_proportioned_basis_snapshot_v1(
                 "point basis row(s) frozen — no valve product selected"
             )
 
+    hydraulic_input_authority_status = (
+        "No committed hydraulic-input authority"
+    )
+    if hydraulic_input_authority is not None:
+        if not isinstance(
+            hydraulic_input_authority,
+            CommittedProportioningHydraulicInputAuthorityV1,
+        ):
+            blockers.append(
+                "H-S54-A hydraulic-input authority type required"
+            )
+        elif not hydraulic_input_authority.ready:
+            blockers.extend(tuple(hydraulic_input_authority.blockers or ()))
+            if not hydraulic_input_authority.blockers:
+                blockers.append(
+                    "H-S54-A hydraulic-input authority must be ready"
+                )
+        else:
+            hydraulic_input_authority_status = (
+                hydraulic_input_authority.status
+            )
+
     if blockers:
         return ProportionedBasisSnapshotBuildResultV1(
             ready=False,
@@ -176,6 +201,10 @@ def build_proportioned_basis_snapshot_v1(
         nominal_gradient_label=readiness.nominal_gradient_label,
         committed_point_valve_bases=point_valve_bases,
         point_valve_basis_status=point_valve_basis_status,
+        hydraulic_input_authority=hydraulic_input_authority,
+        hydraulic_input_authority_status=(
+            hydraulic_input_authority_status
+        ),
     )
 
     return ProportionedBasisSnapshotBuildResultV1(
