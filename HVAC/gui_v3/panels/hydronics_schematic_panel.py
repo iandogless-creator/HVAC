@@ -643,13 +643,12 @@ class HydronicsSchematicPanel(QWidget):
             columns=[
                 "Route",
                 "Basis",
-                "Sections",
-                "Flow kg/s",
-                "Pipe DN",
-                "Δp/m",
                 "Chosen Δp",
                 "Added Δp",
-                "Authority",
+                "Proportioned Δp",
+                "Target Δp",
+                "Residual",
+                "At target",
                 "Status",
             ]
         )
@@ -7869,13 +7868,12 @@ class HydronicsSchematicPanel(QWidget):
             columns=[
                 "Route",
                 "Basis",
-                "Sections",
-                "Flow kg/s",
-                "Pipe DN",
-                "Δp/m",
                 "Chosen Δp",
                 "Added Δp",
-                "Authority",
+                "Proportioned Δp",
+                "Target Δp",
+                "Residual",
+                "At target",
                 "Status",
             ]
         )
@@ -9632,8 +9630,9 @@ QTableWidget::item:selected:!active {
         table.setAlternatingRowColors(True)
         self._apply_clean_proportioned_table_focus_style_v1(table)
         table.setToolTip(
-            "Clean Proportioned output summary — basis/projection output only; "
-            "not final hydraulics."
+            "Clean Proportioned summary: committed route results appear after "
+            "Commit Proportioning; no pump, valve setting, pipe "
+            "resizing or final commissioning."
         )
 
         widths = [
@@ -9770,56 +9769,38 @@ QTableWidget::item:selected:!active {
         table.scrollToTop()
 
     def _configure_clean_proportioned_route_output_table_v1(self) -> None:
-        """
-        H-S33-E:
-        Configure the clean Proportioned route-output table.
-
-        Visual polish only:
-        • no ProjectState access
-        • no new preview calculations
-        • no final proportioning commit
-        • no valve product selection
-        • no Kv / Kvs selection
-        • no pump selection
-        • no pipe resizing
-        """
+        """Configure the H-S55-B committed/preview route result table."""
         if not hasattr(self, "_clean_proportioned_route_output_table"):
             return
 
         table = self._clean_proportioned_route_output_table
-
         table.setWordWrap(False)
         table.setAlternatingRowColors(True)
         self._apply_clean_proportioned_table_focus_style_v1(table)
         self._wire_clean_proportioned_route_output_selection_v1(table)
         table.setToolTip(
-            "Clean Proportioned route output projection only — "
-            "not final hydraulics; no valve product, no Kv/Kvs, "
-            "no pump selection, and no pipe resizing."
+            "Committed-basis route result after Commit Proportioning; "
+            "before commitment the same table shows preview evidence. "
+            "No pump, valve setting, pipe resizing or final commissioning."
         )
 
         widths = [
-            170,  # Route
+            190,  # Route
             70,   # Basis
-            75,   # Sections
-            80,   # Flow kg/s
-            80,   # Pipe DN
-            75,   # Δp/m
-            100,  # Chosen Δp
-            110,  # Added Δp
-            85,   # Authority
-            360,  # Status
+            105,  # Chosen Δp
+            105,  # Added Δp
+            125,  # Proportioned Δp
+            105,  # Target Δp
+            100,  # Residual
+            85,   # At target
+            390,  # Status
         ]
-
         for col_index, width in enumerate(widths):
             table.setColumnWidth(col_index, width)
-
         try:
             table.horizontalHeader().setStretchLastSection(True)
         except AttributeError:
             pass
-
-
 
     def set_committed_point_valve_basis_detail_rows(
             self,
@@ -9866,69 +9847,54 @@ QTableWidget::item:selected:!active {
             self,
             rows: list[dict],
     ) -> None:
-        """
-        H-S33-C:
-        Display clean Proportioned route-output rows.
-
-        Display shell only:
-        • no ProjectState access
-        • no new preview calculations
-        • no final proportioning commit
-        • no valve product selection
-        • no Kv / Kvs selection
-        • no pump selection
-        • no pipe resizing
-        """
+        """Display H-S55-B committed rows or the pre-commit fallback."""
         if not hasattr(self, "_clean_proportioned_route_output_table"):
             return
 
-        if not rows:
-            rows = [
+        display_rows = list(rows or [])
+        if not display_rows:
+            display_rows = [
                 {
                     "route": "—",
                     "basis": "—",
-                    "sections": "—",
-                    "flow_kg_s": "—",
-                    "pipe_dn": "—",
-                    "dp_per_m": "—",
                     "route_dp": "—",
                     "added_dp": "—",
-                    "authority": "—",
+                    "proportioned_dp": "—",
+                    "target_dp": "—",
+                    "residual_dp": "—",
+                    "at_target": "—",
                     "status": (
-                        "Waiting for clean Proportioned route output "
-                        "projection"
+                        "Waiting for committed or preview route evidence"
                     ),
                 }
             ]
 
+        keys = (
+            "route",
+            "basis",
+            "route_dp",
+            "added_dp",
+            "proportioned_dp",
+            "target_dp",
+            "residual_dp",
+            "at_target",
+            "status",
+        )
         table = self._clean_proportioned_route_output_table
-        table.setRowCount(len(rows))
-
-        for row_index, row in enumerate(rows):
-            values = [
-                row.get("route", "—"),
-                row.get("basis", "—"),
-                row.get("sections", "—"),
-                row.get("flow_kg_s", "—"),
-                row.get("pipe_dn", "—"),
-                row.get("dp_per_m", "—"),
-                row.get("route_dp", "—"),
-                row.get("added_dp", "—"),
-                row.get("authority", "—"),
-                row.get("status", "—"),
-            ]
-
-            for col_index, value in enumerate(values):
-                item = QTableWidgetItem(str(value))
+        table.setRowCount(len(display_rows))
+        for row_index, row in enumerate(display_rows):
+            for col_index, key in enumerate(keys):
+                item = QTableWidgetItem(str(row.get(key, "—")))
                 item.setFlags(item.flags() & ~Qt.ItemIsEditable)
                 table.setItem(row_index, col_index, item)
 
-        self._fit_table_height(table, min_height=150, max_height=260)
-        self._configure_clean_proportioned_route_output_table_v1()
-        self._refresh_clean_proportioned_focused_section_view_v1()
+        table.setWordWrap(False)
+        for row_index in range(table.rowCount()):
+            table.setRowHeight(row_index, 24)
+        self._fit_table_height(table, min_height=120, max_height=240)
         table.scrollToTop()
-
-
+        if hasattr(self, "_refresh_clean_proportioned_table_viewer_v1"):
+            self._refresh_clean_proportioned_table_viewer_v1()
 
     def set_proportioned_status(self, rows: list[dict]) -> None:
         """

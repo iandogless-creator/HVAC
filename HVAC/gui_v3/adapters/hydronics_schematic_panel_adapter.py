@@ -130,6 +130,9 @@ from HVAC.hydronics.proportioning.effective_return_arrangement_resolver_v1 impor
 from HVAC.hydronics.proportioning.proportioned_basis_snapshot_v1 import (
     build_proportioned_basis_snapshot_v1,
 )
+from HVAC.hydronics.proportioning.committed_basis_route_proportioning_result_v1 import (
+    build_committed_basis_route_proportioning_result_v1,
+)
 from HVAC.hydronics.proportioning.committed_proportioning_hydraulic_input_authority_v1 import (
     build_committed_proportioning_hydraulic_input_authority_v1,
 )
@@ -3998,18 +4001,11 @@ class HydronicsSchematicPanelAdapter:
             valve_authority_preview,
     ) -> list[dict]:
         """
-        H-S33-D:
-        Build clean Proportioned route-output rows from existing preview
-        evidence.
+        Build the clean route table from committed H-S55-A results when
+        available, otherwise retain the pre-commit H-S33 preview projection.
 
-        Display projection only:
-            no ProjectState mutation
-            no new pressure calculation
-            no valve product selection
-            no Kv / Kvs selection
-            no pump selection
-            no final balancing
-            no pipe resizing
+        Display projection only: no ProjectState mutation, pump selection,
+        valve setting, pipe resizing or commissioning/final balancing.
         """
 
         def norm(value) -> str:
@@ -4019,44 +4015,116 @@ class HydronicsSchematicPanelAdapter:
             value = str(value or "").strip()
             return value if value else "—"
 
+        def fmt_pa(value) -> str:
+            try:
+                number = float(value)
+            except (TypeError, ValueError):
+                return "—"
+            # H-S55-B1: suppress negative zero at one-decimal display
+            # precision without changing the committed numeric result.
+            if abs(number) < 0.05:
+                number = 0.0
+            return f"{number:.1f} Pa"
+
+        committed_result = getattr(
+            self,
+            "_committed_basis_route_proportioning_result_v1",
+            None,
+        )
+        if committed_result is not None:
+            committed_rows = list(
+                getattr(committed_result, "rows", ()) or ()
+            )
+            if not committed_rows:
+                return [
+                    {
+                        "route": "—",
+                        "basis": "—",
+                        "route_dp": "—",
+                        "added_dp": "—",
+                        "proportioned_dp": "—",
+                        "target_dp": "—",
+                        "residual_dp": "—",
+                        "at_target": "No",
+                        "status": text_or_dash(
+                            getattr(committed_result, "status", "")
+                        ),
+                    }
+                ]
+
+            return [
+                {
+                    "route": text_or_dash(
+                        getattr(row, "route_label", "")
+                        or getattr(row, "route_id", "")
+                    ),
+                    "basis": text_or_dash(getattr(row, "basis", "")),
+                    "route_dp": fmt_pa(
+                        getattr(row, "chosen_pressure_drop_Pa", None)
+                    ),
+                    "added_dp": fmt_pa(
+                        getattr(
+                            row,
+                            "required_added_pressure_drop_Pa",
+                            None,
+                        )
+                    ),
+                    "proportioned_dp": fmt_pa(
+                        getattr(
+                            row,
+                            "proportioned_pressure_drop_Pa",
+                            None,
+                        )
+                    ),
+                    "target_dp": fmt_pa(
+                        getattr(
+                            row,
+                            "controlling_target_pressure_drop_Pa",
+                            None,
+                        )
+                    ),
+                    "residual_dp": fmt_pa(
+                        getattr(row, "residual_to_target_Pa", None)
+                    ),
+                    "at_target": (
+                        "Yes"
+                        if bool(getattr(row, "within_tolerance", False))
+                        else "No"
+                    ),
+                    "status": text_or_dash(getattr(row, "status", "")),
+                }
+                for row in committed_rows
+            ]
+
         def fmt_authority(value) -> str:
             if value is None:
                 return "—"
-
             try:
                 return f"{float(value):.3f}"
             except (TypeError, ValueError):
                 return "—"
 
         authority_by_route: dict[str, object] = {}
-
         for row in list(getattr(valve_authority_preview, "rows", ()) or ()):
             route = norm(getattr(row, "route", ""))
             if route:
                 authority_by_route[route] = row
 
         clean_rows: list[dict] = []
-
         for burden_row in list(provisional_burden_rows or ()):
             route = text_or_dash(
                 burden_row.get("route")
                 or burden_row.get("route_label")
                 or burden_row.get("route_id")
             )
-
             if route in {"", "—", "-"}:
                 continue
 
             authority_row = authority_by_route.get(norm(route))
-
-            authority = "—"
             authority_label = ""
             authority_status = ""
-
             if authority_row is not None:
-                authority = fmt_authority(
-                    getattr(authority_row, "authority", None)
-                )
+                fmt_authority(getattr(authority_row, "authority", None))
                 authority_label = str(
                     getattr(authority_row, "authority_label", "") or ""
                 )
@@ -4069,11 +4137,25 @@ class HydronicsSchematicPanelAdapter:
                 authority_label=authority_label,
                 authority_status=authority_status,
             )
-
             clean_rows.append(
                 {
                     "route": route,
                     "basis": text_or_dash(burden_row.get("basis")),
+                    "route_dp": text_or_dash(
+                        burden_row.get("chosen_dp")
+                        or burden_row.get("route_dp")
+                        or burden_row.get("route_chosen_dp")
+                    ),
+                    "added_dp": text_or_dash(
+                        burden_row.get("required_added_dp")
+                        or burden_row.get("added_dp")
+                    ),
+                    "proportioned_dp": "—",
+                    "target_dp": "—",
+                    "residual_dp": "—",
+                    "at_target": "Preview only",
+                    "status": clean_status,
+                    # Compatibility keys retained for focused H-S33 tests.
                     "sections": text_or_dash(
                         burden_row.get("sections")
                         or burden_row.get("section_count")
@@ -4092,17 +4174,13 @@ class HydronicsSchematicPanelAdapter:
                         or burden_row.get("dp_m")
                         or burden_row.get("dp_per_m_label")
                     ),
-                    "route_dp": text_or_dash(
-                        burden_row.get("chosen_dp")
-                        or burden_row.get("route_dp")
-                        or burden_row.get("route_chosen_dp")
+                    "authority": (
+                        fmt_authority(
+                            getattr(authority_row, "authority", None)
+                        )
+                        if authority_row is not None
+                        else "—"
                     ),
-                    "added_dp": text_or_dash(
-                        burden_row.get("required_added_dp")
-                        or burden_row.get("added_dp")
-                    ),
-                    "authority": authority,
-                    "status": clean_status,
                 }
             )
 
@@ -4584,6 +4662,53 @@ class HydronicsSchematicPanelAdapter:
             chosen_controlling_rows,
             readiness_rows,
     ) -> list[dict]:
+        """Add H-S55-A committed-route status to the existing summary."""
+        rows = self._build_preview_proportioned_output_status_rows_v1(
+            resolution=resolution,
+            chosen_preview_rows=chosen_preview_rows,
+            chosen_controlling_rows=chosen_controlling_rows,
+            readiness_rows=readiness_rows,
+        )
+        result = getattr(
+            self,
+            "_committed_basis_route_proportioning_result_v1",
+            None,
+        )
+        if result is None:
+            return rows
+
+        output = [dict(row or {}) for row in rows]
+        for row in output:
+            if str(row.get("item") or "") != "Accepted return basis":
+                continue
+            status = str(row.get("status") or "")
+            status = status.replace(
+                " — basis only; final hydraulics not committed",
+                " — committed hydraulic route basis",
+            )
+            row["status"] = status
+
+        status = str(getattr(result, "status", "") or "—")
+        status += (
+            " — no pump, valve setting, pipe resizing or final "
+            "commissioning"
+        )
+        output.append(
+            {
+                "item": "Committed route result",
+                "status": status,
+            }
+        )
+        return output
+
+    def _build_preview_proportioned_output_status_rows_v1(
+            self,
+            *,
+            resolution,
+            chosen_preview_rows,
+            chosen_controlling_rows,
+            readiness_rows,
+    ) -> list[dict]:
         """
         H-S30-A:
         Build the top Proportioned-tab output status rows.
@@ -4798,6 +4923,18 @@ class HydronicsSchematicPanelAdapter:
                 self._project_state,
                 "hydronic_proportioned_basis_snapshot",
                 None,
+            )
+            committed_authority = getattr(
+                committed_snapshot,
+                "hydraulic_input_authority",
+                None,
+            )
+            self._committed_basis_route_proportioning_result_v1 = (
+                build_committed_basis_route_proportioning_result_v1(
+                    committed_authority
+                )
+                if committed_authority is not None
+                else None
             )
             if hasattr(
                 self._panel,
