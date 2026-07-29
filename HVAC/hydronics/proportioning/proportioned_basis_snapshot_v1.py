@@ -16,6 +16,11 @@ from HVAC.hydronics.proportioning.committed_proportioning_hydraulic_input_author
     committed_proportioning_hydraulic_input_authority_from_dict_v1,
     committed_proportioning_hydraulic_input_authority_to_dict_v1,
 )
+from HVAC.hydronics.proportioning.committed_balancing_point_allocation_authority_v1 import (
+    CommittedBalancingPointAllocationAuthorityV1,
+    committed_balancing_point_allocation_authority_from_dict_v1,
+    committed_balancing_point_allocation_authority_to_dict_v1,
+)
 from HVAC.hydronics.proportioning.balancing_point_proportioning_commit_readiness_v1 import (
     GENERIC_KVS_BASIS_APPROVED,
     PointProportioningCommitReadinessV1,
@@ -93,6 +98,14 @@ class ProportionedBasisSnapshotV1:
         "No committed hydraulic-input authority"
     )
 
+    # H-S56-A/B — frozen point allocation and route-conservation authority.
+    point_allocation_authority: (
+        CommittedBalancingPointAllocationAuthorityV1 | None
+    ) = None
+    point_allocation_authority_status: str = (
+        "No committed balancing-point allocation authority"
+    )
+
     basis_only_output_ready: bool = True
     basis_only_output_status: str = _BASIS_ONLY_OUTPUT_STATUS_V1
 
@@ -116,6 +129,9 @@ def build_proportioned_basis_snapshot_v1(
         point_commit_readiness: PointProportioningCommitReadinessV1 | None = None,
         hydraulic_input_authority: (
             CommittedProportioningHydraulicInputAuthorityV1 | None
+        ) = None,
+        point_allocation_authority: (
+            CommittedBalancingPointAllocationAuthorityV1 | None
         ) = None,
 ) -> ProportionedBasisSnapshotBuildResultV1:
     """
@@ -180,6 +196,30 @@ def build_proportioned_basis_snapshot_v1(
                 hydraulic_input_authority.status
             )
 
+    point_allocation_authority_status = (
+        "No committed balancing-point allocation authority"
+    )
+    if point_allocation_authority is not None:
+        if not isinstance(
+                point_allocation_authority,
+                CommittedBalancingPointAllocationAuthorityV1,
+        ):
+            blockers.append(
+                "H-S56-A point-allocation authority type required"
+            )
+        elif not point_allocation_authority.ready:
+            blockers.extend(
+                tuple(point_allocation_authority.blockers or ())
+            )
+            if not point_allocation_authority.blockers:
+                blockers.append(
+                    "H-S56-A point-allocation authority must be ready"
+                )
+        else:
+            point_allocation_authority_status = (
+                point_allocation_authority.status
+            )
+
     if blockers:
         return ProportionedBasisSnapshotBuildResultV1(
             ready=False,
@@ -204,6 +244,10 @@ def build_proportioned_basis_snapshot_v1(
         hydraulic_input_authority=hydraulic_input_authority,
         hydraulic_input_authority_status=(
             hydraulic_input_authority_status
+        ),
+        point_allocation_authority=point_allocation_authority,
+        point_allocation_authority_status=(
+            point_allocation_authority_status
         ),
     )
 
@@ -363,6 +407,19 @@ def proportioned_basis_snapshot_to_dict_v1(
             )
             or "No committed hydraulic-input authority"
         ),
+        "point_allocation_authority": (
+            committed_balancing_point_allocation_authority_to_dict_v1(
+                getattr(snapshot, "point_allocation_authority", None)
+            )
+        ),
+        "point_allocation_authority_status": str(
+            getattr(
+                snapshot,
+                "point_allocation_authority_status",
+                "No committed balancing-point allocation authority",
+            )
+            or "No committed balancing-point allocation authority"
+        ),
         "basis_only_output_ready": bool(
             getattr(snapshot, "basis_only_output_ready", True)
         ),
@@ -444,6 +501,18 @@ def proportioned_basis_snapshot_from_dict_v1(
                 "No committed hydraulic-input authority",
             )
             or "No committed hydraulic-input authority"
+        ),
+        point_allocation_authority=(
+            committed_balancing_point_allocation_authority_from_dict_v1(
+                data.get("point_allocation_authority")
+            )
+        ),
+        point_allocation_authority_status=str(
+            data.get(
+                "point_allocation_authority_status",
+                "No committed balancing-point allocation authority",
+            )
+            or "No committed balancing-point allocation authority"
         ),
         basis_only_output_ready=_bool_from_dict_v1(
             data.get("basis_only_output_ready"),

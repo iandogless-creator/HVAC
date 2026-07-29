@@ -136,6 +136,9 @@ from HVAC.hydronics.proportioning.committed_basis_route_proportioning_result_v1 
 from HVAC.hydronics.proportioning.committed_proportioning_hydraulic_input_authority_v1 import (
     build_committed_proportioning_hydraulic_input_authority_v1,
 )
+from HVAC.hydronics.proportioning.committed_balancing_point_allocation_authority_v1 import (
+    build_committed_balancing_point_allocation_authority_v1,
+)
 from HVAC.hydronics.proportioning.chosen_basis_route_pressure_preview_v1 import (
     build_chosen_basis_route_pressure_preview_v1,
 )
@@ -4957,6 +4960,7 @@ class HydronicsSchematicPanelAdapter:
 
         self._committed_hydraulic_chosen_controlling_rows_v1 = ()
         self._committed_hydraulic_resistance_basis_v1 = None
+        self._committed_balancing_point_allocation_projection_v1 = None
 
         try:
             resolution = resolve_effective_return_arrangements_v1(
@@ -5028,6 +5032,9 @@ class HydronicsSchematicPanelAdapter:
             point_allocation = build_balancing_point_resistance_allocation_v1(
                 topology=point_topology,
                 resistance_basis=chosen_resistance_basis,
+            )
+            self._committed_balancing_point_allocation_projection_v1 = (
+                point_allocation
             )
             point_candidates = build_balancing_point_method_candidate_mapping_v1(
                 point_allocation
@@ -6932,10 +6939,30 @@ class HydronicsSchematicPanelAdapter:
             print("H-S54-B Commit Proportioning blocked:", reason)
             return
 
+        point_allocation_authority = (
+            build_committed_balancing_point_allocation_authority_v1(
+                getattr(
+                    self,
+                    "_committed_balancing_point_allocation_projection_v1",
+                    None,
+                )
+            )
+        )
+        if not point_allocation_authority.ready:
+            reason = point_allocation_authority.status
+            if hasattr(self._panel, "set_commit_proportioning_ready"):
+                self._panel.set_commit_proportioning_ready(
+                    ready=False,
+                    reason=reason,
+                )
+            print("H-S56-B Commit Proportioning blocked:", reason)
+            return
+
         result = build_proportioned_basis_snapshot_v1(
             project,
             point_commit_readiness=point_commit_readiness,
             hydraulic_input_authority=hydraulic_input_authority,
+            point_allocation_authority=point_allocation_authority,
         )
 
         if not result.ready or result.snapshot is None:

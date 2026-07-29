@@ -50,6 +50,7 @@ def main() -> None:
         _committed_hydraulic_route_pressure_projection_v1=object(),
         _committed_hydraulic_chosen_controlling_rows_v1=(object(),),
         _committed_hydraulic_resistance_basis_v1=object(),
+        _committed_balancing_point_allocation_projection_v1=object(),
         refresh=lambda: refreshes.append(True),
     )
 
@@ -66,6 +67,12 @@ def main() -> None:
         ),
         "build_committed_proportioning_hydraulic_input_authority_v1": (
             lambda **kwargs: SimpleNamespace(
+                ready=True,
+                status="Ready",
+            )
+        ),
+        "build_committed_balancing_point_allocation_authority_v1": (
+            lambda projection: SimpleNamespace(
                 ready=True,
                 status="Ready",
             )
