@@ -136,6 +136,9 @@ from HVAC.hydronics.proportioning.committed_basis_route_proportioning_result_v1 
 from HVAC.hydronics.proportioning.committed_basis_section_hydraulic_result_v1 import (
     build_committed_basis_section_hydraulic_result_v1,
 )
+from HVAC.hydronics.proportioning.committed_proportioned_system_completion_status_v1 import (
+    build_committed_proportioned_system_completion_status_v1,
+)
 from HVAC.hydronics.proportioning.committed_point_level_balancing_reconciliation_v1 import (
     build_committed_point_level_balancing_reconciliation_v1,
 )
@@ -5018,7 +5021,21 @@ class HydronicsSchematicPanelAdapter:
             chosen_controlling_rows,
             readiness_rows,
     ) -> list[dict]:
-        """Add H-S55-A committed-route status to the existing summary."""
+        """
+        Use H-S58-A committed completion status when available.
+
+        Before Commit Proportioning, preserve the established preview summary.
+        """
+        completion = getattr(
+            self,
+            "_committed_proportioned_system_completion_status_v1",
+            None,
+        )
+        if completion is not None:
+            return self._build_committed_proportioned_completion_status_rows_v1(
+                completion
+            )
+
         rows = self._build_preview_proportioned_output_status_rows_v1(
             resolution=resolution,
             chosen_preview_rows=chosen_preview_rows,
@@ -5070,6 +5087,111 @@ class HydronicsSchematicPanelAdapter:
                 }
             )
         return output
+
+    def _build_committed_proportioned_completion_status_rows_v1(
+            self,
+            completion,
+    ) -> list[dict]:
+        """H-S58-B compact clean-summary projection of H-S58-A."""
+        basis = str(
+            getattr(
+                completion,
+                "accepted_return_arrangement_basis",
+                "—",
+            )
+            or "—"
+        )
+        basis_label = {
+            "DIRECT_RETURN": "F&R",
+            "REVERSE_RETURN": "F+RR",
+        }.get(basis, basis)
+
+        target = getattr(
+            completion,
+            "controlling_target_pressure_drop_Pa",
+            None,
+        )
+        try:
+            target_label = f"{float(target):.1f} Pa"
+        except (TypeError, ValueError):
+            target_label = "—"
+
+        route_count = int(
+            getattr(completion, "route_count", 0) or 0
+        )
+        routes_at_target = int(
+            getattr(completion, "routes_at_target_count", 0) or 0
+        )
+        point_count = int(
+            getattr(completion, "balancing_point_count", 0) or 0
+        )
+        reconciled_points = int(
+            getattr(
+                completion,
+                "reconciled_balancing_point_count",
+                0,
+            )
+            or 0
+        )
+        valve_duty_points = int(
+            getattr(completion, "valve_duty_point_count", 0) or 0
+        )
+        unique_sections = int(
+            getattr(completion, "unique_section_count", 0) or 0
+        )
+        addressable_sections = int(
+            getattr(
+                completion,
+                "route_addressable_section_count",
+                0,
+            )
+            or 0
+        )
+
+        return [
+            {
+                "item": "Accepted return basis",
+                "status": (
+                    f"Committed proportioning basis: {basis_label} "
+                    f"({basis})"
+                ),
+            },
+            {
+                "item": "Proportioned-system status",
+                "status": str(
+                    getattr(completion, "status", "") or "—"
+                ),
+            },
+            {
+                "item": "Route reconciliation",
+                "status": (
+                    f"{routes_at_target} of {route_count} committed routes "
+                    f"reach the {target_label} controlling target"
+                ),
+            },
+            {
+                "item": "Point reconciliation",
+                "status": (
+                    f"{reconciled_points} of {point_count} committed "
+                    "balancing points reconcile; "
+                    f"{valve_duty_points} require valve duty"
+                ),
+            },
+            {
+                "item": "Section evidence",
+                "status": (
+                    f"{unique_sections} unique committed sections across "
+                    f"{addressable_sections} route-addressable rows"
+                ),
+            },
+            {
+                "item": "Design boundary",
+                "status": (
+                    "No pump, valve product, valve setting, pipe resizing "
+                    "or commissioning/final balancing committed"
+                ),
+            },
+        ]
 
     def _build_preview_proportioned_output_status_rows_v1(
             self,
@@ -5296,6 +5418,7 @@ class HydronicsSchematicPanelAdapter:
         if (
                 has_committed_point_valve_basis_detail_table
                 or has_committed_point_reconciliation_table
+                or has_proportioned_status_table
         ):
             committed_snapshot = getattr(
                 self._project_state,
@@ -5350,6 +5473,13 @@ class HydronicsSchematicPanelAdapter:
 
             self._committed_basis_section_hydraulic_result_v1 = (
                 build_committed_basis_section_hydraulic_result_v1(
+                    committed_snapshot
+                )
+                if committed_snapshot is not None
+                else None
+            )
+            self._committed_proportioned_system_completion_status_v1 = (
+                build_committed_proportioned_system_completion_status_v1(
                     committed_snapshot
                 )
                 if committed_snapshot is not None
