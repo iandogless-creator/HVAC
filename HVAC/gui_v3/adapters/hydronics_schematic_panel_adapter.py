@@ -133,6 +133,9 @@ from HVAC.hydronics.proportioning.proportioned_basis_snapshot_v1 import (
 from HVAC.hydronics.proportioning.committed_basis_route_proportioning_result_v1 import (
     build_committed_basis_route_proportioning_result_v1,
 )
+from HVAC.hydronics.proportioning.committed_point_level_balancing_reconciliation_v1 import (
+    build_committed_point_level_balancing_reconciliation_v1,
+)
 from HVAC.hydronics.proportioning.committed_proportioning_hydraulic_input_authority_v1 import (
     build_committed_proportioning_hydraulic_input_authority_v1,
 )
@@ -4657,6 +4660,139 @@ class HydronicsSchematicPanelAdapter:
             )
         return rows
 
+    def _build_committed_point_balancing_reconciliation_rows_v1(
+            self,
+            reconciliation,
+    ) -> list[dict]:
+        """
+        H-S56-D display projection from frozen H-S56-C evidence only.
+
+        No live preview is read and no hydraulic, valve, pump, pipe-size,
+        persistence or final-balancing authority is introduced here.
+        """
+        if reconciliation is None:
+            return []
+
+        def text(value) -> str:
+            value = str(value or "").strip()
+            return value if value else "—"
+
+        def number(value, digits: int, suffix: str = "") -> str:
+            try:
+                value = float(value)
+            except (TypeError, ValueError):
+                return "—"
+            if abs(value) < (0.5 * (10 ** -digits)):
+                value = 0.0
+            return f"{value:.{digits}f}{suffix}"
+
+        source_rows = tuple(
+            getattr(reconciliation, "point_rows", ()) or ()
+        )
+        if not source_rows:
+            return [
+                {
+                    "balancing_point_id": "—",
+                    "scope": "—",
+                    "governed_routes": "—",
+                    "flow_kg_s": "—",
+                    "allocated_dp": "—",
+                    "resistance": "—",
+                    "accepted_kvs": "—",
+                    "reconciled": "No",
+                    "status": text(
+                        getattr(reconciliation, "status", "")
+                    ),
+                }
+            ]
+
+        output: list[dict] = []
+        result_ready = bool(getattr(reconciliation, "ready", False))
+        for row in source_rows:
+            scope = text(getattr(row, "point_scope", "")).replace(
+                "_", " "
+            ).capitalize()
+            if bool(getattr(row, "is_shared", False)):
+                topology = "shared"
+            elif bool(getattr(row, "is_route_exclusive", False)):
+                topology = "route-exclusive"
+            else:
+                topology = ""
+            if topology:
+                scope = f"{scope} · {topology}"
+
+            governed = (
+                getattr(row, "downstream_route_ids", None)
+                or getattr(row, "governed_route_ids", None)
+                or ()
+            )
+            governed_text = ", ".join(
+                str(value or "").strip()
+                for value in tuple(governed)
+                if str(value or "").strip()
+            ) or "—"
+
+            allocated_dp = getattr(
+                row, "allocated_added_pressure_drop_Pa", None
+            )
+            if allocated_dp is None:
+                allocated_dp = getattr(
+                    row, "allocated_added_dp_pa", None
+                )
+
+            resistance = getattr(
+                row, "allocated_resistance_Pa_per_kg_s2", None
+            )
+            if resistance is None:
+                resistance = getattr(
+                    row, "allocated_resistance_pa_per_kg_s2", None
+                )
+
+            reconciled = getattr(row, "reconciled", None)
+            if reconciled is None:
+                reconciled = getattr(row, "ready", None)
+            if reconciled is None:
+                reconciled = result_ready
+
+            accepted_kvs = getattr(row, "accepted_kvs_basis", None)
+            output.append(
+                {
+                    "balancing_point_id": text(
+                        getattr(row, "balancing_point_id", "")
+                    ),
+                    "scope": scope,
+                    "governed_routes": governed_text,
+                    "flow_kg_s": number(
+                        getattr(row, "point_flow_kg_s", None),
+                        4,
+                    ),
+                    "allocated_dp": number(
+                        allocated_dp,
+                        1,
+                        " Pa",
+                    ),
+                    "resistance": number(
+                        resistance,
+                        1,
+                        " Pa/(kg/s)²",
+                    ),
+                    "accepted_kvs": (
+                        number(accepted_kvs, 3)
+                        if bool(
+                            getattr(
+                                row,
+                                "valve_duty_required",
+                                accepted_kvs is not None,
+                            )
+                        )
+                        else "—"
+                    ),
+                    "reconciled": "Yes" if bool(reconciled) else "No",
+                    "status": text(getattr(row, "status", "")),
+                }
+            )
+        return output
+
     def _build_proportioned_output_status_rows_v1(
             self,
             *,
@@ -4702,6 +4838,20 @@ class HydronicsSchematicPanelAdapter:
                 "status": status,
             }
         )
+        point_result = getattr(
+            self,
+            "_committed_point_level_balancing_reconciliation_v1",
+            None,
+        )
+        if point_result is not None:
+            output.append(
+                {
+                    "item": "Committed point reconciliation",
+                    "status": str(
+                        getattr(point_result, "status", "") or "—"
+                    ),
+                }
+            )
         return output
 
     def _build_preview_proportioned_output_status_rows_v1(
@@ -4906,6 +5056,10 @@ class HydronicsSchematicPanelAdapter:
             self._panel,
             "set_committed_point_valve_basis_detail_rows",
         )
+        has_committed_point_reconciliation_table = hasattr(
+            self._panel,
+            "set_committed_point_balancing_reconciliation_rows",
+        )
 
         if (
                 not has_resolved_table
@@ -4918,10 +5072,14 @@ class HydronicsSchematicPanelAdapter:
                 and not has_balancing_point_evidence_table
                 and not has_proportioned_status_table
                 and not has_committed_point_valve_basis_detail_table
+                and not has_committed_point_reconciliation_table
         ):
             return
 
-        if has_committed_point_valve_basis_detail_table:
+        if (
+                has_committed_point_valve_basis_detail_table
+                or has_committed_point_reconciliation_table
+        ):
             committed_snapshot = getattr(
                 self._project_state,
                 "hydronic_proportioned_basis_snapshot",
@@ -4952,11 +5110,26 @@ class HydronicsSchematicPanelAdapter:
                         )
                     )
                 )
-            self._panel.set_committed_point_valve_basis_detail_rows(
-                self._build_committed_point_valve_basis_detail_rows_v1(
+            if has_committed_point_valve_basis_detail_table:
+                self._panel.set_committed_point_valve_basis_detail_rows(
+                    self._build_committed_point_valve_basis_detail_rows_v1(
+                        committed_snapshot
+                    )
+                )
+
+            self._committed_point_level_balancing_reconciliation_v1 = (
+                build_committed_point_level_balancing_reconciliation_v1(
                     committed_snapshot
                 )
+                if committed_snapshot is not None
+                else None
             )
+            if has_committed_point_reconciliation_table:
+                self._panel.set_committed_point_balancing_reconciliation_rows(
+                    self._build_committed_point_balancing_reconciliation_rows_v1(
+                        self._committed_point_level_balancing_reconciliation_v1
+                    )
+                )
 
         self._committed_hydraulic_chosen_controlling_rows_v1 = ()
         self._committed_hydraulic_resistance_basis_v1 = None

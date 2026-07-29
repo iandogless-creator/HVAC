@@ -639,6 +639,50 @@ class HydronicsSchematicPanel(QWidget):
         )
         self.set_committed_point_valve_basis_detail_rows([])
 
+        # --------------------------------------------------
+        # H-S56-D — committed point-level balancing reconciliation
+        # --------------------------------------------------
+        self._committed_point_balancing_reconciliation_table = (
+            self._make_table(
+                columns=[
+                    "Balancing point",
+                    "Scope",
+                    "Governed routes",
+                    "Flow kg/s",
+                    "Allocated Δp",
+                    "Resistance",
+                    "Generic Kvs",
+                    "Reconciled",
+                    "Status",
+                ],
+                stretch_columns={0, 2, 8},
+            )
+        )
+        self._add_section(
+            self._clean_proportioned_tab,
+            title=(
+                "Committed point-level balancing reconciliation — read-only"
+            ),
+            table=self._committed_point_balancing_reconciliation_table,
+            min_height=145,
+            expanded=True,
+        )
+        self._committed_point_balancing_reconciliation_table.setWordWrap(
+            False
+        )
+        self._committed_point_balancing_reconciliation_table.setAlternatingRowColors(
+            True
+        )
+        self._apply_clean_proportioned_table_focus_style_v1(
+            self._committed_point_balancing_reconciliation_table
+        )
+        self._committed_point_balancing_reconciliation_table.setToolTip(
+            "Frozen H-S56-C point-allocation reconciliation only; no live "
+            "preview, valve setting or product, pump selection, pipe resizing "
+            "or final commissioning/balancing."
+        )
+        self.set_committed_point_balancing_reconciliation_rows([])
+
         self._clean_proportioned_route_output_table = self._make_table(
             columns=[
                 "Route",
@@ -9842,6 +9886,66 @@ QTableWidget::item:selected:!active {
         for row_index in range(table.rowCount()):
             table.setRowHeight(row_index, 24)
         self._fit_table_height(table, min_height=105, max_height=220)
+
+    def set_committed_point_balancing_reconciliation_rows(
+            self,
+            rows: list[dict],
+    ) -> None:
+        """H-S56-D display-only committed point reconciliation evidence."""
+        if not hasattr(
+                self,
+                "_committed_point_balancing_reconciliation_table",
+        ):
+            return
+
+        display_rows = list(rows or [])
+        if not display_rows:
+            display_rows = [
+                {
+                    "balancing_point_id": "—",
+                    "scope": "—",
+                    "governed_routes": "—",
+                    "flow_kg_s": "—",
+                    "allocated_dp": "—",
+                    "resistance": "—",
+                    "accepted_kvs": "—",
+                    "reconciled": "—",
+                    "status": (
+                        "Waiting for committed point reconciliation evidence"
+                    ),
+                }
+            ]
+
+        keys = (
+            "balancing_point_id",
+            "scope",
+            "governed_routes",
+            "flow_kg_s",
+            "allocated_dp",
+            "resistance",
+            "accepted_kvs",
+            "reconciled",
+            "status",
+        )
+        table = self._committed_point_balancing_reconciliation_table
+        table.setRowCount(len(display_rows))
+        for row_index, row in enumerate(display_rows):
+            for col_index, key in enumerate(keys):
+                item = QTableWidgetItem(str(row.get(key, "—")))
+                item.setFlags(item.flags() & ~Qt.ItemIsEditable)
+                table.setItem(row_index, col_index, item)
+
+        table.setWordWrap(False)
+        widths = (250, 145, 255, 90, 110, 175, 105, 95, 390)
+        for column_index, width in enumerate(widths):
+            table.setColumnWidth(column_index, width)
+        try:
+            table.horizontalHeader().setStretchLastSection(True)
+        except AttributeError:
+            pass
+        for row_index in range(table.rowCount()):
+            table.setRowHeight(row_index, 24)
+        self._fit_table_height(table, min_height=120, max_height=260)
 
     def set_clean_proportioned_route_output_rows(
             self,
