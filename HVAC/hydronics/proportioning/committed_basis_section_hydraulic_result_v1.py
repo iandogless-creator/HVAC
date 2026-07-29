@@ -128,25 +128,34 @@ def build_committed_basis_section_hydraulic_result_v1(
             continue
         seen_sections.add(section_id)
 
-        membership_ids = tuple(
+        raw_membership_ids = tuple(
             _text(value)
             for value in tuple(getattr(section, "route_ids", ()) or ())
             if _text(value)
         )
-        if not membership_ids:
+        if not raw_membership_ids:
             blockers.append(f"{section_id}: committed route membership required")
             continue
+
+        membership_ids: list[str] = []
+        for raw_membership_id in raw_membership_ids:
+            route_id = _resolve_committed_route_membership_v1(
+                raw_membership_id,
+                route_by_id,
+            )
+            if not route_id:
+                blockers.append(
+                    f"{section_id}: unknown committed route membership "
+                    f"{raw_membership_id}"
+                )
+                continue
+            membership_ids.append(route_id)
+
         if len(set(membership_ids)) != len(membership_ids):
             blockers.append(f"{section_id}: duplicate route membership")
             continue
 
         for route_id in membership_ids:
-            if route_id not in route_by_id:
-                blockers.append(
-                    f"{section_id}: unknown committed route membership "
-                    f"{route_id}"
-                )
-                continue
             memberships_by_route[route_id].append(section)
 
         blockers.extend(_section_blockers(section_id, section))
@@ -230,6 +239,33 @@ def build_committed_basis_section_hydraulic_result_v1(
             f"across {len(route_by_id)} route(s)"
         ),
     )
+
+
+def _resolve_committed_route_membership_v1(
+    value: object,
+    route_by_id: dict[str, object],
+) -> str:
+    """
+    Resolve the frozen H-S54 scoped membership form ``leg-id:route-id``.
+
+    Exact committed route IDs remain valid. A scoped value is accepted only
+    when its suffix is a committed route and its prefix is that route's own
+    leg scope. No topology inference or hydraulic recalculation occurs here.
+    """
+    membership_id = _text(value)
+    if membership_id in route_by_id:
+        return membership_id
+    if ":" not in membership_id:
+        return ""
+
+    scope_id, route_id = membership_id.split(":", 1)
+    scope_id = _text(scope_id)
+    route_id = _text(route_id)
+    if not scope_id or route_id not in route_by_id:
+        return ""
+    if route_id != scope_id and not route_id.startswith(scope_id + "-"):
+        return ""
+    return route_id
 
 
 def _section_blockers(section_id: str, row: object) -> list[str]:

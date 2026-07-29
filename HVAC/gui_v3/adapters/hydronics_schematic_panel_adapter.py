@@ -133,6 +133,9 @@ from HVAC.hydronics.proportioning.proportioned_basis_snapshot_v1 import (
 from HVAC.hydronics.proportioning.committed_basis_route_proportioning_result_v1 import (
     build_committed_basis_route_proportioning_result_v1,
 )
+from HVAC.hydronics.proportioning.committed_basis_section_hydraulic_result_v1 import (
+    build_committed_basis_section_hydraulic_result_v1,
+)
 from HVAC.hydronics.proportioning.committed_point_level_balancing_reconciliation_v1 import (
     build_committed_point_level_balancing_reconciliation_v1,
 )
@@ -3952,6 +3955,208 @@ class HydronicsSchematicPanelAdapter:
 
         return unique_rows
 
+
+    def _build_committed_section_hydraulic_gui_rows_v1(
+            self,
+            result,
+    ) -> list[dict]:
+        """
+        H-S57-B display rows copied from the committed H-S57-A result.
+
+        The keys intentionally match the established clean focused-section
+        table and schematic evidence contract. No live preview is consulted,
+        no pressure is recalculated and no ProjectState mutation occurs.
+        """
+        if result is None:
+            return []
+        source_rows = tuple(getattr(result, "rows", ()) or ())
+        if not bool(getattr(result, "ready", False)) or not source_rows:
+            return [
+                {
+                    "route": "Committed sections",
+                    "route_label": "Committed sections",
+                    "route_id": "—",
+                    "basis": "—",
+                    "section": "—",
+                    "section_id": "—",
+                    "from": "—",
+                    "to": "—",
+                    "flow_kg_s": "—",
+                    "pipe_dn": "—",
+                    "dp_per_m": "—",
+                    "length": "—",
+                    "k": "—",
+                    "section_dp": "—",
+                    "iter": "—",
+                    "status": str(
+                        getattr(result, "status", "") or
+                        "Committed section evidence unavailable"
+                    ),
+                    "evidence_source": "committed_hs57a",
+                }
+            ]
+
+        def number(value, digits: int, suffix: str = "") -> str:
+            try:
+                value = float(value)
+            except (TypeError, ValueError):
+                return "—"
+            if abs(value) < (0.5 * (10 ** -digits)):
+                value = 0.0
+            return f"{value:.{digits}f}{suffix}"
+
+        output: list[dict] = []
+        for source in source_rows:
+            route_id = str(
+                getattr(source, "committed_route_id", "") or ""
+            ).strip()
+            route_label = str(
+                getattr(source, "committed_route_label", "") or route_id
+            ).strip()
+            section_id = str(
+                getattr(source, "section_id", "") or ""
+            ).strip()
+            if not route_id or not route_label or not section_id:
+                continue
+
+            method = str(
+                getattr(source, "friction_method", "") or ""
+            ).strip()
+            shared = bool(
+                getattr(source, "shared_across_routes", False)
+            )
+            status = (
+                "Committed H-S57-A section evidence"
+                + (" — shared section" if shared else " — route section")
+            )
+            iteration_count = int(
+                getattr(source, "colebrook_iteration_count", 0)
+            )
+
+            output.append(
+                {
+                    "route": route_label,
+                    "route_label": route_label,
+                    "route_id": route_id,
+                    "basis": str(
+                        getattr(source, "basis", "") or ""
+                    ).strip(),
+                    "section": str(getattr(source, "order", "")),
+                    "section_id": section_id,
+                    "section_scope": str(
+                        getattr(source, "section_scope", "") or ""
+                    ).strip(),
+                    "from": str(
+                        getattr(source, "from_label", "") or "—"
+                    ),
+                    "from_label": str(
+                        getattr(source, "from_label", "") or ""
+                    ),
+                    "to": str(
+                        getattr(source, "to_label", "") or "—"
+                    ),
+                    "to_label": str(
+                        getattr(source, "to_label", "") or ""
+                    ),
+                    "flow_kg_s": number(
+                        getattr(source, "carried_flow_kg_s", None),
+                        4,
+                        " kg/s",
+                    ),
+                    "carried_flow_kg_s": getattr(
+                        source,
+                        "carried_flow_kg_s",
+                        None,
+                    ),
+                    "pipe_dn": str(
+                        getattr(source, "pipe_size_label", "") or ""
+                    ).strip() or (
+                        f"{int(getattr(source, 'dn', 0))} mm"
+                    ),
+                    "pipe": str(
+                        getattr(source, "pipe_size_label", "") or ""
+                    ).strip(),
+                    "pipe_size_label": str(
+                        getattr(source, "pipe_size_label", "") or ""
+                    ).strip(),
+                    "dn": getattr(source, "dn", None),
+                    "dp_per_m": number(
+                        getattr(
+                            source,
+                            "pressure_gradient_Pa_per_m",
+                            None,
+                        ),
+                        1,
+                    ),
+                    "pressure_gradient_Pa_per_m": getattr(
+                        source,
+                        "pressure_gradient_Pa_per_m",
+                        None,
+                    ),
+                    "length": number(
+                        getattr(source, "length_m", None),
+                        2,
+                        " m",
+                    ),
+                    "length_m": getattr(source, "length_m", None),
+                    "k": number(
+                        getattr(source, "k_total", None),
+                        2,
+                    ),
+                    "k_total": getattr(source, "k_total", None),
+                    "section_dp": number(
+                        getattr(
+                            source,
+                            "section_total_pressure_drop_Pa",
+                            None,
+                        ),
+                        1,
+                        " Pa",
+                    ),
+                    "section_total_pressure_drop_Pa": getattr(
+                        source,
+                        "section_total_pressure_drop_Pa",
+                        None,
+                    ),
+                    "straight_pressure_drop_Pa": getattr(
+                        source,
+                        "straight_pressure_drop_Pa",
+                        None,
+                    ),
+                    "local_pressure_drop_Pa": getattr(
+                        source,
+                        "local_pressure_drop_Pa",
+                        None,
+                    ),
+                    "velocity_m_s": getattr(
+                        source,
+                        "velocity_m_s",
+                        None,
+                    ),
+                    "reynolds_number": getattr(
+                        source,
+                        "reynolds_number",
+                        None,
+                    ),
+                    "friction_factor": getattr(
+                        source,
+                        "friction_factor",
+                        None,
+                    ),
+                    "friction_method": method,
+                    "proportioning_friction_method": method,
+                    "colebrook_iteration_count": iteration_count,
+                    "colebrook_converged": bool(
+                        getattr(source, "colebrook_converged", False)
+                    ),
+                    "iter": str(iteration_count),
+                    "shared_across_routes": shared,
+                    "status": status,
+                    "evidence_source": "committed_hs57a",
+                }
+            )
+        return output
+
     def _push_clean_proportioned_focused_section_source_rows_v1(self) -> None:
         """
         H-S33-M:
@@ -3972,7 +4177,19 @@ class HydronicsSchematicPanelAdapter:
         ):
             return
 
-        rows = self._build_clean_proportioned_focused_section_source_rows_v1()
+        committed_result = getattr(
+            self,
+            "_committed_basis_section_hydraulic_result_v1",
+            None,
+        )
+        if committed_result is not None:
+            rows = self._build_committed_section_hydraulic_gui_rows_v1(
+                committed_result
+            )
+        else:
+            rows = (
+                self._build_clean_proportioned_focused_section_source_rows_v1()
+            )
 
         # H-S36-A3 — runtime section-evidence fallback.
         # The panel already owns the enriched Basic PS display snapshot. Use
@@ -5130,6 +5347,15 @@ class HydronicsSchematicPanelAdapter:
                         self._committed_point_level_balancing_reconciliation_v1
                     )
                 )
+
+            self._committed_basis_section_hydraulic_result_v1 = (
+                build_committed_basis_section_hydraulic_result_v1(
+                    committed_snapshot
+                )
+                if committed_snapshot is not None
+                else None
+            )
+            self._push_clean_proportioned_focused_section_source_rows_v1()
 
         self._committed_hydraulic_chosen_controlling_rows_v1 = ()
         self._committed_hydraulic_resistance_basis_v1 = None
