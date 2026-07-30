@@ -139,6 +139,12 @@ from HVAC.hydronics.proportioning.committed_basis_section_hydraulic_result_v1 im
 from HVAC.hydronics.proportioning.committed_proportioned_system_completion_status_v1 import (
     build_committed_proportioned_system_completion_status_v1,
 )
+from HVAC.hydronics.proportioning.committed_proportioned_system_result_package_v1 import (
+    build_committed_proportioned_system_result_package_v1,
+)
+from HVAC.hydronics.proportioning.committed_proportioned_system_export_payload_v1 import (
+    build_committed_proportioned_system_export_payload_v1,
+)
 from HVAC.hydronics.proportioning.committed_point_level_balancing_reconciliation_v1 import (
     build_committed_point_level_balancing_reconciliation_v1,
 )
@@ -5483,6 +5489,21 @@ class HydronicsSchematicPanelAdapter:
                     committed_snapshot
                 )
                 if committed_snapshot is not None
+                else None
+            )
+            self._committed_proportioned_system_result_package_v1 = (
+                build_committed_proportioned_system_result_package_v1(
+                    committed_snapshot
+                )
+                if committed_snapshot is not None
+                else None
+            )
+            self._committed_proportioned_system_export_payload_v1 = (
+                build_committed_proportioned_system_export_payload_v1(
+                    self._committed_proportioned_system_result_package_v1
+                )
+                if self._committed_proportioned_system_result_package_v1
+                is not None
                 else None
             )
             self._push_clean_proportioned_focused_section_source_rows_v1()
