@@ -126,6 +126,12 @@ def _emitter_from_dict(data: dict[str, Any]) -> EmitterV1:
 # ProjectState
 # ======================================================================
 
+from HVAC.hydronics.proportioning.proportioned_pipe_resizing_schedule_acceptance_intent_v1 import (
+    ProportionedPipeResizingScheduleAcceptanceIntentV1,
+    proportioned_pipe_resizing_schedule_acceptance_intent_from_dict_v1,
+    proportioned_pipe_resizing_schedule_acceptance_intent_to_dict_v1,
+)
+
 @dataclass(slots=True)
 class ProjectState:
     project_id: str
@@ -189,6 +195,10 @@ class ProjectState:
     ] = None
     hydronic_point_accepted_valve_candidate_consequence_disposition_intent: Optional[
         BalancingPointAcceptedValveCandidateConsequenceDispositionIntentV1
+    ] = None
+    # H-S61-F — persisted manual acceptance of one exact resized DN schedule.
+    hydronic_proportioned_pipe_resizing_schedule_acceptance_intent: Optional[
+        ProportionedPipeResizingScheduleAcceptanceIntentV1
     ] = None
     hydronic_proportioned_basis_snapshot: Optional[ProportionedBasisSnapshotV1] = None
 
@@ -409,6 +419,13 @@ class ProjectState:
                 if self.hydronic_point_accepted_valve_candidate_consequence_disposition_intent
                 else None
             ),
+            "hydronic_proportioned_pipe_resizing_schedule_acceptance_intent": (
+                proportioned_pipe_resizing_schedule_acceptance_intent_to_dict_v1(
+                    self.hydronic_proportioned_pipe_resizing_schedule_acceptance_intent
+                )
+                if self.hydronic_proportioned_pipe_resizing_schedule_acceptance_intent
+                else None
+            ),
             "hydronic_proportioned_basis_snapshot": (
                 proportioned_basis_snapshot_to_dict_v1(
                     self.hydronic_proportioned_basis_snapshot
@@ -549,6 +566,19 @@ class ProjectState:
             instance.hydronic_point_accepted_valve_candidate_consequence_disposition_intent = (
                 balancing_point_accepted_valve_candidate_consequence_disposition_intent_from_dict_v1(
                     raw_valve_candidate_consequence_disposition_intent
+                )
+            )
+
+        raw_pipe_resizing_schedule_acceptance_intent = data.get(
+            "hydronic_proportioned_pipe_resizing_schedule_acceptance_intent"
+        )
+        if isinstance(
+                raw_pipe_resizing_schedule_acceptance_intent,
+                dict,
+        ):
+            instance.hydronic_proportioned_pipe_resizing_schedule_acceptance_intent = (
+                proportioned_pipe_resizing_schedule_acceptance_intent_from_dict_v1(
+                    raw_pipe_resizing_schedule_acceptance_intent
                 )
             )
 
