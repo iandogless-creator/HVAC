@@ -19,13 +19,12 @@ def test_copper_22_mass_flow_uses_catalogue_id_and_roughness() -> None:
     assert result.material == "copper"
     assert result.dn == 22
 
-    # Copper DN22 in pipe_materials_library.py:
-    # OD 22.0 mm, ID 20.0 mm, roughness 0.0015 mm.
-    assert abs(result.internal_diameter_m - 0.020) < 1.0e-12
+    # Copper tube 22 mm OD × 0.9 mm wall in the v1 series.
+    assert abs(result.internal_diameter_m - 0.0202) < 1.0e-12
     assert abs(result.roughness_m - 0.0000015) < 1.0e-12
 
     expected_volume_flow = 0.1 / 998.0
-    expected_area = math.pi * 0.020**2 / 4.0
+    expected_area = math.pi * 0.0202**2 / 4.0
     expected_velocity = expected_volume_flow / expected_area
 
     assert abs(result.volume_flow_m3_s - expected_volume_flow) < 1.0e-12
@@ -66,7 +65,7 @@ def test_zero_flow_returns_zero_pressure_drop_but_keeps_catalogue_basis() -> Non
         length_m=10.0,
     )
 
-    assert result.internal_diameter_m == 0.020
+    assert result.internal_diameter_m == 0.0202
     assert result.roughness_m == 0.0000015
     assert result.volume_flow_m3_s == 0.0
     assert result.velocity_m_s == 0.0

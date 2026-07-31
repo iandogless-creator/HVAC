@@ -121,12 +121,12 @@ def main() -> None:
     dn15 = next(row for row in result.candidates if row.dn == 15)
     assert dn15.material_key == "copper"
     assert dn15.material_label == "Copper EN1057"
-    assert dn15.internal_diameter_m == 0.013
+    assert dn15.internal_diameter_m == 0.0136
     assert dn15.roughness_m == 0.0000015
     dn42 = next(row for row in result.candidates if row.dn == 42)
     dn54 = next(row for row in result.candidates if row.dn == 54)
-    assert dn42.internal_diameter_m == 0.038
-    assert dn54.internal_diameter_m == 0.050
+    assert dn42.internal_diameter_m == 0.040
+    assert dn54.internal_diameter_m == 0.0516
 
     high = next(
         row

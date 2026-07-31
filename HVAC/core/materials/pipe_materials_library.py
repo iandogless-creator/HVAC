@@ -33,9 +33,11 @@ from typing import Dict, List, Optional
 
 @dataclass
 class PipeSize:
-    dn: int             # DN15, DN20, etc
+    # Catalogue size key: copper tube uses declared OD in mm;
+    # steel retains nominal DN semantics.
+    dn: int
     od_mm: float        # outside diameter
-    id_mm: float        # internal diameter
+    id_mm: float        # hydraulic internal diameter
     thickness_mm: float
 
 
@@ -45,28 +47,55 @@ class PipeMaterial:
     roughness_mm: float
     conductivity_W_mK: float
     density_kg_m3: float
-    sizes: Dict[int, PipeSize]   # key: DN (15, 20, 25, ...)
+    sizes: Dict[int, PipeSize]   # material-specific size key
+    dimensional_series_label: str = ""
+
+
+def _tube_size_from_od_and_wall_v1(
+    outside_diameter_mm: float,
+    wall_thickness_mm: float,
+) -> PipeSize:
+    """Create one OD-sized tube entry with a calculated hydraulic bore."""
+
+    od = float(outside_diameter_mm)
+    wall = float(wall_thickness_mm)
+    internal = od - (2.0 * wall)
+    if od <= 0.0 or wall <= 0.0 or internal <= 0.0:
+        raise ValueError("Positive tube OD, wall and internal diameter required")
+    if not od.is_integer():
+        raise ValueError("v1 copper tube size key requires whole-millimetre OD")
+    return PipeSize(
+        dn=int(od),
+        od_mm=od,
+        id_mm=internal,
+        thickness_mm=wall,
+    )
 
 
 # ---------------------------------------------------------------------------
 # LIBRARY DATA
 # ---------------------------------------------------------------------------
 
-# Values based on EN 1057 — typical plumbing copper sizes
+# H-S63-A — one v1 domestic copper authority.
+# Recognised tube size is outside diameter. Hydraulic ID is calculated as
+# OD - 2 × wall; no legacy/heavy-wall or 6/8 mm microbore series is included.
 COPPER_EN1057 = PipeMaterial(
     name="Copper EN1057",
     roughness_mm=0.0015,
     conductivity_W_mK=380.0,
     density_kg_m3=8900.0,
     sizes={
-        10: PipeSize(10, 12.0, 10.0, 1.0),
-        15: PipeSize(15, 15.0, 13.0, 1.0),
-        22: PipeSize(22, 22.0, 20.0, 1.0),
-        28: PipeSize(28, 28.0, 26.0, 1.0),
-        35: PipeSize(35, 35.0, 32.0, 1.5),
-        42: PipeSize(42, 42.0, 38.0, 2.0),
-        54: PipeSize(54, 54.0, 50.0, 2.0),
-    }
+        10: _tube_size_from_od_and_wall_v1(10.0, 0.6),
+        15: _tube_size_from_od_and_wall_v1(15.0, 0.7),
+        22: _tube_size_from_od_and_wall_v1(22.0, 0.9),
+        28: _tube_size_from_od_and_wall_v1(28.0, 0.9),
+        35: _tube_size_from_od_and_wall_v1(35.0, 1.0),
+        42: _tube_size_from_od_and_wall_v1(42.0, 1.0),
+        54: _tube_size_from_od_and_wall_v1(54.0, 1.2),
+    },
+    dimensional_series_label=(
+        "Copper tube EN 1057 — current thin-wall series"
+    ),
 )
 
 # Carbon steel rough estimate (medium wall)

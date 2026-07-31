@@ -43,7 +43,7 @@ def _section() -> ProportionedPipeSizingSectionAuthorityV1:
         status="Ready — current copper section",
         current_material_key="copper",
         current_material_label="Copper EN1057",
-        current_internal_diameter_m=0.020,
+        current_internal_diameter_m=0.0202,
     )
 
 
@@ -118,7 +118,7 @@ def main() -> None:
     projected = projection.sections[0]
     assert projected.current_material_key == "copper"
     assert projected.current_pipe_size_label == "22 mm"
-    assert abs(projected.current_internal_diameter_m - 0.020) < 1.0e-12
+    assert abs(projected.current_internal_diameter_m - 0.0202) < 1.0e-12
     assert projected.projected_material_key == "mlcp"
     assert "×" in projected.projected_pipe_size_label
     assert projected.internal_diameter_m > 0.0

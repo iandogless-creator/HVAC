@@ -81,7 +81,7 @@ def main() -> None:
     copper_section = copper.sections[0]
     assert copper_section.material_key == "copper"
     assert copper_section.material_label == "Copper EN1057"
-    assert abs(copper_section.internal_diameter_m - 0.020) < 1.0e-12
+    assert abs(copper_section.internal_diameter_m - 0.0202) < 1.0e-12
     assert abs(copper_section.material_roughness_m - 0.0000015) < 1.0e-12
 
     mlcp_section = replace(
@@ -131,7 +131,7 @@ def main() -> None:
     )
     assert legacy is not None
     assert legacy.sections[0].material_key == "copper"
-    assert legacy.sections[0].internal_diameter_m == 0.020
+    assert legacy.sections[0].internal_diameter_m == 0.0202
 
     invalid_payload = (
         committed_proportioning_hydraulic_input_authority_to_dict_v1(mlcp)

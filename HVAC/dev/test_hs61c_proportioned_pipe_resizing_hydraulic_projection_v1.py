@@ -158,7 +158,7 @@ def main() -> None:
     by_section = {row.section_id: row for row in result.sections}
     assert by_section["shared"].projected_dn == 28
     assert by_section["route-a-only"].projected_dn == 22
-    assert by_section["route-b-only"].projected_dn == 10
+    assert by_section["route-b-only"].projected_dn == 15
 
     for section in result.sections:
         assert section.current_material_key == "copper"
