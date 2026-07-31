@@ -145,6 +145,9 @@ from HVAC.hydronics.proportioning.committed_proportioned_system_result_package_v
 from HVAC.hydronics.proportioning.committed_proportioned_system_export_payload_v1 import (
     build_committed_proportioned_system_export_payload_v1,
 )
+from HVAC.hydronics.proportioning.committed_proportioned_system_csv_writer_v1 import (
+    write_committed_proportioned_csv_bundle_v1,
+)
 from HVAC.hydronics.proportioning.committed_point_level_balancing_reconciliation_v1 import (
     build_committed_point_level_balancing_reconciliation_v1,
 )
@@ -4796,6 +4799,26 @@ class HydronicsSchematicPanelAdapter:
             provisional_burden_rows or ()
         )
 
+    def _write_committed_proportioned_csv_bundle_v1(
+            self,
+            destination_directory,
+    ):
+        """
+        H-S60-B:
+        Write only the already-built committed H-S59-B export payload.
+
+        No ProjectState mutation, live-preview fallback, hydraulic
+        recalculation, PDF generation or overwrite authority.
+        """
+        return write_committed_proportioned_csv_bundle_v1(
+            getattr(
+                self,
+                "_committed_proportioned_system_export_payload_v1",
+                None,
+            ),
+            destination_directory,
+        )
+
     def _build_basis_only_proportioned_export_payload_preview_v1(
             self,
             *,
@@ -5405,6 +5428,13 @@ class HydronicsSchematicPanelAdapter:
             self._panel,
             "set_committed_point_balancing_reconciliation_rows",
         )
+        has_committed_csv_export_control = all(
+            hasattr(self._panel, method_name)
+            for method_name in (
+                "set_committed_proportioned_csv_export_handler_v1",
+                "set_committed_proportioned_csv_export_ready_v1",
+            )
+        )
 
         if (
                 not has_resolved_table
@@ -5418,6 +5448,7 @@ class HydronicsSchematicPanelAdapter:
                 and not has_proportioned_status_table
                 and not has_committed_point_valve_basis_detail_table
                 and not has_committed_point_reconciliation_table
+                and not has_committed_csv_export_control
         ):
             return
 
@@ -5425,6 +5456,7 @@ class HydronicsSchematicPanelAdapter:
                 has_committed_point_valve_basis_detail_table
                 or has_committed_point_reconciliation_table
                 or has_proportioned_status_table
+                or has_committed_csv_export_control
         ):
             committed_snapshot = getattr(
                 self._project_state,
@@ -5506,6 +5538,20 @@ class HydronicsSchematicPanelAdapter:
                 is not None
                 else None
             )
+            if has_committed_csv_export_control:
+                self._panel.set_committed_proportioned_csv_export_handler_v1(
+                    self._write_committed_proportioned_csv_bundle_v1
+                )
+                payload = (
+                    self._committed_proportioned_system_export_payload_v1
+                )
+                self._panel.set_committed_proportioned_csv_export_ready_v1(
+                    ready=bool(getattr(payload, "ready", False)),
+                    status=(
+                        str(getattr(payload, "status", "") or "").strip()
+                        or "Committed Proportioned CSV export unavailable"
+                    ),
+                )
             self._push_clean_proportioned_focused_section_source_rows_v1()
 
         self._committed_hydraulic_chosen_controlling_rows_v1 = ()

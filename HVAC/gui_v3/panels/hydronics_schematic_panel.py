@@ -39,6 +39,7 @@ Proportioning
 from __future__ import annotations
 
 from dataclasses import replace
+from pathlib import Path
 from typing import Optional
 
 from PySide6.QtCore import (
@@ -80,6 +81,9 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QDoubleSpinBox,
     QSplitter,
+    QFileDialog,
+    QInputDialog,
+    QMessageBox,
 )
 
 from HVAC.gui_v3.schematic.dto import (
@@ -459,6 +463,11 @@ class HydronicsSchematicPanel(QWidget):
         self._preliminary_balancing_resistance_basis: (
                 PreliminaryBalancingResistanceBasisV1 | None
         ) = None
+        self._committed_csv_export_handler_v1 = None
+        self._committed_csv_export_ready_v1 = False
+        self._committed_csv_export_status_v1 = (
+            "Committed Proportioned CSV export unavailable"
+        )
         # Current schematic DTO, retained for old drawn-schematic path.
         self._schematic: Optional[HydronicsSchematicDTO] = None
 
@@ -525,6 +534,131 @@ class HydronicsSchematicPanel(QWidget):
             basis=basis,
         )
 
+    def set_committed_proportioned_csv_export_handler_v1(
+            self,
+            handler,
+    ) -> None:
+        """H-S60-B: register the adapter-owned committed CSV writer action."""
+        self._committed_csv_export_handler_v1 = (
+            handler if callable(handler) else None
+        )
+        button = getattr(
+            self,
+            "_committed_proportioned_csv_export_button",
+            None,
+        )
+        if button is not None:
+            button.setEnabled(
+                bool(self._committed_csv_export_ready_v1)
+                and callable(self._committed_csv_export_handler_v1)
+            )
+
+    def set_committed_proportioned_csv_export_ready_v1(
+            self,
+            *,
+            ready: bool,
+            status: object = "",
+    ) -> None:
+        """H-S60-B: display-only readiness for the committed CSV action."""
+        self._committed_csv_export_ready_v1 = bool(ready)
+        self._committed_csv_export_status_v1 = (
+            str(status or "").strip()
+            or "Committed Proportioned CSV export unavailable"
+        )
+        button = getattr(
+            self,
+            "_committed_proportioned_csv_export_button",
+            None,
+        )
+        if button is None:
+            return
+        button.setEnabled(
+            self._committed_csv_export_ready_v1
+            and callable(self._committed_csv_export_handler_v1)
+        )
+        button.setToolTip(self._committed_csv_export_status_v1)
+
+    def _on_committed_proportioned_csv_export_clicked_v1(self) -> None:
+        """
+        H-S60-B:
+        Choose a new bundle destination and delegate writing to the adapter.
+
+        The panel owns dialogs only. It does not inspect ProjectState, build
+        export evidence or write files itself.
+        """
+        handler = getattr(
+            self,
+            "_committed_csv_export_handler_v1",
+            None,
+        )
+        if (
+                not self._committed_csv_export_ready_v1
+                or not callable(handler)
+        ):
+            QMessageBox.warning(
+                self,
+                "Committed CSV export unavailable",
+                self._committed_csv_export_status_v1,
+            )
+            return
+
+        parent_directory = QFileDialog.getExistingDirectory(
+            self,
+            "Choose parent folder for committed Proportioned CSV bundle",
+        )
+        if not parent_directory:
+            return
+
+        folder_name, accepted = QInputDialog.getText(
+            self,
+            "Committed Proportioned CSV bundle",
+            "New bundle folder name:",
+            text="Proportioned CSV",
+        )
+        if not accepted:
+            return
+
+        folder_name = str(folder_name or "").strip()
+        if (
+                not folder_name
+                or folder_name in {".", ".."}
+                or Path(folder_name).name != folder_name
+                or "/" in folder_name
+                or "\\" in folder_name
+        ):
+            QMessageBox.warning(
+                self,
+                "Invalid export folder name",
+                "Enter one new folder name without path separators.",
+            )
+            return
+
+        destination = Path(parent_directory) / folder_name
+        result = handler(str(destination))
+        if bool(getattr(result, "ready", False)):
+            files = tuple(getattr(result, "files", ()) or ())
+            QMessageBox.information(
+                self,
+                "Committed CSV export complete",
+                (
+                    f"Wrote {len(files)} committed CSV files to:\n"
+                    f"{getattr(result, 'destination_directory', destination)}"
+                ),
+            )
+            return
+
+        QMessageBox.warning(
+            self,
+            "Committed CSV export blocked",
+            str(
+                getattr(
+                    result,
+                    "status",
+                    "Committed CSV bundle was not written",
+                )
+            ),
+        )
+
     # ------------------------------------------------------------------
     # UI construction
     # ------------------------------------------------------------------
@@ -563,6 +697,24 @@ class HydronicsSchematicPanel(QWidget):
         )
         header_layout.addWidget(
             self._clean_proportioned_table_viewer_button
+        )
+
+        self._committed_proportioned_csv_export_button = QPushButton(
+            "Export committed CSV bundle…",
+            header,
+        )
+        self._committed_proportioned_csv_export_button.setEnabled(False)
+        self._committed_proportioned_csv_export_button.setToolTip(
+            self._committed_csv_export_status_v1
+        )
+        self._committed_proportioned_csv_export_button.setStyleSheet(
+            "QPushButton { font-weight: 600; padding: 5px 10px; }"
+        )
+        self._committed_proportioned_csv_export_button.clicked.connect(
+            self._on_committed_proportioned_csv_export_clicked_v1
+        )
+        header_layout.addWidget(
+            self._committed_proportioned_csv_export_button
         )
 
         outer_layout.addWidget(header)
