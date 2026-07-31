@@ -1022,6 +1022,112 @@ class HydronicsSchematicPanel(QWidget):
 
         self._clean_proportioned_tab.addStretch(1)
 
+        # --------------------------------------------------
+        # H-S61-E — resized pipework engineering review
+        # --------------------------------------------------
+        self._pipe_resizing_review_tab = self._make_tab("Pipe Resizing")
+        self._pipe_resizing_review_tab.addWidget(
+            QLabel(
+                "Read-only resized pipework projection. Current committed "
+                "DNs remain unchanged until a later explicit commit stage."
+            )
+        )
+
+        self._resized_pipe_section_review_table = self._make_table(
+            columns=[
+                "Section",
+                "Routes",
+                "Current DN",
+                "Proposed DN",
+                "Change",
+                "Flow kg/s",
+                "Velocity / max",
+                "Δp/m / max",
+                "Straight Δp",
+                "Local K Δp",
+                "Total Δp",
+                "Status",
+            ],
+            stretch_columns={0, 1, 11},
+        )
+        self._add_section(
+            self._pipe_resizing_review_tab,
+            title="Resized section hydraulic review — read-only",
+            table=self._resized_pipe_section_review_table,
+            min_height=245,
+            expanded=True,
+        )
+
+        self._resized_pipe_route_review_table = self._make_table(
+            columns=[
+                "Route",
+                "Sections",
+                "Resized Δp",
+                "Target Δp",
+                "Required added Δp",
+                "Allocated point Δp",
+                "Residual",
+                "Conserved",
+                "Status",
+            ],
+            stretch_columns={0, 8},
+        )
+        self._add_section(
+            self._pipe_resizing_review_tab,
+            title="Resized route reconciliation — read-only",
+            table=self._resized_pipe_route_review_table,
+            min_height=185,
+            expanded=True,
+        )
+
+        self._resized_pipe_point_review_table = self._make_table(
+            columns=[
+                "Balancing point",
+                "Scope",
+                "Governed routes",
+                "Flow kg/s",
+                "Previous Δp",
+                "Resized Δp",
+                "Change Δp",
+                "Resistance",
+                "Valve duty",
+                "Status",
+            ],
+            stretch_columns={0, 2, 9},
+        )
+        self._add_section(
+            self._pipe_resizing_review_tab,
+            title="Resized balancing-point reconciliation — read-only",
+            table=self._resized_pipe_point_review_table,
+            min_height=170,
+            expanded=False,
+        )
+
+        for table in (
+                self._resized_pipe_section_review_table,
+                self._resized_pipe_route_review_table,
+                self._resized_pipe_point_review_table,
+        ):
+            table.setWordWrap(False)
+            table.setAlternatingRowColors(True)
+            self._apply_clean_proportioned_table_focus_style_v1(table)
+
+        self._resized_pipe_section_review_table.setToolTip(
+            "H-S61-C recommended-DN section projection; no committed DN "
+            "is changed."
+        )
+        self._resized_pipe_route_review_table.setToolTip(
+            "H-S61-C resized route totals with H-S61-D conservation evidence."
+        )
+        self._resized_pipe_point_review_table.setToolTip(
+            "H-S61-D reconciled point duties; no valve product, setting or "
+            "accepted generic Kvs is selected."
+        )
+        self.set_resized_pipe_section_review_rows_v1([])
+        self.set_resized_pipe_route_review_rows_v1([])
+        self.set_resized_pipe_point_review_rows_v1([])
+        self._pipe_resizing_review_tab.addStretch(1)
+
         proportioned_layout = self._proportioned_tab
 
         # --------------------------------------------------
@@ -10098,6 +10204,141 @@ QTableWidget::item:selected:!active {
         for row_index in range(table.rowCount()):
             table.setRowHeight(row_index, 24)
         self._fit_table_height(table, min_height=120, max_height=260)
+
+    def _set_resized_pipe_review_rows_v1(
+            self,
+            *,
+            table,
+            rows: list[dict],
+            keys: tuple[str, ...],
+            placeholder: dict,
+            widths: tuple[int, ...],
+            min_height: int,
+            max_height: int,
+    ) -> None:
+        """Shared display-only H-S61-E table projection helper."""
+        display_rows = list(rows or []) or [placeholder]
+        table.setRowCount(len(display_rows))
+        for row_index, row in enumerate(display_rows):
+            for column_index, key in enumerate(keys):
+                item = QTableWidgetItem(str(row.get(key, "—")))
+                item.setFlags(item.flags() & ~Qt.ItemIsEditable)
+                table.setItem(row_index, column_index, item)
+        table.setWordWrap(False)
+        table.setAlternatingRowColors(True)
+        for column_index, width in enumerate(widths):
+            table.setColumnWidth(column_index, width)
+        try:
+            table.horizontalHeader().setStretchLastSection(True)
+        except AttributeError:
+            pass
+        for row_index in range(table.rowCount()):
+            table.setRowHeight(row_index, 24)
+        self._fit_table_height(
+            table,
+            min_height=min_height,
+            max_height=max_height,
+        )
+
+    def set_resized_pipe_section_review_rows_v1(
+            self,
+            rows: list[dict],
+    ) -> None:
+        """Display H-S61-C resized section review rows."""
+        if not hasattr(self, "_resized_pipe_section_review_table"):
+            return
+        self._set_resized_pipe_review_rows_v1(
+            table=self._resized_pipe_section_review_table,
+            rows=rows,
+            keys=(
+                "section",
+                "routes",
+                "current_dn",
+                "projected_dn",
+                "change",
+                "flow",
+                "velocity",
+                "gradient",
+                "straight_dp",
+                "local_dp",
+                "total_dp",
+                "status",
+            ),
+            placeholder={
+                "section": "—",
+                "status": "Waiting for resized section evidence",
+            },
+            widths=(
+                245, 245, 90, 95, 85, 105, 125, 135,
+                105, 105, 105, 390,
+            ),
+            min_height=140,
+            max_height=360,
+        )
+
+    def set_resized_pipe_route_review_rows_v1(
+            self,
+            rows: list[dict],
+    ) -> None:
+        """Display H-S61-C/D resized route reconciliation rows."""
+        if not hasattr(self, "_resized_pipe_route_review_table"):
+            return
+        self._set_resized_pipe_review_rows_v1(
+            table=self._resized_pipe_route_review_table,
+            rows=rows,
+            keys=(
+                "route",
+                "sections",
+                "resized_dp",
+                "target_dp",
+                "required_dp",
+                "allocated_dp",
+                "residual",
+                "conserved",
+                "status",
+            ),
+            placeholder={
+                "route": "—",
+                "conserved": "—",
+                "status": "Waiting for resized route evidence",
+            },
+            widths=(250, 80, 105, 105, 135, 140, 100, 90, 390),
+            min_height=120,
+            max_height=280,
+        )
+
+    def set_resized_pipe_point_review_rows_v1(
+            self,
+            rows: list[dict],
+    ) -> None:
+        """Display H-S61-D resized balancing-point rows."""
+        if not hasattr(self, "_resized_pipe_point_review_table"):
+            return
+        self._set_resized_pipe_review_rows_v1(
+            table=self._resized_pipe_point_review_table,
+            rows=rows,
+            keys=(
+                "point",
+                "scope",
+                "routes",
+                "flow",
+                "previous_dp",
+                "resized_dp",
+                "change_dp",
+                "resistance",
+                "valve_duty",
+                "status",
+            ),
+            placeholder={
+                "point": "—",
+                "valve_duty": "—",
+                "status": "Waiting for resized point reconciliation",
+            },
+            widths=(260, 125, 260, 100, 110, 110, 105, 175, 95, 390),
+            min_height=120,
+            max_height=320,
+        )
+
 
     def set_clean_proportioned_route_output_rows(
             self,

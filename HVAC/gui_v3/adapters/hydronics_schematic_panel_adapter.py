@@ -151,6 +151,19 @@ from HVAC.hydronics.proportioning.committed_proportioned_system_csv_writer_v1 im
 from HVAC.hydronics.proportioning.committed_point_level_balancing_reconciliation_v1 import (
     build_committed_point_level_balancing_reconciliation_v1,
 )
+from HVAC.hydronics.proportioning.proportioned_pipe_sizing_authority_v1 import (
+    ProportionedPipeSizingCriteriaV1,
+    build_proportioned_pipe_sizing_authority_v1,
+)
+from HVAC.hydronics.proportioning.proportioned_pipe_size_candidate_evaluation_v1 import (
+    build_proportioned_pipe_size_candidate_evaluation_v1,
+)
+from HVAC.hydronics.proportioning.proportioned_pipe_resizing_hydraulic_projection_v1 import (
+    build_proportioned_pipe_resizing_hydraulic_projection_v1,
+)
+from HVAC.hydronics.proportioning.resized_balancing_point_reconciliation_v1 import (
+    build_resized_balancing_point_reconciliation_v1,
+)
 from HVAC.hydronics.proportioning.committed_proportioning_hydraulic_input_authority_v1 import (
     build_committed_proportioning_hydraulic_input_authority_v1,
 )
@@ -4229,6 +4242,308 @@ class HydronicsSchematicPanelAdapter:
 
 
 
+    def _build_resized_pipe_section_review_rows_v1(
+            self,
+            result,
+    ) -> list[dict]:
+        """H-S61-E display rows for resized section hydraulic evidence."""
+
+        def fmt(value, digits=1):
+            try:
+                return f"{float(value):.{digits}f}"
+            except (TypeError, ValueError):
+                return "—"
+
+        if result is None or not bool(getattr(result, "ready", False)):
+            return [
+                {
+                    "section": "—",
+                    "routes": "—",
+                    "current_dn": "—",
+                    "projected_dn": "—",
+                    "change": "—",
+                    "flow": "—",
+                    "velocity": "—",
+                    "gradient": "—",
+                    "straight_dp": "—",
+                    "local_dp": "—",
+                    "total_dp": "—",
+                    "status": str(
+                        getattr(
+                            result,
+                            "status",
+                            "Waiting for resized section evidence",
+                        )
+                        or "Waiting for resized section evidence"
+                    ),
+                }
+            ]
+
+        rows: list[dict] = []
+        for source in tuple(getattr(result, "sections", ()) or ()):
+            rows.append(
+                {
+                    "section": str(
+                        getattr(source, "section_id", "—") or "—"
+                    ),
+                    "routes": ", ".join(
+                        str(value)
+                        for value in tuple(
+                            getattr(source, "route_ids", ()) or ()
+                        )
+                    ) or "—",
+                    "current_dn": str(
+                        getattr(
+                            source,
+                            "current_pipe_size_label",
+                            "—",
+                        )
+                        or "—"
+                    ),
+                    "projected_dn": str(
+                        getattr(
+                            source,
+                            "projected_pipe_size_label",
+                            "—",
+                        )
+                        or "—"
+                    ),
+                    "change": str(
+                        getattr(source, "recommendation", "—") or "—"
+                    ).title(),
+                    "flow": (
+                        f"{fmt(getattr(source, 'carried_flow_kg_s', None), 4)} "
+                        "kg/s"
+                    ),
+                    "velocity": (
+                        f"{fmt(getattr(source, 'velocity_m_s', None), 3)} / "
+                        f"{fmt(getattr(source, 'maximum_velocity_m_s', None), 3)}"
+                    ),
+                    "gradient": (
+                        f"{fmt(getattr(source, 'pressure_gradient_Pa_per_m', None))} / "
+                        f"{fmt(getattr(source, 'maximum_pressure_gradient_Pa_per_m', None))} "
+                        "Pa/m"
+                    ),
+                    "straight_dp": (
+                        f"{fmt(getattr(source, 'straight_pressure_drop_Pa', None))} Pa"
+                    ),
+                    "local_dp": (
+                        f"{fmt(getattr(source, 'local_pressure_drop_Pa', None))} Pa"
+                    ),
+                    "total_dp": (
+                        f"{fmt(getattr(source, 'section_total_pressure_drop_Pa', None))} Pa"
+                    ),
+                    "status": str(
+                        getattr(source, "status", "—") or "—"
+                    ),
+                }
+            )
+        return rows
+
+    def _build_resized_pipe_route_review_rows_v1(
+            self,
+            resized_result,
+            reconciliation_result,
+    ) -> list[dict]:
+        """H-S61-E display rows for resized route conservation evidence."""
+
+        def fmt_pa(value):
+            try:
+                number = float(value)
+            except (TypeError, ValueError):
+                return "—"
+            if abs(number) < 0.05:
+                number = 0.0
+            return f"{number:.1f} Pa"
+
+        if resized_result is None or not bool(
+                getattr(resized_result, "ready", False)
+        ):
+            return [
+                {
+                    "route": "—",
+                    "sections": "—",
+                    "resized_dp": "—",
+                    "target_dp": "—",
+                    "required_dp": "—",
+                    "allocated_dp": "—",
+                    "residual": "—",
+                    "conserved": "No",
+                    "status": str(
+                        getattr(
+                            resized_result,
+                            "status",
+                            "Waiting for resized route evidence",
+                        )
+                        or "Waiting for resized route evidence"
+                    ),
+                }
+            ]
+
+        reconciled_by_route = {
+            str(getattr(row, "projected_route_id", "")): row
+            for row in tuple(
+                getattr(reconciliation_result, "route_rows", ()) or ()
+            )
+        }
+        reconciliation_ready = bool(
+            getattr(reconciliation_result, "ready", False)
+        )
+        output: list[dict] = []
+        for source in tuple(getattr(resized_result, "routes", ()) or ()):
+            route_id = str(getattr(source, "route_id", "") or "")
+            reconciled = reconciled_by_route.get(route_id)
+            conserved = bool(
+                reconciled is not None
+                and getattr(reconciled, "conserved", False)
+            )
+            if reconciled is not None:
+                status = str(getattr(reconciled, "status", "—") or "—")
+            elif reconciliation_result is not None:
+                status = str(
+                    getattr(reconciliation_result, "status", "—") or "—"
+                )
+            else:
+                status = "Waiting for resized point reconciliation"
+
+            output.append(
+                {
+                    "route": route_id or "—",
+                    "sections": str(
+                        int(getattr(source, "section_count", 0) or 0)
+                    ),
+                    "resized_dp": fmt_pa(
+                        getattr(
+                            source,
+                            "route_pressure_drop_total_Pa",
+                            None,
+                        )
+                    ),
+                    "target_dp": fmt_pa(
+                        getattr(source, "controlling_target_Pa", None)
+                    ),
+                    "required_dp": fmt_pa(
+                        getattr(source, "required_added_dp_Pa", None)
+                    ),
+                    "allocated_dp": fmt_pa(
+                        getattr(
+                            reconciled,
+                            "allocated_path_dp_Pa",
+                            None,
+                        )
+                        if reconciled is not None
+                        else None
+                    ),
+                    "residual": fmt_pa(
+                        getattr(reconciled, "residual_Pa", None)
+                        if reconciled is not None
+                        else None
+                    ),
+                    "conserved": (
+                        "Yes"
+                        if conserved
+                        else ("No" if reconciliation_ready else "—")
+                    ),
+                    "status": status,
+                }
+            )
+        return output
+
+    def _build_resized_pipe_point_review_rows_v1(
+            self,
+            result,
+    ) -> list[dict]:
+        """H-S61-E display rows for reconciled resized point duties."""
+
+        def fmt_pa(value):
+            try:
+                number = float(value)
+            except (TypeError, ValueError):
+                return "—"
+            if abs(number) < 0.05:
+                number = 0.0
+            return f"{number:.1f} Pa"
+
+        if result is None or not bool(getattr(result, "ready", False)):
+            return [
+                {
+                    "point": "—",
+                    "scope": "—",
+                    "routes": "—",
+                    "flow": "—",
+                    "previous_dp": "—",
+                    "resized_dp": "—",
+                    "change_dp": "—",
+                    "resistance": "—",
+                    "valve_duty": "—",
+                    "status": str(
+                        getattr(
+                            result,
+                            "status",
+                            "Waiting for resized point reconciliation",
+                        )
+                        or "Waiting for resized point reconciliation"
+                    ),
+                }
+            ]
+
+        output: list[dict] = []
+        for source in tuple(getattr(result, "point_rows", ()) or ()):
+            try:
+                flow = f"{float(source.point_flow_kg_s):.4f} kg/s"
+            except (TypeError, ValueError):
+                flow = "—"
+            try:
+                resistance = (
+                    f"{float(source.reconciled_resistance_Pa_per_kg_s2):.1f} "
+                    "Pa/(kg/s)²"
+                )
+            except (TypeError, ValueError):
+                resistance = "—"
+            output.append(
+                {
+                    "point": str(
+                        getattr(source, "balancing_point_id", "—") or "—"
+                    ),
+                    "scope": str(
+                        getattr(source, "point_scope", "—") or "—"
+                    ),
+                    "routes": ", ".join(
+                        str(value)
+                        for value in tuple(
+                            getattr(source, "projected_route_ids", ()) or ()
+                        )
+                    ) or "—",
+                    "flow": flow,
+                    "previous_dp": fmt_pa(
+                        getattr(source, "previous_allocated_dp_Pa", None)
+                    ),
+                    "resized_dp": fmt_pa(
+                        getattr(
+                            source,
+                            "reconciled_allocated_dp_Pa",
+                            None,
+                        )
+                    ),
+                    "change_dp": fmt_pa(
+                        getattr(source, "allocation_change_dp_Pa", None)
+                    ),
+                    "resistance": resistance,
+                    "valve_duty": (
+                        "Yes"
+                        if bool(
+                            getattr(source, "valve_duty_required", False)
+                        )
+                        else "No"
+                    ),
+                    "status": str(
+                        getattr(source, "status", "—") or "—"
+                    ),
+                }
+            )
+        return output
+
+
     def _build_clean_proportioned_route_output_rows_v1(
             self,
             *,
@@ -5516,6 +5831,106 @@ class HydronicsSchematicPanelAdapter:
                 if committed_snapshot is not None
                 else None
             )
+            environment = getattr(
+                self._project_state,
+                "environment",
+                None,
+            )
+            try:
+                default_max_velocity = float(
+                    getattr(
+                        environment,
+                        "basic_ps_max_velocity_m_s",
+                        1.0,
+                    )
+                    or 1.0
+                )
+            except (TypeError, ValueError):
+                default_max_velocity = 1.0
+            sizing_intent = getattr(
+                self._project_state,
+                "basic_hydronic_sizing_intent",
+                None,
+            )
+            velocity_overrides = getattr(
+                sizing_intent,
+                "section_max_velocity_overrides_m_s",
+                {},
+            ) or {}
+            pipe_material = str(
+                getattr(
+                    self._project_state,
+                    "hydronic_pipe_material",
+                    "copper",
+                )
+                or "copper"
+            ).strip().lower()
+            pipe_sizing_criteria = ProportionedPipeSizingCriteriaV1(
+                material_key=pipe_material,
+                material_source="Committed project pipe material",
+                default_max_velocity_m_s=default_max_velocity,
+                max_velocity_source="Environment design criterion",
+            )
+            self._proportioned_pipe_sizing_authority_v1 = (
+                build_proportioned_pipe_sizing_authority_v1(
+                    committed_snapshot,
+                    criteria=pipe_sizing_criteria,
+                    section_max_velocity_overrides_m_s=velocity_overrides,
+                )
+            )
+            self._proportioned_pipe_size_candidate_evaluation_v1 = (
+                build_proportioned_pipe_size_candidate_evaluation_v1(
+                    self._proportioned_pipe_sizing_authority_v1
+                )
+            )
+            self._proportioned_pipe_resizing_hydraulic_projection_v1 = (
+                build_proportioned_pipe_resizing_hydraulic_projection_v1(
+                    authority=self._proportioned_pipe_sizing_authority_v1,
+                    candidate_evaluation=(
+                        self._proportioned_pipe_size_candidate_evaluation_v1
+                    ),
+                )
+            )
+            self._resized_balancing_point_reconciliation_v1 = (
+                build_resized_balancing_point_reconciliation_v1(
+                    resized_hydraulics=(
+                        self._proportioned_pipe_resizing_hydraulic_projection_v1
+                    ),
+                    committed_point_allocation_authority=getattr(
+                        committed_snapshot,
+                        "point_allocation_authority",
+                        None,
+                    ),
+                )
+            )
+            if hasattr(
+                    self._panel,
+                    "set_resized_pipe_section_review_rows_v1",
+            ):
+                self._panel.set_resized_pipe_section_review_rows_v1(
+                    self._build_resized_pipe_section_review_rows_v1(
+                        self._proportioned_pipe_resizing_hydraulic_projection_v1
+                    )
+                )
+            if hasattr(
+                    self._panel,
+                    "set_resized_pipe_route_review_rows_v1",
+            ):
+                self._panel.set_resized_pipe_route_review_rows_v1(
+                    self._build_resized_pipe_route_review_rows_v1(
+                        self._proportioned_pipe_resizing_hydraulic_projection_v1,
+                        self._resized_balancing_point_reconciliation_v1,
+                    )
+                )
+            if hasattr(
+                    self._panel,
+                    "set_resized_pipe_point_review_rows_v1",
+            ):
+                self._panel.set_resized_pipe_point_review_rows_v1(
+                    self._build_resized_pipe_point_review_rows_v1(
+                        self._resized_balancing_point_reconciliation_v1
+                    )
+                )
             self._committed_proportioned_system_completion_status_v1 = (
                 build_committed_proportioned_system_completion_status_v1(
                     committed_snapshot
