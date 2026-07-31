@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import hashlib
 import math
 
 from HVAC.hydronics.proportioning.balancing_point_kvs_candidate_evidence_v1 import (
@@ -20,6 +21,8 @@ class PointKvsCandidateAcceptanceV1:
     balancing_point_id: str
     accepted_kvs: float
     kvs_series_id: str = GENERIC_PREFERRED_KVS_SERIES_ID_V1
+    # H-S62-A — exact H-S47-C point-duty evidence accepted manually.
+    duty_fingerprint: str = ""
 
 
 @dataclass(slots=True)
@@ -42,10 +45,12 @@ class BalancingPointKvsCandidateAcceptanceIntentV1:
         balancing_point_id: str,
         accepted_kvs: float,
         kvs_series_id: str = GENERIC_PREFERRED_KVS_SERIES_ID_V1,
+        duty_fingerprint: str = "",
     ) -> None:
         point_id = _stable_id_v1(balancing_point_id)
         kvs = _positive_finite_v1(accepted_kvs)
         series_id = _stable_id_v1(kvs_series_id)
+        fingerprint = _stable_id_v1(duty_fingerprint)
         if not point_id:
             raise ValueError("balancing_point_id is required")
         if kvs is None:
@@ -56,6 +61,7 @@ class BalancingPointKvsCandidateAcceptanceIntentV1:
             balancing_point_id=point_id,
             accepted_kvs=kvs,
             kvs_series_id=series_id,
+            duty_fingerprint=fingerprint,
         )
 
     def clear_candidate(self, balancing_point_id: str) -> bool:
@@ -115,6 +121,7 @@ def balancing_point_kvs_candidate_acceptance_intent_to_dict_v1(
                 "balancing_point_id": entry.balancing_point_id,
                 "accepted_kvs": float(entry.accepted_kvs),
                 "kvs_series_id": entry.kvs_series_id,
+                "duty_fingerprint": entry.duty_fingerprint,
             }
             for point_id, entry in sorted(
                 source.accepted_by_point_id.items()
@@ -140,12 +147,16 @@ def balancing_point_kvs_candidate_acceptance_intent_from_dict_v1(
         )
         kvs = _positive_finite_v1(raw_entry.get("accepted_kvs"))
         series_id = _stable_id_v1(raw_entry.get("kvs_series_id"))
+        fingerprint = _stable_id_v1(
+            raw_entry.get("duty_fingerprint")
+        )
         if not point_id or kvs is None or not series_id:
             continue
         intent.accepted_by_point_id[point_id] = PointKvsCandidateAcceptanceV1(
             balancing_point_id=point_id,
             accepted_kvs=kvs,
             kvs_series_id=series_id,
+            duty_fingerprint=fingerprint,
         )
     return intent
 
@@ -157,6 +168,7 @@ def resolve_balancing_point_kvs_candidate_acceptance_v1(
     ),
     *,
     tolerance: float = 1e-9,
+    require_duty_fingerprint: bool = False,
 ) -> ResolvedPointKvsCandidateAcceptanceV1:
     """Resolve persisted intent against current H-S47-C candidate evidence."""
 
@@ -254,6 +266,40 @@ def resolve_balancing_point_kvs_candidate_acceptance_v1(
             )
             continue
 
+        current_fingerprint = (
+            build_balancing_point_kvs_acceptance_duty_fingerprint_v1(
+                evidence_row
+            )
+        )
+        fingerprint_blocker = ""
+        if entry.duty_fingerprint:
+            if (
+                not current_fingerprint
+                or entry.duty_fingerprint != current_fingerprint
+            ):
+                fingerprint_blocker = (
+                    "Accepted Kvs duty fingerprint does not match "
+                    "current H-S47-C point duty"
+                )
+        elif require_duty_fingerprint:
+            fingerprint_blocker = (
+                "Accepted Kvs predates exact point-duty evidence; "
+                "fresh manual review required"
+            )
+        if fingerprint_blocker:
+            blockers.append(f"{point_id}: {fingerprint_blocker}")
+            rows.append(
+                ResolvedPointKvsCandidateAcceptanceRowV1(
+                    balancing_point_id=point_id,
+                    accepted=False,
+                    accepted_kvs=entry.accepted_kvs,
+                    kvs_series_id=entry.kvs_series_id,
+                    status="Blocked — stale manual Kvs acceptance",
+                    blockers=(fingerprint_blocker,),
+                )
+            )
+            continue
+
         rows.append(
             ResolvedPointKvsCandidateAcceptanceRowV1(
                 balancing_point_id=point_id,
@@ -279,6 +325,71 @@ def resolve_balancing_point_kvs_candidate_acceptance_v1(
         rows=tuple(rows),
     )
 
+
+
+def build_balancing_point_kvs_acceptance_duty_fingerprint_v1(
+    evidence_row: object,
+) -> str:
+    """Fingerprint the exact current point duty behind manual Kvs review.
+
+    Derived values are deliberately retained alongside their authoritative
+    inputs. This makes any material/size-driven change to the point duty,
+    required Kv or controlled-circuit consequence visible as stale evidence.
+    """
+
+    point_id = _stable_id_v1(
+        getattr(evidence_row, "balancing_point_id", "")
+    )
+    if not point_id:
+        return ""
+
+    numeric_fields = (
+        "point_flow_kg_s",
+        "design_valve_dp_pa",
+        "controlled_circuit_dp_pa",
+        "flow_m3_h",
+        "required_kv",
+        "fluid_density_kg_m3",
+    )
+    numbers: list[tuple[str, str]] = []
+    for field_name in numeric_fields:
+        value = _positive_finite_v1(getattr(evidence_row, field_name, None))
+        if value is None:
+            return ""
+        numbers.append((field_name, float(value).hex()))
+
+    text_fields = (
+        "point_scope",
+        "point_role",
+        "topology",
+        "fluid_density_basis_id",
+        "kvs_series_id",
+    )
+    texts = tuple(
+        (field_name, _stable_id_v1(getattr(evidence_row, field_name, "")))
+        for field_name in text_fields
+    )
+
+    route_fields = ("governed_route_ids", "downstream_route_ids")
+    routes = tuple(
+        (
+            field_name,
+            tuple(
+                _stable_id_v1(value)
+                for value in tuple(
+                    getattr(evidence_row, field_name, ()) or ()
+                )
+            ),
+        )
+        for field_name in route_fields
+    )
+    payload = repr((
+        ("balancing_point_id", point_id),
+        *texts,
+        *tuple(numbers),
+        *routes,
+    )).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
 
 def _stable_id_v1(value: object) -> str:
     return str(value or "").strip()
