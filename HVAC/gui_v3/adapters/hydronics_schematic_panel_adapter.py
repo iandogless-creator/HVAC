@@ -164,6 +164,10 @@ from HVAC.hydronics.proportioning.proportioned_pipe_resizing_hydraulic_projectio
 from HVAC.hydronics.proportioning.resized_balancing_point_reconciliation_v1 import (
     build_resized_balancing_point_reconciliation_v1,
 )
+from HVAC.hydronics.proportioning.proportioned_pipe_resizing_schedule_acceptance_intent_v1 import (
+    ProportionedPipeResizingScheduleAcceptanceIntentV1,
+    resolve_proportioned_pipe_resizing_schedule_acceptance_v1,
+)
 from HVAC.hydronics.proportioning.committed_proportioning_hydraulic_input_authority_v1 import (
     build_committed_proportioning_hydraulic_input_authority_v1,
 )
@@ -390,6 +394,15 @@ class HydronicsSchematicPanelAdapter:
         ):
             self._panel.set_balancing_point_kvs_acceptance_callback(
                 self.set_balancing_point_kvs_candidate_acceptance
+            )
+
+        # H-S61-G — explicit whole-schedule DN acceptance callback.
+        if hasattr(
+                self._panel,
+                "set_proportioned_pipe_resizing_schedule_acceptance_callback_v1",
+        ):
+            self._panel.set_proportioned_pipe_resizing_schedule_acceptance_callback_v1(
+                self.set_proportioned_pipe_resizing_schedule_acceptance_v1
             )
 
         if hasattr(
@@ -830,6 +843,86 @@ class HydronicsSchematicPanelAdapter:
 
         project.hydronic_point_accepted_kvs_consequence_disposition_intent = intent
         project.hydronics_valid = False
+        if hasattr(project, "mark_dirty"):
+            project.mark_dirty()
+
+        self.refresh()
+        for signal_name in ("project_state_changed", "project_changed"):
+            signal = getattr(self._context, signal_name, None)
+            emit = getattr(signal, "emit", None)
+            if not callable(emit):
+                continue
+            try:
+                emit()
+            except TypeError:
+                try:
+                    emit(project)
+                except TypeError:
+                    pass
+
+    def set_proportioned_pipe_resizing_schedule_acceptance_v1(
+            self,
+            payload: dict,
+    ) -> None:
+        """
+        H-S61-G:
+        Persist or clear explicit manual acceptance of the complete current
+        H-S61-C/D proposed DN schedule.
+
+        This is an acceptance-intent handoff only. It does not replace any
+        committed DN, hydraulic result or balancing-point allocation.
+        """
+        if not isinstance(payload, dict):
+            raise ValueError(
+                "Pipe-resizing schedule acceptance payload must be a "
+                "dictionary"
+            )
+
+        project = self._project_state
+        if project is None:
+            return
+
+        action = str(payload.get("action") or "").strip().lower()
+        intent = getattr(
+            project,
+            "hydronic_proportioned_pipe_resizing_schedule_acceptance_intent",
+            None,
+        )
+
+        if action == "accept":
+            if not isinstance(
+                    intent,
+                    ProportionedPipeResizingScheduleAcceptanceIntentV1,
+            ):
+                intent = (
+                    ProportionedPipeResizingScheduleAcceptanceIntentV1()
+                )
+            intent.accept_current_schedule(
+                resized_hydraulics=getattr(
+                    self,
+                    "_proportioned_pipe_resizing_hydraulic_projection_v1",
+                    None,
+                ),
+                resized_point_reconciliation=getattr(
+                    self,
+                    "_resized_balancing_point_reconciliation_v1",
+                    None,
+                ),
+            )
+        elif action == "clear":
+            if not isinstance(
+                    intent,
+                    ProportionedPipeResizingScheduleAcceptanceIntentV1,
+            ):
+                self.refresh()
+                return
+            intent.clear_acceptance()
+        else:
+            raise ValueError("action must be 'accept' or 'clear'")
+
+        project.hydronic_proportioned_pipe_resizing_schedule_acceptance_intent = (
+            intent
+        )
         if hasattr(project, "mark_dirty"):
             project.mark_dirty()
 
@@ -5903,6 +5996,69 @@ class HydronicsSchematicPanelAdapter:
                     ),
                 )
             )
+            schedule_acceptance_intent = getattr(
+                self._project_state,
+                "hydronic_proportioned_pipe_resizing_schedule_acceptance_intent",
+                None,
+            )
+            self._proportioned_pipe_resizing_schedule_acceptance_resolution_v1 = (
+                resolve_proportioned_pipe_resizing_schedule_acceptance_v1(
+                    schedule_acceptance_intent,
+                    resized_hydraulics=(
+                        self._proportioned_pipe_resizing_hydraulic_projection_v1
+                    ),
+                    resized_point_reconciliation=(
+                        self._resized_balancing_point_reconciliation_v1
+                    ),
+                )
+            )
+            if hasattr(
+                    self._panel,
+                    "set_proportioned_pipe_resizing_schedule_acceptance_state_v1",
+            ):
+                acceptance_resolution = (
+                    self._proportioned_pipe_resizing_schedule_acceptance_resolution_v1
+                )
+                self._panel.set_proportioned_pipe_resizing_schedule_acceptance_state_v1(
+                    evidence_ready=bool(
+                        getattr(
+                            self._proportioned_pipe_resizing_hydraulic_projection_v1,
+                            "ready",
+                            False,
+                        )
+                        and getattr(
+                            self._resized_balancing_point_reconciliation_v1,
+                            "ready",
+                            False,
+                        )
+                    ),
+                    accepted=bool(
+                        getattr(acceptance_resolution, "accepted", False)
+                    ),
+                    has_stored_acceptance=bool(
+                        isinstance(
+                            schedule_acceptance_intent,
+                            ProportionedPipeResizingScheduleAcceptanceIntentV1,
+                        )
+                        and getattr(
+                            schedule_acceptance_intent,
+                            "accepted_schedule",
+                            None,
+                        )
+                        is not None
+                    ),
+                    status=(
+                        str(
+                            getattr(
+                                acceptance_resolution,
+                                "status",
+                                "",
+                            )
+                            or ""
+                        ).strip()
+                        or "Proposed DN schedule acceptance unavailable"
+                    ),
+                )
             if hasattr(
                     self._panel,
                     "set_resized_pipe_section_review_rows_v1",

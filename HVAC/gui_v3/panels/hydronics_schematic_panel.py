@@ -1033,6 +1033,70 @@ class HydronicsSchematicPanel(QWidget):
             )
         )
 
+        self._proportioned_pipe_resizing_schedule_acceptance_callback_v1 = None
+        self._proportioned_pipe_resizing_schedule_evidence_ready_v1 = False
+        self._proportioned_pipe_resizing_schedule_accepted_v1 = False
+        self._proportioned_pipe_resizing_schedule_has_stored_acceptance_v1 = (
+            False
+        )
+
+        self._proportioned_pipe_resizing_schedule_acceptance_card_v1 = QFrame(
+            self
+        )
+        self._proportioned_pipe_resizing_schedule_acceptance_card_v1.setFrameShape(
+            QFrame.StyledPanel
+        )
+        schedule_acceptance_layout = QGridLayout(
+            self._proportioned_pipe_resizing_schedule_acceptance_card_v1
+        )
+        schedule_acceptance_layout.setContentsMargins(8, 6, 8, 6)
+        schedule_acceptance_layout.setHorizontalSpacing(8)
+        schedule_acceptance_layout.setVerticalSpacing(4)
+
+        self._proportioned_pipe_resizing_schedule_acceptance_status_v1 = QLabel(
+            "Pending — resized engineering evidence is not ready",
+            self._proportioned_pipe_resizing_schedule_acceptance_card_v1,
+        )
+        self._proportioned_pipe_resizing_schedule_acceptance_status_v1.setWordWrap(
+            True
+        )
+        self._proportioned_pipe_resizing_schedule_accept_button_v1 = QPushButton(
+            "Accept proposed DN schedule",
+            self._proportioned_pipe_resizing_schedule_acceptance_card_v1,
+        )
+        self._proportioned_pipe_resizing_schedule_clear_button_v1 = QPushButton(
+            "Clear acceptance",
+            self._proportioned_pipe_resizing_schedule_acceptance_card_v1,
+        )
+        self._proportioned_pipe_resizing_schedule_accept_button_v1.clicked.connect(
+            self._on_proportioned_pipe_resizing_schedule_accept_v1
+        )
+        self._proportioned_pipe_resizing_schedule_clear_button_v1.clicked.connect(
+            self._on_proportioned_pipe_resizing_schedule_clear_v1
+        )
+        schedule_acceptance_layout.addWidget(
+            self._proportioned_pipe_resizing_schedule_acceptance_status_v1,
+            0,
+            0,
+            1,
+            2,
+        )
+        schedule_acceptance_layout.addWidget(
+            self._proportioned_pipe_resizing_schedule_accept_button_v1,
+            1,
+            0,
+        )
+        schedule_acceptance_layout.addWidget(
+            self._proportioned_pipe_resizing_schedule_clear_button_v1,
+            1,
+            1,
+        )
+        schedule_acceptance_layout.setColumnStretch(2, 1)
+        self._pipe_resizing_review_tab.addWidget(
+            self._proportioned_pipe_resizing_schedule_acceptance_card_v1
+        )
+        self._refresh_proportioned_pipe_resizing_schedule_acceptance_controls_v1()
+
         self._resized_pipe_section_review_table = self._make_table(
             columns=[
                 "Section",
@@ -10204,6 +10268,157 @@ QTableWidget::item:selected:!active {
         for row_index in range(table.rowCount()):
             table.setRowHeight(row_index, 24)
         self._fit_table_height(table, min_height=120, max_height=260)
+
+    def set_proportioned_pipe_resizing_schedule_acceptance_callback_v1(
+            self,
+            callback,
+    ) -> None:
+        """Register the H-S61-G adapter persistence handoff."""
+        self._proportioned_pipe_resizing_schedule_acceptance_callback_v1 = (
+            callback
+        )
+        self._refresh_proportioned_pipe_resizing_schedule_acceptance_controls_v1()
+
+    def set_proportioned_pipe_resizing_schedule_acceptance_state_v1(
+            self,
+            *,
+            evidence_ready: bool,
+            accepted: bool,
+            has_stored_acceptance: bool,
+            status: str,
+    ) -> None:
+        """
+        Display the resolved H-S61-F acceptance state.
+
+        Display/control state only: no ProjectState access and no DN mutation.
+        """
+        if not hasattr(
+                self,
+                "_proportioned_pipe_resizing_schedule_acceptance_status_v1",
+        ):
+            return
+        self._proportioned_pipe_resizing_schedule_evidence_ready_v1 = bool(
+            evidence_ready
+        )
+        self._proportioned_pipe_resizing_schedule_accepted_v1 = bool(accepted)
+        self._proportioned_pipe_resizing_schedule_has_stored_acceptance_v1 = (
+            bool(has_stored_acceptance)
+        )
+        self._proportioned_pipe_resizing_schedule_acceptance_status_v1.setText(
+            str(status or "Proposed DN schedule acceptance unavailable")
+        )
+        self._refresh_proportioned_pipe_resizing_schedule_acceptance_controls_v1()
+
+    def _refresh_proportioned_pipe_resizing_schedule_acceptance_controls_v1(
+            self,
+    ) -> None:
+        accept_button = getattr(
+            self,
+            "_proportioned_pipe_resizing_schedule_accept_button_v1",
+            None,
+        )
+        clear_button = getattr(
+            self,
+            "_proportioned_pipe_resizing_schedule_clear_button_v1",
+            None,
+        )
+        if accept_button is None or clear_button is None:
+            return
+        callback_ready = callable(
+            getattr(
+                self,
+                "_proportioned_pipe_resizing_schedule_acceptance_callback_v1",
+                None,
+            )
+        )
+        accept_button.setEnabled(
+            callback_ready
+            and bool(
+                getattr(
+                    self,
+                    "_proportioned_pipe_resizing_schedule_evidence_ready_v1",
+                    False,
+                )
+            )
+            and not bool(
+                getattr(
+                    self,
+                    "_proportioned_pipe_resizing_schedule_accepted_v1",
+                    False,
+                )
+            )
+        )
+        clear_button.setEnabled(
+            callback_ready
+            and bool(
+                getattr(
+                    self,
+                    "_proportioned_pipe_resizing_schedule_has_stored_acceptance_v1",
+                    False,
+                )
+            )
+        )
+
+    def _on_proportioned_pipe_resizing_schedule_accept_v1(self) -> None:
+        callback = getattr(
+            self,
+            "_proportioned_pipe_resizing_schedule_acceptance_callback_v1",
+            None,
+        )
+        if not callable(callback):
+            return
+        answer = QMessageBox.question(
+            self,
+            "Accept proposed DN schedule",
+            (
+                "Accept the complete currently reviewed proposed DN schedule?\n\n"
+                "This records manual acceptance only. Current committed DNs "
+                "remain unchanged until a later explicit commit stage."
+            ),
+            QMessageBox.StandardButton.Yes
+            | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if answer != QMessageBox.StandardButton.Yes:
+            return
+        try:
+            callback({"action": "accept"})
+        except Exception as exc:
+            QMessageBox.warning(
+                self,
+                "Proposed DN schedule acceptance blocked",
+                str(exc),
+            )
+
+    def _on_proportioned_pipe_resizing_schedule_clear_v1(self) -> None:
+        callback = getattr(
+            self,
+            "_proportioned_pipe_resizing_schedule_acceptance_callback_v1",
+            None,
+        )
+        if not callable(callback):
+            return
+        answer = QMessageBox.question(
+            self,
+            "Clear proposed DN schedule acceptance",
+            (
+                "Clear the stored manual acceptance for the proposed DN "
+                "schedule? Current committed DNs will remain unchanged."
+            ),
+            QMessageBox.StandardButton.Yes
+            | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if answer != QMessageBox.StandardButton.Yes:
+            return
+        try:
+            callback({"action": "clear"})
+        except Exception as exc:
+            QMessageBox.warning(
+                self,
+                "Clear proposed DN schedule acceptance blocked",
+                str(exc),
+            )
 
     def _set_resized_pipe_review_rows_v1(
             self,
