@@ -37,6 +37,9 @@ class CommittedProportionedSystemCompletionStatusV1:
         "committed_proportioned_system_completion_status_v1"
     )
     ready: bool = False
+    # H-S61-H2B2 — typed committed-output scope; never inferred from wording.
+    committed_resized_hydraulics: bool = False
+    fresh_generic_kvs_review_required: bool = False
     accepted_return_arrangement_basis: str = "—"
     controlling_target_pressure_drop_Pa: float | None = None
     route_count: int = 0
@@ -57,7 +60,7 @@ class CommittedProportionedSystemCompletionStatusV1:
         "No pump selection",
         "No valve product selected",
         "No valve setting selected",
-        "No pipe resizing",
+        "No pipe resizing performed by this completion check",
         "No commissioning or final system balancing",
     )
     note: str = (
@@ -100,6 +103,18 @@ def _compose_committed_completion_status_v1(
     section_result: CommittedBasisSectionHydraulicResultV1,
 ) -> CommittedProportionedSystemCompletionStatusV1:
     blockers: list[str] = []
+
+    committed_resized_hydraulics = (
+        str(getattr(snapshot, "status", "") or "").strip()
+        == "COMMITTED_RESIZED_HYDRAULICS"
+    )
+    fresh_generic_kvs_review_required = bool(
+        committed_resized_hydraulics
+        and "fresh manual generic-kvs review"
+        in str(
+            getattr(snapshot, "point_valve_basis_status", "") or ""
+        ).lower()
+    )
 
     return_basis = _text_v1(snapshot.return_arrangement_basis)
     if not return_basis or return_basis in {"—", "UNDECIDED"}:
@@ -215,6 +230,10 @@ def _compose_committed_completion_status_v1(
     ready = not clean
     return CommittedProportionedSystemCompletionStatusV1(
         ready=ready,
+        committed_resized_hydraulics=committed_resized_hydraulics,
+        fresh_generic_kvs_review_required=(
+            fresh_generic_kvs_review_required
+        ),
         accepted_return_arrangement_basis=return_basis or "—",
         controlling_target_pressure_drop_Pa=target,
         route_count=route_count,
@@ -228,12 +247,38 @@ def _compose_committed_completion_status_v1(
         unique_section_count=unique_section_count,
         route_addressable_section_count=len(section_rows),
         status=(
-            "Ready — committed Proportioned-system completion "
+            "Ready — committed resized hydraulics and reconciled "
+            "Proportioned-system completion status available"
+            if ready and committed_resized_hydraulics
+            else "Ready — committed Proportioned-system completion "
             "status available"
             if ready
+            else (
+                "Blocked — committed resized hydraulics available; "
+                "fresh manual generic-Kvs review required — "
+                + "; ".join(clean)
+            )
+            if fresh_generic_kvs_review_required
             else "Blocked — " + "; ".join(clean)
         ),
         blockers=clean,
+        note=(
+            "Committed resized material, bore, roughness, section and route "
+            "hydraulics are available; overall completion awaits fresh "
+            "manual generic-Kvs reconciliation."
+            if fresh_generic_kvs_review_required
+            else (
+                "Committed resized route, balancing-point and section "
+                "results reconcile; product and commissioning decisions "
+                "remain separate."
+                if committed_resized_hydraulics
+                else (
+                    "Committed route, balancing-point and section results "
+                    "reconcile; later product and commissioning decisions "
+                    "remain separate."
+                )
+            )
+        ),
     )
 
 

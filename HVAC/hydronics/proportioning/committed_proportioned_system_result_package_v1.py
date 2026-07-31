@@ -40,6 +40,9 @@ class CommittedProportionedSystemResultPackageV1:
 
     schema: str = "committed_proportioned_system_result_package_v1"
     ready: bool = False
+    # H-S61-H2B2 — propagated typed committed-output scope.
+    committed_resized_hydraulics: bool = False
+    fresh_generic_kvs_review_required: bool = False
     source_snapshot_schema: str = ""
     accepted_return_arrangement_basis: str = "—"
     route_result: CommittedBasisRouteProportioningResultV1 | None = None
@@ -64,7 +67,7 @@ class CommittedProportionedSystemResultPackageV1:
         "No valve product selected",
         "No valve setting selected",
         "No automatic generic-Kvs revision",
-        "No pipe resizing",
+        "No pipe resizing performed while composing this result package",
         "No commissioning or final system balancing",
     )
     note: str = (
@@ -120,6 +123,18 @@ def build_committed_proportioned_system_result_package_v1(
     route_addressable_section_count = len(section_rows)
 
     snapshot_schema = _text_v1(getattr(snapshot, "schema", ""))
+    committed_resized_hydraulics = (
+        _text_v1(getattr(snapshot, "status", ""))
+        == "COMMITTED_RESIZED_HYDRAULICS"
+    )
+    fresh_generic_kvs_review_required = bool(
+        committed_resized_hydraulics
+        and getattr(
+            completion,
+            "fresh_generic_kvs_review_required",
+            False,
+        )
+    )
     return_basis = _text_v1(
         getattr(snapshot, "return_arrangement_basis", "")
     )
@@ -176,6 +191,10 @@ def build_committed_proportioned_system_result_package_v1(
     ready = not clean
     return CommittedProportionedSystemResultPackageV1(
         ready=ready,
+        committed_resized_hydraulics=committed_resized_hydraulics,
+        fresh_generic_kvs_review_required=(
+            fresh_generic_kvs_review_required
+        ),
         source_snapshot_schema=snapshot_schema,
         accepted_return_arrangement_basis=return_basis or "—",
         route_result=route_result,
@@ -189,11 +208,36 @@ def build_committed_proportioned_system_result_package_v1(
             route_addressable_section_count
         ),
         status=(
-            "Ready — committed Proportioned-system result package available"
+            "Ready — committed resized-hydraulics Proportioned-system "
+            "result package available"
+            if ready and committed_resized_hydraulics
+            else "Ready — committed Proportioned-system result package available"
             if ready
+            else (
+                "Blocked — committed resized hydraulics available; "
+                "fresh manual generic-Kvs review required before overall "
+                "result packaging — "
+                + "; ".join(clean)
+            )
+            if fresh_generic_kvs_review_required
             else "Blocked — " + "; ".join(clean)
         ),
         blockers=clean,
+        note=(
+            "Committed resized hydraulic evidence is retained; overall "
+            "packaging awaits fresh manual generic-Kvs reconciliation."
+            if fresh_generic_kvs_review_required
+            else (
+                "Aggregate committed resized Proportioned evidence only; "
+                "product selection and commissioning remain separate."
+                if committed_resized_hydraulics
+                else (
+                    "Aggregate committed Proportioned evidence only; later "
+                    "export, product selection and commissioning remain "
+                    "separate."
+                )
+            )
+        ),
     )
 
 

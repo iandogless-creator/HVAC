@@ -5692,7 +5692,7 @@ class HydronicsSchematicPanelAdapter:
 
         status = str(getattr(result, "status", "") or "—")
         status += (
-            " — no pump, valve setting, pipe resizing or final "
+            " — no pump, valve setting, further pipe resizing or final "
             "commissioning"
         )
         output.append(

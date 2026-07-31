@@ -21,7 +21,7 @@ _EXCLUSIONS_V1: tuple[str, ...] = (
     "No valve product selected",
     "No valve setting selected",
     "No automatic generic-Kvs revision",
-    "No pipe resizing",
+    "No pipe resizing performed while composing this export payload",
     "No commissioning or final system balancing",
 )
 
@@ -69,12 +69,29 @@ def build_committed_proportioned_system_export_payload_v1(
         )
 
     if not package.ready:
+        committed_resized_hydraulics = bool(
+            getattr(package, "committed_resized_hydraulics", False)
+        )
+        fresh_generic_kvs_review_required = bool(
+            getattr(
+                package,
+                "fresh_generic_kvs_review_required",
+                False,
+            )
+        )
+        scope = (
+            (
+                "Committed resized hydraulics available; fresh manual "
+                "generic-Kvs review required before export"
+            ),
+        ) if fresh_generic_kvs_review_required else ()
         upstream = tuple(
             f"H-S59-A: {value}"
             for value in tuple(package.blockers or ())
             if _text_v1(value)
         )
         return _blocked_v1(
+            *scope,
             *(
                 upstream
                 or (
@@ -161,6 +178,16 @@ def build_committed_proportioned_system_export_payload_v1(
 
     summary = {
         "package_status": _text_v1(package.status),
+        "committed_resized_hydraulics": bool(
+            getattr(package, "committed_resized_hydraulics", False)
+        ),
+        "fresh_generic_kvs_review_required": bool(
+            getattr(
+                package,
+                "fresh_generic_kvs_review_required",
+                False,
+            )
+        ),
         "completion_status": _text_v1(
             getattr(completion, "status", "")
         ),
