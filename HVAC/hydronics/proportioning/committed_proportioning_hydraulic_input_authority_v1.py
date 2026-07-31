@@ -9,6 +9,8 @@ import math
 import re
 from typing import Any, Iterable
 
+from HVAC.core.materials.pipe_materials_library import get_material
+
 
 @dataclass(frozen=True, slots=True)
 class CommittedProportioningHydraulicSectionV1:
@@ -33,6 +35,12 @@ class CommittedProportioningHydraulicSectionV1:
     straight_pressure_drop_Pa: float
     local_pressure_drop_Pa: float
     section_total_pressure_drop_Pa: float
+    # H-S61-H1A — exact committed pipe identity. Defaults preserve legacy
+    # copper snapshots created before material-family authority existed.
+    material_key: str = "copper"
+    material_label: str = "Copper EN1057"
+    internal_diameter_m: float | None = None
+    material_roughness_m: float | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -66,8 +74,9 @@ class CommittedProportioningHydraulicInputAuthorityV1:
     status: str = "Committed hydraulic-input authority not ready"
     blockers: tuple[str, ...] = ()
     note: str = (
-        "Frozen current pipe-size, flow, physical-length, Local-K, Colebrook "
-        "and chosen-route evidence only — no recalculation or final design."
+        "Frozen current material, pipe size, actual bore, roughness, flow, "
+        "physical-length, Local-K, Colebrook and chosen-route evidence only — "
+        "no recalculation or final design."
     )
 
 
@@ -182,6 +191,10 @@ def committed_proportioning_hydraulic_input_authority_to_dict_v1(
                 "carried_flow_kg_s": row.carried_flow_kg_s,
                 "pipe_size_label": row.pipe_size_label,
                 "dn": row.dn,
+                "material_key": row.material_key,
+                "material_label": row.material_label,
+                "internal_diameter_m": row.internal_diameter_m,
+                "material_roughness_m": row.material_roughness_m,
                 "length_m": row.length_m,
                 "k_total": row.k_total,
                 "velocity_m_s": row.velocity_m_s,
@@ -237,6 +250,13 @@ def committed_proportioning_hydraulic_input_authority_from_dict_v1(
     routes: list[CommittedProportioningHydraulicRouteV1] = []
     try:
         for raw in list(data.get("sections", ()) or ()):
+            pipe_identity = _pipe_identity_v1(
+                material_key=raw.get("material_key", "copper"),
+                dn=raw.get("dn"),
+                material_label=raw.get("material_label"),
+                internal_diameter_m=raw.get("internal_diameter_m"),
+                material_roughness_m=raw.get("material_roughness_m"),
+            )
             sections.append(
                 CommittedProportioningHydraulicSectionV1(
                     section_id=_required_text(raw, "section_id"),
@@ -252,6 +272,10 @@ def committed_proportioning_hydraulic_input_authority_from_dict_v1(
                     carried_flow_kg_s=_positive(raw.get("carried_flow_kg_s")),
                     pipe_size_label=_required_text(raw, "pipe_size_label"),
                     dn=_positive_int(raw.get("dn")),
+                    material_key=pipe_identity[0],
+                    material_label=pipe_identity[1],
+                    internal_diameter_m=pipe_identity[2],
+                    material_roughness_m=pipe_identity[3],
                     length_m=_positive(raw.get("length_m")),
                     k_total=_non_negative(raw.get("k_total")),
                     velocity_m_s=_positive(raw.get("velocity_m_s")),
@@ -334,6 +358,27 @@ def _freeze_section(
         raise ValueError("route membership required")
     if not bool(getattr(row, "colebrook_converged", False)):
         raise ValueError("converged Colebrook evidence required")
+    dn = _positive_int(getattr(row, "dn", None))
+    pipe_identity = _pipe_identity_v1(
+        material_key=(
+            getattr(row, "material_key", None)
+            or getattr(row, "current_material_key", None)
+            or "copper"
+        ),
+        dn=dn,
+        material_label=(
+            getattr(row, "material_label", None)
+            or getattr(row, "current_material_label", None)
+        ),
+        internal_diameter_m=(
+            getattr(row, "internal_diameter_m", None)
+            or getattr(row, "current_internal_diameter_m", None)
+        ),
+        material_roughness_m=(
+            getattr(row, "material_roughness_m", None)
+            or getattr(row, "roughness_m", None)
+        ),
+    )
     return CommittedProportioningHydraulicSectionV1(
         section_id=_required_attr_text(row, "section_id"),
         section_scope=_required_attr_text(row, "section_scope"),
@@ -343,7 +388,11 @@ def _freeze_section(
         to_label=_text(getattr(row, "to_label", "")),
         carried_flow_kg_s=_positive(getattr(row, "carried_flow_kg_s", None)),
         pipe_size_label=_required_attr_text(row, "pipe_size_label"),
-        dn=_positive_int(getattr(row, "dn", None)),
+        dn=dn,
+        material_key=pipe_identity[0],
+        material_label=pipe_identity[1],
+        internal_diameter_m=pipe_identity[2],
+        material_roughness_m=pipe_identity[3],
         length_m=_positive(getattr(row, "length_m", None)),
         k_total=_non_negative(getattr(row, "k_total", None)),
         velocity_m_s=_positive(getattr(row, "velocity_m_s", None)),
@@ -403,10 +452,70 @@ def _freeze_route(
     )
 
 
+def _pipe_identity_v1(
+    *,
+    material_key: object,
+    dn: object,
+    material_label: object = None,
+    internal_diameter_m: object = None,
+    material_roughness_m: object = None,
+) -> tuple[str, str, float, float]:
+    """Resolve and validate one exact material/DN/bore/roughness identity."""
+    key = _text(material_key).lower()
+    material = get_material(key)
+    if material is None:
+        raise ValueError(f"known pipe material required: {key or '—'}")
+    nominal = _positive_int(dn)
+    size = material.sizes.get(nominal)
+    if size is None:
+        raise ValueError(
+            f"material/size identity absent from library: {key} DN{nominal}"
+        )
+
+    expected_label = _text(material.name)
+    supplied_label = _text(material_label)
+    if supplied_label and supplied_label != expected_label:
+        raise ValueError(
+            f"material label does not match library: {supplied_label}"
+        )
+
+    expected_bore = float(size.id_mm) / 1000.0
+    bore = (
+        expected_bore
+        if internal_diameter_m is None
+        else _positive(internal_diameter_m)
+    )
+    if not math.isclose(bore, expected_bore, rel_tol=0.0, abs_tol=1.0e-12):
+        raise ValueError(
+            f"{key} DN{nominal} internal diameter does not match library"
+        )
+
+    expected_roughness = float(material.roughness_mm) / 1000.0
+    roughness = (
+        expected_roughness
+        if material_roughness_m is None
+        else _positive(material_roughness_m)
+    )
+    if not math.isclose(
+        roughness,
+        expected_roughness,
+        rel_tol=0.0,
+        abs_tol=1.0e-12,
+    ):
+        raise ValueError(
+            f"{key} material roughness does not match library"
+        )
+    return key, expected_label, bore, roughness
+
+
 def _section_signature(row: Any) -> tuple:
     names = (
         "section_scope", "order", "from_label", "to_label",
-        "carried_flow_kg_s", "pipe_size_label", "dn", "length_m", "k_total",
+        "carried_flow_kg_s", "pipe_size_label", "dn",
+        "material_key", "current_material_key",
+        "internal_diameter_m", "current_internal_diameter_m",
+        "material_roughness_m", "roughness_m",
+        "length_m", "k_total",
         "velocity_m_s", "reynolds_number", "friction_factor",
         "friction_method", "colebrook_iteration_count",
         "colebrook_converged", "pressure_gradient_Pa_per_m",
