@@ -1029,9 +1029,79 @@ class HydronicsSchematicPanel(QWidget):
         self._pipe_resizing_review_tab.addWidget(
             QLabel(
                 "Read-only resized pipework projection. Current committed "
-                "DNs remain unchanged until a later explicit commit stage."
+                "material and pipe sizes remain unchanged until a later "
+                "explicit commit stage."
             )
         )
+
+        # H-S61-B2B2 — proposed material-family selector.
+        self._proportioned_pipe_material_family_callback_v1 = None
+        material_card = QFrame(self)
+        material_card.setFrameShape(QFrame.StyledPanel)
+        material_layout = QGridLayout(material_card)
+        material_layout.setContentsMargins(8, 6, 8, 6)
+        material_layout.setHorizontalSpacing(8)
+        material_layout.setVerticalSpacing(4)
+        self._proportioned_pipe_current_material_label_v1 = QLabel(
+            "Current committed family: —",
+            material_card,
+        )
+        self._proportioned_pipe_material_family_combo_v1 = QComboBox(
+            material_card
+        )
+        self._proportioned_pipe_material_family_combo_v1.addItem(
+            "Copper EN1057",
+            "copper",
+        )
+        self._proportioned_pipe_material_family_combo_v1.addItem(
+            "MLCP",
+            "mlcp",
+        )
+        self._proportioned_pipe_material_family_combo_v1.addItem(
+            "PEX-AL-PEX",
+            "pex",
+        )
+        self._proportioned_pipe_material_family_combo_v1.addItem(
+            "Steel Medium",
+            "steel",
+        )
+        self._proportioned_pipe_material_family_combo_v1.setMinimumWidth(210)
+        self._proportioned_pipe_material_family_combo_v1.currentIndexChanged.connect(
+            self._on_proportioned_pipe_material_family_changed_v1
+        )
+        self._proportioned_pipe_material_family_status_label_v1 = QLabel(
+            "Proposed family: Copper EN1057 — preview only",
+            material_card,
+        )
+        self._proportioned_pipe_material_family_status_label_v1.setWordWrap(
+            True
+        )
+        material_layout.addWidget(
+            self._proportioned_pipe_current_material_label_v1,
+            0,
+            0,
+            1,
+            2,
+        )
+        material_layout.addWidget(
+            QLabel("Proposed family:", material_card),
+            1,
+            0,
+        )
+        material_layout.addWidget(
+            self._proportioned_pipe_material_family_combo_v1,
+            1,
+            1,
+        )
+        material_layout.addWidget(
+            self._proportioned_pipe_material_family_status_label_v1,
+            2,
+            0,
+            1,
+            2,
+        )
+        material_layout.setColumnStretch(2, 1)
+        self._pipe_resizing_review_tab.addWidget(material_card)
 
         self._proportioned_pipe_resizing_schedule_acceptance_callback_v1 = None
         self._proportioned_pipe_resizing_schedule_evidence_ready_v1 = False
@@ -1061,7 +1131,7 @@ class HydronicsSchematicPanel(QWidget):
             True
         )
         self._proportioned_pipe_resizing_schedule_accept_button_v1 = QPushButton(
-            "Accept proposed DN schedule",
+            "Accept proposed material/size schedule",
             self._proportioned_pipe_resizing_schedule_acceptance_card_v1,
         )
         self._proportioned_pipe_resizing_schedule_clear_button_v1 = QPushButton(
@@ -1101,8 +1171,8 @@ class HydronicsSchematicPanel(QWidget):
             columns=[
                 "Section",
                 "Routes",
-                "Current DN",
-                "Proposed DN",
+                "Current pipe / bore",
+                "Proposed pipe / bore",
                 "Change",
                 "Flow kg/s",
                 "Velocity / max",
@@ -10269,6 +10339,90 @@ QTableWidget::item:selected:!active {
             table.setRowHeight(row_index, 24)
         self._fit_table_height(table, min_height=120, max_height=260)
 
+    def set_proportioned_pipe_material_family_callback_v1(
+            self,
+            callback,
+    ) -> None:
+        """Register the adapter-owned proposed-family intent callback."""
+        self._proportioned_pipe_material_family_callback_v1 = callback
+        combo = getattr(
+            self,
+            "_proportioned_pipe_material_family_combo_v1",
+            None,
+        )
+        if combo is not None:
+            combo.setEnabled(callable(callback))
+
+    def set_proportioned_pipe_material_family_state_v1(
+            self,
+            *,
+            current_material_key: str,
+            current_material_label: str,
+            proposed_material_key: str,
+            proposed_material_label: str,
+    ) -> None:
+        """Restore/display material authority without emitting user intent."""
+        combo = getattr(
+            self,
+            "_proportioned_pipe_material_family_combo_v1",
+            None,
+        )
+        current_label = getattr(
+            self,
+            "_proportioned_pipe_current_material_label_v1",
+            None,
+        )
+        status_label = getattr(
+            self,
+            "_proportioned_pipe_material_family_status_label_v1",
+            None,
+        )
+        if combo is None or current_label is None or status_label is None:
+            return
+        index = combo.findData(str(proposed_material_key or ""))
+        previous = combo.blockSignals(True)
+        try:
+            combo.setCurrentIndex(index if index >= 0 else 0)
+        finally:
+            combo.blockSignals(previous)
+        current_label.setText(
+            f"Current committed family: "
+            f"{current_material_label or current_material_key or '—'}"
+        )
+        change_note = (
+            "material change proposed"
+            if str(current_material_key) != str(proposed_material_key)
+            else "current family retained"
+        )
+        status_label.setText(
+            f"Proposed family: "
+            f"{proposed_material_label or proposed_material_key or '—'} "
+            f"— {change_note}; preview only"
+        )
+
+    def _on_proportioned_pipe_material_family_changed_v1(
+            self,
+            _index: int,
+    ) -> None:
+        combo = getattr(
+            self,
+            "_proportioned_pipe_material_family_combo_v1",
+            None,
+        )
+        callback = getattr(
+            self,
+            "_proportioned_pipe_material_family_callback_v1",
+            None,
+        )
+        if combo is None or not callable(callback):
+            return
+        material_key = str(combo.currentData() or "").strip().lower()
+        if material_key:
+            callback({
+                "action": "set_proposed",
+                "material_key": material_key,
+            })
+
     def set_proportioned_pipe_resizing_schedule_acceptance_callback_v1(
             self,
             callback,
@@ -10290,7 +10444,7 @@ QTableWidget::item:selected:!active {
         """
         Display the resolved H-S61-F acceptance state.
 
-        Display/control state only: no ProjectState access and no DN mutation.
+        Display/control state only: no ProjectState access and no material/DN mutation.
         """
         if not hasattr(
                 self,
@@ -10305,7 +10459,7 @@ QTableWidget::item:selected:!active {
             bool(has_stored_acceptance)
         )
         self._proportioned_pipe_resizing_schedule_acceptance_status_v1.setText(
-            str(status or "Proposed DN schedule acceptance unavailable")
+            str(status or "Proposed material/size schedule acceptance unavailable")
         )
         self._refresh_proportioned_pipe_resizing_schedule_acceptance_controls_v1()
 
@@ -10369,9 +10523,9 @@ QTableWidget::item:selected:!active {
             return
         answer = QMessageBox.question(
             self,
-            "Accept proposed DN schedule",
+            "Accept proposed material/size schedule",
             (
-                "Accept the complete currently reviewed proposed DN schedule?\n\n"
+                "Accept the complete currently reviewed proposed material/size schedule?\n\n"
                 "This records manual acceptance only. Current committed DNs "
                 "remain unchanged until a later explicit commit stage."
             ),
@@ -10386,7 +10540,7 @@ QTableWidget::item:selected:!active {
         except Exception as exc:
             QMessageBox.warning(
                 self,
-                "Proposed DN schedule acceptance blocked",
+                "Proposed material/size schedule acceptance blocked",
                 str(exc),
             )
 
@@ -10400,10 +10554,10 @@ QTableWidget::item:selected:!active {
             return
         answer = QMessageBox.question(
             self,
-            "Clear proposed DN schedule acceptance",
+            "Clear proposed material/size schedule acceptance",
             (
-                "Clear the stored manual acceptance for the proposed DN "
-                "schedule? Current committed DNs will remain unchanged."
+                "Clear the stored manual acceptance for the proposed material/size "
+                "schedule? Current committed material and pipe sizes will remain unchanged."
             ),
             QMessageBox.StandardButton.Yes
             | QMessageBox.StandardButton.No,
@@ -10416,7 +10570,7 @@ QTableWidget::item:selected:!active {
         except Exception as exc:
             QMessageBox.warning(
                 self,
-                "Clear proposed DN schedule acceptance blocked",
+                "Clear proposed material/size schedule acceptance blocked",
                 str(exc),
             )
 
@@ -10468,8 +10622,8 @@ QTableWidget::item:selected:!active {
             keys=(
                 "section",
                 "routes",
-                "current_dn",
-                "projected_dn",
+                "current_pipe",
+                "projected_pipe",
                 "change",
                 "flow",
                 "velocity",
@@ -10484,7 +10638,7 @@ QTableWidget::item:selected:!active {
                 "status": "Waiting for resized section evidence",
             },
             widths=(
-                245, 245, 90, 95, 85, 105, 125, 135,
+                245, 245, 215, 215, 115, 105, 125, 135,
                 105, 105, 105, 390,
             ),
             min_height=140,

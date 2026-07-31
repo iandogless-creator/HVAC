@@ -50,7 +50,7 @@ def main() -> None:
         evidence_ready=True,
         accepted=False,
         has_stored_acceptance=False,
-        status="Pending — manual proposed DN schedule acceptance required",
+        status="Pending — manual proposed material/size schedule acceptance required",
     )
     assert (
         panel._proportioned_pipe_resizing_schedule_accept_button_v1.isEnabled()
@@ -88,7 +88,7 @@ def main() -> None:
         evidence_ready=True,
         accepted=False,
         has_stored_acceptance=True,
-        status="Blocked — stale manual DN schedule acceptance",
+        status="Blocked — stale manual material/size schedule acceptance",
     )
     assert (
         panel._proportioned_pipe_resizing_schedule_accept_button_v1.isEnabled()
@@ -146,11 +146,11 @@ def main() -> None:
 
     panel_source = inspect.getsource(HydronicsSchematicPanel)
     adapter_source = inspect.getsource(HydronicsSchematicPanelAdapter)
-    assert "Accept proposed DN schedule" in panel_source
+    assert "Accept proposed material/size schedule" in panel_source
     assert "Clear acceptance" in panel_source
     assert "QMessageBox.question(" in panel_source
     assert "Current committed" in panel_source
-    assert "DNs remain unchanged" in panel_source
+    assert "pipe sizes remain unchanged" in panel_source
     assert (
         "set_proportioned_pipe_resizing_schedule_acceptance_callback_v1"
         in adapter_source
@@ -168,7 +168,7 @@ def main() -> None:
 
     panel.close()
     print(
-        "OK — H-S61-G proposed DN schedule GUI acceptance and "
+        "OK — H-S61-G proposed material/size schedule GUI acceptance and "
         "persistence handoff passed."
     )
 

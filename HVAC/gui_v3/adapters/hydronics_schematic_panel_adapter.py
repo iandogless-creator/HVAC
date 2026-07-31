@@ -168,6 +168,9 @@ from HVAC.hydronics.proportioning.proportioned_pipe_resizing_schedule_acceptance
     ProportionedPipeResizingScheduleAcceptanceIntentV1,
     resolve_proportioned_pipe_resizing_schedule_acceptance_v1,
 )
+from HVAC.hydronics.proportioning.proportioned_pipe_material_family_intent_v1 import (
+    ProportionedPipeMaterialFamilyIntentV1,
+)
 from HVAC.hydronics.proportioning.committed_proportioning_hydraulic_input_authority_v1 import (
     build_committed_proportioning_hydraulic_input_authority_v1,
 )
@@ -396,7 +399,16 @@ class HydronicsSchematicPanelAdapter:
                 self.set_balancing_point_kvs_candidate_acceptance
             )
 
-        # H-S61-G — explicit whole-schedule DN acceptance callback.
+        # H-S61-B2B2 — explicit proposed material-family intent callback.
+        if hasattr(
+                self._panel,
+                "set_proportioned_pipe_material_family_callback_v1",
+        ):
+            self._panel.set_proportioned_pipe_material_family_callback_v1(
+                self.set_proportioned_pipe_material_family_v1
+            )
+
+        # H-S61-G/B2B2 — explicit whole-schedule acceptance callback.
         if hasattr(
                 self._panel,
                 "set_proportioned_pipe_resizing_schedule_acceptance_callback_v1",
@@ -860,6 +872,57 @@ class HydronicsSchematicPanelAdapter:
                 except TypeError:
                     pass
 
+    def set_proportioned_pipe_material_family_v1(
+            self,
+            payload: dict,
+    ) -> None:
+        """
+        Persist explicit proposed-family intent only.
+
+        Current material authority and committed pipework remain unchanged.
+        """
+        if not isinstance(payload, dict):
+            raise ValueError(
+                "Pipe material-family payload must be a dictionary"
+            )
+        project = self._project_state
+        if project is None:
+            return
+        action = str(payload.get("action") or "").strip().lower()
+        if action != "set_proposed":
+            raise ValueError("action must be 'set_proposed'")
+
+        intent = getattr(
+            project,
+            "hydronic_proportioned_pipe_material_family_intent",
+            None,
+        )
+        if not isinstance(
+                intent,
+                ProportionedPipeMaterialFamilyIntentV1,
+        ):
+            intent = ProportionedPipeMaterialFamilyIntentV1()
+        intent.set_proposed_material_family(
+            str(payload.get("material_key") or "")
+        )
+        project.hydronic_proportioned_pipe_material_family_intent = intent
+        if hasattr(project, "mark_dirty"):
+            project.mark_dirty()
+
+        self.refresh()
+        for signal_name in ("project_state_changed", "project_changed"):
+            signal = getattr(self._context, signal_name, None)
+            emit = getattr(signal, "emit", None)
+            if not callable(emit):
+                continue
+            try:
+                emit()
+            except TypeError:
+                try:
+                    emit(project)
+                except TypeError:
+                    pass
+
     def set_proportioned_pipe_resizing_schedule_acceptance_v1(
             self,
             payload: dict,
@@ -867,10 +930,10 @@ class HydronicsSchematicPanelAdapter:
         """
         H-S61-G:
         Persist or clear explicit manual acceptance of the complete current
-        H-S61-C/D proposed DN schedule.
+        H-S61-C/D proposed material/size schedule.
 
         This is an acceptance-intent handoff only. It does not replace any
-        committed DN, hydraulic result or balancing-point allocation.
+        committed material, DN, hydraulic result or balancing-point allocation.
         """
         if not isinstance(payload, dict):
             raise ValueError(
@@ -4352,8 +4415,8 @@ class HydronicsSchematicPanelAdapter:
                 {
                     "section": "—",
                     "routes": "—",
-                    "current_dn": "—",
-                    "projected_dn": "—",
+                    "current_pipe": "—",
+                    "projected_pipe": "—",
                     "change": "—",
                     "flow": "—",
                     "velocity": "—",
@@ -4385,25 +4448,19 @@ class HydronicsSchematicPanelAdapter:
                             getattr(source, "route_ids", ()) or ()
                         )
                     ) or "—",
-                    "current_dn": str(
-                        getattr(
-                            source,
-                            "current_pipe_size_label",
-                            "—",
-                        )
-                        or "—"
+                    "current_pipe": (
+                        f"{str(getattr(source, 'current_material_label', '—') or '—')} | "
+                        f"{str(getattr(source, 'current_pipe_size_label', '—') or '—')} | "
+                        f"ID {fmt(float(getattr(source, 'current_internal_diameter_m', 0.0)) * 1000.0)} mm"
                     ),
-                    "projected_dn": str(
-                        getattr(
-                            source,
-                            "projected_pipe_size_label",
-                            "—",
-                        )
-                        or "—"
+                    "projected_pipe": (
+                        f"{str(getattr(source, 'projected_material_label', '—') or '—')} | "
+                        f"{str(getattr(source, 'projected_pipe_size_label', '—') or '—')} | "
+                        f"ID {fmt(float(getattr(source, 'internal_diameter_m', 0.0)) * 1000.0)} mm"
                     ),
                     "change": str(
                         getattr(source, "recommendation", "—") or "—"
-                    ).title(),
+                    ).replace("_", " ").title(),
                     "flow": (
                         f"{fmt(getattr(source, 'carried_flow_kg_s', None), 4)} "
                         "kg/s"
@@ -5950,17 +6007,41 @@ class HydronicsSchematicPanelAdapter:
                 "section_max_velocity_overrides_m_s",
                 {},
             ) or {}
-            pipe_material = str(
-                getattr(
-                    self._project_state,
-                    "hydronic_pipe_material",
-                    "copper",
+            material_intent = getattr(
+                self._project_state,
+                "hydronic_proportioned_pipe_material_family_intent",
+                None,
+            )
+            if not isinstance(
+                    material_intent,
+                    ProportionedPipeMaterialFamilyIntentV1,
+            ):
+                material_intent = ProportionedPipeMaterialFamilyIntentV1()
+            current_material_key = material_intent.current_material_key
+            proposed_material_key = material_intent.proposed_material_key
+            if hasattr(
+                    self._panel,
+                    "set_proportioned_pipe_material_family_state_v1",
+            ):
+                self._panel.set_proportioned_pipe_material_family_state_v1(
+                    current_material_key=current_material_key,
+                    current_material_label=(
+                        material_intent.current_material_label
+                    ),
+                    proposed_material_key=proposed_material_key,
+                    proposed_material_label=(
+                        material_intent.proposed_material_label
+                    ),
                 )
-                or "copper"
-            ).strip().lower()
             pipe_sizing_criteria = ProportionedPipeSizingCriteriaV1(
-                material_key=pipe_material,
-                material_source="Committed project pipe material",
+                current_material_key=current_material_key,
+                current_material_source=(
+                    "H-S61-B2A persisted current family"
+                ),
+                material_key=proposed_material_key,
+                material_source=(
+                    "H-S61-B2A persisted proposed family"
+                ),
                 default_max_velocity_m_s=default_max_velocity,
                 max_velocity_source="Environment design criterion",
             )
@@ -6056,7 +6137,7 @@ class HydronicsSchematicPanelAdapter:
                             )
                             or ""
                         ).strip()
-                        or "Proposed DN schedule acceptance unavailable"
+                        or "Proposed material/size schedule acceptance unavailable"
                     ),
                 )
             if hasattr(
