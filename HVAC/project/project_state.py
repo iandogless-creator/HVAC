@@ -131,6 +131,11 @@ from HVAC.hydronics.proportioning.proportioned_pipe_resizing_schedule_acceptance
     proportioned_pipe_resizing_schedule_acceptance_intent_from_dict_v1,
     proportioned_pipe_resizing_schedule_acceptance_intent_to_dict_v1,
 )
+from HVAC.hydronics.proportioning.proportioned_pipe_material_family_intent_v1 import (
+    ProportionedPipeMaterialFamilyIntentV1,
+    proportioned_pipe_material_family_intent_from_dict_v1,
+    proportioned_pipe_material_family_intent_to_dict_v1,
+)
 
 @dataclass(slots=True)
 class ProjectState:
@@ -196,6 +201,10 @@ class ProjectState:
     hydronic_point_accepted_valve_candidate_consequence_disposition_intent: Optional[
         BalancingPointAcceptedValveCandidateConsequenceDispositionIntentV1
     ] = None
+    # H-S61-B2A — persisted current/proposed pipe-material-family authority.
+    hydronic_proportioned_pipe_material_family_intent: (
+        ProportionedPipeMaterialFamilyIntentV1
+    ) = field(default_factory=ProportionedPipeMaterialFamilyIntentV1)
     # H-S61-F — persisted manual acceptance of one exact resized DN schedule.
     hydronic_proportioned_pipe_resizing_schedule_acceptance_intent: Optional[
         ProportionedPipeResizingScheduleAcceptanceIntentV1
@@ -419,6 +428,11 @@ class ProjectState:
                 if self.hydronic_point_accepted_valve_candidate_consequence_disposition_intent
                 else None
             ),
+            "hydronic_proportioned_pipe_material_family_intent": (
+                proportioned_pipe_material_family_intent_to_dict_v1(
+                    self.hydronic_proportioned_pipe_material_family_intent
+                )
+            ),
             "hydronic_proportioned_pipe_resizing_schedule_acceptance_intent": (
                 proportioned_pipe_resizing_schedule_acceptance_intent_to_dict_v1(
                     self.hydronic_proportioned_pipe_resizing_schedule_acceptance_intent
@@ -566,6 +580,16 @@ class ProjectState:
             instance.hydronic_point_accepted_valve_candidate_consequence_disposition_intent = (
                 balancing_point_accepted_valve_candidate_consequence_disposition_intent_from_dict_v1(
                     raw_valve_candidate_consequence_disposition_intent
+                )
+            )
+
+        raw_pipe_material_family_intent = data.get(
+            "hydronic_proportioned_pipe_material_family_intent"
+        )
+        if isinstance(raw_pipe_material_family_intent, dict):
+            instance.hydronic_proportioned_pipe_material_family_intent = (
+                proportioned_pipe_material_family_intent_from_dict_v1(
+                    raw_pipe_material_family_intent
                 )
             )
 
