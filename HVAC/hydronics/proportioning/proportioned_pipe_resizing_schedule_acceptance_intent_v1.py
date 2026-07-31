@@ -33,6 +33,8 @@ class AcceptedProportionedPipeResizingScheduleV1:
 
     schedule_fingerprint: str
     sections: tuple[AcceptedProportionedPipeSectionDNV1, ...]
+    current_material_key: str = "copper"
+    accepted_material_key: str = "copper"
 
 
 @dataclass(slots=True)
@@ -66,6 +68,14 @@ class ProportionedPipeResizingScheduleAcceptanceIntentV1:
             resized_hydraulics=resized_hydraulics,
             resized_point_reconciliation=resized_point_reconciliation,
         )
+        current_material_key = _single_projection_material_key_v1(
+            sections,
+            attribute="current_material_key",
+        )
+        accepted_material_key = _single_projection_material_key_v1(
+            sections,
+            attribute="projected_material_key",
+        )
         accepted = AcceptedProportionedPipeResizingScheduleV1(
             schedule_fingerprint=(
                 build_proportioned_pipe_resizing_schedule_fingerprint_v1(
@@ -83,6 +93,8 @@ class ProportionedPipeResizingScheduleAcceptanceIntentV1:
                 )
                 for row in sections
             ),
+            current_material_key=current_material_key,
+            accepted_material_key=accepted_material_key,
         )
         self.accepted_schedule = accepted
         return accepted
@@ -138,6 +150,7 @@ class ResolvedProportionedPipeResizingScheduleAcceptanceV1:
     status: str = ""
     blockers: tuple[str, ...] = ()
     exclusions: tuple[str, ...] = (
+        "No automatic material or size acceptance",
         "No automatic DN acceptance",
         "No ProjectState pipe-size mutation",
         "No committed DN replacement",
@@ -189,7 +202,22 @@ def build_proportioned_pipe_resizing_schedule_fingerprint_v1(
                 "carried_flow_kg_s": _number_v1(row.carried_flow_kg_s),
                 "length_m": _number_v1(row.length_m),
                 "k_total": _number_v1(row.k_total),
+                "current_material_key": _text_v1(
+                    row.current_material_key
+                ).lower(),
+                "current_pipe_size_label": _text_v1(
+                    row.current_pipe_size_label
+                ),
                 "current_dn": int(row.current_dn),
+                "current_internal_diameter_m": _number_v1(
+                    row.current_internal_diameter_m
+                ),
+                "projected_material_key": _text_v1(
+                    row.projected_material_key
+                ).lower(),
+                "projected_pipe_size_label": _text_v1(
+                    row.projected_pipe_size_label
+                ),
                 "projected_dn": int(row.projected_dn),
                 "internal_diameter_m": _number_v1(
                     row.internal_diameter_m
@@ -344,6 +372,14 @@ def resolve_proportioned_pipe_resizing_schedule_acceptance_v1(
             resized_hydraulics=resized_hydraulics,
             resized_point_reconciliation=resized_point_reconciliation,
         )
+        current_material_key = _single_projection_material_key_v1(
+            sections,
+            attribute="current_material_key",
+        )
+        proposed_material_key = _single_projection_material_key_v1(
+            sections,
+            attribute="projected_material_key",
+        )
         current_fingerprint = (
             build_proportioned_pipe_resizing_schedule_fingerprint_v1(
                 resized_hydraulics=resized_hydraulics,
@@ -371,12 +407,12 @@ def resolve_proportioned_pipe_resizing_schedule_acceptance_v1(
                     section_id=str(row.section_id),
                     current_dn=int(row.current_dn),
                     proposed_dn=int(row.projected_dn),
-                    status="Manual DN schedule acceptance pending",
+                    status="Manual material/size schedule acceptance pending",
                 )
                 for row in sections
             ),
-            status="Pending — manual proposed DN schedule acceptance required",
-            blockers=("Manual proposed DN schedule acceptance required",),
+            status="Pending — manual proposed material/size schedule acceptance required",
+            blockers=("Manual proposed material/size schedule acceptance required",),
         )
 
     accepted_by_id = {
@@ -391,8 +427,16 @@ def resolve_proportioned_pipe_resizing_schedule_acceptance_v1(
         )
     if accepted.schedule_fingerprint != current_fingerprint:
         blockers.append(
-            "Accepted DN schedule fingerprint does not match current "
-            "H-S61-C/D evidence"
+            "Accepted material/size schedule fingerprint does not match "
+            "current H-S61-C/D evidence"
+        )
+    materials_match = bool(
+        accepted.current_material_key == current_material_key
+        and accepted.accepted_material_key == proposed_material_key
+    )
+    if not materials_match:
+        blockers.append(
+            "Accepted current/proposed material families no longer match"
         )
 
     rows: list[ResolvedProportionedPipeSectionDNAcceptanceV1] = []
@@ -401,6 +445,7 @@ def resolve_proportioned_pipe_resizing_schedule_acceptance_v1(
         stored = accepted_by_id.get(section_id)
         matches = bool(
             stored is not None
+            and materials_match
             and int(stored.current_dn) == int(current.current_dn)
             and int(stored.accepted_dn) == int(current.projected_dn)
         )
@@ -421,9 +466,9 @@ def resolve_proportioned_pipe_resizing_schedule_acceptance_v1(
                 ),
                 matches_current_schedule=matches,
                 status=(
-                    "Accepted — current proposed DN matches"
+                    "Accepted — current proposed material/size matches"
                     if matches
-                    else "Blocked — stale or missing DN acceptance"
+                    else "Blocked — stale or missing material/size acceptance"
                 ),
             )
         )
@@ -439,10 +484,10 @@ def resolve_proportioned_pipe_resizing_schedule_acceptance_v1(
         accepted_schedule_fingerprint=accepted.schedule_fingerprint,
         rows=tuple(rows),
         status=(
-            f"Ready — manually accepted proposed DN schedule for "
+            f"Ready — manually accepted proposed material/size schedule for "
             f"{len(rows)} sections"
             if ready
-            else "Blocked — stale manual DN schedule acceptance: "
+            else "Blocked — stale manual material/size schedule acceptance: "
             + "; ".join(clean_blockers)
         ),
         blockers=clean_blockers,
@@ -468,6 +513,8 @@ def proportioned_pipe_resizing_schedule_acceptance_intent_to_dict_v1(
         "accepted_schedule": (
             {
                 "schedule_fingerprint": accepted.schedule_fingerprint,
+                "current_material_key": accepted.current_material_key,
+                "accepted_material_key": accepted.accepted_material_key,
                 "sections": [
                     {
                         "section_id": row.section_id,
@@ -530,6 +577,14 @@ def proportioned_pipe_resizing_schedule_acceptance_intent_from_dict_v1(
     intent.accepted_schedule = AcceptedProportionedPipeResizingScheduleV1(
         schedule_fingerprint=fingerprint,
         sections=tuple(sorted(rows, key=lambda value: value.section_id)),
+        current_material_key=(
+            _text_v1(raw_schedule.get("current_material_key")).lower()
+            or "copper"
+        ),
+        accepted_material_key=(
+            _text_v1(raw_schedule.get("accepted_material_key")).lower()
+            or "copper"
+        ),
     )
     return intent
 
@@ -576,6 +631,24 @@ def _validated_current_evidence_v1(
             raise ValueError(
                 f"{row.section_id}: positive current and proposed DN required"
             )
+        for attribute in (
+            "current_material_key",
+            "current_pipe_size_label",
+            "projected_material_key",
+            "projected_pipe_size_label",
+        ):
+            if not _text_v1(getattr(row, attribute, "")):
+                raise ValueError(
+                    f"{row.section_id}: {attribute} required"
+                )
+        if (
+                _number_v1(row.current_internal_diameter_m) <= 0.0
+                or _number_v1(row.internal_diameter_m) <= 0.0
+        ):
+            raise ValueError(
+                f"{row.section_id}: positive current and proposed bore "
+                "required"
+            )
 
     projected_route_ids = {
         _text_v1(row.route_id) for row in routes
@@ -598,6 +671,23 @@ def _validated_current_evidence_v1(
     return tuple(
         sorted(sections, key=lambda value: _text_v1(value.section_id))
     )
+
+
+def _single_projection_material_key_v1(
+        sections: tuple[Any, ...],
+        *,
+        attribute: str,
+) -> str:
+    values = {
+        _text_v1(getattr(row, attribute, "")).lower()
+        for row in sections
+        if _text_v1(getattr(row, attribute, ""))
+    }
+    if len(values) != 1:
+        raise ValueError(
+            f"One exact {attribute} required across the proposed schedule"
+        )
+    return next(iter(values))
 
 
 def _number_v1(value: object) -> float:

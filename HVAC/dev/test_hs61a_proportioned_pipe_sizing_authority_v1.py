@@ -185,7 +185,9 @@ def main() -> None:
         criteria=criteria,
     )
     assert blocked_family.ready is False
-    assert "outside the accepted candidate family" in blocked_family.status
+    assert "outside the current copper material family" in (
+        blocked_family.status
+    )
 
     unknown_material = build_proportioned_pipe_sizing_authority_v1(
         snapshot,

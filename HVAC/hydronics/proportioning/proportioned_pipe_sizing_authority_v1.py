@@ -34,8 +34,12 @@ class ProportionedPipeSizingCriteriaV1:
     """
 
     schema: str = "proportioned_pipe_sizing_criteria_v1"
+    # Current family describes committed section evidence. `material_key`
+    # remains the proposed candidate family for API compatibility.
+    current_material_key: str = DEFAULT_PROPORTIONED_PIPE_MATERIAL_V1
+    current_material_source: str = "H-S61-B2A current family"
     material_key: str = DEFAULT_PROPORTIONED_PIPE_MATERIAL_V1
-    material_source: str = "H-S61-A accepted default"
+    material_source: str = "H-S61-B2A proposed family"
     default_max_velocity_m_s: float = (
         DEFAULT_PROPORTIONED_MAX_VELOCITY_M_S_V1
     )
@@ -89,6 +93,9 @@ class ProportionedPipeSizingSectionAuthorityV1:
     current_velocity_within_limit: bool
     current_pressure_gradient_within_limit: bool
     status: str
+    current_material_key: str = DEFAULT_PROPORTIONED_PIPE_MATERIAL_V1
+    current_material_label: str = "Copper EN1057"
+    current_internal_diameter_m: float = 0.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -167,6 +174,21 @@ def build_proportioned_pipe_sizing_authority_v1(
     candidates, candidate_blockers = _candidate_family_v1(criteria)
     blockers.extend(candidate_blockers)
 
+    current_material_key = _text_v1(
+        criteria.current_material_key
+    ).lower()
+    current_material = get_material(current_material_key)
+    if current_material is None:
+        blockers.append(
+            f"Unknown current pipe material: "
+            f"{current_material_key or '—'}"
+        )
+        current_material_dns: set[int] = set()
+    else:
+        current_material_dns = {
+            int(value) for value in current_material.sizes
+        }
+
     raw_overrides = section_max_velocity_overrides_m_s or {}
     if not isinstance(raw_overrides, Mapping):
         blockers.append(
@@ -208,7 +230,6 @@ def build_proportioned_pipe_sizing_authority_v1(
         if value is not None:
             clean_overrides[section_id] = value
 
-    candidate_dns = {row.dn for row in candidates}
     output: list[ProportionedPipeSizingSectionAuthorityV1] = []
     for source in sections:
         section_id = _text_v1(getattr(source, "section_id", ""))
@@ -220,11 +241,11 @@ def build_proportioned_pipe_sizing_authority_v1(
             blockers.append(f"{section_id}: numeric current DN required")
             continue
 
-        current_in_family = current_dn in candidate_dns
+        current_in_family = current_dn in current_material_dns
         if not current_in_family:
             blockers.append(
                 f"{section_id}: current DN{current_dn} is outside the "
-                "accepted candidate family"
+                f"current {current_material_key or '—'} material family"
             )
 
         carried_flow = _positive_v1(
@@ -288,6 +309,22 @@ def build_proportioned_pipe_sizing_authority_v1(
                 reasons.append("Δp/m exceeds accepted maximum")
             status = "Review — " + "; ".join(reasons)
 
+        current_size = (
+            current_material.sizes.get(current_dn)
+            if current_material is not None
+            else None
+        )
+        current_material_label = (
+            str(current_material.name)
+            if current_material is not None
+            else "—"
+        )
+        current_internal_diameter_m = (
+            float(current_size.id_mm) / 1000.0
+            if current_size is not None
+            else 0.0
+        )
+
         output.append(
             ProportionedPipeSizingSectionAuthorityV1(
                 section_id=section_id,
@@ -325,6 +362,9 @@ def build_proportioned_pipe_sizing_authority_v1(
                 current_velocity_within_limit=velocity_ok,
                 current_pressure_gradient_within_limit=gradient_ok,
                 status=status,
+                current_material_key=current_material_key,
+                current_material_label=current_material_label,
+                current_internal_diameter_m=current_internal_diameter_m,
             )
         )
 
@@ -363,10 +403,14 @@ def _criteria_blockers_v1(
         criteria: ProportionedPipeSizingCriteriaV1,
 ) -> list[str]:
     blockers: list[str] = []
+    if not _text_v1(criteria.current_material_key):
+        blockers.append("Current pipe material key required")
+    if not _text_v1(criteria.current_material_source):
+        blockers.append("Current pipe material source required")
     if not _text_v1(criteria.material_key):
-        blockers.append("Pipe material key required")
+        blockers.append("Proposed pipe material key required")
     if not _text_v1(criteria.material_source):
-        blockers.append("Pipe material source required")
+        blockers.append("Proposed pipe material source required")
     if not _text_v1(criteria.max_velocity_source):
         blockers.append("Maximum-velocity source required")
     if not _text_v1(criteria.max_pressure_gradient_source):
@@ -455,7 +499,12 @@ def _candidate_family_v1(
                 material_key=material_key,
                 material_label=str(material.name),
                 dn=int(dn),
-                pipe_size_label=f"{int(dn)} mm",
+                pipe_size_label=_candidate_pipe_size_label_v1(
+                    material_key=material_key,
+                    dn=int(dn),
+                    outside_diameter_mm=float(size.od_mm),
+                    thickness_mm=float(size.thickness_mm),
+                ),
                 outside_diameter_m=float(size.od_mm) / 1000.0,
                 internal_diameter_m=float(size.id_mm) / 1000.0,
                 roughness_m=roughness_m,
@@ -464,6 +513,20 @@ def _candidate_family_v1(
     if not candidates:
         blockers.append("Accepted pipe candidate family is empty")
     return tuple(candidates), blockers
+
+
+def _candidate_pipe_size_label_v1(
+        *,
+        material_key: str,
+        dn: int,
+        outside_diameter_mm: float,
+        thickness_mm: float,
+) -> str:
+    if material_key in {"mlcp", "pex"}:
+        return (
+            f"{outside_diameter_mm:g}×{thickness_mm:g} mm"
+        )
+    return f"{dn} mm"
 
 
 def _blocked_v1(

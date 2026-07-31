@@ -62,6 +62,11 @@ def _section(
         colebrook_iteration_count=6,
         colebrook_converged=True,
         status="Projected section",
+        current_material_key="copper",
+        current_material_label="Copper EN1057",
+        current_internal_diameter_m=0.020,
+        projected_material_key="copper",
+        projected_material_label="Copper EN1057",
     )
 
 
@@ -182,7 +187,7 @@ def main() -> None:
     )
     assert pending.ready is False
     assert pending.accepted is False
-    assert "manual proposed dn schedule acceptance required" in (
+    assert "manual proposed material/size schedule acceptance required" in (
         pending.status.lower()
     )
 
@@ -198,6 +203,8 @@ def main() -> None:
     ]
     assert accepted.sections[0].current_dn == 22
     assert accepted.sections[0].accepted_dn == 28
+    assert accepted.current_material_key == "copper"
+    assert accepted.accepted_material_key == "copper"
 
     resolved = resolve_proportioned_pipe_resizing_schedule_acceptance_v1(
         intent,
@@ -229,6 +236,8 @@ def main() -> None:
         "hydronic_proportioned_pipe_resizing_schedule_acceptance_intent"
     ]
     assert raw["accepted_schedule"]["schedule_fingerprint"] == fingerprint
+    assert raw["accepted_schedule"]["current_material_key"] == "copper"
+    assert raw["accepted_schedule"]["accepted_material_key"] == "copper"
     project_restored = ProjectState.from_dict(project_payload)
     assert (
         project_restored
@@ -261,6 +270,35 @@ def main() -> None:
     )
     assert stale_dn.ready is False
     assert "fingerprint does not match" in stale_dn.status
+
+    changed_material_sections = (
+        replace(
+            projection.sections[0],
+            projected_material_key="mlcp",
+            projected_material_label="MLCP",
+            projected_dn=20,
+            projected_pipe_size_label="20×2 mm",
+            internal_diameter_m=0.016,
+        ),
+        replace(
+            projection.sections[1],
+            projected_material_key="mlcp",
+            projected_material_label="MLCP",
+            projected_dn=26,
+            projected_pipe_size_label="26×3 mm",
+            internal_diameter_m=0.020,
+        ),
+    )
+    stale_material = resolve_proportioned_pipe_resizing_schedule_acceptance_v1(
+        intent,
+        resized_hydraulics=replace(
+            projection,
+            sections=changed_material_sections,
+        ),
+        resized_point_reconciliation=reconciliation,
+    )
+    assert stale_material.ready is False
+    assert "fingerprint does not match" in stale_material.status
 
     changed_loss = replace(
         projection.sections[0],

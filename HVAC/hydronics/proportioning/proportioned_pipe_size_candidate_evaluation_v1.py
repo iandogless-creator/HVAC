@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Optional
 
+from HVAC.core.materials.pipe_materials_library import get_material
 from HVAC.hydronics.pipes.dp.mass_flow_pressure_drop_v1 import (
     calculate_hydronic_pipe_pressure_drop_from_mass_flow_v1,
 )
@@ -60,8 +61,12 @@ class ProportionedPipeSizeSectionCandidateResultV1:
 
     current_dn: int
     current_pipe_size_label: str
+    current_material_key: str
+    current_internal_diameter_m: float
     recommended_dn: Optional[int]
     recommended_pipe_size_label: str
+    recommended_material_key: str
+    recommended_internal_diameter_m: Optional[float]
     recommendation: str
 
     candidate_evaluations: tuple[
@@ -260,6 +265,8 @@ def _section_result_v1(
         recommendation = "BLOCKED"
         recommended_dn = None
         recommended_label = "—"
+        recommended_material_key = ""
+        recommended_internal_diameter_m = None
         complete = False
         if candidate_range_exhausted:
             status = (
@@ -284,22 +291,66 @@ def _section_result_v1(
     else:
         recommended_dn = int(recommended.candidate_dn)
         recommended_label = str(recommended.candidate_pipe_size_label)
+        recommended_material_key = str(recommended.material_key)
+        recommended_internal_diameter_m = float(
+            recommended.internal_diameter_m
+        )
         current_dn = int(section.current_dn)
+        current_material_key = str(
+            getattr(section, "current_material_key", "")
+            or getattr(authority.criteria, "current_material_key", "")
+            or "copper"
+        ).strip().lower()
+        current_internal_diameter_m = float(
+            getattr(section, "current_internal_diameter_m", 0.0)
+            or 0.0
+        )
+        if current_internal_diameter_m <= 0.0:
+            current_material = get_material(current_material_key)
+            current_size = (
+                current_material.sizes.get(current_dn)
+                if current_material is not None
+                else None
+            )
+            if current_size is None:
+                raise ValueError(
+                    f"{section.section_id}: current material/size bore "
+                    "evidence required"
+                )
+            current_internal_diameter_m = (
+                float(current_size.id_mm) / 1000.0
+            )
 
-        if recommended_dn > current_dn:
-            recommendation = "INCREASE"
-            direction = "increase"
-        elif recommended_dn < current_dn:
-            recommendation = "DECREASE"
-            direction = "decrease"
-        else:
+        tolerance = 1.0e-12
+        same_material_size = bool(
+            recommended_material_key == current_material_key
+            and recommended_dn == current_dn
+        )
+        if same_material_size:
             recommendation = "RETAIN"
-            direction = "retain"
+            direction = "retain material/size"
+        elif (
+                recommended_internal_diameter_m
+                > current_internal_diameter_m + tolerance
+        ):
+            recommendation = "INCREASE"
+            direction = "increase bore"
+        elif (
+                recommended_internal_diameter_m
+                < current_internal_diameter_m - tolerance
+        ):
+            recommendation = "DECREASE"
+            direction = "decrease bore"
+        else:
+            recommendation = "CHANGE_MATERIAL"
+            direction = "change material at equivalent bore"
 
         complete = True
         status = (
-            f"Recommended preview — {direction} at "
-            f"{recommended_label}; smallest candidate passing both limits"
+            f"Recommended preview — {direction}: "
+            f"{recommended_material_key} {recommended_label} "
+            f"(ID {recommended_internal_diameter_m * 1000.0:g} mm); "
+            "smallest candidate passing both limits"
         )
 
     return ProportionedPipeSizeSectionCandidateResultV1(
@@ -312,8 +363,27 @@ def _section_result_v1(
         carried_flow_kg_s=float(section.carried_flow_kg_s),
         current_dn=int(section.current_dn),
         current_pipe_size_label=str(section.current_pipe_size_label),
+        current_material_key=str(
+            getattr(section, "current_material_key", "")
+            or getattr(authority.criteria, "current_material_key", "")
+            or "copper"
+        ).strip().lower(),
+        current_internal_diameter_m=float(
+            getattr(section, "current_internal_diameter_m", 0.0)
+            or (
+                get_material(
+                    str(
+                        getattr(authority.criteria, "current_material_key", "")
+                        or "copper"
+                    ).strip().lower()
+                ).sizes[int(section.current_dn)].id_mm
+                / 1000.0
+            )
+        ),
         recommended_dn=recommended_dn,
         recommended_pipe_size_label=recommended_label,
+        recommended_material_key=recommended_material_key,
+        recommended_internal_diameter_m=recommended_internal_diameter_m,
         recommendation=recommendation,
         candidate_evaluations=evaluations,
         complete=complete,
@@ -391,7 +461,11 @@ def build_proportioned_pipe_size_candidate_evaluation_v1(
         for section in section_results
     )
     change_count = sum(
-        section.recommendation in {"INCREASE", "DECREASE"}
+        section.recommendation in {
+            "INCREASE",
+            "DECREASE",
+            "CHANGE_MATERIAL",
+        }
         for section in section_results
     )
     exhaustion_count = sum(
@@ -406,7 +480,7 @@ def build_proportioned_pipe_size_candidate_evaluation_v1(
         status = (
             f"Ready — evaluated {candidate_count} Colebrook candidates "
             f"across {len(section_results)} committed sections; "
-            f"{change_count} DN changes recommended"
+            f"{change_count} material/size changes recommended"
         )
     else:
         blocked_count = sum(

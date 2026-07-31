@@ -161,6 +161,10 @@ def main() -> None:
     assert by_section["route-b-only"].projected_dn == 10
 
     for section in result.sections:
+        assert section.current_material_key == "copper"
+        assert section.projected_material_key == "copper"
+        assert section.current_internal_diameter_m > 0.0
+        assert section.internal_diameter_m > 0.0
         assert section.velocity_within_limit is True
         assert section.pressure_gradient_within_limit is True
         assert section.colebrook_converged is True

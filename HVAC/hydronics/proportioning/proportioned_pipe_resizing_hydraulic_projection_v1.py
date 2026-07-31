@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from math import isfinite
 from typing import Optional
 
+from HVAC.core.materials.pipe_materials_library import get_material
 from HVAC.hydronics.pipes.dp.mass_flow_pressure_drop_v1 import (
     calculate_hydronic_pipe_pressure_drop_from_mass_flow_v1,
 )
@@ -57,6 +58,11 @@ class ProportionedResizedSectionHydraulicProjectionV1:
     colebrook_iteration_count: int
     colebrook_converged: bool
     status: str
+    current_material_key: str = "copper"
+    current_material_label: str = "Copper EN1057"
+    current_internal_diameter_m: float = 0.0
+    projected_material_key: str = "copper"
+    projected_material_label: str = "Copper EN1057"
 
 
 @dataclass(frozen=True, slots=True)
@@ -103,6 +109,7 @@ class ProportionedPipeResizingHydraulicProjectionV1:
     blockers: tuple[str, ...] = ()
     exclusions: tuple[str, ...] = (
         "No ProjectState mutation",
+        "No committed material or DN replacement",
         "No committed DN replacement",
         "No committed balancing-point allocation reuse",
         "No point-level valve-duty reconciliation",
@@ -223,6 +230,26 @@ def _project_section_v1(
             "did not converge"
         )
 
+    current_material_key = str(
+        getattr(section, "current_material_key", "")
+        or getattr(criteria, "current_material_key", "")
+        or "copper"
+    ).strip().lower()
+    current_material = get_material(current_material_key)
+    current_size = (
+        current_material.sizes.get(int(section.current_dn))
+        if current_material is not None
+        else None
+    )
+    if current_size is None:
+        raise ValueError(
+            f"{section.section_id}: current material/size evidence required"
+        )
+    current_internal_diameter_m = float(
+        getattr(section, "current_internal_diameter_m", 0.0)
+        or (float(current_size.id_mm) / 1000.0)
+    )
+
     density = float(criteria.density_kg_m3)
     k_total = float(section.k_total)
     local_pressure_drop = (
@@ -296,9 +323,14 @@ def _project_section_v1(
         ),
         colebrook_converged=bool(hydraulic.colebrook_converged),
         status=(
-            "Projected — recommended DN passes both limits; straight-pipe "
-            "and local-K Δp recalculated"
+            "Projected — recommended material/size passes both limits; "
+            "straight-pipe and local-K Δp recalculated"
         ),
+        current_material_key=current_material_key,
+        current_material_label=str(current_material.name),
+        current_internal_diameter_m=current_internal_diameter_m,
+        projected_material_key=str(candidate.material_key),
+        projected_material_label=str(candidate.material_label),
     )
 
 
