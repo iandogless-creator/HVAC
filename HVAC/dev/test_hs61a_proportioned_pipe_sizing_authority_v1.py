@@ -115,12 +115,18 @@ def main() -> None:
     assert result.ready is True, result.status
     assert result.criteria == criteria
     assert result.section_count == 2
-    assert [row.dn for row in result.candidates] == [10, 15, 22, 28, 35]
+    assert [row.dn for row in result.candidates] == [
+        10, 15, 22, 28, 35, 42, 54,
+    ]
     dn15 = next(row for row in result.candidates if row.dn == 15)
     assert dn15.material_key == "copper"
     assert dn15.material_label == "Copper EN1057"
     assert dn15.internal_diameter_m == 0.013
     assert dn15.roughness_m == 0.0000015
+    dn42 = next(row for row in result.candidates if row.dn == 42)
+    dn54 = next(row for row in result.candidates if row.dn == 54)
+    assert dn42.internal_diameter_m == 0.038
+    assert dn54.internal_diameter_m == 0.050
 
     high = next(
         row
@@ -166,8 +172,8 @@ def main() -> None:
     outside_family = _snapshot(
         sections=(
             _section(
-                "section-dn42",
-                dn=42,
+                "section-dn67",
+                dn=67,
                 velocity=0.3,
                 gradient=80.0,
                 order=1,

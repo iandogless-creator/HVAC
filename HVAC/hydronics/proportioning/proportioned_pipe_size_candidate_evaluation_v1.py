@@ -70,6 +70,7 @@ class ProportionedPipeSizeSectionCandidateResultV1:
     ]
     complete: bool
     status: str
+    candidate_range_exhausted: bool = False
     blockers: tuple[str, ...] = ()
 
 
@@ -89,6 +90,7 @@ class ProportionedPipeSizeCandidateEvaluationResultV1:
     section_count: int = 0
     evaluated_candidate_count: int = 0
     recommended_change_count: int = 0
+    candidate_range_exhausted_count: int = 0
     status: str = ""
     blockers: tuple[str, ...] = ()
     exclusions: tuple[str, ...] = (
@@ -244,19 +246,41 @@ def _section_result_v1(
         None,
     )
     blockers: list[str] = []
+    largest = evaluations[-1] if evaluations else None
+    candidate_range_exhausted = bool(
+        recommended is None
+        and largest is not None
+        and largest.colebrook_converged
+        and largest.velocity_m_s is not None
+        and largest.pressure_gradient_Pa_per_m is not None
+        and not largest.eligible
+    )
 
     if recommended is None:
         recommendation = "BLOCKED"
         recommended_dn = None
         recommended_label = "—"
         complete = False
-        status = (
-            "Blocked — no accepted candidate DN passes both maximum "
-            "velocity and maximum Δp/m"
-        )
-        blockers.append(
-            f"{section.section_id}: no candidate passes both accepted limits"
-        )
+        if candidate_range_exhausted:
+            status = (
+                "Blocked — accepted candidate range exhausted at "
+                f"{largest.candidate_pipe_size_label}; no candidate passes "
+                "both maximum velocity and maximum Δp/m"
+            )
+            blockers.append(
+                f"{section.section_id}: candidate range exhausted at "
+                f"DN{largest.candidate_dn}; no candidate passes both "
+                "accepted limits"
+            )
+        else:
+            status = (
+                "Blocked — candidate evaluation incomplete; no accepted "
+                "candidate DN passes both maximum velocity and maximum Δp/m"
+            )
+            blockers.append(
+                f"{section.section_id}: candidate evaluation incomplete; "
+                "no candidate passes both accepted limits"
+            )
     else:
         recommended_dn = int(recommended.candidate_dn)
         recommended_label = str(recommended.candidate_pipe_size_label)
@@ -294,6 +318,7 @@ def _section_result_v1(
         candidate_evaluations=evaluations,
         complete=complete,
         status=status,
+        candidate_range_exhausted=candidate_range_exhausted,
         blockers=tuple(blockers),
     )
 
@@ -369,6 +394,10 @@ def build_proportioned_pipe_size_candidate_evaluation_v1(
         section.recommendation in {"INCREASE", "DECREASE"}
         for section in section_results
     )
+    exhaustion_count = sum(
+        section.candidate_range_exhausted
+        for section in section_results
+    )
     ready = not blockers and all(
         section.complete for section in section_results
     )
@@ -383,10 +412,17 @@ def build_proportioned_pipe_size_candidate_evaluation_v1(
         blocked_count = sum(
             not section.complete for section in section_results
         )
-        status = (
-            f"Blocked — {blocked_count} of {len(section_results)} committed "
-            "sections have no candidate passing both accepted limits"
-        )
+        if exhaustion_count:
+            status = (
+                "Blocked — accepted candidate range exhausted for "
+                f"{exhaustion_count} of {len(section_results)} committed "
+                "sections"
+            )
+        else:
+            status = (
+                f"Blocked — {blocked_count} of {len(section_results)} "
+                "committed sections have incomplete candidate evaluation"
+            )
 
     return ProportionedPipeSizeCandidateEvaluationResultV1(
         ready=ready,
@@ -394,6 +430,7 @@ def build_proportioned_pipe_size_candidate_evaluation_v1(
         section_count=len(section_results),
         evaluated_candidate_count=candidate_count,
         recommended_change_count=change_count,
+        candidate_range_exhausted_count=exhaustion_count,
         status=status,
         blockers=blockers,
     )
