@@ -171,6 +171,9 @@ from HVAC.hydronics.proportioning.proportioned_pipe_resizing_schedule_acceptance
 from HVAC.hydronics.proportioning.proportioned_pipe_material_family_intent_v1 import (
     ProportionedPipeMaterialFamilyIntentV1,
 )
+from HVAC.hydronics.proportioning.proportioned_pipe_schedule_commit_rebuild_v1 import (
+    build_proportioned_pipe_schedule_commit_rebuild_v1,
+)
 from HVAC.hydronics.proportioning.committed_proportioning_hydraulic_input_authority_v1 import (
     build_committed_proportioning_hydraulic_input_authority_v1,
 )
@@ -1002,6 +1005,129 @@ class HydronicsSchematicPanelAdapter:
                     emit(project)
                 except TypeError:
                     pass
+
+    def commit_proportioned_pipe_schedule_v1(self) -> bool:
+        """
+        H-S61-H2A:
+        Explicitly commit one still-exact accepted material/size schedule.
+
+        All replacement authorities are rebuilt before mutation. On success
+        the snapshot, current/proposed material authority and consumed
+        acceptance are assigned together. Existing ProjectState valve intents
+        are deliberately untouched; the replacement snapshot itself contains
+        no reused generic-Kvs bases.
+        """
+        project = getattr(self, "_project_state", None)
+        if project is None:
+            print(
+                "H-S61-H2A pipe schedule commit blocked: "
+                "no ProjectState is available"
+            )
+            return False
+
+        resized_hydraulics = getattr(
+            self,
+            "_proportioned_pipe_resizing_hydraulic_projection_v1",
+            None,
+        )
+        resized_reconciliation = getattr(
+            self,
+            "_resized_balancing_point_reconciliation_v1",
+            None,
+        )
+        acceptance_intent = getattr(
+            project,
+            "hydronic_proportioned_pipe_resizing_schedule_acceptance_intent",
+            None,
+        )
+        acceptance_resolution = (
+            resolve_proportioned_pipe_resizing_schedule_acceptance_v1(
+                acceptance_intent,
+                resized_hydraulics=resized_hydraulics,
+                resized_point_reconciliation=resized_reconciliation,
+            )
+        )
+        material_intent = getattr(
+            project,
+            "hydronic_proportioned_pipe_material_family_intent",
+            None,
+        )
+        rebuild = build_proportioned_pipe_schedule_commit_rebuild_v1(
+            committed_snapshot=getattr(
+                project,
+                "hydronic_proportioned_basis_snapshot",
+                None,
+            ),
+            material_intent=material_intent,
+            acceptance_resolution=acceptance_resolution,
+            resized_hydraulics=resized_hydraulics,
+            resized_point_reconciliation=resized_reconciliation,
+        )
+        self._proportioned_pipe_resizing_schedule_acceptance_resolution_v1 = (
+            acceptance_resolution
+        )
+        self._proportioned_pipe_schedule_commit_rebuild_result_v1 = rebuild
+
+        replacement_snapshot = getattr(
+            rebuild,
+            "replacement_snapshot",
+            None,
+        )
+        committed_material_key = str(
+            getattr(rebuild, "committed_material_key", "") or ""
+        ).strip()
+        if (
+                not bool(getattr(rebuild, "ready", False))
+                or replacement_snapshot is None
+                or not committed_material_key
+        ):
+            print(
+                "H-S61-H2A pipe schedule commit blocked:",
+                str(getattr(rebuild, "status", "") or "rebuild not ready"),
+            )
+            return False
+
+        # Prepare every assigned value before crossing the mutation boundary.
+        committed_material_intent = ProportionedPipeMaterialFamilyIntentV1(
+            current_material_key=committed_material_key,
+            proposed_material_key=committed_material_key,
+        )
+        replacement_values = (
+            replacement_snapshot,
+            committed_material_intent,
+            None,
+            False,
+        )
+
+        (
+            project.hydronic_proportioned_basis_snapshot,
+            project.hydronic_proportioned_pipe_material_family_intent,
+            project.hydronic_proportioned_pipe_resizing_schedule_acceptance_intent,
+            project.hydronics_valid,
+        ) = replacement_values
+
+        if hasattr(project, "mark_dirty"):
+            project.mark_dirty()
+
+        for signal_name in ("project_state_changed", "project_changed"):
+            signal = getattr(self._context, signal_name, None)
+            emit = getattr(signal, "emit", None)
+            if not callable(emit):
+                continue
+            try:
+                emit()
+            except TypeError:
+                try:
+                    emit(project)
+                except TypeError:
+                    pass
+
+        print(
+            "H-S61-H2A committed accepted material/size schedule:",
+            committed_material_key,
+        )
+        self.refresh()
+        return True
 
     def set_balancing_point_kvs_candidate_acceptance(
             self,
@@ -6085,6 +6211,23 @@ class HydronicsSchematicPanelAdapter:
             self._proportioned_pipe_resizing_schedule_acceptance_resolution_v1 = (
                 resolve_proportioned_pipe_resizing_schedule_acceptance_v1(
                     schedule_acceptance_intent,
+                    resized_hydraulics=(
+                        self._proportioned_pipe_resizing_hydraulic_projection_v1
+                    ),
+                    resized_point_reconciliation=(
+                        self._resized_balancing_point_reconciliation_v1
+                    ),
+                )
+            )
+            # H-S61-H2A — prepare the complete immutable replacement result.
+            # No ProjectState mutation occurs during refresh.
+            self._proportioned_pipe_schedule_commit_rebuild_result_v1 = (
+                build_proportioned_pipe_schedule_commit_rebuild_v1(
+                    committed_snapshot=committed_snapshot,
+                    material_intent=material_intent,
+                    acceptance_resolution=(
+                        self._proportioned_pipe_resizing_schedule_acceptance_resolution_v1
+                    ),
                     resized_hydraulics=(
                         self._proportioned_pipe_resizing_hydraulic_projection_v1
                     ),
