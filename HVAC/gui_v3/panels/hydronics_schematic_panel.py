@@ -1029,8 +1029,8 @@ class HydronicsSchematicPanel(QWidget):
         self._pipe_resizing_review_tab.addWidget(
             QLabel(
                 "Read-only resized pipework projection. Current committed "
-                "material and pipe sizes remain unchanged until a later "
-                "explicit commit stage."
+                "material and pipe sizes remain unchanged until the exact "
+                "accepted schedule is explicitly committed below."
             )
         )
 
@@ -1104,6 +1104,12 @@ class HydronicsSchematicPanel(QWidget):
         self._pipe_resizing_review_tab.addWidget(material_card)
 
         self._proportioned_pipe_resizing_schedule_acceptance_callback_v1 = None
+        # H-S61-H2B1 — explicit accepted-schedule commit control.
+        self._proportioned_pipe_resizing_schedule_commit_callback_v1 = None
+        self._proportioned_pipe_resizing_schedule_commit_ready_v1 = False
+        self._proportioned_pipe_resizing_schedule_commit_status_v1 = (
+            "Blocked — exact accepted material/size schedule rebuild is not ready"
+        )
         self._proportioned_pipe_resizing_schedule_evidence_ready_v1 = False
         self._proportioned_pipe_resizing_schedule_accepted_v1 = False
         self._proportioned_pipe_resizing_schedule_has_stored_acceptance_v1 = (
@@ -1138,11 +1144,18 @@ class HydronicsSchematicPanel(QWidget):
             "Clear acceptance",
             self._proportioned_pipe_resizing_schedule_acceptance_card_v1,
         )
+        self._proportioned_pipe_resizing_schedule_commit_button_v1 = QPushButton(
+            "Commit accepted material/size schedule",
+            self._proportioned_pipe_resizing_schedule_acceptance_card_v1,
+        )
         self._proportioned_pipe_resizing_schedule_accept_button_v1.clicked.connect(
             self._on_proportioned_pipe_resizing_schedule_accept_v1
         )
         self._proportioned_pipe_resizing_schedule_clear_button_v1.clicked.connect(
             self._on_proportioned_pipe_resizing_schedule_clear_v1
+        )
+        self._proportioned_pipe_resizing_schedule_commit_button_v1.clicked.connect(
+            self._on_proportioned_pipe_resizing_schedule_commit_v1
         )
         schedule_acceptance_layout.addWidget(
             self._proportioned_pipe_resizing_schedule_acceptance_status_v1,
@@ -1160,6 +1173,13 @@ class HydronicsSchematicPanel(QWidget):
             self._proportioned_pipe_resizing_schedule_clear_button_v1,
             1,
             1,
+        )
+        schedule_acceptance_layout.addWidget(
+            self._proportioned_pipe_resizing_schedule_commit_button_v1,
+            2,
+            0,
+            1,
+            2,
         )
         schedule_acceptance_layout.setColumnStretch(2, 1)
         self._pipe_resizing_review_tab.addWidget(
@@ -10423,6 +10443,37 @@ QTableWidget::item:selected:!active {
                 "material_key": material_key,
             })
 
+    def set_proportioned_pipe_resizing_schedule_commit_callback_v1(
+            self,
+            callback,
+    ) -> None:
+        """Register the H-S61-H2B1 explicit adapter commit handoff."""
+        self._proportioned_pipe_resizing_schedule_commit_callback_v1 = callback
+        self._refresh_proportioned_pipe_resizing_schedule_acceptance_controls_v1()
+
+    def set_proportioned_pipe_resizing_schedule_commit_state_v1(
+            self,
+            *,
+            ready: bool,
+            status: str,
+    ) -> None:
+        """Display H-S61-H1B rebuild readiness without owning authority."""
+        self._proportioned_pipe_resizing_schedule_commit_ready_v1 = bool(ready)
+        self._proportioned_pipe_resizing_schedule_commit_status_v1 = (
+            str(status or "").strip()
+            or "Blocked — accepted material/size schedule rebuild is not ready"
+        )
+        button = getattr(
+            self,
+            "_proportioned_pipe_resizing_schedule_commit_button_v1",
+            None,
+        )
+        if button is not None:
+            button.setToolTip(
+                self._proportioned_pipe_resizing_schedule_commit_status_v1
+            )
+        self._refresh_proportioned_pipe_resizing_schedule_acceptance_controls_v1()
+
     def set_proportioned_pipe_resizing_schedule_acceptance_callback_v1(
             self,
             callback,
@@ -10476,7 +10527,16 @@ QTableWidget::item:selected:!active {
             "_proportioned_pipe_resizing_schedule_clear_button_v1",
             None,
         )
-        if accept_button is None or clear_button is None:
+        commit_button = getattr(
+            self,
+            "_proportioned_pipe_resizing_schedule_commit_button_v1",
+            None,
+        )
+        if (
+                accept_button is None
+                or clear_button is None
+                or commit_button is None
+        ):
             return
         callback_ready = callable(
             getattr(
@@ -10508,6 +10568,22 @@ QTableWidget::item:selected:!active {
                 getattr(
                     self,
                     "_proportioned_pipe_resizing_schedule_has_stored_acceptance_v1",
+                    False,
+                )
+            )
+        )
+        commit_button.setEnabled(
+            callable(
+                getattr(
+                    self,
+                    "_proportioned_pipe_resizing_schedule_commit_callback_v1",
+                    None,
+                )
+            )
+            and bool(
+                getattr(
+                    self,
+                    "_proportioned_pipe_resizing_schedule_commit_ready_v1",
                     False,
                 )
             )
@@ -10573,6 +10649,92 @@ QTableWidget::item:selected:!active {
                 "Clear proposed material/size schedule acceptance blocked",
                 str(exc),
             )
+
+    def _on_proportioned_pipe_resizing_schedule_commit_v1(self) -> None:
+        """
+        Confirm and delegate the exact H-S61-H2B1 commit.
+
+        The panel owns only the dialog and display state. The adapter rechecks
+        acceptance identity and performs the atomic ProjectState handoff.
+        """
+        callback = getattr(
+            self,
+            "_proportioned_pipe_resizing_schedule_commit_callback_v1",
+            None,
+        )
+        ready = bool(
+            getattr(
+                self,
+                "_proportioned_pipe_resizing_schedule_commit_ready_v1",
+                False,
+            )
+        )
+        status = str(
+            getattr(
+                self,
+                "_proportioned_pipe_resizing_schedule_commit_status_v1",
+                "",
+            )
+            or "Accepted material/size schedule commit is unavailable"
+        )
+        if not callable(callback) or not ready:
+            QMessageBox.warning(
+                self,
+                "Pipe schedule commit unavailable",
+                status,
+            )
+            return
+
+        answer = QMessageBox.question(
+            self,
+            "Commit accepted material/size schedule",
+            (
+                "Commit the exact accepted material/size schedule and replace "
+                "the committed pipe hydraulic authority?\n\n"
+                "Committed material, pipe size, actual bore, roughness, section "
+                "and route hydraulics will be rebuilt. Existing committed "
+                "generic-Kvs bases will be cleared because their duties are "
+                "stale and require fresh manual review.\n\n"
+                "No pump, valve product, valve setting or final balancing "
+                "will be selected."
+            ),
+            QMessageBox.StandardButton.Yes
+            | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if answer != QMessageBox.StandardButton.Yes:
+            return
+
+        try:
+            committed = bool(callback())
+        except Exception as exc:
+            QMessageBox.warning(
+                self,
+                "Pipe schedule commit blocked",
+                str(exc),
+            )
+            return
+        if not committed:
+            QMessageBox.warning(
+                self,
+                "Pipe schedule commit blocked",
+                (
+                    "The accepted schedule is no longer an exact ready match. "
+                    "Review the current Pipe Resizing status before accepting "
+                    "again."
+                ),
+            )
+            return
+
+        QMessageBox.information(
+            self,
+            "Pipe schedule committed",
+            (
+                "The accepted material/size schedule and rebuilt hydraulics "
+                "are now committed. Generic-Kvs duties require fresh manual "
+                "review."
+            ),
+        )
 
     def _set_resized_pipe_review_rows_v1(
             self,

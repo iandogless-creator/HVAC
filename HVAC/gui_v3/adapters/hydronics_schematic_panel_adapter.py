@@ -420,6 +420,15 @@ class HydronicsSchematicPanelAdapter:
                 self.set_proportioned_pipe_resizing_schedule_acceptance_v1
             )
 
+        # H-S61-H2B1 — explicit confirmed commit callback.
+        if hasattr(
+                self._panel,
+                "set_proportioned_pipe_resizing_schedule_commit_callback_v1",
+        ):
+            self._panel.set_proportioned_pipe_resizing_schedule_commit_callback_v1(
+                self.commit_proportioned_pipe_schedule_v1
+            )
+
         if hasattr(
                 self._panel,
                 "set_accepted_kvs_consequence_disposition_callback",
@@ -6236,6 +6245,22 @@ class HydronicsSchematicPanelAdapter:
                     ),
                 )
             )
+            if hasattr(
+                    self._panel,
+                    "set_proportioned_pipe_resizing_schedule_commit_state_v1",
+            ):
+                commit_rebuild = (
+                    self._proportioned_pipe_schedule_commit_rebuild_result_v1
+                )
+                self._panel.set_proportioned_pipe_resizing_schedule_commit_state_v1(
+                    ready=bool(getattr(commit_rebuild, "ready", False)),
+                    status=(
+                        str(
+                            getattr(commit_rebuild, "status", "") or ""
+                        ).strip()
+                        or "Accepted material/size schedule commit unavailable"
+                    ),
+                )
             if hasattr(
                     self._panel,
                     "set_proportioned_pipe_resizing_schedule_acceptance_state_v1",
