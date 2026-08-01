@@ -8,6 +8,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from HVAC.hydronics.proportioning.proportioned_pipe_material_family_intent_v1 import (
+    DEFAULT_PROPORTIONED_PIPE_MATERIAL_FAMILY_V1,
+)
 from HVAC.hydronics.proportioning.common_main_leg_entry_sections_v1 import (
     COMMON_MAIN_SECTION_KIND,
     LEG_ENTRY_SECTION_KIND,
@@ -15,7 +18,9 @@ from HVAC.hydronics.proportioning.common_main_leg_entry_sections_v1 import (
     build_common_main_leg_entry_sections_v1,
 )
 from HVAC.hydronics.sizing.basic_ps_pipe_sizing_v1 import (
+    build_basic_ps_pipe_candidates_for_material_v1,
     build_basic_ps_pipe_sizing_v1,
+    current_basic_ps_pipe_material_key_v1,
 )
 from HVAC.hydronics.sizing.basic_ps_topology_sections_v1 import (
     BasicPSTopologySectionV1,
@@ -62,6 +67,11 @@ class CommonMainLegEntryPipeSizingRowV1:
     section_basis_status: str
     sizing_status: str
     status: str
+
+    # H-S63-B2A — exact selected family/catalogue identity.
+    basic_material_key: str = DEFAULT_PROPORTIONED_PIPE_MATERIAL_FAMILY_V1
+    basic_material_label: str = "Copper EN1057"
+    basic_pipe_size_key: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -113,8 +123,13 @@ def build_common_main_leg_entry_pipe_sizing_v1(
         )
         for section in source_sections
     )
+    # H-S63-B2A — use the exact persisted current family only.
+    current_material_key = current_basic_ps_pipe_material_key_v1(project_state)
     basic_projection = build_basic_ps_pipe_sizing_v1(
         basic_sections,
+        pipe_candidates=build_basic_ps_pipe_candidates_for_material_v1(
+            current_material_key
+        ),
         max_velocity_m_s_by_section_id={
             resolution.section_id: resolution.effective_max_velocity_m_s
             for resolution in resolutions
@@ -213,6 +228,9 @@ def _combine_result_v1(*, section: Any, result: Any) -> CommonMainLegEntryPipeSi
         status=" / ".join(
             part for part in (section_basis_status, sizing_status) if part
         ),
+        basic_material_key=str(result.material_key),
+        basic_material_label=str(result.material_label),
+        basic_pipe_size_key=result.pipe_size_key,
     )
 
 

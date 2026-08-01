@@ -34,9 +34,9 @@ def test_mass_flow_wrapper_uses_copper_10_catalogue_basis() -> None:
         friction_method="colebrook",
     )
 
-    # Copper DN10 in pipe_materials_library.py:
-    # OD 12.0 mm, ID 10.0 mm, roughness 0.0015 mm.
-    expected_internal_diameter_m = 0.010
+    # Copper tube 10 mm OD × 0.6 mm wall in the current v1 series.
+    # Hydraulic ID is 8.8 mm; roughness remains 0.0015 mm.
+    expected_internal_diameter_m = 0.0088
     expected_roughness_m = 0.0000015
     expected_volume_flow_m3_s = mass_flow_kg_s / 998.0
     expected_area_m2 = math.pi * expected_internal_diameter_m**2 / 4.0

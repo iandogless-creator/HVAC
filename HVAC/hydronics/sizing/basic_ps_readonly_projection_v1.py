@@ -13,7 +13,9 @@ from HVAC.hydronics.sizing.basic_ps_topology_sections_v1 import (
 )
 from HVAC.hydronics.sizing.basic_ps_pipe_sizing_v1 import (
     BasicPSPipeSizingProjectionV1,
+    build_basic_ps_pipe_candidates_for_material_v1,
     build_basic_ps_pipe_sizing_v1,
+    current_basic_ps_pipe_material_key_v1,
 )
 from HVAC.hydronics.sizing.basic_ps_velocity_limit_resolver_v1 import (
     resolve_basic_ps_max_velocity_v1,
@@ -96,8 +98,14 @@ def build_basic_ps_readonly_projection_v1(
         for section in sections_projection.sections
     )
 
+    # H-S63-B2A — the persisted current family, never the proposed
+    # preview family, supplies one unmixed Basic PS candidate ladder.
+    current_material_key = current_basic_ps_pipe_material_key_v1(project_state)
     pipe_sizing_projection = build_basic_ps_pipe_sizing_v1(
         sections_projection.sections,
+        pipe_candidates=build_basic_ps_pipe_candidates_for_material_v1(
+            current_material_key
+        ),
         max_velocity_m_s_by_section_id={
             resolution.section_id: resolution.effective_max_velocity_m_s
             for resolution in velocity_resolutions

@@ -9,6 +9,10 @@ from dataclasses import dataclass
 from typing import Iterable, Mapping
 
 from HVAC.core.materials.pipe_materials_library import get_material
+from HVAC.hydronics.proportioning.proportioned_pipe_material_family_intent_v1 import (
+    DEFAULT_PROPORTIONED_PIPE_MATERIAL_FAMILY_V1,
+    normalise_pipe_material_family_key_v1,
+)
 from HVAC.hydronics.sizing.basic_ps_topology_sections_v1 import (
     BasicPSTopologySectionV1,
 )
@@ -42,6 +46,10 @@ class BasicPSPipeCandidateV1:
     pipe_size_label: str
     internal_diameter_m: float
     roughness_m: float = DEFAULT_PIPE_ROUGHNESS_M
+    # H-S63-B2A — exact family/catalogue identity for downstream evidence.
+    material_key: str = DEFAULT_PROPORTIONED_PIPE_MATERIAL_FAMILY_V1
+    material_label: str = "Copper EN1057"
+    pipe_size_key: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -66,6 +74,11 @@ class BasicPSPipeSizingResultV1:
     reynolds_number: float
     friction_factor: float
     pressure_gradient_Pa_per_m: float
+
+    # H-S63-B2A — exact selected family/catalogue identity.
+    material_key: str = DEFAULT_PROPORTIONED_PIPE_MATERIAL_FAMILY_V1
+    material_label: str = "Copper EN1057"
+    pipe_size_key: int | None = None
 
     # H-S37-B3 — Applied first-pass selection criterion evidence.
     applied_max_velocity_m_s: float = 1.0
@@ -94,58 +107,111 @@ class BasicPSPipeSizingProjectionV1:
 
 
 # ======================================================================
-# H-S63-B1 — material-library-derived Basic PS copper candidates
+# H-S63-B1 — material-library-derived Basic PS candidates
+# H-S63-B2A — selected current material-family Basic PS authority
 # ======================================================================
 
-# This tuple is the Basic PS v1 candidate-range criterion, not dimensional
-# authority. Bore and roughness are read from pipe_materials_library.
-# 6/8 mm microbore and the 42/54 mm Proportioned extension remain excluded.
+# These tuples are Basic PS v1 candidate-range criteria, not dimensional
+# authority. Bore and roughness always come from pipe_materials_library.
+# Copper 6/8 mm microbore and its 42/54 mm Proportioned extension remain
+# excluded. Plastic and steel ladders are available only when that exact
+# family is the persisted current/committed family.
+BASIC_PS_PIPE_MATERIAL_SIZE_KEYS_V1: dict[str, tuple[int, ...]] = {
+    "copper": (10, 15, 22, 28, 35),
+    "mlcp": (16, 20, 26, 32),
+    "pex": (16, 20, 26),
+    "steel": (15, 20, 25, 32, 40, 50, 65, 80),
+}
 DEFAULT_BASIC_PS_COPPER_SIZE_KEYS_V1: tuple[int, ...] = (
-    10,
-    15,
-    22,
-    28,
-    35,
+    BASIC_PS_PIPE_MATERIAL_SIZE_KEYS_V1["copper"]
 )
 
 
-def build_default_basic_ps_copper_candidates_v1(
-) -> tuple[BasicPSPipeCandidateV1, ...]:
-    """Return the Basic PS v1 copper ladder from shared material authority."""
+def current_basic_ps_pipe_material_key_v1(project_state: object) -> str:
+    """Resolve the persisted committed/current family, defaulting to copper."""
 
-    material = get_material("copper")
+    intent = getattr(
+        project_state,
+        "hydronic_proportioned_pipe_material_family_intent",
+        None,
+    )
+    raw_key = getattr(
+        intent,
+        "current_material_key",
+        DEFAULT_PROPORTIONED_PIPE_MATERIAL_FAMILY_V1,
+    )
+    return normalise_pipe_material_family_key_v1(raw_key)
+
+
+def _basic_ps_pipe_size_label_v1(
+        *,
+        material_key: str,
+        size_key: int,
+        outside_diameter_mm: float,
+        thickness_mm: float,
+) -> str:
+    if material_key in {"mlcp", "pex"}:
+        return f"{outside_diameter_mm:g}×{thickness_mm:g} mm"
+    return f"{size_key} mm"
+
+
+def build_basic_ps_pipe_candidates_for_material_v1(
+        material_key: object,
+) -> tuple[BasicPSPipeCandidateV1, ...]:
+    """Build one unmixed Basic PS family from shared material authority."""
+
+    key = normalise_pipe_material_family_key_v1(material_key)
+    size_keys = BASIC_PS_PIPE_MATERIAL_SIZE_KEYS_V1.get(key)
+    if not size_keys:
+        raise ValueError(f"Basic PS candidate family is unavailable: {key}")
+
+    material = get_material(key)
     if material is None:
-        raise ValueError("Basic PS copper material authority is unavailable")
+        raise ValueError(f"Basic PS material authority is unavailable: {key}")
 
     roughness_m = float(material.roughness_mm) / 1000.0
     if roughness_m < 0.0:
-        raise ValueError("Basic PS copper roughness must not be negative")
+        raise ValueError(f"Basic PS {key} roughness must not be negative")
 
     candidates: list[BasicPSPipeCandidateV1] = []
-    for size_key in DEFAULT_BASIC_PS_COPPER_SIZE_KEYS_V1:
+    for size_key in size_keys:
         size = material.sizes.get(size_key)
         if size is None:
             raise ValueError(
-                "Basic PS copper size is missing from material authority: "
-                f"{size_key} mm"
+                f"Basic PS {key} size is missing from material authority: "
+                f"{size_key}"
             )
 
         internal_diameter_m = float(size.id_mm) / 1000.0
         if internal_diameter_m <= 0.0:
             raise ValueError(
-                "Basic PS copper bore must be positive: "
-                f"{size_key} mm"
+                f"Basic PS {key} bore must be positive: {size_key}"
             )
 
         candidates.append(
             BasicPSPipeCandidateV1(
-                pipe_size_label=f"{size_key} mm",
+                pipe_size_label=_basic_ps_pipe_size_label_v1(
+                    material_key=key,
+                    size_key=size_key,
+                    outside_diameter_mm=float(size.od_mm),
+                    thickness_mm=float(size.thickness_mm),
+                ),
                 internal_diameter_m=internal_diameter_m,
                 roughness_m=roughness_m,
+                material_key=key,
+                material_label=str(material.name),
+                pipe_size_key=int(size_key),
             )
         )
 
     return tuple(candidates)
+
+
+def build_default_basic_ps_copper_candidates_v1(
+) -> tuple[BasicPSPipeCandidateV1, ...]:
+    """Compatibility wrapper for the unchanged direct-call copper default."""
+
+    return build_basic_ps_pipe_candidates_for_material_v1("copper")
 
 
 DEFAULT_PIPE_CANDIDATES: tuple[BasicPSPipeCandidateV1, ...] = (
@@ -436,6 +502,9 @@ def _result_from_values(
         reynolds_number=reynolds_number,
         friction_factor=friction_factor,
         pressure_gradient_Pa_per_m=pressure_gradient_Pa_per_m,
+        material_key=candidate.material_key,
+        material_label=candidate.material_label,
+        pipe_size_key=candidate.pipe_size_key,
         applied_max_velocity_m_s=applied_max_velocity_m_s,
         max_velocity_source=max_velocity_source,
         is_index_room=section.is_index_room,

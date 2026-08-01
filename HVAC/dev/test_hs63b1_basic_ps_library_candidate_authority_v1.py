@@ -62,7 +62,7 @@ def main() -> None:
         "HVAC/hydronics/sizing/basic_ps_pipe_sizing_v1.py"
     ).read_text(encoding="utf-8")
     assert 'BasicPSPipeCandidateV1("10 mm", 0.0100)' not in source
-    assert 'get_material("copper")' in source
+    assert "build_basic_ps_pipe_candidates_for_material_v1" in source
 
     print(
         "OK — H-S63-B1 Basic PS copper candidates use shared bore and "
