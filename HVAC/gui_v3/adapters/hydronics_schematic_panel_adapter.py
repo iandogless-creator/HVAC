@@ -247,6 +247,7 @@ from HVAC.hydronics.proportioning.balancing_point_proportioning_commit_readiness
 )
 from HVAC.hydronics.proportioning.balancing_point_valve_product_search_criteria_intent_v1 import (
     BalancingPointValveProductSearchCriteriaIntentV1,
+    build_product_search_duty_envelope_fingerprint_v1,
     resolve_balancing_point_valve_product_search_criteria_v1,
 )
 from HVAC.hydronics.proportioning.balancing_point_valve_catalogue_candidate_match_evidence_v1 import (
@@ -528,6 +529,15 @@ class HydronicsSchematicPanelAdapter:
                 )
             ):
                 raise ValueError("Current approved H-S49-A envelope required")
+            duty_envelope_fingerprint = (
+                build_product_search_duty_envelope_fingerprint_v1(
+                    envelope
+                )
+            )
+            if not duty_envelope_fingerprint:
+                raise ValueError(
+                    "Current exact H-S49-A duty envelope is unavailable"
+                )
             if intent is None:
                 intent = BalancingPointValveProductSearchCriteriaIntentV1()
             intent.set_criteria(
@@ -539,6 +549,7 @@ class HydronicsSchematicPanelAdapter:
                 ),
                 valve_ref_contains=payload.get("valve_ref_contains", ""),
                 note_contains=payload.get("note_contains", ""),
+                duty_envelope_fingerprint=duty_envelope_fingerprint,
             )
         elif action == "clear":
             if intent is None:
@@ -6646,6 +6657,21 @@ class HydronicsSchematicPanelAdapter:
                         None,
                     ),
                     point_product_search_envelopes,
+                    require_duty_envelope_fingerprint=(
+                        str(
+                            getattr(
+                                getattr(
+                                    self._project_state,
+                                    "hydronic_proportioned_basis_snapshot",
+                                    None,
+                                ),
+                                "status",
+                                "",
+                            )
+                            or ""
+                        ).strip()
+                        == "COMMITTED_RESIZED_HYDRAULICS"
+                    ),
                 )
             )
             self._balancing_point_valve_product_search_criteria_resolution = (

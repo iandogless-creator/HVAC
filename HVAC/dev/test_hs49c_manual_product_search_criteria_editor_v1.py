@@ -23,12 +23,24 @@ def main() -> None:
             balancing_point_id=point_id,
             point_scope="main",
             point_role="common_main_takeoff",
+            topology="Shared",
+            governed_route_ids=("route-1", "route-2"),
             ready=True,
             envelope_state_id=PRODUCT_SEARCH_ENVELOPE_AVAILABLE,
             product_search_required=True,
             envelope_available=True,
             approved_for_product_search=True,
+            point_flow_kg_s=0.125,
+            flow_m3_h=0.4509,
+            required_kv=2.91,
             accepted_kvs=10.0,
+            kvs_series_id="generic_preferred_kvs_series_v1",
+            implied_valve_dp_bar=0.0020331,
+            implied_valve_dp_pa=203.31,
+            controlled_circuit_dp_pa=12600.0,
+            implied_authority=203.31 / (203.31 + 12600.0),
+            design_valve_dp_pa=2400.0,
+            design_authority=2400.0 / (2400.0 + 12600.0),
         ),),
     )
     stub = Stub()
@@ -53,6 +65,7 @@ def main() -> None:
     assert entry.catalog_id == "catalog-v1"
     assert entry.kv_tolerance_percent == 5.0
     assert entry.valve_ref_contains == "STAD"
+    assert len(entry.duty_envelope_fingerprint) == 64
     assert refreshes
 
     HydronicsSchematicPanelAdapter.set_product_search_criteria(stub, {

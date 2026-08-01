@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import hashlib
 import math
 
 from HVAC.hydronics.proportioning.balancing_point_valve_product_search_duty_envelope_v1 import (
@@ -27,6 +28,8 @@ class PointValveProductSearchCriteriaV1:
     kv_tolerance_percent: float = 0.0
     valve_ref_contains: str = ""
     note_contains: str = ""
+    # H-S62-C — exact approved H-S49-A duty envelope reviewed.
+    duty_envelope_fingerprint: str = ""
 
 
 @dataclass(slots=True)
@@ -47,11 +50,13 @@ class BalancingPointValveProductSearchCriteriaIntentV1:
         kv_tolerance_percent: float = 0.0,
         valve_ref_contains: str = "",
         note_contains: str = "",
+        duty_envelope_fingerprint: str = "",
     ) -> None:
         point_id = _stable_text_v1(balancing_point_id)
         kvs = _positive_finite_v1(accepted_kvs_basis)
         catalogue = _stable_text_v1(catalog_id)
         tolerance = _percentage_v1(kv_tolerance_percent)
+        fingerprint = _stable_text_v1(duty_envelope_fingerprint)
         if not point_id:
             raise ValueError("balancing_point_id is required")
         if kvs is None:
@@ -67,6 +72,7 @@ class BalancingPointValveProductSearchCriteriaIntentV1:
             kv_tolerance_percent=tolerance,
             valve_ref_contains=_stable_text_v1(valve_ref_contains),
             note_contains=_stable_text_v1(note_contains),
+            duty_envelope_fingerprint=fingerprint,
         )
 
     def clear_criteria(self, balancing_point_id: str) -> bool:
@@ -138,6 +144,9 @@ def balancing_point_valve_product_search_criteria_intent_to_dict_v1(
                 "kv_tolerance_percent": float(item.kv_tolerance_percent),
                 "valve_ref_contains": item.valve_ref_contains,
                 "note_contains": item.note_contains,
+                "duty_envelope_fingerprint": (
+                    item.duty_envelope_fingerprint
+                ),
             }
             for point_id, item in sorted(source.criteria_by_point_id.items())
         },
@@ -166,6 +175,9 @@ def balancing_point_valve_product_search_criteria_intent_from_dict_v1(
                 kv_tolerance_percent=raw.get("kv_tolerance_percent", 0.0),
                 valve_ref_contains=raw.get("valve_ref_contains", ""),
                 note_contains=raw.get("note_contains", ""),
+                duty_envelope_fingerprint=raw.get(
+                    "duty_envelope_fingerprint", ""
+                ),
             )
         except ValueError:
             continue
@@ -177,6 +189,7 @@ def resolve_balancing_point_valve_product_search_criteria_v1(
     duty_envelopes: BalancingPointValveProductSearchDutyEnvelopeV1 | None,
     *,
     tolerance: float = 1e-9,
+    require_duty_envelope_fingerprint: bool = False,
 ) -> ResolvedPointValveProductSearchCriteriaV1:
     source = intent or BalancingPointValveProductSearchCriteriaIntentV1()
     if not isinstance(
@@ -241,6 +254,29 @@ def resolve_balancing_point_valve_product_search_criteria_v1(
             rows.append(_blocked_row_v1(point_id, criteria, blocker))
             continue
 
+        current_fingerprint = (
+            build_product_search_duty_envelope_fingerprint_v1(envelope)
+        )
+        fingerprint_blocker = ""
+        if criteria.duty_envelope_fingerprint:
+            if (
+                not current_fingerprint
+                or criteria.duty_envelope_fingerprint != current_fingerprint
+            ):
+                fingerprint_blocker = (
+                    "Product-search criteria duty-envelope fingerprint does "
+                    "not match current H-S49-A evidence"
+                )
+        elif require_duty_envelope_fingerprint:
+            fingerprint_blocker = (
+                "Product-search criteria predate exact post-resize duty "
+                "envelope; fresh manual review required"
+            )
+        if fingerprint_blocker:
+            blockers.append(f"{point_id}: {fingerprint_blocker}")
+            rows.append(_blocked_row_v1(point_id, criteria, fingerprint_blocker))
+            continue
+
         rows.append(ResolvedPointValveProductSearchCriteriaRowV1(
             balancing_point_id=point_id,
             ready=True,
@@ -270,6 +306,76 @@ def resolve_balancing_point_valve_product_search_criteria_v1(
         blockers=all_blockers,
         rows=tuple(rows),
     )
+
+
+
+def build_product_search_duty_envelope_fingerprint_v1(
+    envelope: object,
+) -> str:
+    """Fingerprint the exact approved H-S49-A search-duty envelope.
+
+    H-S62-C binds manual filters to the engineering duty they were applied
+    against. Display labels and the filter values themselves are deliberately
+    excluded from this upstream evidence identity.
+    """
+
+    point_id = _stable_text_v1(
+        getattr(envelope, "balancing_point_id", "")
+    )
+    state_id = _stable_text_v1(
+        getattr(envelope, "envelope_state_id", "")
+    )
+    if (
+        not point_id
+        or state_id != PRODUCT_SEARCH_ENVELOPE_AVAILABLE
+        or not bool(getattr(envelope, "envelope_available", False))
+        or not bool(getattr(envelope, "approved_for_product_search", False))
+    ):
+        return ""
+
+    numeric_fields = (
+        "point_flow_kg_s",
+        "flow_m3_h",
+        "required_kv",
+        "accepted_kvs",
+        "implied_valve_dp_bar",
+        "implied_valve_dp_pa",
+        "controlled_circuit_dp_pa",
+        "implied_authority",
+        "design_valve_dp_pa",
+        "design_authority",
+    )
+    numbers: list[tuple[str, str]] = []
+    for field_name in numeric_fields:
+        value = _positive_finite_v1(getattr(envelope, field_name, None))
+        if value is None:
+            return ""
+        numbers.append((field_name, float(value).hex()))
+
+    text_fields = (
+        "point_scope",
+        "point_role",
+        "topology",
+        "kvs_series_id",
+    )
+    texts = tuple(
+        (field_name, _stable_text_v1(getattr(envelope, field_name, "")))
+        for field_name in text_fields
+    )
+    governed_routes = tuple(
+        _stable_text_v1(value)
+        for value in tuple(
+            getattr(envelope, "governed_route_ids", ()) or ()
+        )
+    )
+    payload = repr((
+        ("balancing_point_id", point_id),
+        ("envelope_state_id", state_id),
+        *texts,
+        *tuple(numbers),
+        ("governed_route_ids", governed_routes),
+    )).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
 
 
 def _blocked_row_v1(point_id, criteria, blocker):
