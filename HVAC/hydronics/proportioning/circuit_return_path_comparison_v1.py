@@ -22,9 +22,7 @@ from HVAC.hydronics.sizing.basic_ps_readonly_projection_v1 import (
     build_basic_ps_readonly_projection_v1,
 )
 from HVAC.hydronics.proportioning.route_pressure_accumulator_v1 import (
-    _dn_from_pipe_size_label_v1,
     _local_k_section_length_m_v1,
-    _route_pressure_material_v1,
     build_route_pressure_accumulator_v1,
 )
 from HVAC.hydronics.pipes.dp.mass_flow_pressure_drop_v1 import (
@@ -100,6 +98,10 @@ class CircuitReturnPathComparisonProjectionV1:
 class _RRSectionPressureBasisV1:
     mass_flow_kg_s: float
     pipe_size_label: str
+    # H-S63-B2B1 — exact RR added-length pipe identity. Display wording is
+    # evidence only and is never parsed back into hydraulic authority.
+    material_key: str
+    pipe_size_key: int
 
 
 def build_circuit_return_path_comparison_v1(
@@ -901,13 +903,29 @@ def _section_pressure_basis_by_id(
         section_id = str(getattr(row, "section_id", "") or "")
         pipe_size_label = str(getattr(row, "pipe_size_label", "") or "")
         mass_flow = _optional_float(getattr(row, "carried_flow_kg_s", None))
+        material_key = str(
+            getattr(row, "material_key", "") or ""
+        ).strip().lower()
+        raw_size_key = getattr(row, "pipe_size_key", None)
+        try:
+            pipe_size_key = int(raw_size_key)
+        except (TypeError, ValueError):
+            pipe_size_key = 0
 
-        if not section_id or mass_flow is None or not pipe_size_label:
+        if (
+            not section_id
+            or mass_flow is None
+            or not pipe_size_label
+            or not material_key
+            or pipe_size_key <= 0
+        ):
             continue
 
         result[section_id] = _RRSectionPressureBasisV1(
             mass_flow_kg_s=float(mass_flow),
             pipe_size_label=pipe_size_label,
+            material_key=material_key,
+            pipe_size_key=pipe_size_key,
         )
 
     return result
@@ -982,8 +1000,8 @@ def _rr_added_length_pressure_drop_Pa(
     try:
         result = calculate_hydronic_pipe_pressure_drop_from_mass_flow_v1(
             mass_flow_kg_s=float(basis.mass_flow_kg_s),
-            material=_route_pressure_material_v1(project_state),
-            dn=_dn_from_pipe_size_label_v1(basis.pipe_size_label),
+            material=basis.material_key,
+            dn=basis.pipe_size_key,
             length_m=float(length_m),
             friction_method="colebrook",
         )

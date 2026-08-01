@@ -522,10 +522,13 @@ def _candidate_pipe_size_label_v1(
         outside_diameter_mm: float,
         thickness_mm: float,
 ) -> str:
+    # H-S63-C — family-correct catalogue terminology.
     if material_key in {"mlcp", "pex"}:
         return (
             f"{outside_diameter_mm:g}×{thickness_mm:g} mm"
         )
+    if material_key == "steel":
+        return f"DN{dn}"
     return f"{dn} mm"
 
 
