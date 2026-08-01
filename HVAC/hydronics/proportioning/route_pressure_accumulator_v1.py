@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any
-import re
+
 from HVAC.hydronics.sizing.basic_ps_readonly_projection_v1 import (
     build_basic_ps_readonly_projection_v1,
 )
@@ -51,6 +51,11 @@ class RoutePressureSectionContributionV1:
     dn: int | None = None
     length_m: float | None = None
     k_total: float | None = None
+    # H-S63-B2B — exact material/bore evidence for later freezing.
+    material_key: str = "copper"
+    material_label: str = "Copper EN1057"
+    internal_diameter_m: float | None = None
+    material_roughness_m: float | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -282,10 +287,13 @@ def _build_single_route_pressure_row_v1(
             section_id=section_id,
         )
 
+        # H-S63-B2B — consume exact H-S63-B2A identity; display
+        # wording is never parsed back into hydraulic authority.
+        material_key, pipe_size_key = _basic_ps_result_pipe_identity_v1(result)
         pressure_basis = calculate_hydronic_pipe_pressure_drop_from_mass_flow_v1(
             mass_flow_kg_s=float(result.carried_flow_kg_s),
-            material=_route_pressure_material_v1(project_state),
-            dn=_dn_from_pipe_size_label_v1(result.pipe_size_label),
+            material=material_key,
+            dn=pipe_size_key,
             length_m=(
                 float(section_length_m)
                 if section_length_m is not None
@@ -346,9 +354,15 @@ def _build_single_route_pressure_row_v1(
                 section_scope="route_section",
                 carried_flow_kg_s=float(result.carried_flow_kg_s),
                 pipe_size_label=str(result.pipe_size_label),
-                dn=_dn_from_pipe_size_label_v1(result.pipe_size_label),
+                dn=pipe_size_key,
                 length_m=section_length_m,
                 k_total=float(preview.k_total),
+                material_key=material_key,
+                material_label=str(result.material_label),
+                internal_diameter_m=float(
+                    pressure_basis.internal_diameter_m
+                ),
+                material_roughness_m=float(pressure_basis.roughness_m),
             )
         )
 
@@ -424,43 +438,30 @@ def _main_pressure_contribution_v1(
         dn=int(row.dn),
         length_m=row.length_m,
         k_total=float(row.k_total),
+        material_key=str(getattr(row, "material", "copper") or "copper"),
+        material_label=str(
+            getattr(row, "material_label", "Copper EN1057")
+            or "Copper EN1057"
+        ),
+        internal_diameter_m=getattr(row, "internal_diameter_m", None),
+        material_roughness_m=getattr(row, "material_roughness_m", None),
     )
 
-def _route_pressure_material_v1(project_state: Any) -> str:
-    """
-    H-S29-E v1 material basis.
 
-    For now Basic PS domestic candidates are treated as copper catalogue
-    entries. Later this can read an explicit hydronic pipe material authority.
-    """
-    value = getattr(project_state, "hydronic_pipe_material", None)
+def _basic_ps_result_pipe_identity_v1(result: Any) -> tuple[str, int]:
+    """H-S63-B2B — require exact family and catalogue-size evidence."""
 
-    if value is None:
-        return "copper"
-
-    text = str(value or "").strip().lower()
-    return text or "copper"
-
-
-def _dn_from_pipe_size_label_v1(pipe_size_label: Any) -> int:
-    """
-    Parse labels such as:
-        '10 mm'
-        '15 mm'
-        'DN15'
-        'Copper 22 mm'
-
-    into DN integer for pipe_materials_library lookup.
-    """
-    text = str(pipe_size_label or "").strip()
-
-    match = re.search(r"(\d+)", text)
-    if not match:
-        raise ValueError(
-            f"Cannot parse DN from pipe_size_label={pipe_size_label!r}"
-        )
-
-    return int(match.group(1))
+    material_key = str(getattr(result, "material_key", "") or "").strip().lower()
+    raw_size_key = getattr(result, "pipe_size_key", None)
+    try:
+        pipe_size_key = int(raw_size_key)
+    except (TypeError, ValueError):
+        pipe_size_key = 0
+    if not material_key:
+        raise ValueError("Basic PS pressure evidence requires material_key")
+    if pipe_size_key <= 0:
+        raise ValueError("Basic PS pressure evidence requires pipe_size_key")
+    return material_key, pipe_size_key
 
 
 def _local_k_section_length_m_v1(

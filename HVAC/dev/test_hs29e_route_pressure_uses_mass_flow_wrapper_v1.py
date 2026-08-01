@@ -3,24 +3,20 @@ import math
 from types import SimpleNamespace
 
 from HVAC.hydronics.proportioning.route_pressure_accumulator_v1 import (
-    _dn_from_pipe_size_label_v1,
-    _route_pressure_material_v1,
-    build_route_pressure_accumulator_v1,
+    _basic_ps_result_pipe_identity_v1,
 )
 from HVAC.hydronics.pipes.dp.mass_flow_pressure_drop_v1 import (
     calculate_hydronic_pipe_pressure_drop_from_mass_flow_v1,
 )
 
 
-def test_dn_parser_reads_common_labels() -> None:
-    assert _dn_from_pipe_size_label_v1("10 mm") == 10
-    assert _dn_from_pipe_size_label_v1("DN15") == 15
-    assert _dn_from_pipe_size_label_v1("Copper 22 mm") == 22
-
-
-def test_material_defaults_to_copper() -> None:
-    project_state = SimpleNamespace()
-    assert _route_pressure_material_v1(project_state) == "copper"
+def test_exact_basic_ps_identity_ignores_display_wording() -> None:
+    result = SimpleNamespace(
+        material_key="mlcp",
+        pipe_size_key=20,
+        pipe_size_label="deliberately not a size",
+    )
+    assert _basic_ps_result_pipe_identity_v1(result) == ("mlcp", 20)
 
 
 def test_mass_flow_wrapper_uses_copper_10_catalogue_basis() -> None:
@@ -53,7 +49,6 @@ def test_mass_flow_wrapper_uses_copper_10_catalogue_basis() -> None:
 
 
 if __name__ == "__main__":
-    test_dn_parser_reads_common_labels()
-    test_material_defaults_to_copper()
+    test_exact_basic_ps_identity_ignores_display_wording()
     test_mass_flow_wrapper_uses_copper_10_catalogue_basis()
     print("OK — H-S29-E route pressure uses hydronic mass-flow wrapper.")

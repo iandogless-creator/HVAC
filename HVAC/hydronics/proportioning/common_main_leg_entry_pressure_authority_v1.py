@@ -6,7 +6,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-import re
 from typing import Any
 
 from HVAC.hydronics.local_losses.local_k_pressure_preview_v1 import (
@@ -53,6 +52,10 @@ class CommonMainLegEntryPressureRowV1:
     section_total_pressure_drop_Pa: float | None
     complete: bool
     status: str
+    # H-S63-B2B — exact material/bore evidence for later freezing.
+    material_label: str = "Copper EN1057"
+    internal_diameter_m: float | None = None
+    material_roughness_m: float | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -99,9 +102,8 @@ def build_common_main_leg_entry_pressure_authority_v1(
             status="H-S42-A duplicate section identity blocker",
         )
 
-    material = _pipe_material_v1(project_state)
     rows = tuple(
-        _build_row_v1(project_state, source=row, material=material)
+        _build_row_v1(project_state, source=row)
         for row in source_rows
     )
     missing = tuple(row.section_id for row in rows if not row.complete)
@@ -124,10 +126,10 @@ def _build_row_v1(
     project_state: Any,
     *,
     source: Any,
-    material: str,
 ) -> CommonMainLegEntryPressureRowV1:
     section_id = str(source.section_id)
-    dn = _dn_from_label_v1(source.basic_pipe_size_label)
+    # H-S63-B2B — use exact sizing evidence, never parse display wording.
+    material, dn = _basic_ps_main_pipe_identity_v1(source)
     section_intent = _section_intent_v1(project_state, section_id)
     raw_length = (
         getattr(section_intent, "length_m", None)
@@ -198,6 +200,9 @@ def _build_row_v1(
         section_total_pressure_drop_Pa=total_dp,
         complete=complete,
         status=status,
+        material_label=str(source.basic_material_label),
+        internal_diameter_m=float(pressure.internal_diameter_m),
+        material_roughness_m=float(pressure.roughness_m),
     )
 
 
@@ -216,13 +221,19 @@ def _positive_length_or_none_v1(value: Any) -> float | None:
     return resolved if resolved > 0.0 else None
 
 
-def _pipe_material_v1(project_state: Any) -> str:
-    value = getattr(project_state, "hydronic_pipe_material", None)
-    return str(value or "copper").strip().lower() or "copper"
+def _basic_ps_main_pipe_identity_v1(source: Any) -> tuple[str, int]:
+    """H-S63-B2B — require exact main/entry family and size evidence."""
 
-
-def _dn_from_label_v1(label: Any) -> int:
-    match = re.search(r"(\d+)", str(label or ""))
-    if match is None:
-        raise ValueError(f"Cannot resolve DN from pipe label {label!r}")
-    return int(match.group(1))
+    material_key = str(
+        getattr(source, "basic_material_key", "") or ""
+    ).strip().lower()
+    raw_size_key = getattr(source, "basic_pipe_size_key", None)
+    try:
+        pipe_size_key = int(raw_size_key)
+    except (TypeError, ValueError):
+        pipe_size_key = 0
+    if not material_key:
+        raise ValueError("Basic PS main pressure evidence requires material_key")
+    if pipe_size_key <= 0:
+        raise ValueError("Basic PS main pressure evidence requires pipe_size_key")
+    return material_key, pipe_size_key
