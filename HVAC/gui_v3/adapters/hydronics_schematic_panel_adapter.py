@@ -236,6 +236,7 @@ from HVAC.hydronics.proportioning.balancing_point_accepted_kvs_consequence_dispo
     APPROVED_FOR_PRODUCT_SEARCH,
     KVS_REVISION_REQUIRED,
     BalancingPointAcceptedKvsConsequenceDispositionIntentV1,
+    build_accepted_kvs_consequence_fingerprint_v1,
     resolve_balancing_point_accepted_kvs_consequence_disposition_v1,
 )
 from HVAC.hydronics.proportioning.balancing_point_valve_product_search_duty_envelope_v1 import (
@@ -851,12 +852,22 @@ class HydronicsSchematicPanelAdapter:
                 raise ValueError("Unknown accepted-Kvs consequence disposition")
 
             accepted_kvs = getattr(consequence_row, "accepted_kvs", None)
+            consequence_fingerprint = (
+                build_accepted_kvs_consequence_fingerprint_v1(
+                    consequence_row
+                )
+            )
+            if not consequence_fingerprint:
+                raise ValueError(
+                    "Current exact H-S48-C consequence is unavailable"
+                )
             if intent is None:
                 intent = BalancingPointAcceptedKvsConsequenceDispositionIntentV1()
             intent.set_disposition(
                 balancing_point_id=point_id,
                 disposition=disposition,
                 accepted_kvs_basis=accepted_kvs,
+                consequence_fingerprint=consequence_fingerprint,
             )
         elif action == "clear":
             if intent is None:
@@ -6572,6 +6583,21 @@ class HydronicsSchematicPanelAdapter:
                         None,
                     ),
                     point_kvs_consequence,
+                    require_consequence_fingerprint=(
+                        str(
+                            getattr(
+                                getattr(
+                                    self._project_state,
+                                    "hydronic_proportioned_basis_snapshot",
+                                    None,
+                                ),
+                                "status",
+                                "",
+                            )
+                            or ""
+                        ).strip()
+                        == "COMMITTED_RESIZED_HYDRAULICS"
+                    ),
                 )
             )
             self._balancing_point_accepted_kvs_consequence_disposition_resolution = (

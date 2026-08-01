@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import hashlib
 import math
 
 from HVAC.hydronics.proportioning.balancing_point_accepted_kvs_hydraulic_consequence_v1 import (
@@ -27,6 +28,8 @@ class PointAcceptedKvsConsequenceDispositionV1:
     balancing_point_id: str
     disposition: str
     accepted_kvs_basis: float
+    # H-S62-B — exact accepted-Kvs hydraulic consequence reviewed.
+    consequence_fingerprint: str = ""
 
 
 @dataclass(slots=True)
@@ -42,10 +45,12 @@ class BalancingPointAcceptedKvsConsequenceDispositionIntentV1:
         balancing_point_id: str,
         disposition: str,
         accepted_kvs_basis: float,
+        consequence_fingerprint: str = "",
     ) -> None:
         point_id = _stable_id_v1(balancing_point_id)
         decision = _stable_id_v1(disposition)
         kvs = _positive_finite_v1(accepted_kvs_basis)
+        fingerprint = _stable_id_v1(consequence_fingerprint)
         if not point_id:
             raise ValueError("balancing_point_id is required")
         if decision not in VALID_DISPOSITIONS:
@@ -57,6 +62,7 @@ class BalancingPointAcceptedKvsConsequenceDispositionIntentV1:
                 balancing_point_id=point_id,
                 disposition=decision,
                 accepted_kvs_basis=kvs,
+                consequence_fingerprint=fingerprint,
             )
         )
 
@@ -123,6 +129,7 @@ def balancing_point_accepted_kvs_consequence_disposition_intent_to_dict_v1(
                 "balancing_point_id": entry.balancing_point_id,
                 "disposition": entry.disposition,
                 "accepted_kvs_basis": float(entry.accepted_kvs_basis),
+                "consequence_fingerprint": entry.consequence_fingerprint,
             }
             for point_id, entry in sorted(
                 source.disposition_by_point_id.items()
@@ -148,6 +155,9 @@ def balancing_point_accepted_kvs_consequence_disposition_intent_from_dict_v1(
         )
         disposition = _stable_id_v1(raw_entry.get("disposition"))
         kvs = _positive_finite_v1(raw_entry.get("accepted_kvs_basis"))
+        fingerprint = _stable_id_v1(
+            raw_entry.get("consequence_fingerprint")
+        )
         if not point_id or disposition not in VALID_DISPOSITIONS or kvs is None:
             continue
         intent.disposition_by_point_id[point_id] = (
@@ -155,6 +165,7 @@ def balancing_point_accepted_kvs_consequence_disposition_intent_from_dict_v1(
                 balancing_point_id=point_id,
                 disposition=disposition,
                 accepted_kvs_basis=kvs,
+                consequence_fingerprint=fingerprint,
             )
         )
     return intent
@@ -165,6 +176,7 @@ def resolve_balancing_point_accepted_kvs_consequence_disposition_v1(
     consequence_evidence: BalancingPointAcceptedKvsHydraulicConsequenceV1 | None,
     *,
     tolerance: float = 1e-9,
+    require_consequence_fingerprint: bool = False,
 ) -> ResolvedPointAcceptedKvsConsequenceDispositionV1:
     source = intent or BalancingPointAcceptedKvsConsequenceDispositionIntentV1()
     if consequence_evidence is None:
@@ -245,6 +257,29 @@ def resolve_balancing_point_accepted_kvs_consequence_disposition_v1(
             rows.append(_blocked_row(point_id, entry, blocker))
             continue
 
+        current_fingerprint = (
+            build_accepted_kvs_consequence_fingerprint_v1(evidence_row)
+        )
+        fingerprint_blocker = ""
+        if entry.consequence_fingerprint:
+            if (
+                not current_fingerprint
+                or entry.consequence_fingerprint != current_fingerprint
+            ):
+                fingerprint_blocker = (
+                    "Accepted-Kvs consequence disposition fingerprint does "
+                    "not match current H-S48-C evidence"
+                )
+        elif require_consequence_fingerprint:
+            fingerprint_blocker = (
+                "Accepted-Kvs consequence disposition predates exact "
+                "post-resize evidence; fresh manual review required"
+            )
+        if fingerprint_blocker:
+            blockers.append(f"{point_id}: {fingerprint_blocker}")
+            rows.append(_blocked_row(point_id, entry, fingerprint_blocker))
+            continue
+
         approved = entry.disposition == APPROVED_FOR_PRODUCT_SEARCH
         revision = entry.disposition == KVS_REVISION_REQUIRED
         rows.append(
@@ -279,6 +314,58 @@ def resolve_balancing_point_accepted_kvs_consequence_disposition_v1(
         blockers=all_blockers,
         rows=tuple(rows),
     )
+
+
+
+def build_accepted_kvs_consequence_fingerprint_v1(
+    evidence_row: object,
+) -> str:
+    """Fingerprint the exact H-S48-C consequence reviewed manually.
+
+    H-S62-B deliberately includes both authoritative inputs and derived
+    consequence values so a same-number Kvs cannot revive an old disposition
+    after flow or controlled-circuit duty changes.
+    """
+
+    point_id = _stable_id_v1(
+        getattr(evidence_row, "balancing_point_id", "")
+    )
+    if not point_id:
+        return ""
+
+    numeric_fields = (
+        "accepted_kvs",
+        "flow_m3_h",
+        "controlled_circuit_dp_pa",
+        "implied_valve_dp_bar",
+        "implied_valve_dp_pa",
+        "implied_authority",
+    )
+    numbers: list[tuple[str, str]] = []
+    for field_name in numeric_fields:
+        value = _positive_finite_v1(getattr(evidence_row, field_name, None))
+        if value is None:
+            return ""
+        numbers.append((field_name, float(value).hex()))
+
+    consequence_state_id = _stable_id_v1(
+        getattr(evidence_row, "consequence_state_id", "")
+    )
+    formula = _stable_id_v1(getattr(evidence_row, "formula", ""))
+    if (
+        consequence_state_id != ACCEPTED_KVS_CONSEQUENCE_AVAILABLE
+        or not bool(getattr(evidence_row, "consequence_available", False))
+        or not formula
+    ):
+        return ""
+
+    payload = repr((
+        ("balancing_point_id", point_id),
+        ("consequence_state_id", consequence_state_id),
+        ("formula", formula),
+        *tuple(numbers),
+    )).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
 
 
 def _blocked_row(point_id, entry, blocker):
