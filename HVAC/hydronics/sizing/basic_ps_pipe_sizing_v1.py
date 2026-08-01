@@ -8,6 +8,7 @@ import math
 from dataclasses import dataclass
 from typing import Iterable, Mapping
 
+from HVAC.core.materials.pipe_materials_library import get_material
 from HVAC.hydronics.sizing.basic_ps_topology_sections_v1 import (
     BasicPSTopologySectionV1,
 )
@@ -93,15 +94,62 @@ class BasicPSPipeSizingProjectionV1:
 
 
 # ======================================================================
-# Candidate pipe table — DEV v1
+# H-S63-B1 — material-library-derived Basic PS copper candidates
 # ======================================================================
 
+# This tuple is the Basic PS v1 candidate-range criterion, not dimensional
+# authority. Bore and roughness are read from pipe_materials_library.
+# 6/8 mm microbore and the 42/54 mm Proportioned extension remain excluded.
+DEFAULT_BASIC_PS_COPPER_SIZE_KEYS_V1: tuple[int, ...] = (
+    10,
+    15,
+    22,
+    28,
+    35,
+)
+
+
+def build_default_basic_ps_copper_candidates_v1(
+) -> tuple[BasicPSPipeCandidateV1, ...]:
+    """Return the Basic PS v1 copper ladder from shared material authority."""
+
+    material = get_material("copper")
+    if material is None:
+        raise ValueError("Basic PS copper material authority is unavailable")
+
+    roughness_m = float(material.roughness_mm) / 1000.0
+    if roughness_m < 0.0:
+        raise ValueError("Basic PS copper roughness must not be negative")
+
+    candidates: list[BasicPSPipeCandidateV1] = []
+    for size_key in DEFAULT_BASIC_PS_COPPER_SIZE_KEYS_V1:
+        size = material.sizes.get(size_key)
+        if size is None:
+            raise ValueError(
+                "Basic PS copper size is missing from material authority: "
+                f"{size_key} mm"
+            )
+
+        internal_diameter_m = float(size.id_mm) / 1000.0
+        if internal_diameter_m <= 0.0:
+            raise ValueError(
+                "Basic PS copper bore must be positive: "
+                f"{size_key} mm"
+            )
+
+        candidates.append(
+            BasicPSPipeCandidateV1(
+                pipe_size_label=f"{size_key} mm",
+                internal_diameter_m=internal_diameter_m,
+                roughness_m=roughness_m,
+            )
+        )
+
+    return tuple(candidates)
+
+
 DEFAULT_PIPE_CANDIDATES: tuple[BasicPSPipeCandidateV1, ...] = (
-    BasicPSPipeCandidateV1("10 mm", 0.0100),
-    BasicPSPipeCandidateV1("15 mm", 0.0136),
-    BasicPSPipeCandidateV1("22 mm", 0.0202),
-    BasicPSPipeCandidateV1("28 mm", 0.0262),
-    BasicPSPipeCandidateV1("35 mm", 0.0330),
+    build_default_basic_ps_copper_candidates_v1()
 )
 
 
