@@ -271,9 +271,15 @@ from HVAC.hydronics.proportioning.balancing_point_accepted_valve_candidate_conse
 from HVAC.hydronics.proportioning.balancing_point_approved_valve_candidate_design_duty_envelope_v1 import (
     build_balancing_point_approved_valve_candidate_design_duty_envelope_v1,
 )
+from HVAC.hydronics.proportioning.balancing_point_manufacturer_valve_candidate_comparison_v1 import (
+    build_balancing_point_manufacturer_valve_candidate_comparison_v1,
+)
 from HVAC.hydronics_v3.dto.valve_catalog_dto import ValveCatalogDTO
 from HVAC.hydronics_v3.catalogues.local_valve_catalogue_loader_v1 import (
     load_bundled_local_valve_catalogue_v1,
+)
+from HVAC.hydronics_v3.catalogues.local_manufacturer_valve_product_detail_catalogue_runtime_handoff_v1 import (
+    build_local_manufacturer_valve_product_detail_catalogue_runtime_handoff_v1,
 )
 from HVAC.hydronics.proportioning.chosen_basis_proportioned_readiness_summary_v1 import (
     build_chosen_basis_proportioned_readiness_summary_v1,
@@ -319,6 +325,14 @@ class HydronicsSchematicPanelAdapter:
         except ValueError as exc:
             print("[H-S50-C LOCAL VALVE CATALOGUE ERROR]", str(exc))
             self._supplied_valve_catalog_dto_v1 = None
+
+        # H-S64-D — no hidden manufacturer data. The session starts with an
+        # explicit unavailable result until a local catalogue path is supplied.
+        self._local_manufacturer_valve_product_detail_catalogue_runtime_v1 = (
+            build_local_manufacturer_valve_product_detail_catalogue_runtime_handoff_v1(
+                None
+            )
+        )
 
         self._subscribe_if_present("room_state_changed", self.refresh)
         self._subscribe_if_present("project_state_changed", self.refresh)
@@ -491,6 +505,27 @@ class HydronicsSchematicPanelAdapter:
             )
         )
         self.refresh()
+
+    def supply_local_manufacturer_valve_product_detail_catalogue_path_v1(
+            self,
+            path,
+    ):
+        """Supply or clear transient H-S64-D manufacturer catalogue data.
+
+        Loading failures become explicit runtime evidence and replace any
+        previously loaded catalogue, so stale product data cannot remain in
+        use. No path or catalogue content is written to ProjectState.
+        """
+        runtime = (
+            build_local_manufacturer_valve_product_detail_catalogue_runtime_handoff_v1(
+                path
+            )
+        )
+        self._local_manufacturer_valve_product_detail_catalogue_runtime_v1 = (
+            runtime
+        )
+        self.refresh()
+        return runtime
 
     def set_product_search_criteria(self, payload: dict) -> None:
         """Persist or clear H-S49-C manual criteria; never query a catalogue."""
@@ -6784,6 +6819,25 @@ class HydronicsSchematicPanelAdapter:
             )
             self._balancing_point_approved_valve_candidate_design_duty_envelope_preview = (
                 approved_valve_candidate_design_duties
+            )
+            manufacturer_catalogue_runtime = getattr(
+                self,
+                "_local_manufacturer_valve_product_detail_"
+                "catalogue_runtime_v1",
+                None,
+            )
+            manufacturer_candidate_comparison = (
+                build_balancing_point_manufacturer_valve_candidate_comparison_v1(
+                    approved_valve_candidate_design_duties,
+                    getattr(
+                        manufacturer_catalogue_runtime,
+                        "catalog",
+                        None,
+                    ),
+                )
+            )
+            self._balancing_point_manufacturer_valve_candidate_comparison_preview_v1 = (
+                manufacturer_candidate_comparison
             )
             point_display_rows = self._build_balancing_point_gui_rows_v1(
                 point_kvs_utilisation
