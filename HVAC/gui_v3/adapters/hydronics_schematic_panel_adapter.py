@@ -255,6 +255,7 @@ from HVAC.hydronics.proportioning.balancing_point_valve_catalogue_candidate_matc
 )
 from HVAC.hydronics.proportioning.balancing_point_valve_candidate_acceptance_intent_v1 import (
     BalancingPointValveCandidateAcceptanceIntentV1,
+    build_valve_candidate_match_fingerprint_v1,
     resolve_balancing_point_valve_candidate_acceptance_v1,
 )
 from HVAC.hydronics.proportioning.balancing_point_accepted_valve_candidate_hydraulic_consequence_v1 import (
@@ -649,12 +650,22 @@ class HydronicsSchematicPanelAdapter:
                     "catalog_id and valve_ref must identify a current "
                     "H-S50-A candidate for this point"
                 )
+            match_fingerprint = build_valve_candidate_match_fingerprint_v1(
+                point_row,
+                matching,
+            )
+            if not match_fingerprint:
+                raise ValueError(
+                    "Current exact H-S50-A candidate-match evidence is "
+                    "unavailable"
+                )
             if intent is None:
                 intent = BalancingPointValveCandidateAcceptanceIntentV1()
             intent.accept_candidate(
                 balancing_point_id=point_id,
                 catalog_id=catalog_id,
                 valve_ref=valve_ref,
+                match_fingerprint=match_fingerprint,
             )
         elif action == "clear":
             if intent is None:
@@ -6695,6 +6706,21 @@ class HydronicsSchematicPanelAdapter:
                         None,
                     ),
                     point_catalogue_candidate_matches,
+                    require_match_fingerprint=(
+                        str(
+                            getattr(
+                                getattr(
+                                    self._project_state,
+                                    "hydronic_proportioned_basis_snapshot",
+                                    None,
+                                ),
+                                "status",
+                                "",
+                            )
+                            or ""
+                        ).strip()
+                        == "COMMITTED_RESIZED_HYDRAULICS"
+                    ),
                 )
             )
             self._balancing_point_valve_candidate_acceptance_resolution = (

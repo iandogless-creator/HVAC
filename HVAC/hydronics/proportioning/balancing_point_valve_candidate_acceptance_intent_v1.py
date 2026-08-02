@@ -5,8 +5,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import hashlib
+import math
 
 from HVAC.hydronics.proportioning.balancing_point_valve_catalogue_candidate_match_evidence_v1 import (
+    CATALOGUE_MATCH_EVIDENCE_AVAILABLE,
     BalancingPointValveCatalogueCandidateMatchEvidenceV1,
 )
 
@@ -18,6 +21,8 @@ class PointValveCandidateAcceptanceV1:
     balancing_point_id: str
     catalog_id: str
     valve_ref: str
+    # H-S62-D — exact H-S50-A match evidence manually accepted.
+    match_fingerprint: str = ""
 
 
 @dataclass(slots=True)
@@ -42,6 +47,7 @@ class BalancingPointValveCandidateAcceptanceIntentV1:
         balancing_point_id: str,
         catalog_id: str,
         valve_ref: str,
+        match_fingerprint: str = "",
     ) -> None:
         point_id = _stable_text_v1(balancing_point_id)
         catalogue = _stable_text_v1(catalog_id)
@@ -57,6 +63,7 @@ class BalancingPointValveCandidateAcceptanceIntentV1:
                 balancing_point_id=point_id,
                 catalog_id=catalogue,
                 valve_ref=reference,
+                match_fingerprint=_stable_text_v1(match_fingerprint),
             )
         )
 
@@ -128,6 +135,7 @@ def balancing_point_valve_candidate_acceptance_intent_to_dict_v1(
                 "balancing_point_id": entry.balancing_point_id,
                 "catalog_id": entry.catalog_id,
                 "valve_ref": entry.valve_ref,
+                "match_fingerprint": entry.match_fingerprint,
             }
             for point_id, entry in sorted(
                 source.accepted_by_point_id.items()
@@ -160,6 +168,9 @@ def balancing_point_valve_candidate_acceptance_intent_from_dict_v1(
                 balancing_point_id=point_id,
                 catalog_id=catalogue,
                 valve_ref=reference,
+                match_fingerprint=_stable_text_v1(
+                    raw_entry.get("match_fingerprint", "")
+                ),
             )
         )
     return intent
@@ -170,6 +181,8 @@ def resolve_balancing_point_valve_candidate_acceptance_v1(
     candidate_evidence: (
         BalancingPointValveCatalogueCandidateMatchEvidenceV1 | None
     ),
+    *,
+    require_match_fingerprint: bool = False,
 ) -> ResolvedPointValveCandidateAcceptanceV1:
     """Resolve manual identities against current H-S50-A candidates."""
 
@@ -252,6 +265,30 @@ def resolve_balancing_point_valve_candidate_acceptance_v1(
             rows.append(_stale_row_v1(entry, blocker))
             continue
 
+        current_fingerprint = build_valve_candidate_match_fingerprint_v1(
+            evidence_row,
+            matching,
+        )
+        fingerprint_blocker = ""
+        if entry.match_fingerprint:
+            if (
+                not current_fingerprint
+                or entry.match_fingerprint != current_fingerprint
+            ):
+                fingerprint_blocker = (
+                    "Accepted valve-candidate match fingerprint does not "
+                    "match current H-S50-A evidence"
+                )
+        elif require_match_fingerprint:
+            fingerprint_blocker = (
+                "Accepted valve-candidate intent predates exact post-resize "
+                "H-S50-A match evidence; fresh manual acceptance required"
+            )
+        if fingerprint_blocker:
+            blockers.append(f"{point_id}: {fingerprint_blocker}")
+            rows.append(_stale_row_v1(entry, fingerprint_blocker))
+            continue
+
         rows.append(
             ResolvedPointValveCandidateAcceptanceRowV1(
                 balancing_point_id=point_id,
@@ -287,6 +324,81 @@ def resolve_balancing_point_valve_candidate_acceptance_v1(
     )
 
 
+def build_valve_candidate_match_fingerprint_v1(
+    evidence_row: object,
+    candidate: object,
+) -> str:
+    """Fingerprint one exact H-S50-A candidate and its match context."""
+
+    point_id = _stable_text_v1(
+        getattr(evidence_row, "balancing_point_id", "")
+    )
+    match_state_id = _stable_text_v1(
+        getattr(evidence_row, "match_state_id", "")
+    )
+    row_catalogue = _stable_text_v1(
+        getattr(evidence_row, "catalog_id", "")
+    )
+    candidate_catalogue = _stable_text_v1(
+        getattr(candidate, "catalog_id", "")
+    )
+    valve_ref = _stable_text_v1(getattr(candidate, "valve_ref", ""))
+    accepted_kvs = _positive_finite_v1(
+        getattr(evidence_row, "accepted_kvs_basis", None)
+    )
+    tolerance = _percentage_v1(
+        getattr(evidence_row, "kv_tolerance_percent", None)
+    )
+    kv = _positive_finite_v1(getattr(candidate, "kv_m3_h", None))
+    deviation = _nonnegative_finite_v1(
+        getattr(candidate, "kv_deviation_percent", None)
+    )
+    if (
+        not point_id
+        or not bool(getattr(evidence_row, "ready", False))
+        or match_state_id != CATALOGUE_MATCH_EVIDENCE_AVAILABLE
+        or not bool(
+            getattr(evidence_row, "match_evidence_available", False)
+        )
+        or not row_catalogue
+        or candidate_catalogue != row_catalogue
+        or not valve_ref
+        or accepted_kvs is None
+        or tolerance is None
+        or kv is None
+        or deviation is None
+    ):
+        return ""
+
+    payload = repr((
+        ("fingerprint_basis", "h_s62_d_exact_h_s50_a_match_v1"),
+        ("balancing_point_id", point_id),
+        ("match_state_id", match_state_id),
+        ("accepted_kvs_basis", float(accepted_kvs).hex()),
+        ("catalog_id", row_catalogue),
+        ("kv_tolerance_percent", float(tolerance).hex()),
+        (
+            "valve_ref_contains",
+            _stable_text_v1(
+                getattr(evidence_row, "valve_ref_contains", "")
+            ),
+        ),
+        (
+            "note_contains",
+            _stable_text_v1(getattr(evidence_row, "note_contains", "")),
+        ),
+        ("candidate_catalog_id", candidate_catalogue),
+        ("candidate_valve_ref", valve_ref),
+        ("candidate_kv_m3_h", float(kv).hex()),
+        ("candidate_kv_deviation_percent", float(deviation).hex()),
+        (
+            "candidate_note",
+            _stable_text_v1(getattr(candidate, "note", "")),
+        ),
+    )).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
+
+
 def _stale_row_v1(
     entry: PointValveCandidateAcceptanceV1,
     blocker: str,
@@ -303,6 +415,31 @@ def _stale_row_v1(
 
 def _stable_text_v1(value: object) -> str:
     return str(value or "").strip()
+
+
+def _positive_finite_v1(value: object) -> float | None:
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    return number if math.isfinite(number) and number > 0.0 else None
+
+
+def _percentage_v1(value: object) -> float | None:
+    value = _nonnegative_finite_v1(value)
+    return value if value is not None and value <= 100.0 else None
+
+
+def _nonnegative_finite_v1(value: object) -> float | None:
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    return number if math.isfinite(number) and number >= 0.0 else None
 
 
 def _unique_v1(values: tuple[str, ...]) -> tuple[str, ...]:

@@ -15,6 +15,9 @@ from HVAC.hydronics.proportioning.balancing_point_valve_candidate_acceptance_int
     ResolvedPointValveCandidateAcceptanceRowV1,
     ResolvedPointValveCandidateAcceptanceV1,
 )
+from HVAC.hydronics.proportioning.balancing_point_valve_catalogue_candidate_match_evidence_v1 import (
+    CATALOGUE_MATCH_EVIDENCE_AVAILABLE,
+)
 from HVAC.project.project_state import ProjectState
 
 
@@ -28,6 +31,7 @@ def _candidate(ref: str = VALVE_REF):
         catalog_id=CATALOG_ID,
         valve_ref=ref,
         kv_m3_h=6.3,
+        kv_deviation_percent=0.0,
         note="Generic commissioning valve",
     )
 
@@ -40,7 +44,14 @@ def _evidence():
         rows=(
             SimpleNamespace(
                 balancing_point_id=POINT_ID,
+                ready=True,
+                match_state_id=CATALOGUE_MATCH_EVIDENCE_AVAILABLE,
+                match_evidence_available=True,
+                accepted_kvs_basis=6.3,
                 catalog_id=CATALOG_ID,
+                kv_tolerance_percent=5.0,
+                valve_ref_contains="LOCAL-GENERIC",
+                note_contains="commissioning",
                 candidates=(_candidate(),),
             ),
         ),
@@ -116,6 +127,9 @@ def main() -> None:
     )
     assert intent is not None
     assert intent.accepted_by_point_id[POINT_ID].valve_ref == VALVE_REF
+    assert len(
+        intent.accepted_by_point_id[POINT_ID].match_fingerprint
+    ) == 64
     assert refreshes
 
     try:
