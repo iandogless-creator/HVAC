@@ -48,6 +48,11 @@ from HVAC.hydronics.proportioning.balancing_point_accepted_valve_candidate_conse
     balancing_point_accepted_valve_candidate_consequence_disposition_intent_from_dict_v1,
     balancing_point_accepted_valve_candidate_consequence_disposition_intent_to_dict_v1,
 )
+from HVAC.hydronics.proportioning.balancing_point_manufacturer_valve_candidate_acceptance_intent_v1 import (
+    BalancingPointManufacturerValveCandidateAcceptanceIntentV1,
+    balancing_point_manufacturer_valve_candidate_acceptance_intent_from_dict_v1,
+    balancing_point_manufacturer_valve_candidate_acceptance_intent_to_dict_v1,
+)
 from HVAC.hydronics.proportioning.proportioned_basis_snapshot_v1 import (
     ProportionedBasisSnapshotV1,
     proportioned_basis_snapshot_from_dict_v1,
@@ -200,6 +205,10 @@ class ProjectState:
     ] = None
     hydronic_point_accepted_valve_candidate_consequence_disposition_intent: Optional[
         BalancingPointAcceptedValveCandidateConsequenceDispositionIntentV1
+    ] = None
+    # H-S64-F1 — one exact manually accepted manufacturer product per point.
+    hydronic_point_manufacturer_valve_candidate_acceptance_intent: Optional[
+        BalancingPointManufacturerValveCandidateAcceptanceIntentV1
     ] = None
     # H-S61-B2A — persisted current/proposed pipe-material-family authority.
     hydronic_proportioned_pipe_material_family_intent: (
@@ -428,6 +437,13 @@ class ProjectState:
                 if self.hydronic_point_accepted_valve_candidate_consequence_disposition_intent
                 else None
             ),
+            "hydronic_point_manufacturer_valve_candidate_acceptance_intent": (
+                balancing_point_manufacturer_valve_candidate_acceptance_intent_to_dict_v1(
+                    self.hydronic_point_manufacturer_valve_candidate_acceptance_intent
+                )
+                if self.hydronic_point_manufacturer_valve_candidate_acceptance_intent
+                else None
+            ),
             "hydronic_proportioned_pipe_material_family_intent": (
                 proportioned_pipe_material_family_intent_to_dict_v1(
                     self.hydronic_proportioned_pipe_material_family_intent
@@ -580,6 +596,19 @@ class ProjectState:
             instance.hydronic_point_accepted_valve_candidate_consequence_disposition_intent = (
                 balancing_point_accepted_valve_candidate_consequence_disposition_intent_from_dict_v1(
                     raw_valve_candidate_consequence_disposition_intent
+                )
+            )
+
+        raw_manufacturer_valve_candidate_acceptance_intent = data.get(
+            "hydronic_point_manufacturer_valve_candidate_acceptance_intent"
+        )
+        if isinstance(
+            raw_manufacturer_valve_candidate_acceptance_intent,
+            dict,
+        ):
+            instance.hydronic_point_manufacturer_valve_candidate_acceptance_intent = (
+                balancing_point_manufacturer_valve_candidate_acceptance_intent_from_dict_v1(
+                    raw_manufacturer_valve_candidate_acceptance_intent
                 )
             )
 
@@ -864,6 +893,5 @@ class ProjectState:
             self.room_opening_schedules[room_id] = schedule
 
         return schedule
-
 
 
