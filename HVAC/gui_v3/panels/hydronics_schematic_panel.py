@@ -2116,6 +2116,36 @@ class HydronicsSchematicPanel(QWidget):
         )
 
         # --------------------------------------------------
+        # H-S64-E2 — manufacturer candidate comparison table
+        # --------------------------------------------------
+        self._manufacturer_valve_candidate_comparison_table_v1 = (
+            self._make_table(
+                columns=[
+                    "Point", "Cost band", "Manufacturer", "Product",
+                    "Valve ref", "Type", "DN", "Connection",
+                    "Approved Kv", "Product Kvs", "Kvs match",
+                    "Required Kv", "Lower preset", "Upper preset",
+                    "Bracketed", "Compatible", "Status", "Evidence notes",
+                ],
+                stretch_columns={0, 2, 3, 16, 17},
+            )
+        )
+        self._manufacturer_valve_candidate_comparison_table_v1.setAlternatingRowColors(
+            True
+        )
+        self._add_section(
+            proportioning_layout,
+            title=(
+                "Manufacturer valve candidates — premium / standard / "
+                "budget labels, no ranking — read-only"
+            ),
+            table=self._manufacturer_valve_candidate_comparison_table_v1,
+            min_height=150,
+            expanded=True,
+        )
+        self.set_manufacturer_valve_candidate_comparison_rows_v1([])
+
+        # --------------------------------------------------
         # H-S49-C — manual product-search criteria editor
         # --------------------------------------------------
         criteria_editor = QFrame(self)
@@ -7865,6 +7895,58 @@ class HydronicsSchematicPanel(QWidget):
         if clear_button is not None:
             clear_button.setEnabled(bool(source_supplied))
 
+    def set_manufacturer_valve_candidate_comparison_rows_v1(
+            self,
+            rows: list[dict],
+    ) -> None:
+        """Display H-S64-B comparison evidence without selection authority."""
+        table = getattr(
+            self,
+            "_manufacturer_valve_candidate_comparison_table_v1",
+            None,
+        )
+        if table is None:
+            return
+        rows = list(rows or [])
+        if not rows:
+            rows = [{
+                "balancing_point_id": "—",
+                "cost_band": "—",
+                "manufacturer": "—",
+                "product": "—",
+                "valve_ref": "—",
+                "valve_type": "—",
+                "nominal_dn": "—",
+                "connection": "—",
+                "approved_kv": "—",
+                "product_kvs": "—",
+                "kvs_match": "—",
+                "required_kv": "—",
+                "lower_preset": "—",
+                "upper_preset": "—",
+                "bracketed": "—",
+                "compatible": "—",
+                "status": "No manufacturer catalogue comparison evidence",
+                "evidence_notes": "Load an explicit session catalogue",
+            }]
+        keys = (
+            "balancing_point_id", "cost_band", "manufacturer", "product",
+            "valve_ref", "valve_type", "nominal_dn", "connection",
+            "approved_kv", "product_kvs", "kvs_match", "required_kv",
+            "lower_preset", "upper_preset", "bracketed", "compatible",
+            "status", "evidence_notes",
+        )
+        table.setRowCount(len(rows))
+        for row_index, row in enumerate(rows):
+            for column_index, key in enumerate(keys):
+                item = QTableWidgetItem(str(row.get(key, "—")))
+                item.setFlags(item.flags() & ~Qt.ItemIsEditable)
+                table.setItem(row_index, column_index, item)
+        table.setWordWrap(False)
+        for row_index in range(table.rowCount()):
+            table.setRowHeight(row_index, 24)
+        self._fit_table_height(table, min_height=105, max_height=260)
+
     def set_approved_valve_candidate_design_duty_envelope_rows(
             self,
             rows: list[dict],
@@ -11418,6 +11500,10 @@ QTableWidget::item:selected:!active {
                 (
                     "Local manufacturer valve catalogue — session-only"
                 ): 1150,
+                (
+                    "Manufacturer valve candidates — premium / standard / "
+                    "budget labels, no ranking — read-only"
+                ): 1175,
                 (
                     "Manual valve product-search criteria — design intent"
                 ): 1200,

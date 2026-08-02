@@ -3379,6 +3379,161 @@ class HydronicsSchematicPanelAdapter:
         return rows
 
     @staticmethod
+    def _build_manufacturer_valve_candidate_comparison_gui_rows_v1(
+            comparison,
+    ) -> list[dict]:
+        """Flatten H-S64-B evidence in supplied order; never rank products."""
+
+        def number(value, digits: int = 3) -> str:
+            if value is None:
+                return "—"
+            try:
+                return f"{float(value):.{digits}f}"
+            except (TypeError, ValueError):
+                return "—"
+
+        def preset(setting_value, kv_value) -> str:
+            if setting_value is None or kv_value is None:
+                return "—"
+            return (
+                f"{number(setting_value)} / Kv {number(kv_value)}"
+            )
+
+        display_rows: list[dict] = []
+        source_rows = tuple(getattr(comparison, "rows", ()) or ())
+        if not source_rows:
+            display_rows.append({
+                "balancing_point_id": "—",
+                "cost_band": "—",
+                "manufacturer": "—",
+                "product": "—",
+                "valve_ref": "—",
+                "valve_type": "—",
+                "nominal_dn": "—",
+                "connection": "—",
+                "approved_kv": "—",
+                "product_kvs": "—",
+                "kvs_match": "—",
+                "required_kv": "—",
+                "lower_preset": "—",
+                "upper_preset": "—",
+                "bracketed": "—",
+                "compatible": "—",
+                "status": str(
+                    getattr(comparison, "status", "")
+                    or "Manufacturer comparison unavailable"
+                ),
+                "evidence_notes": "; ".join(
+                    tuple(getattr(comparison, "blockers", ()) or ())
+                ) or "—",
+            })
+            return display_rows
+
+        for point in source_rows:
+            candidates = tuple(getattr(point, "candidates", ()) or ())
+            if not candidates:
+                display_rows.append({
+                    "balancing_point_id": getattr(
+                        point, "balancing_point_id", "—"
+                    ) or "—",
+                    "cost_band": "—",
+                    "manufacturer": "—",
+                    "product": "—",
+                    "valve_ref": "—",
+                    "valve_type": "—",
+                    "nominal_dn": "—",
+                    "connection": "—",
+                    "approved_kv": number(
+                        getattr(point, "approved_current_kv_m3_h", None)
+                    ),
+                    "product_kvs": "—",
+                    "kvs_match": "—",
+                    "required_kv": number(
+                        getattr(point, "required_kv", None)
+                    ),
+                    "lower_preset": "—",
+                    "upper_preset": "—",
+                    "bracketed": "—",
+                    "compatible": "—",
+                    "status": getattr(point, "status", "—") or "—",
+                    "evidence_notes": "; ".join(
+                        tuple(getattr(point, "blockers", ()) or ())
+                    ) or "—",
+                })
+                continue
+
+            for candidate in candidates:
+                family = str(
+                    getattr(candidate, "product_family", "") or ""
+                ).strip()
+                model = str(
+                    getattr(candidate, "model_name", "") or ""
+                ).strip()
+                product = " — ".join(
+                    value for value in (family, model) if value
+                ) or "—"
+                display_rows.append({
+                    "balancing_point_id": getattr(
+                        point, "balancing_point_id", "—"
+                    ) or "—",
+                    "cost_band": str(
+                        getattr(candidate, "cost_band_id", "") or "—"
+                    ).strip().title(),
+                    "manufacturer": getattr(
+                        candidate, "manufacturer_name", "—"
+                    ) or "—",
+                    "product": product,
+                    "valve_ref": getattr(
+                        candidate, "valve_ref", "—"
+                    ) or "—",
+                    "valve_type": getattr(
+                        candidate, "valve_type_id", "—"
+                    ) or "—",
+                    "nominal_dn": (
+                        "—"
+                        if getattr(candidate, "nominal_dn", None) is None
+                        else f"DN{int(candidate.nominal_dn)}"
+                    ),
+                    "connection": getattr(
+                        candidate, "connection_type", "—"
+                    ) or "—",
+                    "approved_kv": number(
+                        getattr(candidate, "approved_current_kv_m3_h", None)
+                    ),
+                    "product_kvs": number(
+                        getattr(candidate, "product_kvs_m3_h", None)
+                    ),
+                    "kvs_match": (
+                        "Yes" if getattr(candidate, "kvs_basis_matches", False)
+                        else "No"
+                    ),
+                    "required_kv": number(
+                        getattr(candidate, "required_kv", None)
+                    ),
+                    "lower_preset": preset(
+                        getattr(candidate, "lower_setting_value", None),
+                        getattr(candidate, "lower_setting_kv_m3_h", None),
+                    ),
+                    "upper_preset": preset(
+                        getattr(candidate, "upper_setting_value", None),
+                        getattr(candidate, "upper_setting_kv_m3_h", None),
+                    ),
+                    "bracketed": (
+                        "Yes" if getattr(candidate, "target_kv_bracketed", False)
+                        else "No"
+                    ),
+                    "compatible": (
+                        "Yes" if getattr(candidate, "compatible", False)
+                        else "No"
+                    ),
+                    "status": getattr(candidate, "status", "—") or "—",
+                    "evidence_notes": "; ".join(
+                        tuple(getattr(candidate, "evidence_notes", ()) or ())
+                    ) or "—",
+                })
+        return display_rows
+
+    @staticmethod
     def _build_product_search_duty_envelope_gui_rows_v1(envelopes) -> list[dict]:
         """Format H-S49-A envelopes without granting product authority."""
         def number(value, suffix: str, digits: int) -> str:
@@ -6882,6 +7037,15 @@ class HydronicsSchematicPanelAdapter:
             self._balancing_point_manufacturer_valve_candidate_comparison_preview_v1 = (
                 manufacturer_candidate_comparison
             )
+            if hasattr(
+                    self._panel,
+                    "set_manufacturer_valve_candidate_comparison_rows_v1",
+            ):
+                self._panel.set_manufacturer_valve_candidate_comparison_rows_v1(
+                    self._build_manufacturer_valve_candidate_comparison_gui_rows_v1(
+                        manufacturer_candidate_comparison
+                    )
+                )
             point_display_rows = self._build_balancing_point_gui_rows_v1(
                 point_kvs_utilisation
             )
