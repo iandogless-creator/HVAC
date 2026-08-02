@@ -481,6 +481,17 @@ class HydronicsSchematicPanelAdapter:
                 self.set_point_valve_candidate_consequence_disposition
             )
 
+        # H-S64-E1 — the panel selects/clears a path only. H-S64-D owns
+        # loading and session runtime evidence; no ProjectState field is used.
+        if hasattr(
+                self._panel,
+                "set_local_manufacturer_catalogue_path_callback_v1",
+        ):
+            self._panel.set_local_manufacturer_catalogue_path_callback_v1(
+                self.supply_local_manufacturer_valve_product_detail_catalogue_path_v1
+            )
+
+        self._push_local_manufacturer_catalogue_status_v1()
         self.refresh()
 
 
@@ -524,8 +535,40 @@ class HydronicsSchematicPanelAdapter:
         self._local_manufacturer_valve_product_detail_catalogue_runtime_v1 = (
             runtime
         )
+        self._push_local_manufacturer_catalogue_status_v1()
         self.refresh()
         return runtime
+
+    def _push_local_manufacturer_catalogue_status_v1(self) -> None:
+        """Push H-S64-D load evidence independently of hydraulic readiness."""
+        setter = getattr(
+            self._panel,
+            "set_local_manufacturer_catalogue_status_v1",
+            None,
+        )
+        if not callable(setter):
+            return
+        runtime = getattr(
+            self,
+            "_local_manufacturer_valve_product_detail_catalogue_runtime_v1",
+            None,
+        )
+        setter(
+            ready=bool(getattr(runtime, "ready", False)),
+            source_supplied=bool(
+                getattr(runtime, "source_supplied", False)
+            ),
+            source_path=str(getattr(runtime, "source_path", "") or ""),
+            catalog_id=str(getattr(runtime, "catalog_id", "") or ""),
+            catalog_revision=str(
+                getattr(runtime, "catalog_revision", "") or ""
+            ),
+            product_count=int(
+                getattr(runtime, "product_count", 0) or 0
+            ),
+            status=str(getattr(runtime, "status", "") or ""),
+            blockers=tuple(getattr(runtime, "blockers", ()) or ()),
+        )
 
     def set_product_search_criteria(self, payload: dict) -> None:
         """Persist or clear H-S49-C manual criteria; never query a catalogue."""

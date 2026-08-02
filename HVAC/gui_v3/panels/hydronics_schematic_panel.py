@@ -2043,6 +2043,79 @@ class HydronicsSchematicPanel(QWidget):
         self.set_approved_valve_candidate_design_duty_envelope_rows([])
 
         # --------------------------------------------------
+        # H-S64-E1 — session manufacturer catalogue controls
+        # --------------------------------------------------
+        manufacturer_catalogue_controls = QFrame(self)
+        manufacturer_catalogue_controls.setFrameShape(QFrame.StyledPanel)
+        manufacturer_catalogue_layout = QGridLayout(
+            manufacturer_catalogue_controls
+        )
+        manufacturer_catalogue_layout.setContentsMargins(8, 8, 8, 8)
+        manufacturer_catalogue_layout.setHorizontalSpacing(10)
+        manufacturer_catalogue_layout.setVerticalSpacing(6)
+
+        manufacturer_catalogue_notice = QLabel(
+            "Select one explicit local manufacturer product-detail JSON "
+            "catalogue for this session. The path is not saved with the "
+            "project and no valve is selected.",
+            manufacturer_catalogue_controls,
+        )
+        manufacturer_catalogue_notice.setWordWrap(True)
+        manufacturer_catalogue_layout.addWidget(
+            manufacturer_catalogue_notice, 0, 0, 1, 2
+        )
+
+        self._local_manufacturer_catalogue_status_label_v1 = QLabel(
+            "Unavailable — no local manufacturer catalogue supplied",
+            manufacturer_catalogue_controls,
+        )
+        self._local_manufacturer_catalogue_status_label_v1.setWordWrap(True)
+        manufacturer_catalogue_layout.addWidget(
+            self._local_manufacturer_catalogue_status_label_v1,
+            1,
+            0,
+            1,
+            2,
+        )
+
+        self._open_local_manufacturer_catalogue_button_v1 = QPushButton(
+            "Open manufacturer catalogue…",
+            manufacturer_catalogue_controls,
+        )
+        self._open_local_manufacturer_catalogue_button_v1.clicked.connect(
+            self._on_open_local_manufacturer_catalogue_v1
+        )
+        manufacturer_catalogue_layout.addWidget(
+            self._open_local_manufacturer_catalogue_button_v1,
+            2,
+            0,
+        )
+
+        self._clear_local_manufacturer_catalogue_button_v1 = QPushButton(
+            "Clear catalogue",
+            manufacturer_catalogue_controls,
+        )
+        self._clear_local_manufacturer_catalogue_button_v1.clicked.connect(
+            self._on_clear_local_manufacturer_catalogue_v1
+        )
+        self._clear_local_manufacturer_catalogue_button_v1.setEnabled(False)
+        manufacturer_catalogue_layout.addWidget(
+            self._clear_local_manufacturer_catalogue_button_v1,
+            2,
+            1,
+        )
+        manufacturer_catalogue_layout.setColumnStretch(0, 1)
+        manufacturer_catalogue_layout.setColumnStretch(1, 1)
+
+        self._add_section(
+            proportioning_layout,
+            title="Local manufacturer valve catalogue — session-only",
+            table=manufacturer_catalogue_controls,
+            min_height=145,
+            expanded=True,
+        )
+
+        # --------------------------------------------------
         # H-S49-C — manual product-search criteria editor
         # --------------------------------------------------
         criteria_editor = QFrame(self)
@@ -7714,6 +7787,84 @@ class HydronicsSchematicPanel(QWidget):
         if point_id and callable(callback):
             callback({"action": "clear", "balancing_point_id": point_id})
 
+    def set_local_manufacturer_catalogue_path_callback_v1(
+            self,
+            callback,
+    ) -> None:
+        """Register the adapter-owned H-S64-E1 session path callback."""
+        self._local_manufacturer_catalogue_path_callback_v1 = callback
+
+    def _on_open_local_manufacturer_catalogue_v1(self) -> None:
+        """Choose a JSON path only; parsing remains adapter-owned."""
+        source_path, _selected_filter = QFileDialog.getOpenFileName(
+            self,
+            "Open manufacturer valve catalogue",
+            "",
+            "JSON files (*.json);;All files (*)",
+        )
+        if not source_path:
+            return
+        callback = getattr(
+            self,
+            "_local_manufacturer_catalogue_path_callback_v1",
+            None,
+        )
+        if callable(callback):
+            callback(source_path)
+
+    def _on_clear_local_manufacturer_catalogue_v1(self) -> None:
+        """Clear the session catalogue through the adapter-owned handoff."""
+        callback = getattr(
+            self,
+            "_local_manufacturer_catalogue_path_callback_v1",
+            None,
+        )
+        if callable(callback):
+            callback(None)
+
+    def set_local_manufacturer_catalogue_status_v1(
+            self,
+            *,
+            ready: bool,
+            source_supplied: bool,
+            source_path: str,
+            catalog_id: str,
+            catalog_revision: str,
+            product_count: int,
+            status: str,
+            blockers: tuple[str, ...] = (),
+    ) -> None:
+        """Project H-S64-D session load evidence without reading the file."""
+        label = getattr(
+            self,
+            "_local_manufacturer_catalogue_status_label_v1",
+            None,
+        )
+        clear_button = getattr(
+            self,
+            "_clear_local_manufacturer_catalogue_button_v1",
+            None,
+        )
+        if label is None:
+            return
+
+        lines = [str(status or "Catalogue status unavailable")]
+        if ready:
+            lines.append(
+                f"Catalog: {catalog_id or '—'} · "
+                f"revision {catalog_revision or '—'} · "
+                f"{max(int(product_count), 0)} product(s)"
+            )
+        elif blockers:
+            blocker_text = "; ".join(str(item) for item in blockers)
+            if blocker_text and blocker_text not in lines[0]:
+                lines.append("Blocker: " + blocker_text)
+        if source_path:
+            lines.append("Path: " + str(source_path))
+        label.setText("\n".join(lines))
+        if clear_button is not None:
+            clear_button.setEnabled(bool(source_supplied))
+
     def set_approved_valve_candidate_design_duty_envelope_rows(
             self,
             rows: list[dict],
@@ -11264,6 +11415,9 @@ QTableWidget::item:selected:!active {
                     "Approved point valve product-search duty envelopes — "
                     "read-only"
                 ): 1100,
+                (
+                    "Local manufacturer valve catalogue — session-only"
+                ): 1150,
                 (
                     "Manual valve product-search criteria — design intent"
                 ): 1200,
