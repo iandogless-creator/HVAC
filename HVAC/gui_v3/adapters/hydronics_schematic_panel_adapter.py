@@ -265,6 +265,7 @@ from HVAC.hydronics.proportioning.balancing_point_accepted_valve_candidate_conse
     APPROVED_FOR_LATER_VALVE_DESIGN,
     VALVE_CANDIDATE_REVISION_REQUIRED,
     BalancingPointAcceptedValveCandidateConsequenceDispositionIntentV1,
+    build_accepted_valve_candidate_consequence_fingerprint_v1,
     resolve_balancing_point_accepted_valve_candidate_consequence_disposition_v1,
 )
 from HVAC.hydronics.proportioning.balancing_point_approved_valve_candidate_design_duty_envelope_v1 import (
@@ -770,6 +771,15 @@ class HydronicsSchematicPanelAdapter:
                 intent = (
                     BalancingPointAcceptedValveCandidateConsequenceDispositionIntentV1()
                 )
+            consequence_fingerprint = (
+                build_accepted_valve_candidate_consequence_fingerprint_v1(
+                    consequence_row
+                )
+            )
+            if not consequence_fingerprint:
+                raise ValueError(
+                    "Current exact H-S52-C consequence is unavailable"
+                )
             intent.set_disposition(
                 balancing_point_id=point_id,
                 disposition=disposition,
@@ -788,6 +798,7 @@ class HydronicsSchematicPanelAdapter:
                     "current_kv_m3_h",
                     None,
                 ),
+                consequence_fingerprint=consequence_fingerprint,
             )
         elif action == "clear":
             if intent is None:
@@ -6744,6 +6755,21 @@ class HydronicsSchematicPanelAdapter:
                         None,
                     ),
                     point_valve_candidate_consequence,
+                    require_consequence_fingerprint=(
+                        str(
+                            getattr(
+                                getattr(
+                                    self._project_state,
+                                    "hydronic_proportioned_basis_snapshot",
+                                    None,
+                                ),
+                                "status",
+                                "",
+                            )
+                            or ""
+                        ).strip()
+                        == "COMMITTED_RESIZED_HYDRAULICS"
+                    ),
                 )
             )
             self._balancing_point_accepted_valve_candidate_consequence_disposition_resolution = (

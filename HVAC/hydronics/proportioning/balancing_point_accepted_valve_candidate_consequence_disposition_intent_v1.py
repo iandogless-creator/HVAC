@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import hashlib
 import math
 
 from HVAC.hydronics.proportioning.balancing_point_accepted_valve_candidate_hydraulic_consequence_v1 import (
@@ -33,6 +34,8 @@ class PointAcceptedValveCandidateConsequenceDispositionV1:
     catalog_id_basis: str
     valve_ref_basis: str
     current_kv_m3_h_basis: float
+    # H-S62-E — exact H-S52-C hydraulic consequence reviewed manually.
+    consequence_fingerprint: str = ""
 
 
 @dataclass(slots=True)
@@ -56,12 +59,14 @@ class BalancingPointAcceptedValveCandidateConsequenceDispositionIntentV1:
         catalog_id_basis: str,
         valve_ref_basis: str,
         current_kv_m3_h_basis: float,
+        consequence_fingerprint: str = "",
     ) -> None:
         point_id = _stable_text_v1(balancing_point_id)
         decision = _stable_text_v1(disposition)
         catalogue = _stable_text_v1(catalog_id_basis)
         reference = _stable_text_v1(valve_ref_basis)
         kv = _positive_finite_v1(current_kv_m3_h_basis)
+        fingerprint = _stable_text_v1(consequence_fingerprint)
         if not point_id:
             raise ValueError("balancing_point_id is required")
         if decision not in VALID_DISPOSITIONS:
@@ -83,6 +88,7 @@ class BalancingPointAcceptedValveCandidateConsequenceDispositionIntentV1:
                 catalog_id_basis=catalogue,
                 valve_ref_basis=reference,
                 current_kv_m3_h_basis=kv,
+                consequence_fingerprint=fingerprint,
             )
         )
 
@@ -172,6 +178,7 @@ def balancing_point_accepted_valve_candidate_consequence_disposition_intent_to_d
                 "current_kv_m3_h_basis": float(
                     entry.current_kv_m3_h_basis
                 ),
+                "consequence_fingerprint": entry.consequence_fingerprint,
             }
             for point_id, entry in sorted(
                 source.disposition_by_point_id.items()
@@ -207,6 +214,9 @@ def balancing_point_accepted_valve_candidate_consequence_disposition_intent_from
         kv = _positive_finite_v1(
             raw_entry.get("current_kv_m3_h_basis")
         )
+        fingerprint = _stable_text_v1(
+            raw_entry.get("consequence_fingerprint")
+        )
         if (
             not point_id
             or disposition not in VALID_DISPOSITIONS
@@ -222,6 +232,7 @@ def balancing_point_accepted_valve_candidate_consequence_disposition_intent_from
                 catalog_id_basis=catalogue,
                 valve_ref_basis=reference,
                 current_kv_m3_h_basis=kv,
+                consequence_fingerprint=fingerprint,
             )
         )
     return intent
@@ -237,6 +248,7 @@ def resolve_balancing_point_accepted_valve_candidate_consequence_disposition_v1(
     ),
     *,
     tolerance: float = 1e-9,
+    require_consequence_fingerprint: bool = False,
 ) -> ResolvedPointAcceptedValveCandidateConsequenceDispositionV1:
     source = (
         intent
@@ -337,6 +349,33 @@ def resolve_balancing_point_accepted_valve_candidate_consequence_disposition_v1(
             rows.append(_blocked_row_v1(point_id, entry, blocker))
             continue
 
+        current_fingerprint = (
+            build_accepted_valve_candidate_consequence_fingerprint_v1(
+                evidence_row
+            )
+        )
+        fingerprint_blocker = ""
+        if entry.consequence_fingerprint:
+            if (
+                not current_fingerprint
+                or entry.consequence_fingerprint != current_fingerprint
+            ):
+                fingerprint_blocker = (
+                    "Catalogue-candidate consequence disposition "
+                    "fingerprint does not match current H-S52-C evidence"
+                )
+        elif require_consequence_fingerprint:
+            fingerprint_blocker = (
+                "Catalogue-candidate consequence disposition predates "
+                "exact post-resize evidence; fresh manual review required"
+            )
+        if fingerprint_blocker:
+            blockers.append(f"{point_id}: {fingerprint_blocker}")
+            rows.append(
+                _blocked_row_v1(point_id, entry, fingerprint_blocker)
+            )
+            continue
+
         approved = (
             entry.disposition == APPROVED_FOR_LATER_VALVE_DESIGN
         )
@@ -382,6 +421,68 @@ def resolve_balancing_point_accepted_valve_candidate_consequence_disposition_v1(
         blockers=all_blockers,
         rows=tuple(rows),
     )
+
+
+def build_accepted_valve_candidate_consequence_fingerprint_v1(
+    evidence_row: object,
+) -> str:
+    """Fingerprint the exact H-S52-C consequence reviewed manually.
+
+    Catalogue identity and Kv alone are insufficient: the same product must
+    be reviewed again when flow or controlled-circuit duty changes.
+    """
+
+    point_id = _stable_text_v1(
+        getattr(evidence_row, "balancing_point_id", "")
+    )
+    catalogue = _stable_text_v1(
+        getattr(evidence_row, "catalog_id", "")
+    )
+    reference = _stable_text_v1(
+        getattr(evidence_row, "valve_ref", "")
+    )
+    consequence_state_id = _stable_text_v1(
+        getattr(evidence_row, "consequence_state_id", "")
+    )
+    formula = _stable_text_v1(getattr(evidence_row, "formula", ""))
+    if (
+        not point_id
+        or not catalogue
+        or not reference
+        or consequence_state_id
+        != ACCEPTED_VALVE_CANDIDATE_CONSEQUENCE_AVAILABLE
+        or not bool(getattr(evidence_row, "consequence_available", False))
+        or not bool(getattr(evidence_row, "accepted", False))
+        or not formula
+    ):
+        return ""
+
+    numeric_fields = (
+        "current_kv_m3_h",
+        "flow_m3_h",
+        "controlled_circuit_dp_pa",
+        "implied_valve_dp_bar",
+        "implied_valve_dp_pa",
+        "implied_authority",
+    )
+    numbers: list[tuple[str, str]] = []
+    for field_name in numeric_fields:
+        value = _positive_finite_v1(
+            getattr(evidence_row, field_name, None)
+        )
+        if value is None:
+            return ""
+        numbers.append((field_name, float(value).hex()))
+
+    payload = repr((
+        ("balancing_point_id", point_id),
+        ("consequence_state_id", consequence_state_id),
+        ("catalog_id", catalogue),
+        ("valve_ref", reference),
+        ("formula", formula),
+        *tuple(numbers),
+    )).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
 
 
 def _blocked_row_v1(point_id, entry, blocker):

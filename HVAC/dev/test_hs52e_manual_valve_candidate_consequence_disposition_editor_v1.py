@@ -15,6 +15,12 @@ from HVAC.hydronics.proportioning.balancing_point_accepted_valve_candidate_conse
     ResolvedPointAcceptedValveCandidateConsequenceDispositionRowV1,
     ResolvedPointAcceptedValveCandidateConsequenceDispositionV1,
 )
+from HVAC.hydronics.proportioning.balancing_point_accepted_valve_candidate_hydraulic_consequence_v1 import (
+    ACCEPTED_VALVE_CANDIDATE_CONSEQUENCE_AVAILABLE,
+)
+from HVAC.hydronics.proportioning.balancing_point_accepted_kvs_hydraulic_consequence_v1 import (
+    ACCEPTED_KVS_DP_FORMULA_V1,
+)
 from HVAC.hydronics.proportioning.balancing_point_valve_candidate_acceptance_intent_v1 import (
     ResolvedPointValveCandidateAcceptanceRowV1,
     ResolvedPointValveCandidateAcceptanceV1,
@@ -60,12 +66,20 @@ def main() -> None:
     )
     consequence_row = SimpleNamespace(
         balancing_point_id=POINT_ID,
+        consequence_state_id=(
+            ACCEPTED_VALVE_CANDIDATE_CONSEQUENCE_AVAILABLE
+        ),
         consequence_available=True,
+        accepted=True,
         catalog_id=CATALOG_ID,
         valve_ref=VALVE_REF,
         current_kv_m3_h=10.0,
+        flow_m3_h=1.0,
+        controlled_circuit_dp_pa=99_000.0,
+        implied_valve_dp_bar=0.01,
         implied_valve_dp_pa=1000.0,
         implied_authority=0.01,
+        formula=ACCEPTED_KVS_DP_FORMULA_V1,
         status="Catalogue consequence available",
         blockers=(),
     )
@@ -141,6 +155,7 @@ def main() -> None:
     assert entry.catalog_id_basis == CATALOG_ID
     assert entry.valve_ref_basis == VALVE_REF
     assert entry.current_kv_m3_h_basis == 10.0
+    assert len(entry.consequence_fingerprint) == 64
     assert refreshes
 
     HydronicsSchematicPanelAdapter.set_point_valve_candidate_consequence_disposition(
