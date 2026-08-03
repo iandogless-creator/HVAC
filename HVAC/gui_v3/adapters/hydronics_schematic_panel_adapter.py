@@ -274,6 +274,11 @@ from HVAC.hydronics.proportioning.balancing_point_approved_valve_candidate_desig
 from HVAC.hydronics.proportioning.balancing_point_manufacturer_valve_candidate_comparison_v1 import (
     build_balancing_point_manufacturer_valve_candidate_comparison_v1,
 )
+from HVAC.hydronics.proportioning.balancing_point_manufacturer_valve_candidate_acceptance_intent_v1 import (
+    BalancingPointManufacturerValveCandidateAcceptanceIntentV1,
+    build_manufacturer_valve_candidate_comparison_fingerprint_v1,
+    resolve_balancing_point_manufacturer_valve_candidate_acceptance_v1,
+)
 from HVAC.hydronics_v3.dto.valve_catalog_dto import ValveCatalogDTO
 from HVAC.hydronics_v3.catalogues.local_valve_catalogue_loader_v1 import (
     load_bundled_local_valve_catalogue_v1,
@@ -489,6 +494,15 @@ class HydronicsSchematicPanelAdapter:
         ):
             self._panel.set_local_manufacturer_catalogue_path_callback_v1(
                 self.supply_local_manufacturer_valve_product_detail_catalogue_path_v1
+            )
+
+        # H-S64-F2 — explicit manual manufacturer-candidate intent callback.
+        if hasattr(
+                self._panel,
+                "set_manufacturer_valve_candidate_acceptance_callback_v1",
+        ):
+            self._panel.set_manufacturer_valve_candidate_acceptance_callback_v1(
+                self.set_manufacturer_valve_candidate_acceptance_v1
             )
 
         self._push_local_manufacturer_catalogue_status_v1()
@@ -755,6 +769,149 @@ class HydronicsSchematicPanelAdapter:
             raise ValueError("action must be 'accept' or 'clear'")
 
         project.hydronic_point_valve_candidate_acceptance_intent = intent
+        project.hydronics_valid = False
+        if hasattr(project, "mark_dirty"):
+            project.mark_dirty()
+
+        self.refresh()
+        for signal_name in ("project_state_changed", "project_changed"):
+            signal = getattr(self._context, signal_name, None)
+            emit = getattr(signal, "emit", None)
+            if not callable(emit):
+                continue
+            try:
+                emit()
+            except TypeError:
+                try:
+                    emit(project)
+                except TypeError:
+                    pass
+
+    def set_manufacturer_valve_candidate_acceptance_v1(
+            self,
+            payload: dict,
+    ) -> None:
+        """Persist or clear one exact compatible H-S64-B product identity.
+
+        The live comparison remains the only acceptance source. This action
+        does not select a preset, rank a cost band or mutate hydraulics.
+        """
+        if not isinstance(payload, dict):
+            raise ValueError(
+                "Manufacturer valve-candidate payload must be a dictionary"
+            )
+        project = self._project_state
+        if project is None:
+            return
+        point_id = str(payload.get("balancing_point_id") or "").strip()
+        if not point_id:
+            raise ValueError("balancing_point_id is required")
+        action = str(payload.get("action") or "").strip().lower()
+        intent = getattr(
+            project,
+            "hydronic_point_manufacturer_valve_candidate_acceptance_intent",
+            None,
+        )
+
+        if action == "accept":
+            comparison = getattr(
+                self,
+                "_balancing_point_manufacturer_valve_candidate_"
+                "comparison_preview_v1",
+                None,
+            )
+            point_row = next(
+                (
+                    row
+                    for row in tuple(getattr(comparison, "rows", ()) or ())
+                    if str(
+                        getattr(row, "balancing_point_id", "") or ""
+                    ).strip() == point_id
+                ),
+                None,
+            )
+            if point_row is None:
+                raise ValueError(
+                    "Balancing point has no current H-S64-B comparison"
+                )
+            catalog_id = str(
+                payload.get("product_catalog_id") or ""
+            ).strip()
+            revision = str(
+                payload.get("product_catalog_revision") or ""
+            ).strip()
+            valve_ref = str(payload.get("valve_ref") or "").strip()
+            if (
+                    catalog_id != str(
+                        getattr(point_row, "product_catalog_id", "") or ""
+                    ).strip()
+                    or revision != str(
+                        getattr(
+                            point_row,
+                            "product_catalog_revision",
+                            "",
+                        ) or ""
+                    ).strip()
+            ):
+                raise ValueError(
+                    "Product catalogue identity/revision does not match "
+                    "current H-S64-B comparison"
+                )
+            matching = next(
+                (
+                    candidate
+                    for candidate in tuple(
+                        getattr(point_row, "candidates", ()) or ()
+                    )
+                    if str(
+                        getattr(candidate, "valve_ref", "") or ""
+                    ).strip() == valve_ref
+                ),
+                None,
+            )
+            if matching is None:
+                raise ValueError(
+                    "valve_ref must identify a current H-S64-B candidate "
+                    "for this point"
+                )
+            if not bool(getattr(matching, "compatible", False)):
+                raise ValueError(
+                    "Only a compatible current H-S64-B candidate may be "
+                    "manually accepted"
+                )
+            fingerprint = (
+                build_manufacturer_valve_candidate_comparison_fingerprint_v1(
+                    point_row,
+                    matching,
+                )
+            )
+            if not fingerprint:
+                raise ValueError(
+                    "Current exact H-S64-B comparison fingerprint is "
+                    "unavailable"
+                )
+            if intent is None:
+                intent = (
+                    BalancingPointManufacturerValveCandidateAcceptanceIntentV1()
+                )
+            intent.accept_candidate(
+                balancing_point_id=point_id,
+                product_catalog_id=catalog_id,
+                product_catalog_revision=revision,
+                valve_ref=valve_ref,
+                comparison_fingerprint=fingerprint,
+            )
+        elif action == "clear":
+            if intent is None:
+                self.refresh()
+                return
+            intent.clear_candidate(point_id)
+        else:
+            raise ValueError("action must be 'accept' or 'clear'")
+
+        project.hydronic_point_manufacturer_valve_candidate_acceptance_intent = (
+            intent
+        )
         project.hydronics_valid = False
         if hasattr(project, "mark_dirty"):
             project.mark_dirty()
@@ -3381,6 +3538,8 @@ class HydronicsSchematicPanelAdapter:
     @staticmethod
     def _build_manufacturer_valve_candidate_comparison_gui_rows_v1(
             comparison,
+            acceptance_resolution=None,
+            acceptance_intent=None,
     ) -> list[dict]:
         """Flatten H-S64-B evidence in supplied order; never rank products."""
 
@@ -3399,9 +3558,64 @@ class HydronicsSchematicPanelAdapter:
                 f"{number(setting_value)} / Kv {number(kv_value)}"
             )
 
+        resolved_by_point = {
+            str(getattr(row, "balancing_point_id", "") or "").strip(): row
+            for row in tuple(
+                getattr(acceptance_resolution, "rows", ()) or ()
+            )
+            if str(getattr(row, "balancing_point_id", "") or "").strip()
+        }
+        intent_by_point = dict(
+            getattr(acceptance_intent, "accepted_by_point_id", {}) or {}
+        )
+
+        def stale_entry_row(entry, status: str) -> dict:
+            return {
+                "balancing_point_id": getattr(
+                    entry, "balancing_point_id", "—"
+                ) or "—",
+                "cost_band": "—",
+                "manufacturer": "—",
+                "product": "—",
+                "valve_ref": getattr(entry, "valve_ref", "—") or "—",
+                "valve_type": "—",
+                "nominal_dn": "—",
+                "connection": "—",
+                "approved_kv": "—",
+                "product_kvs": "—",
+                "kvs_match": "—",
+                "required_kv": "—",
+                "lower_preset": "—",
+                "upper_preset": "—",
+                "bracketed": "—",
+                "compatible": "—",
+                "compatible_bool": False,
+                "accepted": "Stale",
+                "accepted_bool": False,
+                "point_has_acceptance": True,
+                "product_catalog_id": getattr(
+                    entry, "product_catalog_id", ""
+                ) or "",
+                "product_catalog_revision": getattr(
+                    entry, "product_catalog_revision", ""
+                ) or "",
+                "status": status,
+                "evidence_notes": (
+                    "Load current comparison evidence or clear acceptance"
+                ),
+            }
+
         display_rows: list[dict] = []
         source_rows = tuple(getattr(comparison, "rows", ()) or ())
         if not source_rows:
+            if intent_by_point:
+                return [
+                    stale_entry_row(
+                        entry,
+                        "Persisted acceptance has no current H-S64-B row",
+                    )
+                    for _, entry in intent_by_point.items()
+                ]
             display_rows.append({
                 "balancing_point_id": "—",
                 "cost_band": "—",
@@ -3419,6 +3633,11 @@ class HydronicsSchematicPanelAdapter:
                 "upper_preset": "—",
                 "bracketed": "—",
                 "compatible": "—",
+                "accepted": "—",
+                "accepted_bool": False,
+                "point_has_acceptance": False,
+                "product_catalog_id": "",
+                "product_catalog_revision": "",
                 "status": str(
                     getattr(comparison, "status", "")
                     or "Manufacturer comparison unavailable"
@@ -3430,8 +3649,21 @@ class HydronicsSchematicPanelAdapter:
             return display_rows
 
         for point in source_rows:
+            point_id = str(
+                getattr(point, "balancing_point_id", "") or ""
+            ).strip()
             candidates = tuple(getattr(point, "candidates", ()) or ())
             if not candidates:
+                entry = intent_by_point.get(point_id)
+                if entry is not None:
+                    display_rows.append(
+                        stale_entry_row(
+                            entry,
+                            "Persisted acceptance has no current candidate "
+                            "comparison",
+                        )
+                    )
+                    continue
                 display_rows.append({
                     "balancing_point_id": getattr(
                         point, "balancing_point_id", "—"
@@ -3455,6 +3687,15 @@ class HydronicsSchematicPanelAdapter:
                     "upper_preset": "—",
                     "bracketed": "—",
                     "compatible": "—",
+                    "accepted": "—",
+                    "accepted_bool": False,
+                    "point_has_acceptance": False,
+                    "product_catalog_id": getattr(
+                        point, "product_catalog_id", ""
+                    ) or "",
+                    "product_catalog_revision": getattr(
+                        point, "product_catalog_revision", ""
+                    ) or "",
                     "status": getattr(point, "status", "—") or "—",
                     "evidence_notes": "; ".join(
                         tuple(getattr(point, "blockers", ()) or ())
@@ -3463,6 +3704,25 @@ class HydronicsSchematicPanelAdapter:
                 continue
 
             for candidate in candidates:
+                point_id = str(
+                    getattr(point, "balancing_point_id", "") or ""
+                ).strip()
+                resolved = resolved_by_point.get(point_id)
+                resolved_ref = str(
+                    getattr(resolved, "valve_ref", "") or ""
+                ).strip()
+                point_has_acceptance = bool(resolved_ref)
+                accepted = (
+                    bool(getattr(resolved, "accepted", False))
+                    and resolved_ref
+                    == str(getattr(candidate, "valve_ref", "") or "").strip()
+                )
+                stale_acceptance = (
+                    point_has_acceptance
+                    and not bool(getattr(resolved, "accepted", False))
+                    and resolved_ref
+                    == str(getattr(candidate, "valve_ref", "") or "").strip()
+                )
                 family = str(
                     getattr(candidate, "product_family", "") or ""
                 ).strip()
@@ -3526,11 +3786,39 @@ class HydronicsSchematicPanelAdapter:
                         "Yes" if getattr(candidate, "compatible", False)
                         else "No"
                     ),
+                    "compatible_bool": bool(
+                        getattr(candidate, "compatible", False)
+                    ),
+                    "accepted": (
+                        "Yes" if accepted
+                        else "Stale" if stale_acceptance
+                        else "No"
+                    ),
+                    "accepted_bool": accepted,
+                    "point_has_acceptance": point_has_acceptance,
+                    "product_catalog_id": getattr(
+                        point, "product_catalog_id", ""
+                    ) or "",
+                    "product_catalog_revision": getattr(
+                        point, "product_catalog_revision", ""
+                    ) or "",
                     "status": getattr(candidate, "status", "—") or "—",
                     "evidence_notes": "; ".join(
                         tuple(getattr(candidate, "evidence_notes", ()) or ())
                     ) or "—",
                 })
+        source_point_ids = {
+            str(getattr(point, "balancing_point_id", "") or "").strip()
+            for point in source_rows
+        }
+        for point_id, entry in intent_by_point.items():
+            if point_id not in source_point_ids:
+                display_rows.append(
+                    stale_entry_row(
+                        entry,
+                        "Persisted acceptance has no current H-S64-B row",
+                    )
+                )
         return display_rows
 
     @staticmethod
@@ -7037,13 +7325,30 @@ class HydronicsSchematicPanelAdapter:
             self._balancing_point_manufacturer_valve_candidate_comparison_preview_v1 = (
                 manufacturer_candidate_comparison
             )
+            manufacturer_candidate_intent = getattr(
+                self._project_state,
+                "hydronic_point_manufacturer_valve_candidate_"
+                "acceptance_intent",
+                None,
+            )
+            manufacturer_candidate_acceptance = (
+                resolve_balancing_point_manufacturer_valve_candidate_acceptance_v1(
+                    manufacturer_candidate_intent,
+                    manufacturer_candidate_comparison,
+                )
+            )
+            self._balancing_point_manufacturer_valve_candidate_acceptance_resolution_v1 = (
+                manufacturer_candidate_acceptance
+            )
             if hasattr(
                     self._panel,
                     "set_manufacturer_valve_candidate_comparison_rows_v1",
             ):
                 self._panel.set_manufacturer_valve_candidate_comparison_rows_v1(
                     self._build_manufacturer_valve_candidate_comparison_gui_rows_v1(
-                        manufacturer_candidate_comparison
+                        manufacturer_candidate_comparison,
+                        manufacturer_candidate_acceptance,
+                        manufacturer_candidate_intent,
                     )
                 )
             point_display_rows = self._build_balancing_point_gui_rows_v1(

@@ -2125,22 +2125,89 @@ class HydronicsSchematicPanel(QWidget):
                     "Valve ref", "Type", "DN", "Connection",
                     "Approved Kv", "Product Kvs", "Kvs match",
                     "Required Kv", "Lower preset", "Upper preset",
-                    "Bracketed", "Compatible", "Status", "Evidence notes",
+                    "Bracketed", "Compatible", "Accepted", "Status",
+                    "Evidence notes",
                 ],
-                stretch_columns={0, 2, 3, 16, 17},
+                stretch_columns={0, 2, 3, 17, 18},
             )
         )
         self._manufacturer_valve_candidate_comparison_table_v1.setAlternatingRowColors(
             True
         )
+        self._manufacturer_valve_candidate_comparison_table_v1.setSelectionBehavior(
+            QAbstractItemView.SelectRows
+        )
+        self._manufacturer_valve_candidate_comparison_table_v1.setSelectionMode(
+            QAbstractItemView.SingleSelection
+        )
+        self._manufacturer_valve_candidate_comparison_table_v1.itemSelectionChanged.connect(
+            self._on_manufacturer_valve_candidate_selection_changed_v1
+        )
+
+        manufacturer_candidate_controls = QFrame(self)
+        manufacturer_candidate_controls.setFrameShape(QFrame.StyledPanel)
+        manufacturer_candidate_layout = QVBoxLayout(
+            manufacturer_candidate_controls
+        )
+        manufacturer_candidate_layout.setContentsMargins(0, 0, 0, 0)
+        manufacturer_candidate_layout.setSpacing(6)
+        manufacturer_candidate_layout.addWidget(
+            self._manufacturer_valve_candidate_comparison_table_v1
+        )
+
+        manufacturer_candidate_notice = QLabel(
+            "Select one compatible row to accept that exact manufacturer "
+            "product. Acceptance does not choose a preset, rank a cost "
+            "band or alter hydraulics.",
+            manufacturer_candidate_controls,
+        )
+        manufacturer_candidate_notice.setWordWrap(True)
+        manufacturer_candidate_layout.addWidget(manufacturer_candidate_notice)
+
+        self._manufacturer_valve_candidate_acceptance_status_label_v1 = QLabel(
+            "Select a manufacturer candidate row",
+            manufacturer_candidate_controls,
+        )
+        self._manufacturer_valve_candidate_acceptance_status_label_v1.setWordWrap(
+            True
+        )
+        manufacturer_candidate_layout.addWidget(
+            self._manufacturer_valve_candidate_acceptance_status_label_v1
+        )
+
+        manufacturer_candidate_buttons = QHBoxLayout()
+        self._accept_manufacturer_valve_candidate_button_v1 = QPushButton(
+            "Accept selected compatible candidate",
+            manufacturer_candidate_controls,
+        )
+        self._accept_manufacturer_valve_candidate_button_v1.clicked.connect(
+            self._on_accept_manufacturer_valve_candidate_v1
+        )
+        self._accept_manufacturer_valve_candidate_button_v1.setEnabled(False)
+        manufacturer_candidate_buttons.addWidget(
+            self._accept_manufacturer_valve_candidate_button_v1
+        )
+        self._clear_manufacturer_valve_candidate_button_v1 = QPushButton(
+            "Clear accepted candidate for selected point",
+            manufacturer_candidate_controls,
+        )
+        self._clear_manufacturer_valve_candidate_button_v1.clicked.connect(
+            self._on_clear_manufacturer_valve_candidate_v1
+        )
+        self._clear_manufacturer_valve_candidate_button_v1.setEnabled(False)
+        manufacturer_candidate_buttons.addWidget(
+            self._clear_manufacturer_valve_candidate_button_v1
+        )
+        manufacturer_candidate_layout.addLayout(manufacturer_candidate_buttons)
         self._add_section(
             proportioning_layout,
             title=(
                 "Manufacturer valve candidates — premium / standard / "
-                "budget labels, no ranking — read-only"
+                "budget labels, no ranking — read-only comparison / "
+                "manual acceptance"
             ),
-            table=self._manufacturer_valve_candidate_comparison_table_v1,
-            min_height=150,
+            table=manufacturer_candidate_controls,
+            min_height=225,
             expanded=True,
         )
         self.set_manufacturer_valve_candidate_comparison_rows_v1([])
@@ -7907,7 +7974,7 @@ class HydronicsSchematicPanel(QWidget):
         )
         if table is None:
             return
-        rows = list(rows or [])
+        rows = [dict(row) for row in list(rows or [])]
         if not rows:
             rows = [{
                 "balancing_point_id": "—",
@@ -7926,6 +7993,9 @@ class HydronicsSchematicPanel(QWidget):
                 "upper_preset": "—",
                 "bracketed": "—",
                 "compatible": "—",
+                "accepted": "—",
+                "accepted_bool": False,
+                "point_has_acceptance": False,
                 "status": "No manufacturer catalogue comparison evidence",
                 "evidence_notes": "Load an explicit session catalogue",
             }]
@@ -7934,8 +8004,14 @@ class HydronicsSchematicPanel(QWidget):
             "valve_ref", "valve_type", "nominal_dn", "connection",
             "approved_kv", "product_kvs", "kvs_match", "required_kv",
             "lower_preset", "upper_preset", "bracketed", "compatible",
-            "status", "evidence_notes",
+            "accepted", "status", "evidence_notes",
         )
+        previous_identity = getattr(
+            self,
+            "_manufacturer_valve_candidate_selected_identity_v1",
+            None,
+        )
+        self._manufacturer_valve_candidate_comparison_rows_v1 = rows
         table.setRowCount(len(rows))
         for row_index, row in enumerate(rows):
             for column_index, key in enumerate(keys):
@@ -7946,6 +8022,145 @@ class HydronicsSchematicPanel(QWidget):
         for row_index in range(table.rowCount()):
             table.setRowHeight(row_index, 24)
         self._fit_table_height(table, min_height=105, max_height=260)
+        selected_row = next(
+            (
+                index
+                for index, row in enumerate(rows)
+                if (
+                    str(row.get("balancing_point_id") or ""),
+                    str(row.get("valve_ref") or ""),
+                ) == previous_identity
+            ),
+            -1,
+        )
+        if selected_row >= 0:
+            table.selectRow(selected_row)
+        else:
+            self._manufacturer_valve_candidate_selected_identity_v1 = None
+            self._on_manufacturer_valve_candidate_selection_changed_v1()
+
+    def set_manufacturer_valve_candidate_acceptance_callback_v1(
+            self,
+            callback,
+    ) -> None:
+        """Register the adapter-owned H-S64-F2 acceptance callback."""
+        self._manufacturer_valve_candidate_acceptance_callback_v1 = callback
+
+    def _selected_manufacturer_valve_candidate_row_v1(self) -> dict | None:
+        table = getattr(
+            self,
+            "_manufacturer_valve_candidate_comparison_table_v1",
+            None,
+        )
+        rows = getattr(
+            self,
+            "_manufacturer_valve_candidate_comparison_rows_v1",
+            [],
+        )
+        if table is None:
+            return None
+        row_index = int(table.currentRow())
+        if row_index < 0 or row_index >= len(rows):
+            return None
+        return rows[row_index]
+
+    def _on_manufacturer_valve_candidate_selection_changed_v1(self) -> None:
+        row = self._selected_manufacturer_valve_candidate_row_v1()
+        accept_button = getattr(
+            self,
+            "_accept_manufacturer_valve_candidate_button_v1",
+            None,
+        )
+        clear_button = getattr(
+            self,
+            "_clear_manufacturer_valve_candidate_button_v1",
+            None,
+        )
+        status_label = getattr(
+            self,
+            "_manufacturer_valve_candidate_acceptance_status_label_v1",
+            None,
+        )
+        if row is None:
+            if accept_button is not None:
+                accept_button.setEnabled(False)
+            if clear_button is not None:
+                clear_button.setEnabled(False)
+            if status_label is not None:
+                status_label.setText("Select a manufacturer candidate row")
+            return
+
+        point_id = str(row.get("balancing_point_id") or "").strip()
+        valve_ref = str(row.get("valve_ref") or "").strip()
+        actionable = bool(
+            point_id and point_id != "—" and valve_ref and valve_ref != "—"
+        )
+        accepted = bool(row.get("accepted_bool", False))
+        compatible = bool(row.get("compatible_bool", False))
+        self._manufacturer_valve_candidate_selected_identity_v1 = (
+            point_id,
+            valve_ref,
+        ) if actionable else None
+        if accept_button is not None:
+            accept_button.setEnabled(actionable and compatible and not accepted)
+        if clear_button is not None:
+            clear_button.setEnabled(
+                actionable and bool(row.get("point_has_acceptance", False))
+            )
+        if status_label is not None:
+            if accepted:
+                status = f"Accepted for {point_id}: {valve_ref}"
+            elif bool(row.get("point_has_acceptance", False)):
+                status = (
+                    "An existing or stale acceptance is recorded for "
+                    f"{point_id}; Accept replaces it or Clear removes it"
+                )
+            elif not compatible:
+                status = "Selected candidate is not compatible and cannot be accepted"
+            else:
+                status = f"Selected compatible candidate: {valve_ref}"
+            status_label.setText(status)
+
+    def _on_accept_manufacturer_valve_candidate_v1(self) -> None:
+        row = self._selected_manufacturer_valve_candidate_row_v1()
+        callback = getattr(
+            self,
+            "_manufacturer_valve_candidate_acceptance_callback_v1",
+            None,
+        )
+        if (
+                row is None
+                or not bool(row.get("compatible_bool", False))
+                or not callable(callback)
+        ):
+            return
+        callback({
+            "action": "accept",
+            "balancing_point_id": str(row.get("balancing_point_id") or ""),
+            "product_catalog_id": str(
+                row.get("product_catalog_id") or ""
+            ),
+            "product_catalog_revision": str(
+                row.get("product_catalog_revision") or ""
+            ),
+            "valve_ref": str(row.get("valve_ref") or ""),
+        })
+
+    def _on_clear_manufacturer_valve_candidate_v1(self) -> None:
+        row = self._selected_manufacturer_valve_candidate_row_v1()
+        callback = getattr(
+            self,
+            "_manufacturer_valve_candidate_acceptance_callback_v1",
+            None,
+        )
+        if row is None or not callable(callback):
+            return
+        point_id = str(row.get("balancing_point_id") or "").strip()
+        if point_id and point_id != "—":
+            callback({
+                "action": "clear",
+                "balancing_point_id": point_id,
+            })
 
     def set_approved_valve_candidate_design_duty_envelope_rows(
             self,
@@ -11502,7 +11717,8 @@ QTableWidget::item:selected:!active {
                 ): 1150,
                 (
                     "Manufacturer valve candidates — premium / standard / "
-                    "budget labels, no ranking — read-only"
+                    "budget labels, no ranking — read-only comparison / "
+                    "manual acceptance"
                 ): 1175,
                 (
                     "Manual valve product-search criteria — design intent"
