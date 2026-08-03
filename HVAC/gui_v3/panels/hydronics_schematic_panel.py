@@ -728,6 +728,30 @@ class HydronicsSchematicPanel(QWidget):
         self._proportioning_tab = self._make_tab("Proportioning")
         proportioning_layout = self._proportioning_tab
 
+        # --------------------------------------------------
+        # H-S65-A — Proportioning workspace mini-tabs
+        # --------------------------------------------------
+        # Presentation-only grouping. Existing section widgets, callbacks,
+        # refresh order, persistence and hydraulic authority remain unchanged.
+        self._proportioning_workspace_tabs_v1 = QTabWidget(self)
+        self._proportioning_workspace_tabs_v1.setDocumentMode(True)
+        self._proportioning_workspace_tabs_v1.tabBar().setExpanding(False)
+        self._proportioning_workspace_tabs_v1.setMinimumHeight(640)
+        self._proportioning_workspace_tabs_v1.setSizePolicy(
+            QSizePolicy.Expanding,
+            QSizePolicy.Expanding,
+        )
+        proportioning_layout.addWidget(self._proportioning_workspace_tabs_v1)
+        self._proportioning_workspace_layouts_v1 = {
+            key: self._make_proportioning_workspace_tab_v1(label)
+            for key, label in (
+                ("balancing_authority", "Balancing & Authority"),
+                ("kvs_design", "Kvs Design"),
+                ("product_search", "Product Search"),
+                ("manufacturer_valves", "Manufacturer Valves"),
+            )
+        }
+
         self._proportioning_data_tab = self._make_tab("Proportioning Data")
         self._proportioned_tab = self._proportioning_data_tab
 
@@ -1516,6 +1540,11 @@ class HydronicsSchematicPanel(QWidget):
         self._common_main_leg_subleg_schematic_widget = (
             CommonMainLegSublegSchematicWidgetV1(self)
         )
+        # H-S65-A1: Proportioning is a static topology overview. The separate
+        # clean Proportioned instance retains all hover evidence.
+        self._common_main_leg_subleg_schematic_widget.set_hover_enabled_v1(
+            False
+        )
 
         self._common_main_leg_subleg_schematic_widget.set_focus_callback(
             self._on_common_main_leg_subleg_schematic_focus_requested
@@ -1528,7 +1557,7 @@ class HydronicsSchematicPanel(QWidget):
             Qt.ScrollBarAsNeeded
         )
         self._common_main_leg_subleg_schematic_scroll.setVerticalScrollBarPolicy(
-            Qt.ScrollBarAsNeeded
+            Qt.ScrollBarAlwaysOff
         )
         self._common_main_leg_subleg_schematic_scroll.setWidget(
             self._common_main_leg_subleg_schematic_widget
@@ -6101,6 +6130,33 @@ class HydronicsSchematicPanel(QWidget):
             f"{suitability} | {status} | DEV preview only — no arrangement committed"
         )
 
+    def _fit_proportioning_schematic_viewport_v1(self) -> None:
+        """Fit the static Proportioning canvas without vertical scrolling."""
+
+        widget = getattr(
+            self,
+            "_common_main_leg_subleg_schematic_widget",
+            None,
+        )
+        scroll = getattr(
+            self,
+            "_common_main_leg_subleg_schematic_scroll",
+            None,
+        )
+        if widget is None or scroll is None:
+            return
+
+        widget.adjustSize()
+        canvas_height = max(1, int(widget.minimumHeight()))
+        horizontal_bar_height = max(
+            0,
+            int(scroll.horizontalScrollBar().sizeHint().height()),
+        )
+        frame_allowance = max(4, int(scroll.frameWidth()) * 2 + 4)
+        scroll.setFixedHeight(
+            canvas_height + horizontal_bar_height + frame_allowance
+        )
+
     def set_common_main_leg_subleg_schematic(self, schematic) -> None:
         """
         H-S19-K:
@@ -6118,6 +6174,7 @@ class HydronicsSchematicPanel(QWidget):
         self._common_main_leg_subleg_schematic_widget.set_schematic(
             schematic
         )
+        self._fit_proportioning_schematic_viewport_v1()
 
         # H-S34-B:
         # Feed the same display-only DTO to the separate clean
@@ -11639,6 +11696,48 @@ QTableWidget::item:selected:!active {
 
         return layout
 
+    def _make_proportioning_workspace_tab_v1(
+            self,
+            title: str,
+    ) -> QVBoxLayout:
+        """Create one scrollable H-S65-A workspace page."""
+
+        tabs = self._proportioning_workspace_tabs_v1
+        scroll = QScrollArea(tabs)
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+
+        content = QWidget(scroll)
+        layout = QVBoxLayout(content)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(4)
+        scroll.setWidget(content)
+        tabs.addTab(scroll, title)
+        return layout
+
+    def _proportioning_workspace_key_for_title_v1(self, title: str) -> str:
+        """Route an existing section by presentation meaning only."""
+
+        clean = " ".join(str(title or "").lower().split())
+        if "manufacturer" in clean:
+            return "manufacturer_valves"
+        if "kvs" in clean or "required kv" in clean:
+            return "kvs_design"
+        if any(
+                token in clean
+                for token in (
+                    "product-search",
+                    "valve catalogue",
+                    "catalogue valve-candidate",
+                    "catalogue candidate",
+                    "valve-candidate",
+                    "valve candidate",
+                    "detailed-design duty",
+                )
+        ):
+            return "product_search"
+        return "balancing_authority"
+
     def _make_table(
         self,
         *,
@@ -11687,7 +11786,21 @@ QTableWidget::item:selected:!active {
         H-S48-D2 gives the active Proportioning controls a presentation-only
         hydraulic dependency order. Ordinary diagnostic sections retain their
         construction order; no calculation, intent or persistence is changed.
+
+        H-S65-A routes the same section widget into a presentation-only nested
+        workspace tab. It does not recreate the table or its callbacks.
         """
+        if layout is getattr(self, "_proportioning_tab", None):
+            workspace_layouts = getattr(
+                self,
+                "_proportioning_workspace_layouts_v1",
+                {},
+            )
+            workspace_key = self._proportioning_workspace_key_for_title_v1(
+                title
+            )
+            layout = workspace_layouts.get(workspace_key, layout)
+
         table.setMinimumHeight(min_height)
 
         section = _CollapsibleSection(
@@ -11696,8 +11809,19 @@ QTableWidget::item:selected:!active {
             expanded=expanded,
             parent=self,
         )
+        section.setProperty("hydraulic_section_title_v1", title)
 
-        if layout is getattr(self, "_proportioning_tab", None):
+        workspace_layouts = tuple(
+            getattr(
+                self,
+                "_proportioning_workspace_layouts_v1",
+                {},
+            ).values()
+        )
+        if (
+                layout is getattr(self, "_proportioning_tab", None)
+                or layout in workspace_layouts
+        ):
             dependency_order = {
                 "Return arrangement acceptance — user design basis": 100,
                 "Local section maximum velocity — authority editor": 200,

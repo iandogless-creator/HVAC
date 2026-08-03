@@ -199,6 +199,7 @@ class CommonMainLegSublegSchematicWidgetV1(QWidget):
         self._schematic: CommonMainLegSublegSchematicV1 | None = None
         self._focus: dict[str, str] = {}
         self._focus_callback = None
+        self._hover_enabled_v1 = True
 
         self._room_hit_rects: list[tuple[QRectF, dict[str, str]]] = []
         self._subleg_hit_rects: list[tuple[QRectF, dict[str, str]]] = []
@@ -237,6 +238,20 @@ class CommonMainLegSublegSchematicWidgetV1(QWidget):
             self._BASE_CANVAS_HEIGHT,
         )
         self.setMouseTracking(True)
+
+    def set_hover_enabled_v1(self, enabled: bool) -> None:
+        """Enable hover evidence for this schematic instance only."""
+
+        self._hover_enabled_v1 = bool(enabled)
+        self.setMouseTracking(self._hover_enabled_v1)
+        if self._hover_enabled_v1:
+            return
+
+        self._hovered_section_trace_key = None
+        self._hovered_room_key = None
+        self._hovered_hierarchy_key = None
+        QToolTip.hideText()
+        self.update()
 
     def set_schematic(
             self,
@@ -1589,6 +1604,11 @@ class CommonMainLegSublegSchematicWidgetV1(QWidget):
 
 
     def mouseMoveEvent(self, event) -> None:  # noqa: N802
+        if not self._hover_enabled_v1:
+            QToolTip.hideText()
+            event.ignore()
+            return
+
         pos = event.position()
 
         # H-S39-A — room evidence has priority inside the room node.
