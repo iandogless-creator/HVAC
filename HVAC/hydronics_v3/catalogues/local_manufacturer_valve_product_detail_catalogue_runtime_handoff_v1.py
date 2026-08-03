@@ -33,7 +33,7 @@ class LocalManufacturerValveProductDetailCatalogueRuntimeHandoffV1:
     )
     blockers: tuple[str, ...] = ()
     exclusions: tuple[str, ...] = (
-        "No bundled manufacturer product data",
+        "No bundled real manufacturer product data",
         "No ProjectState persistence",
         "No automatic file watching or reload",
         "No product ranking or recommendation",

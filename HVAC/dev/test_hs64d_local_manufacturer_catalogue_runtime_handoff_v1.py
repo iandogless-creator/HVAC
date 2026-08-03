@@ -67,7 +67,10 @@ def main() -> None:
     assert unavailable.source_supplied is False
     assert unavailable.catalog is None
     assert "path is required" in unavailable.status
-    assert "No bundled manufacturer product data" in unavailable.exclusions
+    assert (
+        "No bundled real manufacturer product data"
+        in unavailable.exclusions
+    )
     assert "No ProjectState persistence" in unavailable.exclusions
     assert "No valve setting selected" in unavailable.exclusions
 

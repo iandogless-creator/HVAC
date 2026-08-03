@@ -1,0 +1,67 @@
+{
+  "schema": "local_manufacturer_valve_product_detail_catalogue_v1",
+  "catalog_id": "hvacgooee-demonstration-manufacturer-valves-v1",
+  "catalog_revision": "demo-2026-08-03",
+  "products": [
+    {
+      "valve_ref": "DEMO-PREMIUM-DN20-KVS10",
+      "manufacturer_name": "HVACgooee Fictional Premium Controls",
+      "product_family": "Demonstration static balancing valves",
+      "model_name": "Demo Premium DN20",
+      "valve_type_id": "static_balancing_valve",
+      "nominal_dn": 20,
+      "connection_type": "threaded",
+      "kvs_m3_h": 10.0,
+      "preset_points": [
+        {"setting_value": 1.0, "kv_m3_h": 0.8},
+        {"setting_value": 2.0, "kv_m3_h": 1.6},
+        {"setting_value": 3.0, "kv_m3_h": 2.5},
+        {"setting_value": 4.0, "kv_m3_h": 4.0},
+        {"setting_value": 5.0, "kv_m3_h": 6.5},
+        {"setting_value": 6.0, "kv_m3_h": 10.0}
+      ],
+      "cost_band_id": "premium",
+      "note": "Fictional HVACgooee demonstration data only; not a real manufacturer product and not for specification or final design. Cost band is metadata only and does not imply quality."
+    },
+    {
+      "valve_ref": "DEMO-STANDARD-DN20-KVS10",
+      "manufacturer_name": "HVACgooee Fictional Standard Controls",
+      "product_family": "Demonstration static balancing valves",
+      "model_name": "Demo Standard DN20",
+      "valve_type_id": "static_balancing_valve",
+      "nominal_dn": 20,
+      "connection_type": "threaded",
+      "kvs_m3_h": 10.0,
+      "preset_points": [
+        {"setting_value": 1.0, "kv_m3_h": 0.7},
+        {"setting_value": 2.0, "kv_m3_h": 1.5},
+        {"setting_value": 3.0, "kv_m3_h": 2.4},
+        {"setting_value": 4.0, "kv_m3_h": 4.0},
+        {"setting_value": 5.0, "kv_m3_h": 6.0},
+        {"setting_value": 6.0, "kv_m3_h": 10.0}
+      ],
+      "cost_band_id": "standard",
+      "note": "Fictional HVACgooee demonstration data only; not a real manufacturer product and not for specification or final design. Cost band is metadata only and does not imply quality."
+    },
+    {
+      "valve_ref": "DEMO-BUDGET-DN20-KVS10",
+      "manufacturer_name": "HVACgooee Fictional Budget Controls",
+      "product_family": "Demonstration static balancing valves",
+      "model_name": "Demo Budget DN20",
+      "valve_type_id": "static_balancing_valve",
+      "nominal_dn": 20,
+      "connection_type": "threaded",
+      "kvs_m3_h": 10.0,
+      "preset_points": [
+        {"setting_value": 1.0, "kv_m3_h": 0.5},
+        {"setting_value": 2.0, "kv_m3_h": 1.2},
+        {"setting_value": 3.0, "kv_m3_h": 2.2},
+        {"setting_value": 4.0, "kv_m3_h": 3.8},
+        {"setting_value": 5.0, "kv_m3_h": 6.0},
+        {"setting_value": 6.0, "kv_m3_h": 10.0}
+      ],
+      "cost_band_id": "budget",
+      "note": "Fictional HVACgooee demonstration data only; not a real manufacturer product and not for specification or final design. Cost band is metadata only and does not imply quality."
+    }
+  ]
+}
