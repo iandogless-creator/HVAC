@@ -27,7 +27,9 @@ from HVAC.hydronics_v3.dto.manufacturer_valve_product_detail_contract_v1 import 
 )
 
 
-def _approved_duty() -> BalancingPointApprovedValveCandidateDesignDutyEnvelopeV1:
+def _approved_duty(
+    required_kv: float,
+) -> BalancingPointApprovedValveCandidateDesignDutyEnvelopeV1:
     return BalancingPointApprovedValveCandidateDesignDutyEnvelopeV1(
         ready=True,
         rows=(
@@ -39,9 +41,9 @@ def _approved_duty() -> BalancingPointApprovedValveCandidateDesignDutyEnvelopeV1
                 envelope_available=True,
                 approved_for_later_valve_design=True,
                 catalog_id="generic-catalog-v1",
-                valve_ref="GENERIC-KVS-10",
-                current_kv_m3_h=10.0,
-                required_kv=1.608,
+                valve_ref="GENERIC-KVS-2P5",
+                current_kv_m3_h=2.5,
+                required_kv=required_kv,
             ),
         ),
     )
@@ -56,7 +58,7 @@ def main() -> None:
     assert catalogue.catalog_id == (
         "hvacgooee-demonstration-manufacturer-valves-v1"
     )
-    assert catalogue.catalog_revision == "demo-2026-08-03"
+    assert catalogue.catalog_revision == "demo-2026-08-03-kvs2p5"
     assert len(catalogue.products) == 3
     assert tuple(product.cost_band_id for product in catalogue.products) == (
         PREMIUM_COST_BAND,
@@ -64,7 +66,7 @@ def main() -> None:
         BUDGET_COST_BAND,
     )
     assert all(product.nominal_dn == 20 for product in catalogue.products)
-    assert all(product.kvs_m3_h == 10.0 for product in catalogue.products)
+    assert all(product.kvs_m3_h == 2.5 for product in catalogue.products)
     assert all("Fictional" in product.manufacturer_name for product in catalogue.products)
     assert all(
         "not a real manufacturer product" in product.note
@@ -88,30 +90,38 @@ def main() -> None:
     assert runtime.product_count == 3
     assert runtime.catalog == catalogue
 
-    comparison = (
-        build_balancing_point_manufacturer_valve_candidate_comparison_v1(
-            _approved_duty(),
-            catalogue,
+    for required_kv in (1.608, 1.871):
+        comparison = (
+            build_balancing_point_manufacturer_valve_candidate_comparison_v1(
+                _approved_duty(required_kv),
+                catalogue,
+            )
         )
-    )
-    assert comparison.ready is True, comparison.status
-    row = comparison.rows[0]
-    assert row.compatible_candidate_count == 3
-    assert row.premium_candidate_count == 1
-    assert row.standard_candidate_count == 1
-    assert row.budget_candidate_count == 1
-    assert all(candidate.compatible for candidate in row.candidates)
-    assert tuple(candidate.valve_ref for candidate in row.candidates) == (
-        "DEMO-PREMIUM-DN20-KVS10",
-        "DEMO-STANDARD-DN20-KVS10",
-        "DEMO-BUDGET-DN20-KVS10",
-    )
-    assert "No product ranking or recommendation" in comparison.exclusions
-    assert "No valve setting selected" in comparison.exclusions
+        assert comparison.ready is True, comparison.status
+        row = comparison.rows[0]
+        assert row.compatible_candidate_count == 3
+        assert row.premium_candidate_count == 1
+        assert row.standard_candidate_count == 1
+        assert row.budget_candidate_count == 1
+        assert all(candidate.compatible for candidate in row.candidates)
+        assert tuple(candidate.valve_ref for candidate in row.candidates) == (
+            "DEMO-PREMIUM-DN20-KVS2P5",
+            "DEMO-STANDARD-DN20-KVS2P5",
+            "DEMO-BUDGET-DN20-KVS2P5",
+        )
+        assert all(
+            candidate.lower_setting_kv_m3_h <= required_kv
+            <= candidate.upper_setting_kv_m3_h
+            for candidate in row.candidates
+        )
+        assert (
+            "No product ranking or recommendation" in comparison.exclusions
+        )
+        assert "No valve setting selected" in comparison.exclusions
 
     print(
-        "OK — H-S64-G bundled fictional premium/standard/budget "
-        "manufacturer valve demonstration catalogue passed."
+        "OK — H-S64-G1 bundled fictional premium/standard/budget "
+        "manufacturer valve catalogue matches Kvs 2.5 duties."
     )
 
 
