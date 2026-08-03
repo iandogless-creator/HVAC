@@ -24,11 +24,19 @@ def main() -> None:
     assert LOCAL_GENERIC_VALVE_CATALOGUE_PATH_V1.exists()
     assert catalogue.catalog_id == "local-generic-valves-v1"
     assert [option.valve_ref for option in catalogue.kv_options] == [
+        "LOCAL-GENERIC-KV-1.6",
+        "LOCAL-GENERIC-KV-2.5",
         "LOCAL-GENERIC-KV-6.3",
         "LOCAL-GENERIC-KV-10",
         "LOCAL-GENERIC-KV-16",
     ]
-    assert [option.kv_m3_h for option in catalogue.kv_options] == [6.3, 10.0, 16.0]
+    assert [option.kv_m3_h for option in catalogue.kv_options] == [
+        1.6,
+        2.5,
+        6.3,
+        10.0,
+        16.0,
+    ]
     assert all("no manufacturer" in option.note.lower() for option in catalogue.kv_options)
 
     with TemporaryDirectory() as temp_dir:

@@ -4,6 +4,16 @@
   "description": "Generic local Kv evidence only; not manufacturer product data.",
   "kv_options": [
     {
+      "valve_ref": "LOCAL-GENERIC-KV-1.6",
+      "kv_m3_h": 1.6,
+      "note": "Generic local evidence only; no manufacturer, size or setting implied."
+    },
+    {
+      "valve_ref": "LOCAL-GENERIC-KV-2.5",
+      "kv_m3_h": 2.5,
+      "note": "Generic local evidence only; no manufacturer, size or setting implied."
+    },
+    {
       "valve_ref": "LOCAL-GENERIC-KV-6.3",
       "kv_m3_h": 6.3,
       "note": "Generic local evidence only; no manufacturer, size or setting implied."
