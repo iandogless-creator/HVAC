@@ -38,7 +38,20 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Optional
 
-from HVAC.data.pipe_emissivity import suggest_emissivity
+def _suggest_emissivity_legacy_v1(
+        emissivity_key: Optional[str],
+        fallback: float,
+) -> float:
+    """Preserve old wrappers when optional legacy data is absent."""
+
+    try:
+        from HVAC.data.pipe_emissivity import suggest_emissivity
+    except ModuleNotFoundError as exc:
+        if exc.name not in {"HVAC.data", "HVAC.data.pipe_emissivity"}:
+            raise
+        return float(fallback)
+    return float(suggest_emissivity(emissivity_key, fallback=fallback))
+
 
 # =====================================================================
 # CONSTANTS
@@ -208,7 +221,7 @@ def estimate_radiative_loss_per_m_simple(
     """
     Isolated pipe radiation loss per metre (F = 1).
     """
-    eps = suggest_emissivity(emissivity_key, fallback=0.90)
+    eps = _suggest_emissivity_legacy_v1(emissivity_key, fallback=0.90)
 
     inp = PipeRadiationInput(
         surface_temperature_C=surface_temperature_C,
@@ -232,7 +245,7 @@ def estimate_radiative_loss_per_m_bundle(
     """
     Bundle-corrected radiation loss per metre.
     """
-    eps = suggest_emissivity(emissivity_key, fallback=0.90)
+    eps = _suggest_emissivity_legacy_v1(emissivity_key, fallback=0.90)
 
     q_iso = estimate_radiative_loss_per_m_simple(
         surface_temperature_C,
@@ -249,3 +262,133 @@ def estimate_radiative_loss_per_m_bundle(
     )
 
     return q_iso * correction
+
+
+# =====================================================================
+# H-S66-A — DETERMINISTIC BARE-PIPE EXTERNAL HEAT LOSS
+# =====================================================================
+
+@dataclass(frozen=True, slots=True)
+class BarePipeHeatLossInputV1:
+    """Explicit steady-state surface conditions for one bare pipe length.
+
+    The outside diameter is the actual exposed pipe/tube OD, not nominal DN,
+    BSP size or hydraulic bore.  Surface temperature is explicit: this v1
+    authority does not infer it from water temperature or pipe conductivity.
+    """
+
+    surface_temperature_C: float
+    ambient_air_temperature_C: float
+    mean_radiant_temperature_C: float
+    outer_diameter_m: float
+    length_m: float
+    emissivity: float
+    external_convection_coefficient_W_m2K: float
+
+
+@dataclass(frozen=True, slots=True)
+class BarePipeHeatLossResultV1:
+    """Signed bare-pipe heat transfer; positive values are outward losses."""
+
+    exposed_area_m2: float
+    convection_heat_loss_W: float
+    radiation_heat_loss_W: float
+    total_heat_loss_W: float
+    convection_heat_loss_W_per_m: float
+    radiation_heat_loss_W_per_m: float
+    total_heat_loss_W_per_m: float
+    emissivity_used: float
+    external_convection_coefficient_W_m2K: float
+    status: str
+
+
+def compute_bare_pipe_heat_loss_v1(
+    input_data: BarePipeHeatLossInputV1,
+) -> BarePipeHeatLossResultV1:
+    """Return convection plus long-wave radiation from a bare circular pipe.
+
+    Convection:
+        Q_conv = h_c * A_o * (T_surface - T_air)
+
+    Radiation is delegated to this module's existing canonical grey-surface
+    Stefan-Boltzmann calculation using mean radiant temperature and F = 1.
+
+    This is deliberately not an insulation, natural-convection-correlation,
+    fluid-temperature-drop, pipe-bundle or duct heat-loss calculation.
+    """
+
+    import math
+
+    values = {
+        "surface temperature": input_data.surface_temperature_C,
+        "ambient air temperature": input_data.ambient_air_temperature_C,
+        "mean radiant temperature": input_data.mean_radiant_temperature_C,
+        "outside diameter": input_data.outer_diameter_m,
+        "length": input_data.length_m,
+        "emissivity": input_data.emissivity,
+        "external convection coefficient": (
+            input_data.external_convection_coefficient_W_m2K
+        ),
+    }
+    for label, value in values.items():
+        if not math.isfinite(float(value)):
+            raise ValueError(f"Bare-pipe {label} must be finite")
+
+    if input_data.outer_diameter_m <= 0.0:
+        raise ValueError("Bare-pipe actual outside diameter must be positive")
+    if input_data.length_m <= 0.0:
+        raise ValueError("Bare-pipe exposed length must be positive")
+    if not 0.0 <= input_data.emissivity <= 1.0:
+        raise ValueError("Bare-pipe emissivity must be between 0 and 1")
+    if input_data.external_convection_coefficient_W_m2K < 0.0:
+        raise ValueError(
+            "Bare-pipe external convection coefficient cannot be negative"
+        )
+    for label, temperature_C in (
+        ("surface", input_data.surface_temperature_C),
+        ("ambient air", input_data.ambient_air_temperature_C),
+        ("mean radiant", input_data.mean_radiant_temperature_C),
+    ):
+        if temperature_C <= -ABS_ZERO_C:
+            raise ValueError(
+                f"Bare-pipe {label} temperature must be above absolute zero"
+            )
+
+    area_m2 = (
+        math.pi * input_data.outer_diameter_m * input_data.length_m
+    )
+    convection_W = (
+        input_data.external_convection_coefficient_W_m2K
+        * area_m2
+        * (
+            input_data.surface_temperature_C
+            - input_data.ambient_air_temperature_C
+        )
+    )
+    radiation = compute_pipe_radiation(
+        PipeRadiationInput(
+            surface_temperature_C=input_data.surface_temperature_C,
+            ambient_temperature_C=input_data.mean_radiant_temperature_C,
+            outer_diameter_m=input_data.outer_diameter_m,
+            length_m=input_data.length_m,
+            emissivity=input_data.emissivity,
+            view_factor_to_env=1.0,
+        )
+    )
+    radiation_W = radiation.heat_loss_W
+    total_W = convection_W + radiation_W
+
+    return BarePipeHeatLossResultV1(
+        exposed_area_m2=area_m2,
+        convection_heat_loss_W=convection_W,
+        radiation_heat_loss_W=radiation_W,
+        total_heat_loss_W=total_W,
+        convection_heat_loss_W_per_m=convection_W / input_data.length_m,
+        radiation_heat_loss_W_per_m=radiation_W / input_data.length_m,
+        total_heat_loss_W_per_m=total_W / input_data.length_m,
+        emissivity_used=input_data.emissivity,
+        external_convection_coefficient_W_m2K=(
+            input_data.external_convection_coefficient_W_m2K
+        ),
+        status="Calculated — bare-pipe convection and radiation only",
+    )
