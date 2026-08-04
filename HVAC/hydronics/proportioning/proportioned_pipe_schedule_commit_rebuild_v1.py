@@ -446,17 +446,19 @@ def _build_hydraulic_authority_v1(
         attribute="route_id",
         label="projected route",
     )
-    if set(old_routes) != set(projected_routes):
-        raise ValueError(
-            "Projected route identities do not match committed routes"
+    old_routes_by_projected_id = (
+        _bridge_committed_routes_to_projected_v1(
+            old_routes=old_routes,
+            projected_routes=projected_routes,
         )
+    )
     section_tuple = tuple(sorted(
         sections,
         key=lambda row: (row.order, row.section_id),
     ))
     routes: list[CommittedProportioningHydraulicRouteV1] = []
     for route_id in sorted(projected_routes):
-        old = old_routes[route_id]
+        old = old_routes_by_projected_id[route_id]
         projected = projected_routes[route_id]
         route_sections = tuple(
             row for row in section_tuple if route_id in row.route_ids
@@ -536,6 +538,58 @@ def _build_hydraulic_authority_v1(
             "flow, length, Local-K and Colebrook evidence after resize."
         ),
     )
+
+
+def _bridge_committed_routes_to_projected_v1(
+        *,
+        old_routes: dict[str, Any],
+        projected_routes: dict[str, Any],
+) -> dict[str, Any]:
+    """Resolve exact or ``leg:physical-route`` identities one-to-one.
+
+    H-S61-H2B3 keeps the projected canonical route identity in the rebuilt
+    authority while allowing a legacy committed authority to carry the stable
+    physical-route suffix only.  Labels, positions and route counts are never
+    used as identity.  Missing, additional and ambiguous identities remain
+    blocking.
+    """
+    if set(old_routes) == set(projected_routes):
+        return {
+            route_id: old_routes[route_id]
+            for route_id in projected_routes
+        }
+
+    old_ids = tuple(old_routes)
+    used_old_ids: set[str] = set()
+    result: dict[str, Any] = {}
+    for projected_id in projected_routes:
+        if projected_id in old_routes:
+            candidates = (projected_id,)
+        else:
+            projected_token = _route_identity_token_v1(projected_id)
+            candidates = tuple(
+                old_id
+                for old_id in old_ids
+                if _route_identity_token_v1(old_id) == projected_token
+            )
+        if len(candidates) != 1 or candidates[0] in used_old_ids:
+            raise ValueError(
+                "Projected route identities do not match committed routes"
+            )
+        old_id = candidates[0]
+        used_old_ids.add(old_id)
+        result[projected_id] = old_routes[old_id]
+
+    if used_old_ids != set(old_routes):
+        raise ValueError(
+            "Projected route identities do not match committed routes"
+        )
+    return result
+
+
+def _route_identity_token_v1(route_id: object) -> str:
+    value = _text_v1(route_id)
+    return value.rsplit(":", 1)[-1]
 
 
 def _build_point_allocation_authority_v1(
