@@ -103,6 +103,14 @@ _PIPE_EMISSIVITY_PRESETS_V1 = (
     ("Lightly oxidised metal — 0.20", 0.20),
     ("Bright/polished metal — 0.05", 0.05),
 )
+_PIPE_PAIR_SUPPORT_PRESETS_V1 = (
+    ("Moulded plastic double clip", "moulded_plastic_double_clip"),
+    (
+        "Paired individual plastic clips",
+        "paired_individual_plastic_clips",
+    ),
+    ("Double Munsen ring / bracket", "double_munsen_ring"),
+)
 from HVAC.gui_v3.widgets.proportioning_schematic_widget_v1 import (
     ProportioningSchematicWidgetV1,
 )
@@ -1483,6 +1491,129 @@ class HydronicsSchematicPanel(QWidget):
             expanded=True,
         )
         self._refresh_committed_pipe_thermal_basis_controls_v1()
+
+        # H-S66-N1C — manual local support/c/c override for stacked sections.
+        self._committed_pipe_pair_spacing_callback_v1 = None
+        self._committed_pipe_pair_spacing_editor_rows_v1 = []
+        self._committed_pipe_pair_spacing_selected_section_id_v1 = ""
+        pair_editor = QFrame(self)
+        pair_editor.setFrameShape(QFrame.StyledPanel)
+        pair_layout = QGridLayout(pair_editor)
+        pair_layout.setContentsMargins(8, 6, 8, 6)
+        pair_layout.setHorizontalSpacing(8)
+        pair_layout.setVerticalSpacing(4)
+        pair_notice = QLabel(
+            "Stacked flow/return sections inherit the Environment support "
+            "type and pipe centre spacing. Apply a local override only where "
+            "the actual installation differs. Separate RR pipework ignores "
+            "these controls.",
+            pair_editor,
+        )
+        pair_notice.setWordWrap(True)
+        pair_layout.addWidget(pair_notice, 0, 0, 1, 6)
+        pair_layout.addWidget(QLabel("Committed section:", pair_editor), 1, 0)
+        self._committed_pipe_pair_spacing_section_combo_v1 = QComboBox(
+            pair_editor
+        )
+        self._committed_pipe_pair_spacing_section_combo_v1.currentIndexChanged.connect(
+            self._on_committed_pipe_pair_spacing_section_changed_v1
+        )
+        pair_layout.addWidget(
+            self._committed_pipe_pair_spacing_section_combo_v1,
+            1,
+            1,
+            1,
+            5,
+        )
+        pair_layout.addWidget(QLabel("Arrangement:", pair_editor), 2, 0)
+        self._committed_pipe_pair_spacing_arrangement_label_v1 = QLabel(
+            "—", pair_editor
+        )
+        pair_layout.addWidget(
+            self._committed_pipe_pair_spacing_arrangement_label_v1, 2, 1
+        )
+        pair_layout.addWidget(QLabel("Exact pipe OD:", pair_editor), 2, 2)
+        self._committed_pipe_pair_spacing_od_label_v1 = QLabel("—", pair_editor)
+        pair_layout.addWidget(
+            self._committed_pipe_pair_spacing_od_label_v1, 2, 3
+        )
+        pair_layout.addWidget(QLabel("Effective basis:", pair_editor), 2, 4)
+        self._committed_pipe_pair_spacing_effective_label_v1 = QLabel(
+            "—", pair_editor
+        )
+        pair_layout.addWidget(
+            self._committed_pipe_pair_spacing_effective_label_v1, 2, 5
+        )
+        pair_layout.addWidget(QLabel("Local support:", pair_editor), 3, 0)
+        self._committed_pipe_pair_spacing_support_combo_v1 = QComboBox(
+            pair_editor
+        )
+        for label, support_type in _PIPE_PAIR_SUPPORT_PRESETS_V1:
+            self._committed_pipe_pair_spacing_support_combo_v1.addItem(
+                label, support_type
+            )
+        pair_layout.addWidget(
+            self._committed_pipe_pair_spacing_support_combo_v1, 3, 1
+        )
+        pair_layout.addWidget(QLabel("Local pipe c/c:", pair_editor), 3, 2)
+        self._committed_pipe_pair_spacing_centre_input_v1 = QDoubleSpinBox(
+            pair_editor
+        )
+        self._committed_pipe_pair_spacing_centre_input_v1.setRange(0.1, 500.0)
+        self._committed_pipe_pair_spacing_centre_input_v1.setDecimals(1)
+        self._committed_pipe_pair_spacing_centre_input_v1.setSingleStep(1.0)
+        self._committed_pipe_pair_spacing_centre_input_v1.setSuffix(" mm")
+        pair_layout.addWidget(
+            self._committed_pipe_pair_spacing_centre_input_v1, 3, 3
+        )
+        self._committed_pipe_pair_spacing_status_label_v1 = QLabel(
+            "Blocked — committed pipe arrangement is unavailable",
+            pair_editor,
+        )
+        self._committed_pipe_pair_spacing_status_label_v1.setWordWrap(True)
+        pair_layout.addWidget(
+            self._committed_pipe_pair_spacing_status_label_v1, 4, 0, 1, 6
+        )
+        self._committed_pipe_pair_spacing_apply_button_v1 = QPushButton(
+            "Apply local support/c/c override", pair_editor
+        )
+        self._committed_pipe_pair_spacing_clear_button_v1 = QPushButton(
+            "Clear selected local override", pair_editor
+        )
+        self._committed_pipe_pair_spacing_clear_all_button_v1 = QPushButton(
+            "Clear all local spacing overrides", pair_editor
+        )
+        self._committed_pipe_pair_spacing_apply_button_v1.clicked.connect(
+            self._on_apply_committed_pipe_pair_spacing_override_v1
+        )
+        self._committed_pipe_pair_spacing_clear_button_v1.clicked.connect(
+            self._on_clear_committed_pipe_pair_spacing_override_v1
+        )
+        self._committed_pipe_pair_spacing_clear_all_button_v1.clicked.connect(
+            self._on_clear_all_committed_pipe_pair_spacing_overrides_v1
+        )
+        pair_layout.addWidget(
+            self._committed_pipe_pair_spacing_apply_button_v1, 5, 3
+        )
+        pair_layout.addWidget(
+            self._committed_pipe_pair_spacing_clear_button_v1, 5, 4
+        )
+        pair_layout.addWidget(
+            self._committed_pipe_pair_spacing_clear_all_button_v1, 5, 5
+        )
+        for column in (1, 3, 5):
+            pair_layout.setColumnStretch(column, 1)
+        self._add_section(
+            self._pipe_resizing_bare_heat_loss_layout_v1,
+            title=(
+                "Committed-section stacked pipe support and spacing "
+                "— local overrides"
+            ),
+            table=pair_editor,
+            min_height=210,
+            expanded=True,
+        )
+        self._refresh_committed_pipe_pair_spacing_controls_v1()
 
         self._committed_pipe_bare_heat_loss_status_label_v1 = QLabel(
             "Blocked — committed-section thermal-condition basis is unavailable"
@@ -11991,6 +12122,199 @@ QTableWidget::item:selected:!active {
 
     def _on_clear_all_committed_pipe_thermal_bases_v1(self) -> None:
         self._invoke_committed_pipe_thermal_basis_callback_v1(
+            {"action": "clear_all"}
+        )
+
+    def set_committed_pipe_pair_spacing_callback_v1(self, callback) -> None:
+        """Register the adapter-owned H-S66-N1C persistence callback."""
+        self._committed_pipe_pair_spacing_callback_v1 = callback
+        self._refresh_committed_pipe_pair_spacing_controls_v1()
+
+    def set_committed_pipe_pair_spacing_editor_rows_v1(
+            self,
+            rows: list[dict],
+            *,
+            status: str,
+            stale: bool,
+            has_any_override: bool,
+    ) -> None:
+        """Restore effective inherited/local support and spacing evidence."""
+        combo = getattr(
+            self, "_committed_pipe_pair_spacing_section_combo_v1", None
+        )
+        if combo is None:
+            return
+        previous_section_id = str(
+            self._committed_pipe_pair_spacing_selected_section_id_v1 or ""
+        )
+        self._committed_pipe_pair_spacing_editor_rows_v1 = [
+            dict(row or {}) for row in (rows or [])
+        ]
+        previous = combo.blockSignals(True)
+        try:
+            combo.clear()
+            for row in self._committed_pipe_pair_spacing_editor_rows_v1:
+                combo.addItem(
+                    str(row.get("label") or row.get("section_id") or "—"),
+                    str(row.get("section_id") or ""),
+                )
+            wanted_index = combo.findData(previous_section_id)
+            combo.setCurrentIndex(wanted_index if wanted_index >= 0 else 0)
+        finally:
+            combo.blockSignals(previous)
+        self._committed_pipe_pair_spacing_stale_v1 = bool(stale)
+        self._committed_pipe_pair_spacing_has_any_override_v1 = bool(
+            has_any_override
+        )
+        self._committed_pipe_pair_spacing_base_status_v1 = str(status or "")
+        self._on_committed_pipe_pair_spacing_section_changed_v1(
+            combo.currentIndex()
+        )
+
+    def _on_committed_pipe_pair_spacing_section_changed_v1(
+            self,
+            index: int,
+    ) -> None:
+        combo = getattr(
+            self, "_committed_pipe_pair_spacing_section_combo_v1", None
+        )
+        if combo is None:
+            return
+        section_id = str(combo.itemData(index) or "") if index >= 0 else ""
+        self._committed_pipe_pair_spacing_selected_section_id_v1 = section_id
+        row = next(
+            (
+                value
+                for value in self._committed_pipe_pair_spacing_editor_rows_v1
+                if str(value.get("section_id") or "") == section_id
+            ),
+            {},
+        )
+        stacked = bool(row.get("stacked"))
+        self._committed_pipe_pair_spacing_arrangement_label_v1.setText(
+            "Stacked flow/return pair"
+            if stacked
+            else "Separate RR pipework"
+        )
+        actual_od = row.get("actual_outside_diameter_mm")
+        self._committed_pipe_pair_spacing_od_label_v1.setText(
+            "—" if actual_od is None else f"{float(actual_od):g} mm"
+        )
+        source = str(row.get("source") or "—")
+        self._committed_pipe_pair_spacing_effective_label_v1.setText(source)
+        support_type = str(row.get("support_type") or "")
+        support_index = (
+            self._committed_pipe_pair_spacing_support_combo_v1.findData(
+                support_type
+            )
+        )
+        if support_index >= 0:
+            self._committed_pipe_pair_spacing_support_combo_v1.setCurrentIndex(
+                support_index
+            )
+        if actual_od is not None:
+            self._committed_pipe_pair_spacing_centre_input_v1.setMinimum(
+                float(actual_od) + 0.1
+            )
+        spacing = row.get("centre_spacing_mm")
+        if spacing is not None:
+            self._committed_pipe_pair_spacing_centre_input_v1.setValue(
+                float(spacing)
+            )
+        base_status = str(
+            getattr(
+                self, "_committed_pipe_pair_spacing_base_status_v1", ""
+            )
+            or "Committed pipe-pair spacing unavailable"
+        )
+        row_status = str(row.get("status") or "")
+        self._committed_pipe_pair_spacing_status_label_v1.setText(
+            base_status if not row_status else f"{base_status}\n{row_status}"
+        )
+        self._refresh_committed_pipe_pair_spacing_controls_v1()
+
+    def _refresh_committed_pipe_pair_spacing_controls_v1(self) -> None:
+        if not hasattr(
+            self, "_committed_pipe_pair_spacing_section_combo_v1"
+        ):
+            return
+        section_id = str(
+            self._committed_pipe_pair_spacing_selected_section_id_v1 or ""
+        )
+        row = next(
+            (
+                value
+                for value in self._committed_pipe_pair_spacing_editor_rows_v1
+                if str(value.get("section_id") or "") == section_id
+            ),
+            {},
+        )
+        has_callback = callable(
+            getattr(self, "_committed_pipe_pair_spacing_callback_v1", None)
+        )
+        stale = bool(
+            getattr(self, "_committed_pipe_pair_spacing_stale_v1", False)
+        )
+        editable = bool(section_id and row.get("stacked") and has_callback)
+        editable = editable and not stale
+        self._committed_pipe_pair_spacing_support_combo_v1.setEnabled(editable)
+        self._committed_pipe_pair_spacing_centre_input_v1.setEnabled(editable)
+        self._committed_pipe_pair_spacing_apply_button_v1.setEnabled(editable)
+        self._committed_pipe_pair_spacing_clear_button_v1.setEnabled(
+            has_callback and bool(row.get("has_override"))
+        )
+        self._committed_pipe_pair_spacing_clear_all_button_v1.setEnabled(
+            has_callback
+            and bool(
+                getattr(
+                    self,
+                    "_committed_pipe_pair_spacing_has_any_override_v1",
+                    False,
+                )
+            )
+        )
+
+    def _invoke_committed_pipe_pair_spacing_callback_v1(
+            self,
+            payload: dict,
+    ) -> None:
+        callback = getattr(
+            self, "_committed_pipe_pair_spacing_callback_v1", None
+        )
+        if not callable(callback):
+            return
+        try:
+            callback(payload)
+        except (TypeError, ValueError) as exc:
+            self._committed_pipe_pair_spacing_status_label_v1.setText(
+                f"Blocked — {exc}"
+            )
+
+    def _on_apply_committed_pipe_pair_spacing_override_v1(self) -> None:
+        self._invoke_committed_pipe_pair_spacing_callback_v1(
+            {
+                "action": "set",
+                "section_id": (
+                    self._committed_pipe_pair_spacing_selected_section_id_v1
+                ),
+                "support_type": (
+                    self._committed_pipe_pair_spacing_support_combo_v1.currentData()
+                ),
+                "centre_spacing_mm": (
+                    self._committed_pipe_pair_spacing_centre_input_v1.value()
+                ),
+            }
+        )
+
+    def _on_clear_committed_pipe_pair_spacing_override_v1(self) -> None:
+        section_id = self._committed_pipe_pair_spacing_selected_section_id_v1
+        if section_id:
+            self._invoke_committed_pipe_pair_spacing_callback_v1(
+                {"action": "clear", "section_id": section_id}
+            )
+
+    def _on_clear_all_committed_pipe_pair_spacing_overrides_v1(self) -> None:
+        self._invoke_committed_pipe_pair_spacing_callback_v1(
             {"action": "clear_all"}
         )
 

@@ -160,24 +160,47 @@ def build_committed_pipe_external_arrangement_authority_v1(
             )
             continue
 
-        missing_routes = tuple(
-            route_id
-            for route_id in route_ids
-            if route_id not in route_basis_by_id
-        )
+        resolved_route_ids: list[str] = []
+        missing_routes: list[str] = []
+        ambiguous_routes: list[str] = []
+        committed_route_ids = tuple(route_basis_by_id)
+        for route_id in route_ids:
+            candidates = _committed_route_identity_candidates_v1(
+                route_id,
+                committed_route_ids,
+            )
+            if len(candidates) == 1:
+                resolved_route_ids.append(candidates[0])
+            elif not candidates:
+                missing_routes.append(route_id)
+            else:
+                ambiguous_routes.append(route_id)
+
         if missing_routes:
             blockers.append(
                 f"{section_id}: chosen route basis missing for "
                 + ", ".join(missing_routes)
             )
+        if ambiguous_routes:
+            blockers.append(
+                f"{section_id}: committed route identity is ambiguous for "
+                + ", ".join(ambiguous_routes)
+            )
+        if missing_routes or ambiguous_routes:
+            continue
+        if len(set(resolved_route_ids)) != len(resolved_route_ids):
+            blockers.append(
+                f"{section_id}: duplicate committed route membership after "
+                "canonical bridge"
+            )
             continue
 
         route_bases = tuple(
-            route_basis_by_id[route_id] for route_id in route_ids
+            route_basis_by_id[route_id] for route_id in resolved_route_ids
         )
         rr_modes = tuple(
             rr_modes_by_route_id[route_id]
-            for route_id in route_ids
+            for route_id in resolved_route_ids
             if route_basis_by_id[route_id] == REVERSE_RETURN_BASIS_V1
             and route_id in rr_modes_by_route_id
         )
@@ -232,6 +255,28 @@ def build_committed_pipe_external_arrangement_authority_v1(
             "Ready — committed pipe external-arrangement authority resolved"
         ),
         blockers=(),
+    )
+
+
+def _committed_route_identity_candidates_v1(
+        section_route_id: object,
+        committed_route_ids: tuple[str, ...],
+) -> tuple[str, ...]:
+    """Resolve exact identity or one unique stable physical-route suffix.
+
+    H-S61-H2B3 preserves the projected canonical ``leg:physical-route``
+    identity after a pipe-schedule rebuild, while some previously committed
+    authority rows retain only the physical-route suffix. Exact identity
+    always wins. Labels, order and position are never used as identity.
+    """
+    identity = _text_v1(section_route_id)
+    if identity in committed_route_ids:
+        return (identity,)
+    token = identity.rsplit(":", 1)[-1]
+    return tuple(
+        route_id
+        for route_id in committed_route_ids
+        if route_id.rsplit(":", 1)[-1] == token
     )
 
 

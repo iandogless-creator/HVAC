@@ -190,6 +190,19 @@ from HVAC.heatloss.physics.committed_pipe_section_thermal_condition_basis_intent
 from HVAC.heatloss.physics.automatic_committed_pipe_thermal_basis_resolver_v1 import (
     build_automatic_committed_pipe_thermal_basis_resolution_v1,
 )
+from HVAC.heatloss.physics.committed_pipe_external_arrangement_runtime_handoff_v1 import (
+    build_committed_pipe_external_arrangement_runtime_handoff_v1,
+)
+from HVAC.heatloss.physics.committed_pipe_pair_spacing_override_intent_v1 import (
+    CommittedPipePairSpacingOverrideIntentV1,
+    build_committed_pipe_pair_spacing_fingerprint_v1,
+    resolve_effective_committed_pipe_pair_spacing_v1,
+    set_current_committed_section_pipe_pair_spacing_override_v1,
+)
+from HVAC.heatloss.physics.environment_pipe_pair_spacing_defaults_v1 import (
+    PIPE_PAIR_SUPPORT_LABELS_V1,
+    SEPARATE_PIPE_V1,
+)
 from HVAC.hydronics.design_conditions.hydronic_design_temperature_basis_v1 import (
     resolve_hydronic_design_temperature_basis_v1,
 )
@@ -476,6 +489,15 @@ class HydronicsSchematicPanelAdapter:
         ):
             self._panel.set_committed_pipe_thermal_basis_callback_v1(
                 self.set_committed_pipe_thermal_basis_v1
+            )
+
+        # H-S66-N1C — manual exact-section stacked-pair support/c/c override.
+        if hasattr(
+                self._panel,
+                "set_committed_pipe_pair_spacing_callback_v1",
+        ):
+            self._panel.set_committed_pipe_pair_spacing_callback_v1(
+                self.set_committed_pipe_pair_spacing_override_v1
             )
 
         if hasattr(
@@ -1694,6 +1716,84 @@ class HydronicsSchematicPanelAdapter:
         project.hydronic_committed_pipe_section_thermal_condition_basis_intent = (
             intent
         )
+        if hasattr(project, "mark_dirty"):
+            project.mark_dirty()
+        self.refresh()
+        for signal_name in ("project_state_changed", "project_changed"):
+            signal = getattr(self._context, signal_name, None)
+            emit = getattr(signal, "emit", None)
+            if not callable(emit):
+                continue
+            try:
+                emit()
+            except TypeError:
+                try:
+                    emit(project)
+                except TypeError:
+                    pass
+
+    def set_committed_pipe_pair_spacing_override_v1(
+            self,
+            payload: dict,
+    ) -> None:
+        """Persist or clear H-S66-N1B exact-section support/c/c overrides."""
+        if not isinstance(payload, dict):
+            raise ValueError(
+                "Committed pipe-pair spacing payload must be a dictionary"
+            )
+        project = self._project_state
+        if project is None:
+            raise ValueError("ProjectState is unavailable")
+        snapshot = getattr(
+            project, "hydronic_proportioned_basis_snapshot", None
+        )
+        committed_authority = getattr(
+            snapshot, "hydraulic_input_authority", None
+        )
+        arrangement_by_section_id, _raw_defaults = (
+            self._resolve_committed_pipe_pair_spacing_context_v1(
+                committed_authority
+            )
+        )
+        action = str(payload.get("action") or "").strip().lower()
+        section_id = str(payload.get("section_id") or "").strip()
+        intent = getattr(
+            project,
+            "hydronic_committed_pipe_pair_spacing_override_intent",
+            None,
+        )
+
+        if action == "set":
+            if not isinstance(
+                intent, CommittedPipePairSpacingOverrideIntentV1
+            ):
+                intent = CommittedPipePairSpacingOverrideIntentV1()
+            set_current_committed_section_pipe_pair_spacing_override_v1(
+                intent=intent,
+                committed_authority=committed_authority,
+                external_arrangement_by_section_id=(
+                    arrangement_by_section_id
+                ),
+                section_id=section_id,
+                support_type=payload.get("support_type"),
+                centre_spacing_mm=payload.get("centre_spacing_mm"),
+            )
+        elif action == "clear":
+            if not section_id:
+                raise ValueError("Select a committed pipe section")
+            if isinstance(
+                intent, CommittedPipePairSpacingOverrideIntentV1
+            ):
+                intent.clear_section_override(section_id)
+        elif action == "clear_all":
+            if isinstance(
+                intent, CommittedPipePairSpacingOverrideIntentV1
+            ):
+                intent.clear_all()
+        else:
+            raise ValueError("action must be 'set', 'clear' or 'clear_all'")
+
+        project.hydronic_committed_pipe_pair_spacing_override_intent = intent
         if hasattr(project, "mark_dirty"):
             project.mark_dirty()
         self.refresh()
@@ -6687,6 +6787,9 @@ class HydronicsSchematicPanelAdapter:
             committed_authority=committed_authority,
             intent=intent,
         )
+        self._push_committed_pipe_pair_spacing_editor_v1(
+            committed_authority=committed_authority,
+        )
         handoff = (
             build_committed_pipe_section_bare_heat_loss_runtime_handoff_v1(
                 committed_authority=committed_authority,
@@ -6709,6 +6812,172 @@ class HydronicsSchematicPanelAdapter:
         )
         self._panel.set_committed_pipe_bare_heat_loss_rows_v1(
             self._build_committed_pipe_bare_heat_loss_rows_v1(handoff)
+        )
+
+    def _resolve_committed_pipe_pair_spacing_context_v1(
+            self,
+            committed_authority,
+    ) -> tuple[dict[str, str], object]:
+        """Resolve current H-S66-M arrangement plus Environment defaults."""
+        comparison = build_circuit_return_path_comparison_v1(
+            self._project_state
+        )
+        arrangement_handoff = (
+            build_committed_pipe_external_arrangement_runtime_handoff_v1(
+                committed_authority=committed_authority,
+                return_path_comparison_rows=tuple(
+                    getattr(comparison, "rows", ()) or ()
+                ),
+            )
+        )
+        if not arrangement_handoff.ready or arrangement_handoff.authority is None:
+            raise ValueError(
+                str(arrangement_handoff.status or "").replace(
+                    "Blocked — ", "", 1
+                )
+                or "Committed pipe external arrangement is unavailable"
+            )
+        arrangement_by_section_id = {
+            str(row.section_id): str(row.external_arrangement)
+            for row in arrangement_handoff.authority.sections
+        }
+        environment = getattr(self._project_state, "environment", None)
+        raw_defaults = getattr(
+            environment,
+            "bare_pipe_pair_spacing_defaults_by_nominal_od_mm",
+            None,
+        )
+        return arrangement_by_section_id, raw_defaults
+
+    def _push_committed_pipe_pair_spacing_editor_v1(
+            self,
+            *,
+            committed_authority,
+    ) -> None:
+        """Project local-over-Environment N1B evidence into N1C controls."""
+        setter = getattr(
+            self._panel,
+            "set_committed_pipe_pair_spacing_editor_rows_v1",
+            None,
+        )
+        if not callable(setter):
+            return
+        local_intent = getattr(
+            self._project_state,
+            "hydronic_committed_pipe_pair_spacing_override_intent",
+            None,
+        )
+        has_any_override = bool(
+            isinstance(local_intent, CommittedPipePairSpacingOverrideIntentV1)
+            and local_intent.override_by_section_id
+        )
+        try:
+            fingerprint = build_committed_pipe_pair_spacing_fingerprint_v1(
+                committed_authority
+            )
+            arrangement_by_section_id, raw_defaults = (
+                self._resolve_committed_pipe_pair_spacing_context_v1(
+                    committed_authority
+                )
+            )
+        except (TypeError, ValueError) as exc:
+            setter(
+                [],
+                status=f"Blocked — {exc}",
+                stale=False,
+                has_any_override=has_any_override,
+            )
+            return
+
+        stale = bool(
+            has_any_override
+            and str(local_intent.committed_schedule_fingerprint or "").strip()
+            != fingerprint
+        )
+        rows: list[dict] = []
+        entries = (
+            dict(local_intent.override_by_section_id)
+            if isinstance(
+                local_intent, CommittedPipePairSpacingOverrideIntentV1
+            )
+            else {}
+        )
+        for section in tuple(
+            getattr(committed_authority, "sections", ()) or ()
+        ):
+            section_id = str(
+                getattr(section, "section_id", "") or ""
+            ).strip()
+            arrangement = arrangement_by_section_id.get(section_id, "")
+            local_entry = entries.get(section_id)
+            effective = None
+            row_status = "Separate RR pipework — stacked-pair spacing dormant"
+            if arrangement != SEPARATE_PIPE_V1 and not stale:
+                try:
+                    effective = resolve_effective_committed_pipe_pair_spacing_v1(
+                        committed_authority=committed_authority,
+                        external_arrangement_by_section_id=(
+                            arrangement_by_section_id
+                        ),
+                        raw_environment_defaults=raw_defaults,
+                        local_intent=local_intent,
+                        section_id=section_id,
+                    )
+                    row_status = str(getattr(effective, "status", "") or "")
+                except (TypeError, ValueError) as exc:
+                    row_status = f"Blocked — {exc}"
+            rows.append(
+                {
+                    "section_id": section_id,
+                    "label": (
+                        f"{int(getattr(section, 'order', 0)) + 1:02d} | "
+                        f"{str(getattr(section, 'from_label', '—') or '—')} → "
+                        f"{str(getattr(section, 'to_label', '—') or '—')} | "
+                        f"{str(getattr(section, 'material_label', '—') or '—')} "
+                        f"{str(getattr(section, 'pipe_size_label', '—') or '—')} | "
+                        f"{section_id}"
+                    ),
+                    "stacked": arrangement != SEPARATE_PIPE_V1,
+                    "arrangement": arrangement,
+                    "actual_outside_diameter_mm": getattr(
+                        effective, "actual_outside_diameter_mm", None
+                    ),
+                    "nominal_default_outside_diameter_mm": getattr(
+                        effective,
+                        "nominal_default_outside_diameter_mm",
+                        None,
+                    ),
+                    "support_type": getattr(
+                        effective,
+                        "support_type",
+                        getattr(local_entry, "support_type", ""),
+                    ),
+                    "support_label": getattr(
+                        effective, "support_label", "—"
+                    ),
+                    "centre_spacing_mm": getattr(
+                        effective,
+                        "centre_spacing_mm",
+                        getattr(local_entry, "centre_spacing_mm", None),
+                    ),
+                    "has_override": local_entry is not None,
+                    "source": getattr(effective, "source", ""),
+                    "status": row_status,
+                }
+            )
+        status = (
+            "Blocked — persisted pipe-pair spacing overrides are stale; "
+            "clear all local spacing overrides before recording the current "
+            "committed schedule"
+            if stale
+            else "Ready — stacked sections inherit Environment support/c/c "
+                 "unless locally overridden; separate RR sections ignore them"
+        )
+        setter(
+            rows,
+            status=status,
+            stale=stale,
+            has_any_override=has_any_override,
         )
 
     def _push_committed_pipe_thermal_basis_editor_v1(
