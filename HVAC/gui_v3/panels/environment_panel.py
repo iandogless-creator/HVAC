@@ -12,8 +12,18 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QLabel,
     QDoubleSpinBox,
+    QComboBox,
     QFormLayout,
     QFrame,
+)
+
+
+_PIPE_EMISSIVITY_PRESETS_V1 = (
+    ("Not set", None),
+    ("Painted/coated pipe — 0.95", 0.95),
+    ("Dull/oxidised metal — 0.80", 0.80),
+    ("Lightly oxidised metal — 0.20", 0.20),
+    ("Bright/polished metal — 0.05", 0.05),
 )
 
 # ======================================================================
@@ -53,6 +63,10 @@ class EnvironmentPanel(QWidget):
 
     # H-S37-B1 — Environment-owned Basic PS default intent
     basic_ps_max_velocity_changed = Signal(float)
+
+    # H-S66-K — Environment-owned universal bare-pipe emissivity.
+    # A negative sentinel means explicitly unresolved; 0..1 are valid.
+    bare_pipe_emissivity_changed = Signal(float)
 
     # ------------------------------------------------------------------
     # Construction
@@ -142,6 +156,20 @@ class EnvironmentPanel(QWidget):
             self.basic_ps_max_velocity_changed.emit
         )
 
+        self._bare_pipe_emissivity_input = QComboBox(self)
+        self._bare_pipe_emissivity_input.setEditable(True)
+        self._bare_pipe_emissivity_input.setMinimumWidth(110)
+        for label, emissivity in _PIPE_EMISSIVITY_PRESETS_V1:
+            self._bare_pipe_emissivity_input.addItem(label, emissivity)
+        self._bare_pipe_emissivity_input.currentIndexChanged.connect(
+            self._emit_bare_pipe_emissivity_v1
+        )
+        line_edit = self._bare_pipe_emissivity_input.lineEdit()
+        if line_edit is not None:
+            line_edit.editingFinished.connect(
+                self._emit_bare_pipe_emissivity_v1
+            )
+
         # --------------------------------------------------
         # Top form (Te only)
         # --------------------------------------------------
@@ -196,6 +224,31 @@ class EnvironmentPanel(QWidget):
         )
         root.addLayout(form_hydronic)
 
+        sep_pipe_heat_loss = QFrame(self)
+        sep_pipe_heat_loss.setFrameShape(QFrame.HLine)
+        sep_pipe_heat_loss.setFrameShadow(QFrame.Sunken)
+        root.addWidget(sep_pipe_heat_loss)
+
+        pipe_heat_loss_header = QLabel("Pipe heat-loss defaults")
+        pipe_heat_loss_header.setStyleSheet("font-weight: 600;")
+        root.addWidget(pipe_heat_loss_header)
+
+        pipe_heat_loss_note = QLabel(
+            "Project default for bare-pipe surface radiation. It is not an "
+            "air property; committed sections may override it locally. "
+            "Choose a representative finish or type an explicit value."
+        )
+        pipe_heat_loss_note.setWordWrap(True)
+        root.addWidget(pipe_heat_loss_note)
+
+        form_pipe_heat_loss = QFormLayout()
+        form_pipe_heat_loss.setLabelAlignment(Qt.AlignLeft)
+        form_pipe_heat_loss.addRow(
+            "Universal bare-pipe emissivity (0–1)",
+            self._bare_pipe_emissivity_input,
+        )
+        root.addLayout(form_pipe_heat_loss)
+
         root.addStretch(1)
 
     # ------------------------------------------------------------------
@@ -237,3 +290,39 @@ class EnvironmentPanel(QWidget):
             value if value is not None else 1.0
         )
         self._basic_ps_max_velocity_input.blockSignals(False)
+
+    def set_bare_pipe_emissivity(self, value: Optional[float]) -> None:
+        self._bare_pipe_emissivity_input.blockSignals(True)
+        target = None if value is None else float(value)
+        matched_index = -1
+        for index in range(self._bare_pipe_emissivity_input.count()):
+            candidate = self._bare_pipe_emissivity_input.itemData(index)
+            if candidate is None and target is None:
+                matched_index = index
+                break
+            if candidate is not None and target is not None:
+                if abs(float(candidate) - target) < 1.0e-12:
+                    matched_index = index
+                    break
+        if matched_index >= 0:
+            self._bare_pipe_emissivity_input.setCurrentIndex(matched_index)
+        else:
+            self._bare_pipe_emissivity_input.setCurrentIndex(-1)
+            self._bare_pipe_emissivity_input.setEditText(f"{target:g}")
+        self._bare_pipe_emissivity_input.blockSignals(False)
+
+    def _emit_bare_pipe_emissivity_v1(self, *_args) -> None:
+        combo = self._bare_pipe_emissivity_input
+        index = combo.currentIndex()
+        if index >= 0:
+            value = combo.itemData(index)
+            self.bare_pipe_emissivity_changed.emit(
+                -0.01 if value is None else float(value)
+            )
+            return
+        try:
+            value = float(str(combo.currentText() or "").strip())
+        except ValueError:
+            return
+        if 0.0 <= value <= 1.0:
+            self.bare_pipe_emissivity_changed.emit(value)

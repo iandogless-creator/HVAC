@@ -180,6 +180,19 @@ from HVAC.hydronics.proportioning.committed_proportioning_hydraulic_input_author
 from HVAC.heatloss.physics.committed_pipe_section_bare_heat_loss_runtime_handoff_v1 import (
     build_committed_pipe_section_bare_heat_loss_runtime_handoff_v1,
 )
+from HVAC.heatloss.physics.bare_pipe_thermal_condition_basis_v1 import (
+    build_explicit_bare_pipe_thermal_condition_basis_v1,
+)
+from HVAC.heatloss.physics.committed_pipe_section_thermal_condition_basis_intent_v1 import (
+    CommittedPipeSectionThermalConditionBasisIntentV1,
+    build_committed_pipe_schedule_thermal_fingerprint_v1,
+)
+from HVAC.heatloss.physics.automatic_committed_pipe_thermal_basis_resolver_v1 import (
+    build_automatic_committed_pipe_thermal_basis_resolution_v1,
+)
+from HVAC.hydronics.design_conditions.hydronic_design_temperature_basis_v1 import (
+    resolve_hydronic_design_temperature_basis_v1,
+)
 from HVAC.hydronics.proportioning.committed_balancing_point_allocation_authority_v1 import (
     build_committed_balancing_point_allocation_authority_v1,
 )
@@ -454,6 +467,15 @@ class HydronicsSchematicPanelAdapter:
         ):
             self._panel.set_proportioned_pipe_resizing_schedule_commit_callback_v1(
                 self.commit_proportioned_pipe_schedule_v1
+            )
+
+        # H-S66-I — explicit manual committed-section thermal basis intent.
+        if hasattr(
+                self._panel,
+                "set_committed_pipe_thermal_basis_callback_v1",
+        ):
+            self._panel.set_committed_pipe_thermal_basis_callback_v1(
+                self.set_committed_pipe_thermal_basis_v1
             )
 
         if hasattr(
@@ -1580,6 +1602,101 @@ class HydronicsSchematicPanelAdapter:
         project.hydronics_valid = False
         self.refresh()
 
+        for signal_name in ("project_state_changed", "project_changed"):
+            signal = getattr(self._context, signal_name, None)
+            emit = getattr(signal, "emit", None)
+            if not callable(emit):
+                continue
+            try:
+                emit()
+            except TypeError:
+                try:
+                    emit(project)
+                except TypeError:
+                    pass
+
+    def set_committed_pipe_thermal_basis_v1(self, payload: dict) -> None:
+        """Persist or clear explicit H-S66-F section thermal bases."""
+        if not isinstance(payload, dict):
+            raise ValueError(
+                "Committed pipe thermal-basis payload must be a dictionary"
+            )
+        project = self._project_state
+        if project is None:
+            raise ValueError("ProjectState is unavailable")
+        snapshot = getattr(
+            project, "hydronic_proportioned_basis_snapshot", None
+        )
+        committed_authority = getattr(
+            snapshot, "hydraulic_input_authority", None
+        )
+        fingerprint = build_committed_pipe_schedule_thermal_fingerprint_v1(
+            committed_authority
+        )
+        action = str(payload.get("action") or "").strip().lower()
+        section_id = str(payload.get("section_id") or "").strip()
+        current_section_ids = {
+            str(getattr(section, "section_id", "") or "").strip()
+            for section in tuple(
+                getattr(committed_authority, "sections", ()) or ()
+            )
+        }
+        intent = getattr(
+            project,
+            "hydronic_committed_pipe_section_thermal_condition_basis_intent",
+            None,
+        )
+
+        if action == "set":
+            if not section_id or section_id not in current_section_ids:
+                raise ValueError("Select a current committed pipe section")
+            if not isinstance(
+                intent,
+                CommittedPipeSectionThermalConditionBasisIntentV1,
+            ):
+                intent = CommittedPipeSectionThermalConditionBasisIntentV1()
+            thermal_basis = build_explicit_bare_pipe_thermal_condition_basis_v1(
+                surface_temperature_C=payload.get("surface_temperature_C"),
+                ambient_air_temperature_C=payload.get(
+                    "ambient_air_temperature_C"
+                ),
+                mean_radiant_temperature_C=payload.get(
+                    "mean_radiant_temperature_C"
+                ),
+                emissivity=payload.get("emissivity"),
+                external_convection_coefficient_W_m2K=payload.get(
+                    "external_convection_coefficient_W_m2K"
+                ),
+            )
+            intent.set_section_basis(
+                section_id=section_id,
+                committed_schedule_fingerprint=fingerprint,
+                thermal_basis=thermal_basis,
+                emissivity_override=payload.get("emissivity_override"),
+            )
+        elif action == "clear":
+            if not section_id:
+                raise ValueError("Select a committed pipe section")
+            if isinstance(
+                intent,
+                CommittedPipeSectionThermalConditionBasisIntentV1,
+            ):
+                intent.clear_section_basis(section_id)
+        elif action == "clear_all":
+            if isinstance(
+                intent,
+                CommittedPipeSectionThermalConditionBasisIntentV1,
+            ):
+                intent.clear_all()
+        else:
+            raise ValueError("action must be 'set', 'clear' or 'clear_all'")
+
+        project.hydronic_committed_pipe_section_thermal_condition_basis_intent = (
+            intent
+        )
+        if hasattr(project, "mark_dirty"):
+            project.mark_dirty()
+        self.refresh()
         for signal_name in ("project_state_changed", "project_changed"):
             signal = getattr(self._context, signal_name, None)
             emit = getattr(signal, "emit", None)
@@ -6566,10 +6683,19 @@ class HydronicsSchematicPanelAdapter:
             "hydronic_committed_pipe_section_thermal_condition_basis_intent",
             None,
         )
+        self._push_committed_pipe_thermal_basis_editor_v1(
+            committed_authority=committed_authority,
+            intent=intent,
+        )
         handoff = (
             build_committed_pipe_section_bare_heat_loss_runtime_handoff_v1(
                 committed_authority=committed_authority,
                 thermal_basis_intent=intent,
+                default_pipe_emissivity=getattr(
+                    getattr(self._project_state, "environment", None),
+                    "bare_pipe_emissivity",
+                    None,
+                ),
             )
         )
         self._committed_pipe_section_bare_heat_loss_runtime_handoff_v1 = (
@@ -6583,6 +6709,165 @@ class HydronicsSchematicPanelAdapter:
         )
         self._panel.set_committed_pipe_bare_heat_loss_rows_v1(
             self._build_committed_pipe_bare_heat_loss_rows_v1(handoff)
+        )
+
+    def _push_committed_pipe_thermal_basis_editor_v1(
+            self,
+            *,
+            committed_authority,
+            intent,
+    ) -> None:
+        """Restore H-S66-I editor rows from committed identity and H-S66-F."""
+        setter = getattr(
+            self._panel,
+            "set_committed_pipe_thermal_basis_editor_rows_v1",
+            None,
+        )
+        if not callable(setter):
+            return
+        try:
+            fingerprint = build_committed_pipe_schedule_thermal_fingerprint_v1(
+                committed_authority
+            )
+        except (TypeError, ValueError) as exc:
+            setter(
+                [],
+                status=f"Blocked — {exc}",
+                stale=False,
+                has_any_basis=False,
+            )
+            return
+
+        valid_intent = isinstance(
+            intent,
+            CommittedPipeSectionThermalConditionBasisIntentV1,
+        )
+        stored_fingerprint = (
+            str(intent.committed_schedule_fingerprint or "").strip()
+            if valid_intent
+            else ""
+        )
+        stale = bool(
+            stored_fingerprint and stored_fingerprint != fingerprint
+        )
+        entries = (
+            dict(intent.basis_by_section_id)
+            if valid_intent and not stale
+            else {}
+        )
+        design_temperatures = resolve_hydronic_design_temperature_basis_v1(
+            self._project_state
+        )
+        environment = getattr(self._project_state, "environment", None)
+        universal_emissivity = getattr(
+            environment, "bare_pipe_emissivity", None
+        )
+        local_emissivity_overrides = (
+            dict(
+                getattr(
+                    intent,
+                    "emissivity_override_by_section_id",
+                    {},
+                )
+                or {}
+            )
+            if valid_intent and not stale
+            else {}
+        )
+        automatic_resolution = (
+            build_automatic_committed_pipe_thermal_basis_resolution_v1(
+                committed_authority=committed_authority,
+                committed_schedule_fingerprint=fingerprint,
+                design_flow_temperature_C=getattr(
+                    design_temperatures, "flow_temp_c", None
+                ),
+                design_return_temperature_C=getattr(
+                    design_temperatures, "return_temp_c", None
+                ),
+                default_internal_temperature_C=getattr(
+                    environment, "default_internal_temp_C", None
+                ),
+                default_pipe_emissivity=universal_emissivity,
+                thermal_basis_intent=intent,
+            )
+        )
+        automatic_by_section_id = {
+            row.section_id: row
+            for row in automatic_resolution.sections
+        }
+        rows: list[dict] = []
+        for section in tuple(
+            getattr(committed_authority, "sections", ()) or ()
+        ):
+            section_id = str(
+                getattr(section, "section_id", "") or ""
+            ).strip()
+            entry = entries.get(section_id)
+            automatic = automatic_by_section_id.get(section_id)
+            pipe_label = str(
+                getattr(section, "pipe_size_label", "—") or "—"
+            )
+            material_label = str(
+                getattr(section, "material_label", "—") or "—"
+            )
+            rows.append(
+                {
+                    "section_id": section_id,
+                    "label": (
+                        f"{int(getattr(section, 'order', 0)) + 1:02d} | "
+                        f"{str(getattr(section, 'from_label', '—') or '—')} → "
+                        f"{str(getattr(section, 'to_label', '—') or '—')} | "
+                        f"{material_label} {pipe_label} | {section_id}"
+                    ),
+                    "has_basis": entry is not None,
+                    "surface_temperature_C": getattr(
+                        automatic, "surface_temperature_C", None
+                    ),
+                    "ambient_air_temperature_C": getattr(
+                        automatic, "ambient_air_temperature_C", None
+                    ),
+                    "mean_radiant_temperature_C": getattr(
+                        automatic, "mean_radiant_temperature_C", None
+                    ),
+                    "emissivity": getattr(
+                        automatic, "emissivity", None
+                    ),
+                    "universal_emissivity": universal_emissivity,
+                    "emissivity_is_local_override": (
+                        section_id in local_emissivity_overrides
+                    ),
+                    "emissivity_source": str(
+                        getattr(automatic, "emissivity_source", "") or ""
+                    ),
+                    "external_convection_coefficient_W_m2K": getattr(
+                        automatic,
+                        "external_convection_coefficient_W_m2K",
+                        None,
+                    ),
+                    "resolution_note": str(
+                        getattr(automatic, "status", "") or ""
+                    ),
+                }
+            )
+        basis_count = sum(bool(row["has_basis"]) for row in rows)
+        status = (
+            "Blocked — persisted thermal bases are stale; clear all section "
+            "bases before recording the current committed schedule."
+            if stale
+            else (
+                f"Ready — {basis_count} of {len(rows)} committed section(s) "
+                "have explicit thermal bases. Emissivity inherits the "
+                "Environment default unless locally overridden; external "
+                "h conv remains explicit."
+            )
+        )
+        setter(
+            rows,
+            status=status,
+            stale=stale,
+            has_any_basis=bool(
+                valid_intent and intent.basis_by_section_id
+            ),
         )
 
     def _build_committed_pipe_bare_heat_loss_rows_v1(

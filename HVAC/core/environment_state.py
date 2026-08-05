@@ -35,6 +35,11 @@ class EnvironmentStateV1:
     # Local section overrides are a later, separate intent stage.
     basic_ps_max_velocity_m_s: Optional[float] = 1.0
 
+    # H-S66-K — Project-wide bare-pipe surface emissivity authority.
+    # None is intentionally unresolved; local committed-section overrides
+    # are persisted separately with the exact section identity.
+    bare_pipe_emissivity: Optional[float] = None
+
     def to_dict(self) -> dict:
         return {
             "external_design_temp_C": self.external_design_temp_C,
@@ -44,6 +49,7 @@ class EnvironmentStateV1:
             "design_flow_temp_c": self.design_flow_temp_c,
             "design_return_temp_c": self.design_return_temp_c,
             "basic_ps_max_velocity_m_s": self.basic_ps_max_velocity_m_s,
+            "bare_pipe_emissivity": self.bare_pipe_emissivity,
         }
 
     @classmethod
@@ -59,4 +65,5 @@ class EnvironmentStateV1:
                 "basic_ps_max_velocity_m_s",
                 1.0,
             ),
+            bare_pipe_emissivity=data.get("bare_pipe_emissivity"),
         )

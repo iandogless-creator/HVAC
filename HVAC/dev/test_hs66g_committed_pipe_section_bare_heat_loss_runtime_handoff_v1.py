@@ -160,6 +160,51 @@ def main() -> None:
     )
     assert result.evidence == direct
 
+    inherited_intent = CommittedPipeSectionThermalConditionBasisIntentV1()
+    fingerprint = build_committed_pipe_schedule_thermal_fingerprint_v1(
+        authority
+    )
+    for section_id, surface_temperature_C in (
+        ("section-copper-022", 60.0),
+        ("section-steel-dn32", 55.0),
+    ):
+        inherited_intent.set_section_basis(
+            section_id=section_id,
+            committed_schedule_fingerprint=fingerprint,
+            thermal_basis=_basis(
+                surface_temperature_C=surface_temperature_C
+            ),
+            emissivity_override=None,
+        )
+    inherited_high = (
+        build_committed_pipe_section_bare_heat_loss_runtime_handoff_v1(
+            committed_authority=authority,
+            thermal_basis_intent=inherited_intent,
+            default_pipe_emissivity=0.93,
+        )
+    )
+    inherited_low = (
+        build_committed_pipe_section_bare_heat_loss_runtime_handoff_v1(
+            committed_authority=authority,
+            thermal_basis_intent=inherited_intent,
+            default_pipe_emissivity=0.28,
+        )
+    )
+    assert inherited_high.ready is True
+    assert inherited_low.ready is True
+    for high, low in zip(
+        inherited_high.evidence.sections,
+        inherited_low.evidence.sections,
+    ):
+        assert high.emissivity == 0.93
+        assert low.emissivity == 0.28
+        assert high.convection_heat_loss_W_per_m == (
+            low.convection_heat_loss_W_per_m
+        )
+        assert high.radiation_heat_loss_W_per_m > (
+            low.radiation_heat_loss_W_per_m
+        )
+
     missing_intent = (
         build_committed_pipe_section_bare_heat_loss_runtime_handoff_v1(
             committed_authority=authority,

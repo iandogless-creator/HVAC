@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import math
 
 from HVAC.heatloss.physics.committed_pipe_section_bare_heat_loss_evidence_v1 import (
     CommittedPipeSectionBareHeatLossEvidenceV1,
@@ -14,6 +15,9 @@ from HVAC.heatloss.physics.committed_pipe_section_thermal_condition_basis_intent
     CommittedPipeSectionThermalConditionBasisEntryV1,
     CommittedPipeSectionThermalConditionBasisIntentV1,
     build_committed_pipe_schedule_thermal_fingerprint_v1,
+)
+from HVAC.heatloss.physics.bare_pipe_thermal_condition_basis_v1 import (
+    build_explicit_bare_pipe_thermal_condition_basis_v1,
 )
 from HVAC.hydronics.proportioning.committed_proportioning_hydraulic_input_authority_v1 import (
     CommittedProportioningHydraulicInputAuthorityV1,
@@ -47,6 +51,7 @@ def build_committed_pipe_section_bare_heat_loss_runtime_handoff_v1(
         thermal_basis_intent: (
             CommittedPipeSectionThermalConditionBasisIntentV1 | None
         ),
+        default_pipe_emissivity: object = None,
 ) -> CommittedPipeSectionBareHeatLossRuntimeHandoffV1:
     """Resolve fresh persisted intent and delegate calculation to H-S66-E."""
 
@@ -87,6 +92,19 @@ def build_committed_pipe_section_bare_heat_loss_runtime_handoff_v1(
 
     blockers: list[str] = []
     basis_by_section_id = {}
+    try:
+        universal_emissivity = _emissivity_or_none_v1(
+            default_pipe_emissivity
+        )
+    except ValueError as exc:
+        return _blocked_v1(
+            str(exc),
+            current_schedule_fingerprint=current_fingerprint,
+            persisted_schedule_fingerprint=persisted_fingerprint,
+        )
+    overrides = dict(
+        thermal_basis_intent.emissivity_override_by_section_id or {}
+    )
     for section_id, entry in sorted(
         thermal_basis_intent.basis_by_section_id.items(),
         key=lambda item: str(item[0]),
@@ -109,7 +127,32 @@ def build_committed_pipe_section_bare_heat_loss_runtime_handoff_v1(
             )
             continue
         try:
-            basis_by_section_id[stable_section_id] = entry.to_thermal_basis()
+            local_emissivity = overrides.get(stable_section_id)
+            effective_emissivity = (
+                float(local_emissivity)
+                if local_emissivity is not None
+                else universal_emissivity
+            )
+            if effective_emissivity is None:
+                raise ValueError(
+                    "Environment universal bare-pipe emissivity is required "
+                    "unless this section has a local override"
+                )
+            basis_by_section_id[stable_section_id] = (
+                build_explicit_bare_pipe_thermal_condition_basis_v1(
+                    surface_temperature_C=entry.surface_temperature_C,
+                    ambient_air_temperature_C=(
+                        entry.ambient_air_temperature_C
+                    ),
+                    mean_radiant_temperature_C=(
+                        entry.mean_radiant_temperature_C
+                    ),
+                    emissivity=effective_emissivity,
+                    external_convection_coefficient_W_m2K=(
+                        entry.external_convection_coefficient_W_m2K
+                    ),
+                )
+            )
         except (TypeError, ValueError) as exc:
             blockers.append(f"{stable_section_id}: {exc}")
 
@@ -170,3 +213,19 @@ def _unique_v1(values: object) -> tuple[str, ...]:
         if text and text not in result:
             result.append(text)
     return tuple(result)
+
+
+def _emissivity_or_none_v1(value: object) -> float | None:
+    if value is None:
+        return None
+    try:
+        number = float(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(
+            "Environment universal bare-pipe emissivity must be numeric"
+        ) from exc
+    if not math.isfinite(number) or not 0.0 <= number <= 1.0:
+        raise ValueError(
+            "Environment universal bare-pipe emissivity must be between 0 and 1"
+        )
+    return number

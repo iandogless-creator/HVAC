@@ -79,6 +79,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QComboBox,
     QLineEdit,
+    QCheckBox,
     QDoubleSpinBox,
     QSplitter,
     QFileDialog,
@@ -93,6 +94,14 @@ from HVAC.gui_v3.schematic.dto import (
     SchematicLabelDTO,
     NodeHoverDTO,
     EdgeHoverDTO,
+)
+
+
+_PIPE_EMISSIVITY_PRESETS_V1 = (
+    ("Painted/coated pipe — 0.95", 0.95),
+    ("Dull/oxidised metal — 0.80", 0.80),
+    ("Lightly oxidised metal — 0.20", 0.20),
+    ("Bright/polished metal — 0.05", 0.05),
 )
 from HVAC.gui_v3.widgets.proportioning_schematic_widget_v1 import (
     ProportioningSchematicWidgetV1,
@@ -1332,6 +1341,149 @@ class HydronicsSchematicPanel(QWidget):
                 "No insulation, temperature decay or hydraulic change."
             )
         )
+        # H-S66-I — explicit manual thermal basis for one committed section.
+        self._committed_pipe_thermal_basis_callback_v1 = None
+        self._committed_pipe_thermal_basis_editor_rows_v1 = []
+        self._committed_pipe_thermal_basis_selected_section_id_v1 = ""
+        thermal_editor = QFrame(self)
+        thermal_editor.setFrameShape(QFrame.StyledPanel)
+        thermal_layout = QGridLayout(thermal_editor)
+        thermal_layout.setContentsMargins(8, 6, 8, 6)
+        thermal_layout.setHorizontalSpacing(8)
+        thermal_layout.setVerticalSpacing(4)
+
+        thermal_notice = QLabel(
+            "Automatic preview supplies mean-water surface temperature and "
+            "Environment air/MRT and universal pipe emissivity. A section "
+            "inherits emissivity unless its local override is selected. "
+            "Enter explicit h conv, or edit any preview value before applying "
+            "the complete basis.",
+            thermal_editor,
+        )
+        thermal_notice.setWordWrap(True)
+        thermal_layout.addWidget(thermal_notice, 0, 0, 1, 6)
+
+        thermal_layout.addWidget(QLabel("Committed section:", thermal_editor), 1, 0)
+        self._committed_pipe_thermal_basis_section_combo_v1 = QComboBox(
+            thermal_editor
+        )
+        self._committed_pipe_thermal_basis_section_combo_v1.currentIndexChanged.connect(
+            self._on_committed_pipe_thermal_basis_section_changed_v1
+        )
+        thermal_layout.addWidget(
+            self._committed_pipe_thermal_basis_section_combo_v1,
+            1,
+            1,
+            1,
+            5,
+        )
+
+        def thermal_input(label, placeholder, row, column):
+            thermal_layout.addWidget(QLabel(label, thermal_editor), row, column)
+            field = QLineEdit(thermal_editor)
+            field.setPlaceholderText(placeholder)
+            thermal_layout.addWidget(field, row, column + 1)
+            return field
+
+        self._committed_pipe_surface_temperature_input_v1 = thermal_input(
+            "Surface temperature:", "°C — explicit", 2, 0
+        )
+        self._committed_pipe_ambient_air_temperature_input_v1 = thermal_input(
+            "Ambient air:", "°C — explicit", 2, 2
+        )
+        self._committed_pipe_mean_radiant_temperature_input_v1 = thermal_input(
+            "Mean radiant:", "°C — explicit", 2, 4
+        )
+        thermal_layout.addWidget(QLabel("Emissivity:", thermal_editor), 3, 0)
+        self._committed_pipe_emissivity_input_v1 = QComboBox(thermal_editor)
+        self._committed_pipe_emissivity_input_v1.setEditable(True)
+        for label, emissivity in _PIPE_EMISSIVITY_PRESETS_V1:
+            self._committed_pipe_emissivity_input_v1.addItem(
+                label,
+                emissivity,
+            )
+        self._committed_pipe_emissivity_input_v1.setCurrentIndex(-1)
+        self._committed_pipe_emissivity_input_v1.setEditText("")
+        thermal_layout.addWidget(
+            self._committed_pipe_emissivity_input_v1,
+            3,
+            1,
+        )
+        self._committed_pipe_external_convection_input_v1 = thermal_input(
+            "External h conv:", "W/m²K — explicit", 3, 2
+        )
+        self._committed_pipe_emissivity_override_checkbox_v1 = QCheckBox(
+            "Override universal emissivity for this section",
+            thermal_editor,
+        )
+        self._committed_pipe_emissivity_override_checkbox_v1.toggled.connect(
+            self._on_committed_pipe_emissivity_override_toggled_v1
+        )
+        self._committed_pipe_emissivity_input_v1.currentTextChanged.connect(
+            self._on_committed_pipe_emissivity_draft_changed_v1
+        )
+        thermal_layout.addWidget(
+            self._committed_pipe_emissivity_override_checkbox_v1,
+            3,
+            4,
+            1,
+            2,
+        )
+
+        self._committed_pipe_thermal_basis_editor_status_v1 = QLabel(
+            "Blocked — committed pipe sections are unavailable",
+            thermal_editor,
+        )
+        self._committed_pipe_thermal_basis_editor_status_v1.setWordWrap(True)
+        thermal_layout.addWidget(
+            self._committed_pipe_thermal_basis_editor_status_v1,
+            4,
+            0,
+            1,
+            6,
+        )
+
+        self._committed_pipe_thermal_basis_apply_button_v1 = QPushButton(
+            "Apply basis to selected section",
+            thermal_editor,
+        )
+        self._committed_pipe_thermal_basis_clear_button_v1 = QPushButton(
+            "Clear selected section basis",
+            thermal_editor,
+        )
+        self._committed_pipe_thermal_basis_clear_all_button_v1 = QPushButton(
+            "Clear all section bases",
+            thermal_editor,
+        )
+        self._committed_pipe_thermal_basis_apply_button_v1.clicked.connect(
+            self._on_apply_committed_pipe_thermal_basis_v1
+        )
+        self._committed_pipe_thermal_basis_clear_button_v1.clicked.connect(
+            self._on_clear_committed_pipe_thermal_basis_v1
+        )
+        self._committed_pipe_thermal_basis_clear_all_button_v1.clicked.connect(
+            self._on_clear_all_committed_pipe_thermal_bases_v1
+        )
+        thermal_layout.addWidget(
+            self._committed_pipe_thermal_basis_apply_button_v1, 5, 3
+        )
+        thermal_layout.addWidget(
+            self._committed_pipe_thermal_basis_clear_button_v1, 5, 4
+        )
+        thermal_layout.addWidget(
+            self._committed_pipe_thermal_basis_clear_all_button_v1, 5, 5
+        )
+        for column in (1, 3, 5):
+            thermal_layout.setColumnStretch(column, 1)
+        self._add_section(
+            self._pipe_resizing_bare_heat_loss_layout_v1,
+            title="Committed-section thermal-condition basis — manual intent",
+            table=thermal_editor,
+            min_height=220,
+            expanded=True,
+        )
+        self._refresh_committed_pipe_thermal_basis_controls_v1()
+
         self._committed_pipe_bare_heat_loss_status_label_v1 = QLabel(
             "Blocked — committed-section thermal-condition basis is unavailable"
         )
@@ -11426,6 +11578,420 @@ QTableWidget::item:selected:!active {
         suffix = "; ".join(clean_blockers)
         label.setText(
             clean_status if not suffix else f"{clean_status}\n{suffix}"
+        )
+
+    def set_committed_pipe_thermal_basis_callback_v1(self, callback) -> None:
+        """Register the adapter-owned H-S66-I persistence callback."""
+        self._committed_pipe_thermal_basis_callback_v1 = callback
+        self._refresh_committed_pipe_thermal_basis_controls_v1()
+
+    def set_committed_pipe_thermal_basis_editor_rows_v1(
+            self,
+            rows: list[dict],
+            *,
+            status: str,
+            stale: bool,
+            has_any_basis: bool,
+    ) -> None:
+        """Restore committed section identities and explicit persisted values."""
+        combo = getattr(
+            self,
+            "_committed_pipe_thermal_basis_section_combo_v1",
+            None,
+        )
+        if combo is None:
+            return
+        previous_section_id = str(
+            getattr(
+                self,
+                "_committed_pipe_thermal_basis_selected_section_id_v1",
+                "",
+            )
+            or ""
+        )
+        self._committed_pipe_thermal_basis_editor_rows_v1 = [
+            dict(row or {}) for row in (rows or [])
+        ]
+        previous = combo.blockSignals(True)
+        try:
+            combo.clear()
+            for row in self._committed_pipe_thermal_basis_editor_rows_v1:
+                combo.addItem(
+                    str(row.get("label") or row.get("section_id") or "—"),
+                    str(row.get("section_id") or ""),
+                )
+            wanted_index = combo.findData(previous_section_id)
+            combo.setCurrentIndex(wanted_index if wanted_index >= 0 else 0)
+        finally:
+            combo.blockSignals(previous)
+        self._committed_pipe_thermal_basis_editor_stale_v1 = bool(stale)
+        self._committed_pipe_thermal_basis_editor_has_any_basis_v1 = bool(
+            has_any_basis
+        )
+        self._committed_pipe_thermal_basis_editor_status_text_v1 = str(
+            status or ""
+        )
+        self._on_committed_pipe_thermal_basis_section_changed_v1(
+            combo.currentIndex()
+        )
+
+    def _committed_pipe_thermal_basis_fields_v1(self) -> tuple:
+        return (
+            self._committed_pipe_surface_temperature_input_v1,
+            self._committed_pipe_ambient_air_temperature_input_v1,
+            self._committed_pipe_mean_radiant_temperature_input_v1,
+            self._committed_pipe_emissivity_input_v1,
+            self._committed_pipe_external_convection_input_v1,
+        )
+
+    def _refresh_committed_pipe_thermal_basis_controls_v1(self) -> None:
+        combo = getattr(
+            self,
+            "_committed_pipe_thermal_basis_section_combo_v1",
+            None,
+        )
+        if combo is None:
+            return
+        has_section = bool(
+            getattr(
+                self,
+                "_committed_pipe_thermal_basis_selected_section_id_v1",
+                "",
+            )
+        )
+        has_callback = callable(
+            getattr(self, "_committed_pipe_thermal_basis_callback_v1", None)
+        )
+        stale = bool(
+            getattr(
+                self,
+                "_committed_pipe_thermal_basis_editor_stale_v1",
+                False,
+            )
+        )
+        for field in self._committed_pipe_thermal_basis_fields_v1():
+            field.setEnabled(has_section and has_callback and not stale)
+        local_emissivity = bool(
+            self._committed_pipe_emissivity_override_checkbox_v1.isChecked()
+        )
+        self._committed_pipe_emissivity_input_v1.setEnabled(
+            has_section and has_callback and not stale and local_emissivity
+        )
+        self._committed_pipe_emissivity_override_checkbox_v1.setEnabled(
+            has_section and has_callback and not stale
+        )
+        self._committed_pipe_thermal_basis_apply_button_v1.setEnabled(
+            has_section and has_callback and not stale
+        )
+        current_row = next(
+            (
+                row
+                for row in self._committed_pipe_thermal_basis_editor_rows_v1
+                if str(row.get("section_id") or "")
+                == self._committed_pipe_thermal_basis_selected_section_id_v1
+            ),
+            {},
+        )
+        self._committed_pipe_thermal_basis_clear_button_v1.setEnabled(
+            has_callback and bool(current_row.get("has_basis"))
+        )
+        self._committed_pipe_thermal_basis_clear_all_button_v1.setEnabled(
+            has_callback
+            and bool(
+                getattr(
+                    self,
+                    "_committed_pipe_thermal_basis_editor_has_any_basis_v1",
+                    False,
+                )
+            )
+        )
+
+    def _on_committed_pipe_thermal_basis_section_changed_v1(
+            self,
+            index: int,
+    ) -> None:
+        combo = getattr(
+            self,
+            "_committed_pipe_thermal_basis_section_combo_v1",
+            None,
+        )
+        if combo is None:
+            return
+        section_id = str(combo.itemData(index) or "") if index >= 0 else ""
+        self._committed_pipe_thermal_basis_selected_section_id_v1 = section_id
+        row = next(
+            (
+                value
+                for value in self._committed_pipe_thermal_basis_editor_rows_v1
+                if str(value.get("section_id") or "") == section_id
+            ),
+            {},
+        )
+        values = (
+            row.get("surface_temperature_C"),
+            row.get("ambient_air_temperature_C"),
+            row.get("mean_radiant_temperature_C"),
+            row.get("emissivity"),
+            row.get("external_convection_coefficient_W_m2K"),
+        )
+        previous = (
+            self._committed_pipe_emissivity_override_checkbox_v1.blockSignals(
+                True
+            )
+        )
+        self._committed_pipe_emissivity_override_checkbox_v1.setChecked(
+            bool(row.get("emissivity_is_local_override"))
+        )
+        self._committed_pipe_emissivity_override_checkbox_v1.blockSignals(
+            previous
+        )
+        for field, value in zip(
+            self._committed_pipe_thermal_basis_fields_v1(), values
+        ):
+            if field is self._committed_pipe_emissivity_input_v1:
+                self._set_committed_pipe_emissivity_value_v1(value)
+            else:
+                field.setText("" if value is None else f"{float(value):g}")
+        self._refresh_committed_pipe_emissivity_status_v1()
+        self._refresh_committed_pipe_thermal_basis_controls_v1()
+
+    def _on_committed_pipe_emissivity_override_toggled_v1(
+            self,
+            checked: bool,
+    ) -> None:
+        if not checked:
+            section_id = str(
+                self._committed_pipe_thermal_basis_selected_section_id_v1
+                or ""
+            )
+            row = next(
+                (
+                    value
+                    for value in self._committed_pipe_thermal_basis_editor_rows_v1
+                    if str(value.get("section_id") or "") == section_id
+                ),
+                {},
+            )
+            universal = row.get("universal_emissivity")
+            self._set_committed_pipe_emissivity_value_v1(universal)
+        self._refresh_committed_pipe_emissivity_status_v1()
+        self._refresh_committed_pipe_thermal_basis_controls_v1()
+
+    def _on_committed_pipe_emissivity_draft_changed_v1(
+            self,
+            _text: str,
+    ) -> None:
+        checkbox = getattr(
+            self,
+            "_committed_pipe_emissivity_override_checkbox_v1",
+            None,
+        )
+        if checkbox is not None and checkbox.isChecked():
+            self._refresh_committed_pipe_emissivity_status_v1()
+
+    def _refresh_committed_pipe_emissivity_status_v1(self) -> None:
+        status_label = getattr(
+            self,
+            "_committed_pipe_thermal_basis_editor_status_v1",
+            None,
+        )
+        if status_label is None:
+            return
+        section_id = str(
+            getattr(
+                self,
+                "_committed_pipe_thermal_basis_selected_section_id_v1",
+                "",
+            )
+            or ""
+        )
+        base_status = str(
+            getattr(
+                self,
+                "_committed_pipe_thermal_basis_editor_status_text_v1",
+                "",
+            )
+            or "Committed-section thermal basis unavailable"
+        )
+        if not section_id:
+            status_label.setText(base_status)
+            return
+        row = next(
+            (
+                value
+                for value in self._committed_pipe_thermal_basis_editor_rows_v1
+                if str(value.get("section_id") or "") == section_id
+            ),
+            {},
+        )
+        row_note = (
+            "Selected section has an explicit persisted basis."
+            if row.get("has_basis")
+            else str(
+                row.get("resolution_note")
+                or "Selected section requires an explicit basis."
+            )
+        )
+        effective_source = str(
+            row.get("emissivity_source") or "Unresolved"
+        ).strip()
+        effective_value = row.get("emissivity")
+        effective_text = effective_source
+        if effective_value is not None:
+            effective_text = (
+                f"{effective_source} — {float(effective_value):g}"
+            )
+        checkbox = self._committed_pipe_emissivity_override_checkbox_v1
+        persisted_local = bool(row.get("emissivity_is_local_override"))
+        if checkbox.isChecked():
+            draft_text = str(
+                self._committed_pipe_emissivity_input_v1.currentText() or ""
+            ).strip()
+            try:
+                draft_value = self._committed_pipe_emissivity_value_v1()
+            except ValueError:
+                draft_value = None
+            same_as_effective = (
+                persisted_local
+                and draft_value is not None
+                and effective_value is not None
+                and abs(float(effective_value) - draft_value) < 1.0e-12
+            )
+            if same_as_effective:
+                disposition = f"Currently effective: {effective_text}."
+            else:
+                disposition = (
+                    f"Pending local override: {draft_text or 'not selected'}. "
+                    f"Currently effective: {effective_text}. The pending "
+                    "override is not persisted until the complete basis is "
+                    "applied."
+                )
+        elif persisted_local:
+            universal = row.get("universal_emissivity")
+            inherited = (
+                "unresolved"
+                if universal is None
+                else f"Environment universal emissivity — {float(universal):g}"
+            )
+            disposition = (
+                f"Pending change: remove the local override and inherit "
+                f"{inherited}. Currently effective: {effective_text}. The "
+                "pending change is not persisted until the complete basis "
+                "is applied."
+            )
+        else:
+            disposition = f"Currently effective: {effective_text}."
+        status_label.setText(f"{base_status} {row_note} {disposition}")
+
+    def _set_committed_pipe_emissivity_value_v1(self, value: object) -> None:
+        combo = self._committed_pipe_emissivity_input_v1
+        if value is None:
+            combo.setCurrentIndex(-1)
+            combo.setEditText("")
+            return
+        number = float(value)
+        for index in range(combo.count()):
+            candidate = combo.itemData(index)
+            if candidate is not None:
+                if abs(float(candidate) - number) < 1.0e-12:
+                    combo.setCurrentIndex(index)
+                    return
+        combo.setCurrentIndex(-1)
+        combo.setEditText(f"{number:g}")
+
+    def _committed_pipe_emissivity_value_v1(self) -> float:
+        combo = self._committed_pipe_emissivity_input_v1
+        index = combo.currentIndex()
+        if index >= 0 and combo.itemData(index) is not None:
+            return float(combo.itemData(index))
+        text = str(combo.currentText() or "").strip()
+        if not text:
+            raise ValueError("Enter an explicit emissivity")
+        try:
+            value = float(text)
+        except ValueError as exc:
+            raise ValueError(
+                "Choose an emissivity finish or enter a numeric value"
+            ) from exc
+        if not 0.0 <= value <= 1.0:
+            raise ValueError("Emissivity must be between 0 and 1")
+        return value
+
+    def _committed_pipe_thermal_basis_payload_v1(self) -> dict:
+        labels = (
+            "surface temperature",
+            "ambient air temperature",
+            "mean radiant temperature",
+            "emissivity",
+            "external convection coefficient",
+        )
+        values: list[float] = []
+        for label, field in zip(
+            labels, self._committed_pipe_thermal_basis_fields_v1()
+        ):
+            if field is self._committed_pipe_emissivity_input_v1:
+                values.append(self._committed_pipe_emissivity_value_v1())
+                continue
+            text = str(field.text() or "").strip()
+            if not text:
+                raise ValueError(f"Enter an explicit {label}")
+            try:
+                values.append(float(text))
+            except ValueError as exc:
+                raise ValueError(f"Enter a numeric {label}") from exc
+        return {
+            "action": "set",
+            "section_id": self._committed_pipe_thermal_basis_selected_section_id_v1,
+            "surface_temperature_C": values[0],
+            "ambient_air_temperature_C": values[1],
+            "mean_radiant_temperature_C": values[2],
+            "emissivity": values[3],
+            "emissivity_override": (
+                values[3]
+                if self._committed_pipe_emissivity_override_checkbox_v1.isChecked()
+                else None
+            ),
+            "external_convection_coefficient_W_m2K": values[4],
+        }
+
+    def _invoke_committed_pipe_thermal_basis_callback_v1(
+            self,
+            payload: dict,
+    ) -> None:
+        callback = getattr(
+            self,
+            "_committed_pipe_thermal_basis_callback_v1",
+            None,
+        )
+        if not callable(callback):
+            return
+        try:
+            callback(payload)
+        except (TypeError, ValueError) as exc:
+            self._committed_pipe_thermal_basis_editor_status_v1.setText(
+                f"Blocked — {exc}"
+            )
+
+    def _on_apply_committed_pipe_thermal_basis_v1(self) -> None:
+        try:
+            payload = self._committed_pipe_thermal_basis_payload_v1()
+        except ValueError as exc:
+            self._committed_pipe_thermal_basis_editor_status_v1.setText(
+                f"Blocked — {exc}"
+            )
+            return
+        self._invoke_committed_pipe_thermal_basis_callback_v1(payload)
+
+    def _on_clear_committed_pipe_thermal_basis_v1(self) -> None:
+        section_id = self._committed_pipe_thermal_basis_selected_section_id_v1
+        if section_id:
+            self._invoke_committed_pipe_thermal_basis_callback_v1(
+                {"action": "clear", "section_id": section_id}
+            )
+
+    def _on_clear_all_committed_pipe_thermal_bases_v1(self) -> None:
+        self._invoke_committed_pipe_thermal_basis_callback_v1(
+            {"action": "clear_all"}
         )
 
     def set_committed_pipe_bare_heat_loss_rows_v1(

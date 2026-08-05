@@ -37,6 +37,9 @@ class EnvironmentPanelAdapter:
         panel.basic_ps_max_velocity_changed.connect(
             self._on_basic_ps_max_velocity_changed
         )
+        panel.bare_pipe_emissivity_changed.connect(
+            self._on_bare_pipe_emissivity_changed
+        )
 
     # ------------------------------------------------------------------
     # Observer refresh
@@ -79,6 +82,9 @@ class EnvironmentPanelAdapter:
 
         self._panel.set_basic_ps_max_velocity(
             getattr(env, "basic_ps_max_velocity_m_s", 1.0)
+        )
+        self._panel.set_bare_pipe_emissivity(
+            getattr(env, "bare_pipe_emissivity", None)
         )
 
     # ------------------------------------------------------------------
@@ -180,3 +186,18 @@ class EnvironmentPanelAdapter:
 
         # Basic PS intent does not affect fabric heat-loss.
         self._context.environment_changed.emit()
+
+    # ------------------------------------------------------------------
+    # H-S66-K — universal bare-pipe emissivity default
+    # ------------------------------------------------------------------
+
+    def _on_bare_pipe_emissivity_changed(self, value: float) -> None:
+        env = self._ensure_env()
+        env.bare_pipe_emissivity = None if value < 0.0 else float(value)
+
+        # Surface emissivity affects pipe radiation only, not fabric heat loss.
+        self._context.environment_changed.emit()
+        project_changed = getattr(self._context, "project_changed", None)
+        emit = getattr(project_changed, "emit", None)
+        if callable(emit):
+            emit()

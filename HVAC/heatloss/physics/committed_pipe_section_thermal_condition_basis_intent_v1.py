@@ -19,6 +19,7 @@ from HVAC.hydronics.proportioning.committed_proportioning_hydraulic_input_author
 
 
 SCHEMA_V1 = "committed_pipe_section_thermal_condition_basis_intent_v1"
+_USE_BASIS_EMISSIVITY_AS_OVERRIDE_V1 = object()
 
 
 @dataclass(frozen=True, slots=True)
@@ -58,6 +59,9 @@ class CommittedPipeSectionThermalConditionBasisIntentV1:
     basis_by_section_id: dict[
         str, CommittedPipeSectionThermalConditionBasisEntryV1
     ] = field(default_factory=dict)
+    emissivity_override_by_section_id: dict[str, float] = field(
+        default_factory=dict
+    )
 
     def set_section_basis(
             self,
@@ -65,6 +69,9 @@ class CommittedPipeSectionThermalConditionBasisIntentV1:
             section_id: str,
             committed_schedule_fingerprint: str,
             thermal_basis: BarePipeThermalConditionBasisV1,
+            emissivity_override: object = (
+                _USE_BASIS_EMISSIVITY_AS_OVERRIDE_V1
+            ),
     ) -> None:
         stable_section_id = _stable_text_v1(section_id)
         fingerprint = _stable_text_v1(committed_schedule_fingerprint)
@@ -100,18 +107,34 @@ class CommittedPipeSectionThermalConditionBasisIntentV1:
                 ),
             )
         )
+        if emissivity_override is _USE_BASIS_EMISSIVITY_AS_OVERRIDE_V1:
+            # Pre-H-S66-K callers supplied a complete explicit basis. Preserve
+            # that accepted emissivity as a local override during migration.
+            self.emissivity_override_by_section_id[stable_section_id] = (
+                thermal_basis.emissivity
+            )
+        elif emissivity_override is None:
+            self.emissivity_override_by_section_id.pop(
+                stable_section_id, None
+            )
+        else:
+            self.emissivity_override_by_section_id[stable_section_id] = (
+                _emissivity_v1(emissivity_override)
+            )
 
     def clear_section_basis(self, section_id: str) -> bool:
         stable_section_id = _stable_text_v1(section_id)
         if not stable_section_id:
             return False
         removed = self.basis_by_section_id.pop(stable_section_id, None)
+        self.emissivity_override_by_section_id.pop(stable_section_id, None)
         if not self.basis_by_section_id:
             self.committed_schedule_fingerprint = ""
         return removed is not None
 
     def clear_all(self) -> None:
         self.basis_by_section_id.clear()
+        self.emissivity_override_by_section_id.clear()
         self.committed_schedule_fingerprint = ""
 
     def to_dict(self) -> dict:
@@ -278,6 +301,12 @@ def committed_pipe_section_thermal_condition_basis_intent_to_dict_v1(
                 source.basis_by_section_id.items()
             )
         },
+        "emissivity_override_by_section_id": {
+            section_id: value
+            for section_id, value in sorted(
+                source.emissivity_override_by_section_id.items()
+            )
+        },
     }
 
 
@@ -297,6 +326,19 @@ def committed_pipe_section_thermal_condition_basis_intent_from_dict_v1(
     if not isinstance(raw_entries, dict):
         return empty
     if raw_entries and not fingerprint:
+        return empty
+    overrides_present = "emissivity_override_by_section_id" in data
+    raw_overrides = data.get("emissivity_override_by_section_id", {})
+    if not isinstance(raw_overrides, dict):
+        return empty
+    parsed_overrides: dict[str, float] = {}
+    try:
+        for raw_section_id, raw_value in raw_overrides.items():
+            section_id = _stable_text_v1(raw_section_id)
+            if not section_id:
+                return empty
+            parsed_overrides[section_id] = _emissivity_v1(raw_value)
+    except (TypeError, ValueError):
         return empty
 
     intent = CommittedPipeSectionThermalConditionBasisIntentV1(
@@ -330,9 +372,16 @@ def committed_pipe_section_thermal_condition_basis_intent_from_dict_v1(
                 section_id=section_id,
                 committed_schedule_fingerprint=fingerprint,
                 thermal_basis=basis,
+                emissivity_override=(
+                    parsed_overrides.get(section_id)
+                    if overrides_present
+                    else basis.emissivity
+                ),
             )
         except (TypeError, ValueError):
             return empty
+    if set(parsed_overrides) - set(intent.basis_by_section_id):
+        return empty
     return intent
 
 
@@ -355,4 +404,14 @@ def _positive_finite_v1(value: object) -> float | None:
         return None
     if not math.isfinite(number) or number <= 0.0:
         return None
+    return number
+
+
+def _emissivity_v1(value: object) -> float:
+    try:
+        number = float(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("Bare-pipe emissivity must be numeric") from exc
+    if not math.isfinite(number) or not 0.0 <= number <= 1.0:
+        raise ValueError("Bare-pipe emissivity must be between 0 and 1")
     return number
