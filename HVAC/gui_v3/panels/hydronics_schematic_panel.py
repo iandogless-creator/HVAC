@@ -1050,7 +1050,26 @@ class HydronicsSchematicPanel(QWidget):
         # H-S61-E — resized pipework engineering review
         # --------------------------------------------------
         self._pipe_resizing_review_tab = self._make_tab("Pipe Resizing")
+        # H-S66-H — separate schedule actions from committed thermal evidence.
+        # Presentation only: existing callbacks and authority remain unchanged.
+        self._pipe_resizing_workspace_tabs_v1 = QTabWidget(self)
+        self._pipe_resizing_workspace_tabs_v1.setDocumentMode(True)
+        self._pipe_resizing_workspace_tabs_v1.tabBar().setExpanding(False)
+        self._pipe_resizing_workspace_tabs_v1.setMinimumHeight(640)
+        self._pipe_resizing_workspace_tabs_v1.setSizePolicy(
+            QSizePolicy.Expanding,
+            QSizePolicy.Expanding,
+        )
         self._pipe_resizing_review_tab.addWidget(
+            self._pipe_resizing_workspace_tabs_v1
+        )
+        self._pipe_resizing_schedule_layout_v1 = (
+            self._make_pipe_resizing_workspace_tab_v1("Schedule && Commit")
+        )
+        self._pipe_resizing_bare_heat_loss_layout_v1 = (
+            self._make_pipe_resizing_workspace_tab_v1("Bare Pipe Heat Loss")
+        )
+        self._pipe_resizing_schedule_layout_v1.addWidget(
             QLabel(
                 "Read-only resized pipework projection. Current committed "
                 "material and pipe sizes remain unchanged until the exact "
@@ -1125,7 +1144,7 @@ class HydronicsSchematicPanel(QWidget):
             2,
         )
         material_layout.setColumnStretch(2, 1)
-        self._pipe_resizing_review_tab.addWidget(material_card)
+        self._pipe_resizing_schedule_layout_v1.addWidget(material_card)
 
         self._proportioned_pipe_resizing_schedule_acceptance_callback_v1 = None
         # H-S61-H2B1 — explicit accepted-schedule commit control.
@@ -1206,7 +1225,7 @@ class HydronicsSchematicPanel(QWidget):
             2,
         )
         schedule_acceptance_layout.setColumnStretch(2, 1)
-        self._pipe_resizing_review_tab.addWidget(
+        self._pipe_resizing_schedule_layout_v1.addWidget(
             self._proportioned_pipe_resizing_schedule_acceptance_card_v1
         )
         self._refresh_proportioned_pipe_resizing_schedule_acceptance_controls_v1()
@@ -1229,7 +1248,7 @@ class HydronicsSchematicPanel(QWidget):
             stretch_columns={0, 1, 11},
         )
         self._add_section(
-            self._pipe_resizing_review_tab,
+            self._pipe_resizing_schedule_layout_v1,
             title="Resized section hydraulic review — read-only",
             table=self._resized_pipe_section_review_table,
             min_height=245,
@@ -1251,7 +1270,7 @@ class HydronicsSchematicPanel(QWidget):
             stretch_columns={0, 8},
         )
         self._add_section(
-            self._pipe_resizing_review_tab,
+            self._pipe_resizing_schedule_layout_v1,
             title="Resized route reconciliation — read-only",
             table=self._resized_pipe_route_review_table,
             min_height=185,
@@ -1274,7 +1293,7 @@ class HydronicsSchematicPanel(QWidget):
             stretch_columns={0, 2, 9},
         )
         self._add_section(
-            self._pipe_resizing_review_tab,
+            self._pipe_resizing_schedule_layout_v1,
             title="Resized balancing-point reconciliation — read-only",
             table=self._resized_pipe_point_review_table,
             min_height=170,
@@ -1304,7 +1323,58 @@ class HydronicsSchematicPanel(QWidget):
         self.set_resized_pipe_section_review_rows_v1([])
         self.set_resized_pipe_route_review_rows_v1([])
         self.set_resized_pipe_point_review_rows_v1([])
-        self._pipe_resizing_review_tab.addStretch(1)
+        self._pipe_resizing_schedule_layout_v1.addStretch(1)
+
+        self._pipe_resizing_bare_heat_loss_layout_v1.addWidget(
+            QLabel(
+                "Read-only bare-pipe heat loss for the exact committed "
+                "pipe schedule and fresh persisted section thermal bases. "
+                "No insulation, temperature decay or hydraulic change."
+            )
+        )
+        self._committed_pipe_bare_heat_loss_status_label_v1 = QLabel(
+            "Blocked — committed-section thermal-condition basis is unavailable"
+        )
+        self._committed_pipe_bare_heat_loss_status_label_v1.setWordWrap(True)
+        self._pipe_resizing_bare_heat_loss_layout_v1.addWidget(
+            self._committed_pipe_bare_heat_loss_status_label_v1
+        )
+        self._committed_pipe_bare_heat_loss_table_v1 = self._make_table(
+            columns=[
+                "Section",
+                "Scope",
+                "Routes",
+                "Pipe / OD",
+                "Length",
+                "Surface",
+                "Air",
+                "MRT",
+                "Emissivity",
+                "h conv",
+                "Convection W/m",
+                "Radiation W/m",
+                "Total W/m",
+                "Total W",
+                "Status",
+            ],
+            stretch_columns={0, 2, 14},
+        )
+        self._add_section(
+            self._pipe_resizing_bare_heat_loss_layout_v1,
+            title="Committed section bare-pipe heat loss — read-only",
+            table=self._committed_pipe_bare_heat_loss_table_v1,
+            min_height=300,
+            expanded=True,
+        )
+        self._committed_pipe_bare_heat_loss_table_v1.setWordWrap(False)
+        self._committed_pipe_bare_heat_loss_table_v1.setAlternatingRowColors(
+            True
+        )
+        self._apply_clean_proportioned_table_focus_style_v1(
+            self._committed_pipe_bare_heat_loss_table_v1
+        )
+        self.set_committed_pipe_bare_heat_loss_rows_v1([])
+        self._pipe_resizing_bare_heat_loss_layout_v1.addStretch(1)
 
         proportioned_layout = self._proportioned_tab
 
@@ -11312,6 +11382,98 @@ QTableWidget::item:selected:!active {
             max_height=360,
         )
 
+    def set_committed_pipe_bare_heat_loss_state_v1(
+            self,
+            *,
+            ready: bool,
+            status: str,
+            section_count: int,
+            blockers: tuple[str, ...] = (),
+    ) -> None:
+        """Display H-S66-G freshness state without becoming authority."""
+        label = getattr(
+            self,
+            "_committed_pipe_bare_heat_loss_status_label_v1",
+            None,
+        )
+        if label is None:
+            return
+        clean_status = str(status or "").strip() or (
+            "Committed pipe-section bare heat-loss evidence unavailable"
+        )
+        clean_status = clean_status.replace(
+            "CommittedProportioningHydraulicInputAuthorityV1 required",
+            "committed proportioning hydraulic-input authority is required",
+        )
+        if ready:
+            label.setText(
+                f"Ready — {int(section_count)} committed section(s); "
+                "fresh persisted thermal bases; bare-pipe evidence only"
+            )
+            return
+        clean_blockers = tuple(
+            str(value).strip()
+            for value in blockers
+            if (
+                str(value).strip()
+                and str(value).strip().lower() not in clean_status.lower()
+                and str(value).strip().replace(
+                    "CommittedProportioningHydraulicInputAuthorityV1 required",
+                    "committed proportioning hydraulic-input authority is required",
+                ).lower() not in clean_status.lower()
+            )
+        )
+        suffix = "; ".join(clean_blockers)
+        label.setText(
+            clean_status if not suffix else f"{clean_status}\n{suffix}"
+        )
+
+    def set_committed_pipe_bare_heat_loss_rows_v1(
+            self,
+            rows: list[dict],
+    ) -> None:
+        """Display read-only H-S66-E section evidence supplied by H-S66-G."""
+        table = getattr(
+            self,
+            "_committed_pipe_bare_heat_loss_table_v1",
+            None,
+        )
+        if table is None:
+            return
+        self._set_resized_pipe_review_rows_v1(
+            table=table,
+            rows=rows,
+            keys=(
+                "section",
+                "scope",
+                "routes",
+                "pipe_od",
+                "length",
+                "surface_temperature",
+                "ambient_air_temperature",
+                "mean_radiant_temperature",
+                "emissivity",
+                "external_convection_coefficient",
+                "convection_per_m",
+                "radiation_per_m",
+                "total_per_m",
+                "total",
+                "status",
+            ),
+            placeholder={
+                "section": "—",
+                "status": (
+                    "Waiting for fresh committed-section thermal bases"
+                ),
+            },
+            widths=(
+                250, 140, 250, 225, 90, 100, 90, 90, 95, 100,
+                125, 125, 110, 110, 390,
+            ),
+            min_height=180,
+            max_height=440,
+        )
+
     def set_resized_pipe_route_review_rows_v1(
             self,
             rows: list[dict],
@@ -11703,6 +11865,24 @@ QTableWidget::item:selected:!active {
         """Create one scrollable H-S65-A workspace page."""
 
         tabs = self._proportioning_workspace_tabs_v1
+        scroll = QScrollArea(tabs)
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+
+        content = QWidget(scroll)
+        layout = QVBoxLayout(content)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(4)
+        scroll.setWidget(content)
+        tabs.addTab(scroll, title)
+        return layout
+
+    def _make_pipe_resizing_workspace_tab_v1(
+            self,
+            title: str,
+    ) -> QVBoxLayout:
+        """Create one scrollable H-S66-H Pipe Resizing workspace page."""
+        tabs = self._pipe_resizing_workspace_tabs_v1
         scroll = QScrollArea(tabs)
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.NoFrame)

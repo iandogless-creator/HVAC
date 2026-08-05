@@ -177,6 +177,9 @@ from HVAC.hydronics.proportioning.proportioned_pipe_schedule_commit_rebuild_v1 i
 from HVAC.hydronics.proportioning.committed_proportioning_hydraulic_input_authority_v1 import (
     build_committed_proportioning_hydraulic_input_authority_v1,
 )
+from HVAC.heatloss.physics.committed_pipe_section_bare_heat_loss_runtime_handoff_v1 import (
+    build_committed_pipe_section_bare_heat_loss_runtime_handoff_v1,
+)
 from HVAC.hydronics.proportioning.committed_balancing_point_allocation_authority_v1 import (
     build_committed_balancing_point_allocation_authority_v1,
 )
@@ -6544,6 +6547,118 @@ class HydronicsSchematicPanelAdapter:
             },
         ]
 
+    def _refresh_committed_pipe_bare_heat_loss_v1(
+            self,
+            committed_authority,
+    ) -> None:
+        """Project fresh H-S66-G evidence into the read-only H-S66-H table."""
+        if not all(
+            hasattr(self._panel, method_name)
+            for method_name in (
+                "set_committed_pipe_bare_heat_loss_state_v1",
+                "set_committed_pipe_bare_heat_loss_rows_v1",
+            )
+        ):
+            return
+
+        intent = getattr(
+            self._project_state,
+            "hydronic_committed_pipe_section_thermal_condition_basis_intent",
+            None,
+        )
+        handoff = (
+            build_committed_pipe_section_bare_heat_loss_runtime_handoff_v1(
+                committed_authority=committed_authority,
+                thermal_basis_intent=intent,
+            )
+        )
+        self._committed_pipe_section_bare_heat_loss_runtime_handoff_v1 = (
+            handoff
+        )
+        self._panel.set_committed_pipe_bare_heat_loss_state_v1(
+            ready=bool(getattr(handoff, "ready", False)),
+            status=str(getattr(handoff, "status", "") or ""),
+            section_count=int(getattr(handoff, "section_count", 0) or 0),
+            blockers=tuple(getattr(handoff, "blockers", ()) or ()),
+        )
+        self._panel.set_committed_pipe_bare_heat_loss_rows_v1(
+            self._build_committed_pipe_bare_heat_loss_rows_v1(handoff)
+        )
+
+    def _build_committed_pipe_bare_heat_loss_rows_v1(
+            self,
+            handoff,
+    ) -> list[dict]:
+        """Map H-S66-E evidence to display strings; no thermal calculation."""
+
+        def number(value, digits=1):
+            try:
+                return f"{float(value):.{digits}f}"
+            except (TypeError, ValueError):
+                return "—"
+
+        evidence = getattr(handoff, "evidence", None)
+        if not bool(getattr(handoff, "ready", False)) or evidence is None:
+            return []
+
+        rows: list[dict] = []
+        for source in tuple(getattr(evidence, "sections", ()) or ()):
+            rows.append(
+                {
+                    "section": str(
+                        getattr(source, "section_id", "—") or "—"
+                    ),
+                    "scope": str(
+                        getattr(source, "section_scope", "—") or "—"
+                    ),
+                    "routes": ", ".join(
+                        str(route_id)
+                        for route_id in tuple(
+                            getattr(source, "route_ids", ()) or ()
+                        )
+                    ) or "—",
+                    "pipe_od": (
+                        f"{str(getattr(source, 'material_label', '—') or '—')} | "
+                        f"{str(getattr(source, 'pipe_size_label', '—') or '—')} | "
+                        f"OD {number(getattr(source, 'actual_outside_diameter_mm', None))} mm"
+                    ),
+                    "length": (
+                        f"{number(getattr(source, 'length_m', None), 2)} m"
+                    ),
+                    "surface_temperature": (
+                        f"{number(getattr(source, 'surface_temperature_C', None))} °C"
+                    ),
+                    "ambient_air_temperature": (
+                        f"{number(getattr(source, 'ambient_air_temperature_C', None))} °C"
+                    ),
+                    "mean_radiant_temperature": (
+                        f"{number(getattr(source, 'mean_radiant_temperature_C', None))} °C"
+                    ),
+                    "emissivity": number(
+                        getattr(source, "emissivity", None), 3
+                    ),
+                    "external_convection_coefficient": (
+                        f"{number(getattr(source, 'external_convection_coefficient_W_m2K', None), 2)} W/m²K"
+                    ),
+                    "convection_per_m": (
+                        f"{number(getattr(source, 'convection_heat_loss_W_per_m', None), 2)} W/m"
+                    ),
+                    "radiation_per_m": (
+                        f"{number(getattr(source, 'radiation_heat_loss_W_per_m', None), 2)} W/m"
+                    ),
+                    "total_per_m": (
+                        f"{number(getattr(source, 'total_heat_loss_W_per_m', None), 2)} W/m"
+                    ),
+                    "total": (
+                        f"{number(getattr(source, 'total_heat_loss_W', None), 1)} W"
+                    ),
+                    "status": str(
+                        getattr(source, "status", "—") or "—"
+                    ),
+                }
+            )
+        return rows
+
     def _refresh_effective_return_arrangement_basis_rows(
             self,
             return_path_comparison_rows=None,
@@ -6643,6 +6758,9 @@ class HydronicsSchematicPanelAdapter:
                 committed_snapshot,
                 "hydraulic_input_authority",
                 None,
+            )
+            self._refresh_committed_pipe_bare_heat_loss_v1(
+                committed_authority
             )
             self._committed_basis_route_proportioning_result_v1 = (
                 build_committed_basis_route_proportioning_result_v1(
