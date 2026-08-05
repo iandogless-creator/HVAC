@@ -58,6 +58,11 @@ from HVAC.hydronics.proportioning.proportioned_basis_snapshot_v1 import (
     proportioned_basis_snapshot_from_dict_v1,
     proportioned_basis_snapshot_to_dict_v1,
 )
+from HVAC.heatloss.physics.committed_pipe_section_thermal_condition_basis_intent_v1 import (
+    CommittedPipeSectionThermalConditionBasisIntentV1,
+    committed_pipe_section_thermal_condition_basis_intent_from_dict_v1,
+    committed_pipe_section_thermal_condition_basis_intent_to_dict_v1,
+)
 from HVAC.hydronics.topology.hydronic_topology_v1 import HydronicTopologyV1
 # ======================================================================
 # Hydronics emitter serialization
@@ -219,6 +224,10 @@ class ProjectState:
         ProportionedPipeResizingScheduleAcceptanceIntentV1
     ] = None
     hydronic_proportioned_basis_snapshot: Optional[ProportionedBasisSnapshotV1] = None
+    # H-S66-F — explicit section thermal bases for one committed schedule.
+    hydronic_committed_pipe_section_thermal_condition_basis_intent: Optional[
+        CommittedPipeSectionThermalConditionBasisIntentV1
+    ] = None
 
     # ------------------------------------------------------------------
     # Execution override (temporary)
@@ -463,6 +472,13 @@ class ProjectState:
                 if self.hydronic_proportioned_basis_snapshot
                 else None
             ),
+            "hydronic_committed_pipe_section_thermal_condition_basis_intent": (
+                committed_pipe_section_thermal_condition_basis_intent_to_dict_v1(
+                    self.hydronic_committed_pipe_section_thermal_condition_basis_intent
+                )
+                if self.hydronic_committed_pipe_section_thermal_condition_basis_intent
+                else None
+            ),
             "hydronics": {
                 "valid": self.hydronics_valid,
                 "results": _json_safe(self.hydronics_results),
@@ -643,6 +659,16 @@ class ProjectState:
             instance.hydronic_proportioned_basis_snapshot = (
                 proportioned_basis_snapshot_from_dict_v1(
                     raw_hydronic_proportioned_basis_snapshot
+                )
+            )
+
+        raw_pipe_section_thermal_basis_intent = data.get(
+            "hydronic_committed_pipe_section_thermal_condition_basis_intent"
+        )
+        if isinstance(raw_pipe_section_thermal_basis_intent, dict):
+            instance.hydronic_committed_pipe_section_thermal_condition_basis_intent = (
+                committed_pipe_section_thermal_condition_basis_intent_from_dict_v1(
+                    raw_pipe_section_thermal_basis_intent
                 )
             )
 
