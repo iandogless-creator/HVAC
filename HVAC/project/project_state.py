@@ -63,6 +63,11 @@ from HVAC.heatloss.physics.committed_pipe_section_thermal_condition_basis_intent
     committed_pipe_section_thermal_condition_basis_intent_from_dict_v1,
     committed_pipe_section_thermal_condition_basis_intent_to_dict_v1,
 )
+from HVAC.heatloss.physics.committed_pipe_pair_spacing_override_intent_v1 import (
+    CommittedPipePairSpacingOverrideIntentV1,
+    committed_pipe_pair_spacing_override_intent_from_dict_v1,
+    committed_pipe_pair_spacing_override_intent_to_dict_v1,
+)
 from HVAC.hydronics.topology.hydronic_topology_v1 import HydronicTopologyV1
 # ======================================================================
 # Hydronics emitter serialization
@@ -227,6 +232,10 @@ class ProjectState:
     # H-S66-F — explicit section thermal bases for one committed schedule.
     hydronic_committed_pipe_section_thermal_condition_basis_intent: Optional[
         CommittedPipeSectionThermalConditionBasisIntentV1
+    ] = None
+    # H-S66-N1B — sparse exact-section support/c/c overrides.
+    hydronic_committed_pipe_pair_spacing_override_intent: Optional[
+        CommittedPipePairSpacingOverrideIntentV1
     ] = None
 
     # ------------------------------------------------------------------
@@ -479,6 +488,13 @@ class ProjectState:
                 if self.hydronic_committed_pipe_section_thermal_condition_basis_intent
                 else None
             ),
+            "hydronic_committed_pipe_pair_spacing_override_intent": (
+                committed_pipe_pair_spacing_override_intent_to_dict_v1(
+                    self.hydronic_committed_pipe_pair_spacing_override_intent
+                )
+                if self.hydronic_committed_pipe_pair_spacing_override_intent
+                else None
+            ),
             "hydronics": {
                 "valid": self.hydronics_valid,
                 "results": _json_safe(self.hydronics_results),
@@ -669,6 +685,16 @@ class ProjectState:
             instance.hydronic_committed_pipe_section_thermal_condition_basis_intent = (
                 committed_pipe_section_thermal_condition_basis_intent_from_dict_v1(
                     raw_pipe_section_thermal_basis_intent
+                )
+            )
+
+        raw_pipe_pair_spacing_override_intent = data.get(
+            "hydronic_committed_pipe_pair_spacing_override_intent"
+        )
+        if isinstance(raw_pipe_pair_spacing_override_intent, dict):
+            instance.hydronic_committed_pipe_pair_spacing_override_intent = (
+                committed_pipe_pair_spacing_override_intent_from_dict_v1(
+                    raw_pipe_pair_spacing_override_intent
                 )
             )
 
