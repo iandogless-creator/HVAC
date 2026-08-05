@@ -17,6 +17,13 @@ from PySide6.QtWidgets import (
     QFrame,
 )
 
+from HVAC.heatloss.physics.environment_pipe_pair_spacing_defaults_v1 import (
+    PIPE_PAIR_SUPPORT_LABELS_V1,
+    STACKED_PIPE_PAIR_NOMINAL_OD_MM_V1,
+    default_environment_pipe_pair_spacing_defaults_v1,
+    normalise_environment_pipe_pair_spacing_defaults_v1,
+)
+
 
 _PIPE_EMISSIVITY_PRESETS_V1 = (
     ("Not set", None),
@@ -67,6 +74,9 @@ class EnvironmentPanel(QWidget):
     # H-S66-K — Environment-owned universal bare-pipe emissivity.
     # A negative sentinel means explicitly unresolved; 0..1 are valid.
     bare_pipe_emissivity_changed = Signal(float)
+
+    # H-S66-N1A — Environment-owned stacked-pair support geometry.
+    bare_pipe_pair_spacing_default_changed = Signal(int, str, float)
 
     # ------------------------------------------------------------------
     # Construction
@@ -170,6 +180,31 @@ class EnvironmentPanel(QWidget):
                 self._emit_bare_pipe_emissivity_v1
             )
 
+        self._bare_pipe_pair_spacing_defaults_v1 = (
+            default_environment_pipe_pair_spacing_defaults_v1()
+        )
+        self._bare_pipe_pair_size_input_v1 = QComboBox(self)
+        for size in STACKED_PIPE_PAIR_NOMINAL_OD_MM_V1:
+            self._bare_pipe_pair_size_input_v1.addItem(f"{size} mm", size)
+        self._bare_pipe_pair_support_input_v1 = QComboBox(self)
+        for support_type, label in PIPE_PAIR_SUPPORT_LABELS_V1.items():
+            self._bare_pipe_pair_support_input_v1.addItem(label, support_type)
+        self._bare_pipe_pair_centre_spacing_input_v1 = QDoubleSpinBox(self)
+        self._bare_pipe_pair_centre_spacing_input_v1.setRange(10.1, 500.0)
+        self._bare_pipe_pair_centre_spacing_input_v1.setDecimals(1)
+        self._bare_pipe_pair_centre_spacing_input_v1.setSingleStep(1.0)
+        self._bare_pipe_pair_centre_spacing_input_v1.setSuffix(" mm")
+        self._bare_pipe_pair_size_input_v1.currentIndexChanged.connect(
+            self._refresh_selected_pipe_pair_spacing_default_v1
+        )
+        self._bare_pipe_pair_support_input_v1.currentIndexChanged.connect(
+            self._emit_pipe_pair_spacing_default_v1
+        )
+        self._bare_pipe_pair_centre_spacing_input_v1.valueChanged.connect(
+            self._emit_pipe_pair_spacing_default_v1
+        )
+        self._refresh_selected_pipe_pair_spacing_default_v1()
+
         # --------------------------------------------------
         # Top form (Te only)
         # --------------------------------------------------
@@ -246,6 +281,25 @@ class EnvironmentPanel(QWidget):
         form_pipe_heat_loss.addRow(
             "Universal bare-pipe emissivity (0–1)",
             self._bare_pipe_emissivity_input,
+        )
+        stacked_pair_note = QLabel(
+            "Stacked flow/return pairs only. Separate RR pipework ignores "
+            "these values; small clip-make differences are represented by "
+            "one editable default for each nominal pipe size."
+        )
+        stacked_pair_note.setWordWrap(True)
+        root.addWidget(stacked_pair_note)
+        form_pipe_heat_loss.addRow(
+            "Stacked-pair nominal pipe OD",
+            self._bare_pipe_pair_size_input_v1,
+        )
+        form_pipe_heat_loss.addRow(
+            "Universal pair support basis",
+            self._bare_pipe_pair_support_input_v1,
+        )
+        form_pipe_heat_loss.addRow(
+            "Universal pipe centre spacing",
+            self._bare_pipe_pair_centre_spacing_input_v1,
         )
         root.addLayout(form_pipe_heat_loss)
 
@@ -326,3 +380,45 @@ class EnvironmentPanel(QWidget):
             return
         if 0.0 <= value <= 1.0:
             self.bare_pipe_emissivity_changed.emit(value)
+
+    def set_bare_pipe_pair_spacing_defaults(self, values: object) -> None:
+        self._bare_pipe_pair_spacing_defaults_v1 = (
+            normalise_environment_pipe_pair_spacing_defaults_v1(values)
+        )
+        self._refresh_selected_pipe_pair_spacing_default_v1()
+
+    def _refresh_selected_pipe_pair_spacing_default_v1(self, *_args) -> None:
+        size = self._bare_pipe_pair_size_input_v1.currentData()
+        if size is None:
+            return
+        row = self._bare_pipe_pair_spacing_defaults_v1[str(int(size))]
+        support_type = str(row["support_type"])
+        support_index = self._bare_pipe_pair_support_input_v1.findData(
+            support_type
+        )
+        self._bare_pipe_pair_support_input_v1.blockSignals(True)
+        self._bare_pipe_pair_centre_spacing_input_v1.blockSignals(True)
+        self._bare_pipe_pair_support_input_v1.setCurrentIndex(support_index)
+        self._bare_pipe_pair_centre_spacing_input_v1.setMinimum(
+            float(size) + 0.1
+        )
+        self._bare_pipe_pair_centre_spacing_input_v1.setValue(
+            float(row["centre_spacing_mm"])
+        )
+        self._bare_pipe_pair_support_input_v1.blockSignals(False)
+        self._bare_pipe_pair_centre_spacing_input_v1.blockSignals(False)
+
+    def _emit_pipe_pair_spacing_default_v1(self, *_args) -> None:
+        size = self._bare_pipe_pair_size_input_v1.currentData()
+        support_type = self._bare_pipe_pair_support_input_v1.currentData()
+        if size is None or support_type is None:
+            return
+        spacing = self._bare_pipe_pair_centre_spacing_input_v1.value()
+        row = {
+            "support_type": str(support_type),
+            "centre_spacing_mm": float(spacing),
+        }
+        self._bare_pipe_pair_spacing_defaults_v1[str(int(size))] = row
+        self.bare_pipe_pair_spacing_default_changed.emit(
+            int(size), str(support_type), float(spacing)
+        )

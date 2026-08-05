@@ -7,6 +7,10 @@ from __future__ import annotations
 from HVAC.core.environment_state import EnvironmentStateV1
 from HVAC.gui_v3.context.gui_project_context import GuiProjectContext
 from HVAC.gui_v3.panels.environment_panel import EnvironmentPanel
+from HVAC.heatloss.physics.environment_pipe_pair_spacing_defaults_v1 import (
+    default_environment_pipe_pair_spacing_defaults_v1,
+    normalise_environment_pipe_pair_spacing_defaults_v1,
+)
 
 
 class EnvironmentPanelAdapter:
@@ -39,6 +43,9 @@ class EnvironmentPanelAdapter:
         )
         panel.bare_pipe_emissivity_changed.connect(
             self._on_bare_pipe_emissivity_changed
+        )
+        panel.bare_pipe_pair_spacing_default_changed.connect(
+            self._on_bare_pipe_pair_spacing_default_changed
         )
 
     # ------------------------------------------------------------------
@@ -85,6 +92,13 @@ class EnvironmentPanelAdapter:
         )
         self._panel.set_bare_pipe_emissivity(
             getattr(env, "bare_pipe_emissivity", None)
+        )
+        self._panel.set_bare_pipe_pair_spacing_defaults(
+            getattr(
+                env,
+                "bare_pipe_pair_spacing_defaults_by_nominal_od_mm",
+                default_environment_pipe_pair_spacing_defaults_v1(),
+            )
         )
 
     # ------------------------------------------------------------------
@@ -196,6 +210,38 @@ class EnvironmentPanelAdapter:
         env.bare_pipe_emissivity = None if value < 0.0 else float(value)
 
         # Surface emissivity affects pipe radiation only, not fabric heat loss.
+        self._context.environment_changed.emit()
+        project_changed = getattr(self._context, "project_changed", None)
+        emit = getattr(project_changed, "emit", None)
+        if callable(emit):
+            emit()
+
+    # ------------------------------------------------------------------
+    # H-S66-N1A — universal stacked pipe-pair support geometry
+    # ------------------------------------------------------------------
+
+    def _on_bare_pipe_pair_spacing_default_changed(
+            self,
+            nominal_od_mm: int,
+            support_type: str,
+            centre_spacing_mm: float,
+    ) -> None:
+        env = self._ensure_env()
+        values = getattr(
+            env,
+            "bare_pipe_pair_spacing_defaults_by_nominal_od_mm",
+            default_environment_pipe_pair_spacing_defaults_v1(),
+        )
+        values = normalise_environment_pipe_pair_spacing_defaults_v1(values)
+        values[str(int(nominal_od_mm))] = {
+            "support_type": str(support_type),
+            "centre_spacing_mm": float(centre_spacing_mm),
+        }
+        env.bare_pipe_pair_spacing_defaults_by_nominal_od_mm = (
+            normalise_environment_pipe_pair_spacing_defaults_v1(values)
+        )
+
+        # Pair spacing affects pipe external convection only.
         self._context.environment_changed.emit()
         project_changed = getattr(self._context, "project_changed", None)
         emit = getattr(project_changed, "emit", None)

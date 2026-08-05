@@ -15,8 +15,13 @@ Rules
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional
+
+from HVAC.heatloss.physics.environment_pipe_pair_spacing_defaults_v1 import (
+    default_environment_pipe_pair_spacing_defaults_v1,
+    normalise_environment_pipe_pair_spacing_defaults_v1,
+)
 
 
 @dataclass(slots=True)
@@ -40,6 +45,13 @@ class EnvironmentStateV1:
     # are persisted separately with the exact section identity.
     bare_pipe_emissivity: Optional[float] = None
 
+    # H-S66-N1A — Universal support geometry for stacked F&R pairs only.
+    # Separate RR sections do not consume these values. Exact committed-
+    # section overrides are deliberately deferred to H-S66-N1B.
+    bare_pipe_pair_spacing_defaults_by_nominal_od_mm: dict[str, dict] = field(
+        default_factory=default_environment_pipe_pair_spacing_defaults_v1
+    )
+
     def to_dict(self) -> dict:
         return {
             "external_design_temp_C": self.external_design_temp_C,
@@ -50,6 +62,11 @@ class EnvironmentStateV1:
             "design_return_temp_c": self.design_return_temp_c,
             "basic_ps_max_velocity_m_s": self.basic_ps_max_velocity_m_s,
             "bare_pipe_emissivity": self.bare_pipe_emissivity,
+            "bare_pipe_pair_spacing_defaults_by_nominal_od_mm": (
+                normalise_environment_pipe_pair_spacing_defaults_v1(
+                    self.bare_pipe_pair_spacing_defaults_by_nominal_od_mm
+                )
+            ),
         }
 
     @classmethod
@@ -66,4 +83,12 @@ class EnvironmentStateV1:
                 1.0,
             ),
             bare_pipe_emissivity=data.get("bare_pipe_emissivity"),
+            bare_pipe_pair_spacing_defaults_by_nominal_od_mm=(
+                normalise_environment_pipe_pair_spacing_defaults_v1(
+                    data.get(
+                        "bare_pipe_pair_spacing_defaults_by_nominal_od_mm",
+                        default_environment_pipe_pair_spacing_defaults_v1(),
+                    )
+                )
+            ),
         )
