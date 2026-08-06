@@ -111,6 +111,15 @@ _PIPE_PAIR_SUPPORT_PRESETS_V1 = (
     ),
     ("Double Munsen ring / bracket", "double_munsen_ring"),
 )
+_PIPE_PAIR_PROJECT_VERTICAL_ORDER_PRESETS_V1 = (
+    ("Not set", "not_set"),
+    ("Flow above return", "flow"),
+    ("Return above flow", "return"),
+)
+_PIPE_PAIR_LOCAL_VERTICAL_ORDER_PRESETS_V1 = (
+    ("Flow above return", "flow"),
+    ("Return above flow", "return"),
+)
 from HVAC.gui_v3.widgets.proportioning_schematic_widget_v1 import (
     ProportioningSchematicWidgetV1,
 )
@@ -1614,6 +1623,162 @@ class HydronicsSchematicPanel(QWidget):
             expanded=True,
         )
         self._refresh_committed_pipe_pair_spacing_controls_v1()
+
+        # H-S66-N2B2 — project/local stacked-pair vertical-order controls.
+        self._committed_pipe_pair_vertical_order_callback_v1 = None
+        self._committed_pipe_pair_vertical_order_editor_rows_v1 = []
+        self._committed_pipe_pair_vertical_order_selected_section_id_v1 = ""
+        order_editor = QFrame(self)
+        order_editor.setFrameShape(QFrame.StyledPanel)
+        order_layout = QGridLayout(order_editor)
+        order_layout.setContentsMargins(8, 6, 8, 6)
+        order_layout.setHorizontalSpacing(8)
+        order_layout.setVerticalSpacing(4)
+        order_notice = QLabel(
+            "Choose one project-wide upper pipe for stacked flow/return "
+            "sections, or retain Not set. Apply a sparse local override only "
+            "where a particular installation differs. Separate RR pipework "
+            "keeps vertical order dormant.",
+            order_editor,
+        )
+        order_notice.setWordWrap(True)
+        order_layout.addWidget(order_notice, 0, 0, 1, 6)
+
+        order_layout.addWidget(
+            QLabel("Project-wide order:", order_editor), 1, 0
+        )
+        self._committed_pipe_pair_project_vertical_order_combo_v1 = QComboBox(
+            order_editor
+        )
+        for label, role in _PIPE_PAIR_PROJECT_VERTICAL_ORDER_PRESETS_V1:
+            self._committed_pipe_pair_project_vertical_order_combo_v1.addItem(
+                label, role
+            )
+        order_layout.addWidget(
+            self._committed_pipe_pair_project_vertical_order_combo_v1,
+            1,
+            1,
+            1,
+            2,
+        )
+        self._committed_pipe_pair_project_vertical_order_apply_button_v1 = (
+            QPushButton("Apply project-wide order", order_editor)
+        )
+        self._committed_pipe_pair_project_vertical_order_apply_button_v1.clicked.connect(
+            self._on_apply_committed_pipe_pair_project_vertical_order_v1
+        )
+        order_layout.addWidget(
+            self._committed_pipe_pair_project_vertical_order_apply_button_v1,
+            1,
+            3,
+            1,
+            3,
+        )
+
+        order_layout.addWidget(QLabel("Committed section:", order_editor), 2, 0)
+        self._committed_pipe_pair_vertical_order_section_combo_v1 = QComboBox(
+            order_editor
+        )
+        self._committed_pipe_pair_vertical_order_section_combo_v1.currentIndexChanged.connect(
+            self._on_committed_pipe_pair_vertical_order_section_changed_v1
+        )
+        order_layout.addWidget(
+            self._committed_pipe_pair_vertical_order_section_combo_v1,
+            2,
+            1,
+            1,
+            5,
+        )
+
+        order_layout.addWidget(QLabel("Arrangement:", order_editor), 3, 0)
+        self._committed_pipe_pair_vertical_order_arrangement_label_v1 = QLabel(
+            "—", order_editor
+        )
+        order_layout.addWidget(
+            self._committed_pipe_pair_vertical_order_arrangement_label_v1,
+            3,
+            1,
+        )
+        order_layout.addWidget(QLabel("Effective order:", order_editor), 3, 2)
+        self._committed_pipe_pair_vertical_order_effective_label_v1 = QLabel(
+            "—", order_editor
+        )
+        order_layout.addWidget(
+            self._committed_pipe_pair_vertical_order_effective_label_v1,
+            3,
+            3,
+            1,
+            3,
+        )
+
+        order_layout.addWidget(QLabel("Local override:", order_editor), 4, 0)
+        self._committed_pipe_pair_local_vertical_order_combo_v1 = QComboBox(
+            order_editor
+        )
+        for label, role in _PIPE_PAIR_LOCAL_VERTICAL_ORDER_PRESETS_V1:
+            self._committed_pipe_pair_local_vertical_order_combo_v1.addItem(
+                label, role
+            )
+        order_layout.addWidget(
+            self._committed_pipe_pair_local_vertical_order_combo_v1,
+            4,
+            1,
+        )
+        self._committed_pipe_pair_local_vertical_order_apply_button_v1 = (
+            QPushButton("Apply local order override", order_editor)
+        )
+        self._committed_pipe_pair_local_vertical_order_clear_button_v1 = (
+            QPushButton("Clear selected order override", order_editor)
+        )
+        self._committed_pipe_pair_local_vertical_order_clear_all_button_v1 = (
+            QPushButton("Clear all order overrides", order_editor)
+        )
+        self._committed_pipe_pair_local_vertical_order_apply_button_v1.clicked.connect(
+            self._on_apply_committed_pipe_pair_local_vertical_order_v1
+        )
+        self._committed_pipe_pair_local_vertical_order_clear_button_v1.clicked.connect(
+            self._on_clear_committed_pipe_pair_local_vertical_order_v1
+        )
+        self._committed_pipe_pair_local_vertical_order_clear_all_button_v1.clicked.connect(
+            self._on_clear_all_committed_pipe_pair_local_vertical_orders_v1
+        )
+        order_layout.addWidget(
+            self._committed_pipe_pair_local_vertical_order_apply_button_v1,
+            4,
+            3,
+        )
+        order_layout.addWidget(
+            self._committed_pipe_pair_local_vertical_order_clear_button_v1,
+            4,
+            4,
+        )
+        order_layout.addWidget(
+            self._committed_pipe_pair_local_vertical_order_clear_all_button_v1,
+            4,
+            5,
+        )
+        self._committed_pipe_pair_vertical_order_status_label_v1 = QLabel(
+            "Blocked — committed pipe arrangement is unavailable",
+            order_editor,
+        )
+        self._committed_pipe_pair_vertical_order_status_label_v1.setWordWrap(True)
+        order_layout.addWidget(
+            self._committed_pipe_pair_vertical_order_status_label_v1,
+            5,
+            0,
+            1,
+            6,
+        )
+        for column in (1, 3, 5):
+            order_layout.setColumnStretch(column, 1)
+        self._add_section(
+            self._pipe_resizing_bare_heat_loss_layout_v1,
+            title="Stacked pipe vertical order — project and local intent",
+            table=order_editor,
+            min_height=225,
+            expanded=True,
+        )
+        self._refresh_committed_pipe_pair_vertical_order_controls_v1()
 
         self._committed_pipe_bare_heat_loss_status_label_v1 = QLabel(
             "Blocked — committed-section thermal-condition basis is unavailable"
@@ -12315,6 +12480,231 @@ QTableWidget::item:selected:!active {
 
     def _on_clear_all_committed_pipe_pair_spacing_overrides_v1(self) -> None:
         self._invoke_committed_pipe_pair_spacing_callback_v1(
+            {"action": "clear_all"}
+        )
+
+    def set_committed_pipe_pair_vertical_order_callback_v1(
+            self,
+            callback,
+    ) -> None:
+        """Register the adapter-owned H-S66-N2B2 persistence callback."""
+        self._committed_pipe_pair_vertical_order_callback_v1 = callback
+        self._refresh_committed_pipe_pair_vertical_order_controls_v1()
+
+    def set_committed_pipe_pair_vertical_order_editor_rows_v1(
+            self,
+            rows: list[dict],
+            *,
+            project_upper_pipe_role: str,
+            status: str,
+            stale: bool,
+            has_any_override: bool,
+    ) -> None:
+        """Restore project/local vertical-order evidence for exact sections."""
+        combo = getattr(
+            self, "_committed_pipe_pair_vertical_order_section_combo_v1", None
+        )
+        if combo is None:
+            return
+        project_combo = (
+            self._committed_pipe_pair_project_vertical_order_combo_v1
+        )
+        project_index = project_combo.findData(
+            str(project_upper_pipe_role or "not_set")
+        )
+        if project_index >= 0:
+            project_combo.setCurrentIndex(project_index)
+
+        previous_section_id = str(
+            self._committed_pipe_pair_vertical_order_selected_section_id_v1
+            or ""
+        )
+        self._committed_pipe_pair_vertical_order_editor_rows_v1 = [
+            dict(row or {}) for row in (rows or [])
+        ]
+        previous = combo.blockSignals(True)
+        try:
+            combo.clear()
+            for row in self._committed_pipe_pair_vertical_order_editor_rows_v1:
+                combo.addItem(
+                    str(row.get("label") or row.get("section_id") or "—"),
+                    str(row.get("section_id") or ""),
+                )
+            wanted_index = combo.findData(previous_section_id)
+            combo.setCurrentIndex(wanted_index if wanted_index >= 0 else 0)
+        finally:
+            combo.blockSignals(previous)
+        self._committed_pipe_pair_vertical_order_stale_v1 = bool(stale)
+        self._committed_pipe_pair_vertical_order_has_any_override_v1 = bool(
+            has_any_override
+        )
+        self._committed_pipe_pair_vertical_order_base_status_v1 = str(
+            status or ""
+        )
+        self._on_committed_pipe_pair_vertical_order_section_changed_v1(
+            combo.currentIndex()
+        )
+
+    def _on_committed_pipe_pair_vertical_order_section_changed_v1(
+            self,
+            index: int,
+    ) -> None:
+        combo = getattr(
+            self, "_committed_pipe_pair_vertical_order_section_combo_v1", None
+        )
+        if combo is None:
+            return
+        section_id = str(combo.itemData(index) or "") if index >= 0 else ""
+        self._committed_pipe_pair_vertical_order_selected_section_id_v1 = (
+            section_id
+        )
+        row = next(
+            (
+                value
+                for value in self._committed_pipe_pair_vertical_order_editor_rows_v1
+                if str(value.get("section_id") or "") == section_id
+            ),
+            {},
+        )
+        stacked = bool(row.get("stacked"))
+        self._committed_pipe_pair_vertical_order_arrangement_label_v1.setText(
+            "Stacked flow/return pair"
+            if stacked
+            else "Separate RR pipework"
+        )
+        effective_label = str(row.get("effective_order_label") or "—")
+        source = str(row.get("source") or "")
+        self._committed_pipe_pair_vertical_order_effective_label_v1.setText(
+            effective_label if not source else f"{effective_label} — {source}"
+        )
+        local_role = str(row.get("local_upper_pipe_role") or "")
+        local_index = (
+            self._committed_pipe_pair_local_vertical_order_combo_v1.findData(
+                local_role
+            )
+        )
+        if local_index >= 0:
+            self._committed_pipe_pair_local_vertical_order_combo_v1.setCurrentIndex(
+                local_index
+            )
+        base_status = str(
+            getattr(
+                self, "_committed_pipe_pair_vertical_order_base_status_v1", ""
+            )
+            or "Committed pipe-pair vertical order unavailable"
+        )
+        row_status = str(row.get("status") or "")
+        self._committed_pipe_pair_vertical_order_status_label_v1.setText(
+            base_status if not row_status else f"{base_status}\n{row_status}"
+        )
+        self._refresh_committed_pipe_pair_vertical_order_controls_v1()
+
+    def _refresh_committed_pipe_pair_vertical_order_controls_v1(self) -> None:
+        if not hasattr(
+            self, "_committed_pipe_pair_vertical_order_section_combo_v1"
+        ):
+            return
+        section_id = str(
+            self._committed_pipe_pair_vertical_order_selected_section_id_v1
+            or ""
+        )
+        row = next(
+            (
+                value
+                for value in self._committed_pipe_pair_vertical_order_editor_rows_v1
+                if str(value.get("section_id") or "") == section_id
+            ),
+            {},
+        )
+        has_callback = callable(
+            getattr(
+                self, "_committed_pipe_pair_vertical_order_callback_v1", None
+            )
+        )
+        stale = bool(
+            getattr(self, "_committed_pipe_pair_vertical_order_stale_v1", False)
+        )
+        local_editable = bool(
+            has_callback and section_id and row.get("stacked") and not stale
+        )
+        self._committed_pipe_pair_project_vertical_order_combo_v1.setEnabled(
+            has_callback
+        )
+        self._committed_pipe_pair_project_vertical_order_apply_button_v1.setEnabled(
+            has_callback
+        )
+        self._committed_pipe_pair_local_vertical_order_combo_v1.setEnabled(
+            local_editable
+        )
+        self._committed_pipe_pair_local_vertical_order_apply_button_v1.setEnabled(
+            local_editable
+        )
+        self._committed_pipe_pair_local_vertical_order_clear_button_v1.setEnabled(
+            has_callback and bool(row.get("has_override"))
+        )
+        self._committed_pipe_pair_local_vertical_order_clear_all_button_v1.setEnabled(
+            has_callback
+            and bool(
+                getattr(
+                    self,
+                    "_committed_pipe_pair_vertical_order_has_any_override_v1",
+                    False,
+                )
+            )
+        )
+
+    def _invoke_committed_pipe_pair_vertical_order_callback_v1(
+            self,
+            payload: dict,
+    ) -> None:
+        callback = getattr(
+            self, "_committed_pipe_pair_vertical_order_callback_v1", None
+        )
+        if not callable(callback):
+            return
+        try:
+            callback(payload)
+        except (TypeError, ValueError) as exc:
+            self._committed_pipe_pair_vertical_order_status_label_v1.setText(
+                f"Blocked — {exc}"
+            )
+
+    def _on_apply_committed_pipe_pair_project_vertical_order_v1(self) -> None:
+        self._invoke_committed_pipe_pair_vertical_order_callback_v1(
+            {
+                "action": "set_project",
+                "upper_pipe_role": (
+                    self._committed_pipe_pair_project_vertical_order_combo_v1.currentData()
+                ),
+            }
+        )
+
+    def _on_apply_committed_pipe_pair_local_vertical_order_v1(self) -> None:
+        self._invoke_committed_pipe_pair_vertical_order_callback_v1(
+            {
+                "action": "set",
+                "section_id": (
+                    self._committed_pipe_pair_vertical_order_selected_section_id_v1
+                ),
+                "upper_pipe_role": (
+                    self._committed_pipe_pair_local_vertical_order_combo_v1.currentData()
+                ),
+            }
+        )
+
+    def _on_clear_committed_pipe_pair_local_vertical_order_v1(self) -> None:
+        section_id = (
+            self._committed_pipe_pair_vertical_order_selected_section_id_v1
+        )
+        if section_id:
+            self._invoke_committed_pipe_pair_vertical_order_callback_v1(
+                {"action": "clear", "section_id": section_id}
+            )
+
+    def _on_clear_all_committed_pipe_pair_local_vertical_orders_v1(
+            self,
+    ) -> None:
+        self._invoke_committed_pipe_pair_vertical_order_callback_v1(
             {"action": "clear_all"}
         )
 

@@ -199,6 +199,17 @@ from HVAC.heatloss.physics.committed_pipe_pair_spacing_override_intent_v1 import
     resolve_effective_committed_pipe_pair_spacing_v1,
     set_current_committed_section_pipe_pair_spacing_override_v1,
 )
+from HVAC.heatloss.physics.committed_flow_return_pairing_temperature_evidence_v1 import (
+    FLOW_PIPE_V1,
+    NOT_SET_UPPER_PIPE_ROLE_V1,
+    RETURN_PIPE_V1,
+)
+from HVAC.heatloss.physics.committed_pipe_pair_vertical_order_intent_v1 import (
+    CommittedPipePairVerticalOrderIntentV1,
+    build_committed_pipe_pair_vertical_order_fingerprint_v1,
+    resolve_effective_committed_pipe_pair_vertical_order_v1,
+    set_current_committed_section_pipe_pair_vertical_order_override_v1,
+)
 from HVAC.heatloss.physics.environment_pipe_pair_spacing_defaults_v1 import (
     PIPE_PAIR_SUPPORT_LABELS_V1,
     SEPARATE_PIPE_V1,
@@ -498,6 +509,15 @@ class HydronicsSchematicPanelAdapter:
         ):
             self._panel.set_committed_pipe_pair_spacing_callback_v1(
                 self.set_committed_pipe_pair_spacing_override_v1
+            )
+
+        # H-S66-N2B2 — project/local stacked-pair vertical-order intent.
+        if hasattr(
+                self._panel,
+                "set_committed_pipe_pair_vertical_order_callback_v1",
+        ):
+            self._panel.set_committed_pipe_pair_vertical_order_callback_v1(
+                self.set_committed_pipe_pair_vertical_order_intent_v1
             )
 
         if hasattr(
@@ -1794,6 +1814,79 @@ class HydronicsSchematicPanelAdapter:
             raise ValueError("action must be 'set', 'clear' or 'clear_all'")
 
         project.hydronic_committed_pipe_pair_spacing_override_intent = intent
+        if hasattr(project, "mark_dirty"):
+            project.mark_dirty()
+        self.refresh()
+        for signal_name in ("project_state_changed", "project_changed"):
+            signal = getattr(self._context, signal_name, None)
+            emit = getattr(signal, "emit", None)
+            if not callable(emit):
+                continue
+            try:
+                emit()
+            except TypeError:
+                try:
+                    emit(project)
+                except TypeError:
+                    pass
+
+    def set_committed_pipe_pair_vertical_order_intent_v1(
+            self,
+            payload: dict,
+    ) -> None:
+        """Persist project-wide or sparse exact-section vertical-order intent."""
+        if not isinstance(payload, dict):
+            raise ValueError(
+                "Committed pipe-pair vertical-order payload must be a dictionary"
+            )
+        project = self._project_state
+        if project is None:
+            raise ValueError("ProjectState is unavailable")
+        action = str(payload.get("action") or "").strip().lower()
+        section_id = str(payload.get("section_id") or "").strip()
+        intent = getattr(
+            project,
+            "hydronic_committed_pipe_pair_vertical_order_intent",
+            None,
+        )
+        if not isinstance(intent, CommittedPipePairVerticalOrderIntentV1):
+            intent = CommittedPipePairVerticalOrderIntentV1()
+
+        if action == "set_project":
+            intent.set_project_upper_pipe_role(payload.get("upper_pipe_role"))
+        elif action == "set":
+            snapshot = getattr(
+                project, "hydronic_proportioned_basis_snapshot", None
+            )
+            committed_authority = getattr(
+                snapshot, "hydraulic_input_authority", None
+            )
+            arrangement_by_section_id, _raw_defaults = (
+                self._resolve_committed_pipe_pair_spacing_context_v1(
+                    committed_authority
+                )
+            )
+            set_current_committed_section_pipe_pair_vertical_order_override_v1(
+                intent=intent,
+                committed_authority=committed_authority,
+                external_arrangement_by_section_id=(
+                    arrangement_by_section_id
+                ),
+                section_id=section_id,
+                upper_pipe_role=payload.get("upper_pipe_role"),
+            )
+        elif action == "clear":
+            if not section_id:
+                raise ValueError("Select a committed pipe section")
+            intent.clear_section_override(section_id)
+        elif action == "clear_all":
+            intent.clear_all_section_overrides()
+        else:
+            raise ValueError(
+                "action must be 'set_project', 'set', 'clear' or 'clear_all'"
+            )
+
+        project.hydronic_committed_pipe_pair_vertical_order_intent = intent
         if hasattr(project, "mark_dirty"):
             project.mark_dirty()
         self.refresh()
@@ -6790,6 +6883,9 @@ class HydronicsSchematicPanelAdapter:
         self._push_committed_pipe_pair_spacing_editor_v1(
             committed_authority=committed_authority,
         )
+        self._push_committed_pipe_pair_vertical_order_editor_v1(
+            committed_authority=committed_authority,
+        )
         handoff = (
             build_committed_pipe_section_bare_heat_loss_runtime_handoff_v1(
                 committed_authority=committed_authority,
@@ -6975,6 +7071,156 @@ class HydronicsSchematicPanelAdapter:
         )
         setter(
             rows,
+            status=status,
+            stale=stale,
+            has_any_override=has_any_override,
+        )
+
+    def _push_committed_pipe_pair_vertical_order_editor_v1(
+            self,
+            *,
+            committed_authority,
+    ) -> None:
+        """Project N2B1 project/local intent into the N2B2 controls."""
+        setter = getattr(
+            self._panel,
+            "set_committed_pipe_pair_vertical_order_editor_rows_v1",
+            None,
+        )
+        if not callable(setter):
+            return
+        intent = getattr(
+            self._project_state,
+            "hydronic_committed_pipe_pair_vertical_order_intent",
+            None,
+        )
+        valid_intent = isinstance(
+            intent, CommittedPipePairVerticalOrderIntentV1
+        )
+        project_role = (
+            str(intent.project_upper_pipe_role or NOT_SET_UPPER_PIPE_ROLE_V1)
+            if valid_intent
+            else NOT_SET_UPPER_PIPE_ROLE_V1
+        )
+        entries = (
+            dict(intent.override_by_section_id) if valid_intent else {}
+        )
+        has_any_override = bool(entries)
+        try:
+            fingerprint = (
+                build_committed_pipe_pair_vertical_order_fingerprint_v1(
+                    committed_authority
+                )
+            )
+            arrangement_by_section_id, _raw_defaults = (
+                self._resolve_committed_pipe_pair_spacing_context_v1(
+                    committed_authority
+                )
+            )
+        except (TypeError, ValueError) as exc:
+            setter(
+                [],
+                project_upper_pipe_role=project_role,
+                status=f"Blocked — {exc}",
+                stale=False,
+                has_any_override=has_any_override,
+            )
+            return
+
+        stale = bool(
+            has_any_override
+            and str(intent.committed_schedule_fingerprint or "").strip()
+            != fingerprint
+        )
+        role_labels = {
+            NOT_SET_UPPER_PIPE_ROLE_V1: "Not set",
+            FLOW_PIPE_V1: "Flow above return",
+            RETURN_PIPE_V1: "Return above flow",
+        }
+        rows: list[dict] = []
+        for section in tuple(
+            getattr(committed_authority, "sections", ()) or ()
+        ):
+            section_id = str(
+                getattr(section, "section_id", "") or ""
+            ).strip()
+            arrangement = arrangement_by_section_id.get(section_id, "")
+            stacked = arrangement != SEPARATE_PIPE_V1
+            local_entry = entries.get(section_id)
+            effective = None
+            row_status = "Separate RR pipework — vertical order dormant"
+            if stacked and not stale:
+                try:
+                    effective = (
+                        resolve_effective_committed_pipe_pair_vertical_order_v1(
+                            committed_authority=committed_authority,
+                            external_arrangement_by_section_id=(
+                                arrangement_by_section_id
+                            ),
+                            intent=intent,
+                            section_id=section_id,
+                        )
+                    )
+                    row_status = str(
+                        getattr(effective, "status", "") or ""
+                    )
+                except (TypeError, ValueError) as exc:
+                    row_status = f"Blocked — {exc}"
+            elif stacked and stale:
+                row_status = (
+                    "Blocked — local vertical-order overrides are stale"
+                )
+            effective_role = str(
+                getattr(
+                    effective,
+                    "effective_upper_pipe_role",
+                    NOT_SET_UPPER_PIPE_ROLE_V1,
+                )
+                or NOT_SET_UPPER_PIPE_ROLE_V1
+            )
+            rows.append(
+                {
+                    "section_id": section_id,
+                    "label": (
+                        f"{int(getattr(section, 'order', 0)) + 1:02d} | "
+                        f"{str(getattr(section, 'from_label', '—') or '—')} → "
+                        f"{str(getattr(section, 'to_label', '—') or '—')} | "
+                        f"{str(getattr(section, 'material_label', '—') or '—')} "
+                        f"{str(getattr(section, 'pipe_size_label', '—') or '—')} | "
+                        f"{section_id}"
+                    ),
+                    "stacked": stacked,
+                    "arrangement": arrangement,
+                    "project_upper_pipe_role": project_role,
+                    "effective_upper_pipe_role": (
+                        effective_role if stacked and not stale else ""
+                    ),
+                    "effective_order_label": (
+                        role_labels.get(effective_role, "Not set")
+                        if stacked and not stale
+                        else ("Dormant" if not stacked else "—")
+                    ),
+                    "local_upper_pipe_role": str(
+                        getattr(local_entry, "upper_pipe_role", "") or ""
+                    ),
+                    "has_override": local_entry is not None,
+                    "source": str(
+                        getattr(effective, "source", "") or ""
+                    ),
+                    "status": row_status,
+                }
+            )
+        status = (
+            "Blocked — persisted local vertical-order overrides are stale; "
+            "clear all order overrides before recording the current "
+            "committed schedule"
+            if stale
+            else "Ready — stacked sections inherit the project-wide order "
+                 "unless locally overridden; separate RR sections ignore it"
+        )
+        setter(
+            rows,
+            project_upper_pipe_role=project_role,
             status=status,
             stale=stale,
             has_any_override=has_any_override,
