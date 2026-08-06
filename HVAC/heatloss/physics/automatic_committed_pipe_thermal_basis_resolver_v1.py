@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 import math
 from typing import Any
@@ -55,6 +56,7 @@ def build_automatic_committed_pipe_thermal_basis_resolution_v1(
         default_internal_temperature_C: object,
         default_pipe_emissivity: object = None,
         thermal_basis_intent: Any = None,
+        external_convection_by_section_id: Mapping[str, object] | None = None,
 ) -> AutomaticCommittedPipeThermalBasisResolutionV1:
     """Resolve defensible v1 values without silently committing assumptions.
 
@@ -66,8 +68,8 @@ def build_automatic_committed_pipe_thermal_basis_resolution_v1(
     * MRT equals that same Environment value as an explicit v1 approximation.
     * Emissivity inherits the explicit Environment project default unless a
       fresh committed-section local override exists.
-    * External convection is not inferred until an orientation/correlation
-      authority exists.
+    * External convection remains unresolved unless exact fresh N2D runtime
+      evidence is supplied for the committed section.
 
     A fresh H-S66-F manual entry has precedence over every automatic preview
     value.  This function performs no persistence and no heat-loss calculation.
@@ -127,6 +129,28 @@ def build_automatic_committed_pipe_thermal_basis_resolution_v1(
         if not stale_manual
         else {}
     )
+    convection_by_id: dict[str, object] = {}
+    if external_convection_by_section_id is not None:
+        if not isinstance(external_convection_by_section_id, Mapping):
+            authority_blockers.append(
+                "Committed external-convection section mapping is required"
+            )
+        else:
+            for raw_section_id, evidence in (
+                external_convection_by_section_id.items()
+            ):
+                section_id = str(raw_section_id or "").strip()
+                if not section_id or section_id != raw_section_id:
+                    authority_blockers.append(
+                        "Every external-convection entry requires canonical "
+                        "section identity"
+                    )
+                elif section_id in convection_by_id:
+                    authority_blockers.append(
+                        f"Duplicate external-convection identity: {section_id}"
+                    )
+                else:
+                    convection_by_id[section_id] = evidence
 
     resolved: list[AutomaticCommittedPipeSectionThermalBasisV1] = []
     seen: set[str] = set()
@@ -184,8 +208,107 @@ def build_automatic_committed_pipe_thermal_basis_resolution_v1(
             blockers.append(internal_blocker)
         if effective_emissivity is None:
             blockers.append(emissivity_blocker)
-        blockers.append(
-            "External convection coefficient requires explicit review"
+        convection_evidence = convection_by_id.get(section_id)
+        convection_coefficient = None
+        convection_source = (
+            "Explicit value required — no orientation/correlation authority"
+        )
+        if convection_evidence is None:
+            blockers.append(
+                "External convection coefficient requires explicit review"
+            )
+        else:
+            evidence_section_id = str(
+                getattr(convection_evidence, "section_id", "") or ""
+            ).strip()
+            if evidence_section_id != section_id:
+                blockers.append(
+                    f"{section_id}: external-convection evidence identity "
+                    "mismatch"
+                )
+            elif not bool(getattr(convection_evidence, "ready", False)):
+                blockers.append(
+                    f"{section_id}: external-convection evidence is not ready"
+                )
+            else:
+                try:
+                    evidence_ambient_C = float(
+                        getattr(
+                            convection_evidence,
+                            "ambient_air_temperature_C",
+                        )
+                    )
+                    evidence_mean_surface_C = float(
+                        getattr(
+                            convection_evidence,
+                            "mean_surface_temperature_C",
+                        )
+                    )
+                except (TypeError, ValueError, AttributeError):
+                    blockers.append(
+                        f"{section_id}: N2D ambient and mean surface "
+                        "temperatures are required"
+                    )
+                else:
+                    if (
+                        internal_temperature_C is not None
+                        and not math.isclose(
+                            evidence_ambient_C,
+                            internal_temperature_C,
+                            rel_tol=0.0,
+                            abs_tol=1.0e-9,
+                        )
+                    ):
+                        blockers.append(
+                            f"{section_id}: N2D local ambient-air "
+                            "temperature does not match this automatic "
+                            "thermal-basis air temperature"
+                        )
+                    if (
+                        mean_water_temperature_C is not None
+                        and not math.isclose(
+                            evidence_mean_surface_C,
+                            mean_water_temperature_C,
+                            rel_tol=0.0,
+                            abs_tol=1.0e-9,
+                        )
+                    ):
+                        blockers.append(
+                            f"{section_id}: N2D mean pipe-surface "
+                            "temperature does not match this automatic "
+                            "thermal-basis surface temperature"
+                        )
+                try:
+                    candidate = float(
+                        getattr(
+                            convection_evidence,
+                            "effective_external_convection_coefficient_W_m2K",
+                        )
+                    )
+                except (TypeError, ValueError, AttributeError):
+                    blockers.append(
+                        f"{section_id}: effective external-convection "
+                        "coefficient is required"
+                    )
+                else:
+                    if not math.isfinite(candidate) or candidate <= 0.0:
+                        blockers.append(
+                            f"{section_id}: effective external-convection "
+                            "coefficient must be positive and finite"
+                        )
+                    else:
+                        if not blockers:
+                            convection_coefficient = candidate
+                            convection_source = str(
+                                getattr(convection_evidence, "source", "")
+                                or "H-S66-N2D committed external-convection evidence"
+                            )
+        complete = bool(
+            mean_water_temperature_C is not None
+            and internal_temperature_C is not None
+            and effective_emissivity is not None
+            and convection_coefficient is not None
+            and not blockers
         )
         resolved.append(
             AutomaticCommittedPipeSectionThermalBasisV1(
@@ -194,7 +317,9 @@ def build_automatic_committed_pipe_thermal_basis_resolution_v1(
                 ambient_air_temperature_C=internal_temperature_C,
                 mean_radiant_temperature_C=internal_temperature_C,
                 emissivity=effective_emissivity,
-                external_convection_coefficient_W_m2K=None,
+                external_convection_coefficient_W_m2K=(
+                    convection_coefficient
+                ),
                 surface_temperature_source=(
                     "Environment design flow/return arithmetic mean — "
                     "no temperature decay"
@@ -213,22 +338,32 @@ def build_automatic_committed_pipe_thermal_basis_resolution_v1(
                     else "Unresolved"
                 ),
                 emissivity_source=emissivity_source,
-                external_convection_source=(
-                    "Explicit value required — no orientation/correlation "
-                    "authority"
-                ),
-                complete=False,
+                external_convection_source=convection_source,
+                complete=complete,
                 status=(
-                    "Partial — automatic Environment preview; external "
-                    "convection requires explicit review"
-                    if effective_emissivity is not None
+                    "Ready — automatic Environment temperatures, effective "
+                    "emissivity and N2D external convection resolved"
+                    if complete
                     else (
-                        "Partial — automatic temperature preview; universal "
-                        "emissivity and external convection are unresolved"
+                        "Partial — automatic Environment preview; external "
+                        "convection requires explicit review"
+                        if effective_emissivity is not None
+                        and convection_coefficient is None
+                        else (
+                            "Partial — automatic thermal basis has unresolved "
+                            "inputs"
+                        )
                     )
                 ),
                 blockers=tuple(blockers),
             )
+        )
+
+    committed_ids = seen
+    for section_id in sorted(set(convection_by_id) - committed_ids):
+        authority_blockers.append(
+            f"{section_id}: external-convection evidence has no committed "
+            "section"
         )
 
     if stale_manual:
