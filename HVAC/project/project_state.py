@@ -68,6 +68,11 @@ from HVAC.heatloss.physics.committed_pipe_pair_spacing_override_intent_v1 import
     committed_pipe_pair_spacing_override_intent_from_dict_v1,
     committed_pipe_pair_spacing_override_intent_to_dict_v1,
 )
+from HVAC.heatloss.physics.committed_pipe_pair_vertical_order_intent_v1 import (
+    CommittedPipePairVerticalOrderIntentV1,
+    committed_pipe_pair_vertical_order_intent_from_dict_v1,
+    committed_pipe_pair_vertical_order_intent_to_dict_v1,
+)
 from HVAC.hydronics.topology.hydronic_topology_v1 import HydronicTopologyV1
 # ======================================================================
 # Hydronics emitter serialization
@@ -236,6 +241,10 @@ class ProjectState:
     # H-S66-N1B — sparse exact-section support/c/c overrides.
     hydronic_committed_pipe_pair_spacing_override_intent: Optional[
         CommittedPipePairSpacingOverrideIntentV1
+    ] = None
+    # H-S66-N2B1 — project default plus sparse exact-section vertical order.
+    hydronic_committed_pipe_pair_vertical_order_intent: Optional[
+        CommittedPipePairVerticalOrderIntentV1
     ] = None
 
     # ------------------------------------------------------------------
@@ -495,6 +504,13 @@ class ProjectState:
                 if self.hydronic_committed_pipe_pair_spacing_override_intent
                 else None
             ),
+            "hydronic_committed_pipe_pair_vertical_order_intent": (
+                committed_pipe_pair_vertical_order_intent_to_dict_v1(
+                    self.hydronic_committed_pipe_pair_vertical_order_intent
+                )
+                if self.hydronic_committed_pipe_pair_vertical_order_intent
+                else None
+            ),
             "hydronics": {
                 "valid": self.hydronics_valid,
                 "results": _json_safe(self.hydronics_results),
@@ -695,6 +711,16 @@ class ProjectState:
             instance.hydronic_committed_pipe_pair_spacing_override_intent = (
                 committed_pipe_pair_spacing_override_intent_from_dict_v1(
                     raw_pipe_pair_spacing_override_intent
+                )
+            )
+
+        raw_pipe_pair_vertical_order_intent = data.get(
+            "hydronic_committed_pipe_pair_vertical_order_intent"
+        )
+        if isinstance(raw_pipe_pair_vertical_order_intent, dict):
+            instance.hydronic_committed_pipe_pair_vertical_order_intent = (
+                committed_pipe_pair_vertical_order_intent_from_dict_v1(
+                    raw_pipe_pair_vertical_order_intent
                 )
             )
 
@@ -945,5 +971,4 @@ class ProjectState:
             self.room_opening_schedules[room_id] = schedule
 
         return schedule
-
 
