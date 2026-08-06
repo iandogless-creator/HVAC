@@ -1464,6 +1464,12 @@ class HydronicsSchematicPanel(QWidget):
             "Apply basis to selected section",
             thermal_editor,
         )
+        self._committed_pipe_thermal_basis_apply_all_missing_button_v1 = (
+            QPushButton(
+                "Apply complete automatic bases to all missing sections",
+                thermal_editor,
+            )
+        )
         self._committed_pipe_thermal_basis_clear_button_v1 = QPushButton(
             "Clear selected section basis",
             thermal_editor,
@@ -1475,6 +1481,9 @@ class HydronicsSchematicPanel(QWidget):
         self._committed_pipe_thermal_basis_apply_button_v1.clicked.connect(
             self._on_apply_committed_pipe_thermal_basis_v1
         )
+        self._committed_pipe_thermal_basis_apply_all_missing_button_v1.clicked.connect(
+            self._on_apply_all_missing_committed_pipe_thermal_bases_v1
+        )
         self._committed_pipe_thermal_basis_clear_button_v1.clicked.connect(
             self._on_clear_committed_pipe_thermal_basis_v1
         )
@@ -1483,6 +1492,13 @@ class HydronicsSchematicPanel(QWidget):
         )
         thermal_layout.addWidget(
             self._committed_pipe_thermal_basis_apply_button_v1, 5, 3
+        )
+        thermal_layout.addWidget(
+            self._committed_pipe_thermal_basis_apply_all_missing_button_v1,
+            5,
+            0,
+            1,
+            3,
         )
         thermal_layout.addWidget(
             self._committed_pipe_thermal_basis_clear_button_v1, 5, 4
@@ -11979,6 +11995,20 @@ QTableWidget::item:selected:!active {
         self._committed_pipe_thermal_basis_apply_button_v1.setEnabled(
             has_section and has_callback and not stale
         )
+        missing_rows = tuple(
+            row
+            for row in self._committed_pipe_thermal_basis_editor_rows_v1
+            if not bool(row.get("has_basis"))
+        )
+        self._committed_pipe_thermal_basis_apply_all_missing_button_v1.setEnabled(
+            has_callback
+            and not stale
+            and bool(missing_rows)
+            and all(
+                bool(row.get("automatic_complete"))
+                for row in missing_rows
+            )
+        )
         current_row = next(
             (
                 row
@@ -12277,6 +12307,46 @@ QTableWidget::item:selected:!active {
             )
             return
         self._invoke_committed_pipe_thermal_basis_callback_v1(payload)
+
+    def _on_apply_all_missing_committed_pipe_thermal_bases_v1(self) -> None:
+        missing_count = sum(
+            not bool(row.get("has_basis"))
+            for row in self._committed_pipe_thermal_basis_editor_rows_v1
+        )
+        if not missing_count:
+            return
+        answer = QMessageBox.question(
+            self,
+            "Apply complete automatic pipe thermal bases",
+            (
+                f"Apply the complete automatic preview to all {missing_count} "
+                "missing committed pipe section(s)?\n\n"
+                "Existing explicit section bases and local emissivity "
+                "overrides will be preserved. The exact current schedule, "
+                "Environment temperatures/emissivity and N2D convection "
+                "evidence will be revalidated before one atomic update."
+            ),
+            QMessageBox.StandardButton.Yes
+            | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if answer != QMessageBox.StandardButton.Yes:
+            return
+        callback = getattr(
+            self,
+            "_committed_pipe_thermal_basis_callback_v1",
+            None,
+        )
+        if not callable(callback):
+            return
+        try:
+            callback({"action": "set_all_missing_automatic"})
+        except (TypeError, ValueError) as exc:
+            QMessageBox.warning(
+                self,
+                "Automatic pipe thermal-basis acceptance blocked",
+                str(exc),
+            )
 
     def _on_clear_committed_pipe_thermal_basis_v1(self) -> None:
         section_id = self._committed_pipe_thermal_basis_selected_section_id_v1

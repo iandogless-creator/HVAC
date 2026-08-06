@@ -190,6 +190,9 @@ from HVAC.heatloss.physics.committed_pipe_section_thermal_condition_basis_intent
 from HVAC.heatloss.physics.automatic_committed_pipe_thermal_basis_resolver_v1 import (
     build_automatic_committed_pipe_thermal_basis_resolution_v1,
 )
+from HVAC.heatloss.physics.committed_pipe_automatic_thermal_basis_bulk_acceptance_v1 import (
+    build_committed_pipe_automatic_thermal_basis_bulk_acceptance_v1,
+)
 from HVAC.heatloss.physics.committed_pipe_external_arrangement_runtime_handoff_v1 import (
     build_committed_pipe_external_arrangement_runtime_handoff_v1,
 )
@@ -203,6 +206,11 @@ from HVAC.heatloss.physics.committed_flow_return_pairing_temperature_evidence_v1
     FLOW_PIPE_V1,
     NOT_SET_UPPER_PIPE_ROLE_V1,
     RETURN_PIPE_V1,
+    build_committed_flow_return_pairing_temperature_evidence_v1,
+)
+from HVAC.heatloss.physics.committed_pipe_external_convection_runtime_handoff_v1 import (
+    build_committed_pipe_external_convection_runtime_handoff_v1,
+    external_convection_mapping_from_runtime_handoff_v1,
 )
 from HVAC.heatloss.physics.committed_pipe_pair_vertical_order_intent_v1 import (
     CommittedPipePairVerticalOrderIntentV1,
@@ -1716,6 +1724,54 @@ class HydronicsSchematicPanelAdapter:
                 thermal_basis=thermal_basis,
                 emissivity_override=payload.get("emissivity_override"),
             )
+        elif action == "set_all_missing_automatic":
+            design_temperatures = resolve_hydronic_design_temperature_basis_v1(
+                project
+            )
+            environment = getattr(project, "environment", None)
+            external_convection_by_section_id = (
+                self._build_committed_pipe_external_convection_mapping_v1(
+                    committed_authority=committed_authority,
+                    design_temperatures=design_temperatures,
+                    environment=environment,
+                )
+            )
+            automatic_resolution = (
+                build_automatic_committed_pipe_thermal_basis_resolution_v1(
+                    committed_authority=committed_authority,
+                    committed_schedule_fingerprint=fingerprint,
+                    design_flow_temperature_C=getattr(
+                        design_temperatures, "flow_temp_c", None
+                    ),
+                    design_return_temperature_C=getattr(
+                        design_temperatures, "return_temp_c", None
+                    ),
+                    default_internal_temperature_C=getattr(
+                        environment, "default_internal_temp_C", None
+                    ),
+                    default_pipe_emissivity=getattr(
+                        environment, "bare_pipe_emissivity", None
+                    ),
+                    thermal_basis_intent=intent,
+                    external_convection_by_section_id=(
+                        external_convection_by_section_id
+                    ),
+                )
+            )
+            accepted = (
+                build_committed_pipe_automatic_thermal_basis_bulk_acceptance_v1(
+                    committed_schedule_fingerprint=fingerprint,
+                    committed_section_ids=tuple(
+                        str(getattr(section, "section_id", "") or "").strip()
+                        for section in tuple(
+                            getattr(committed_authority, "sections", ()) or ()
+                        )
+                    ),
+                    automatic_resolution=automatic_resolution,
+                    existing_intent=intent,
+                )
+            )
+            intent = accepted.intent
         elif action == "clear":
             if not section_id:
                 raise ValueError("Select a committed pipe section")
@@ -1731,7 +1787,10 @@ class HydronicsSchematicPanelAdapter:
             ):
                 intent.clear_all()
         else:
-            raise ValueError("action must be 'set', 'clear' or 'clear_all'")
+            raise ValueError(
+                "action must be 'set', 'set_all_missing_automatic', "
+                "'clear' or 'clear_all'"
+            )
 
         project.hydronic_committed_pipe_section_thermal_condition_basis_intent = (
             intent
@@ -6945,6 +7004,152 @@ class HydronicsSchematicPanelAdapter:
         )
         return arrangement_by_section_id, raw_defaults
 
+    def _resolve_committed_pipe_external_arrangement_authority_v1(
+            self,
+            committed_authority,
+    ):
+        """Return the ready exact H-S66-M/H-S66-L runtime authority."""
+        comparison = build_circuit_return_path_comparison_v1(
+            self._project_state
+        )
+        arrangement_handoff = (
+            build_committed_pipe_external_arrangement_runtime_handoff_v1(
+                committed_authority=committed_authority,
+                return_path_comparison_rows=tuple(
+                    getattr(comparison, "rows", ()) or ()
+                ),
+            )
+        )
+        if not arrangement_handoff.ready or arrangement_handoff.authority is None:
+            raise ValueError(
+                str(arrangement_handoff.status or "").replace(
+                    "Blocked — ", "", 1
+                )
+                or "Committed pipe external arrangement is unavailable"
+            )
+        return arrangement_handoff.authority
+
+    def _build_committed_pipe_external_convection_mapping_v1(
+            self,
+            *,
+            committed_authority,
+            design_temperatures,
+            environment,
+    ) -> dict[str, object]:
+        """Orchestrate persisted N1/N2 evidence into the N2D/J mapping."""
+
+        arrangement_authority = (
+            self._resolve_committed_pipe_external_arrangement_authority_v1(
+                committed_authority
+            )
+        )
+        arrangement_by_section_id = {
+            str(row.section_id): str(row.external_arrangement)
+            for row in arrangement_authority.sections
+        }
+
+        vertical_intent = getattr(
+            self._project_state,
+            "hydronic_committed_pipe_pair_vertical_order_intent",
+            None,
+        )
+        valid_vertical_intent = isinstance(
+            vertical_intent,
+            CommittedPipePairVerticalOrderIntentV1,
+        )
+        project_upper_role = (
+            str(vertical_intent.project_upper_pipe_role)
+            if valid_vertical_intent
+            else NOT_SET_UPPER_PIPE_ROLE_V1
+        )
+        vertical_overrides: dict[str, str] = {}
+        if valid_vertical_intent and vertical_intent.override_by_section_id:
+            expected_fingerprint = (
+                build_committed_pipe_pair_vertical_order_fingerprint_v1(
+                    committed_authority
+                )
+            )
+            if (
+                str(vertical_intent.committed_schedule_fingerprint or "").strip()
+                != expected_fingerprint
+            ):
+                raise ValueError(
+                    "Persisted pipe-pair vertical-order overrides are stale "
+                    "for the current committed schedule"
+                )
+            vertical_overrides = {
+                str(section_id): str(entry.upper_pipe_role)
+                for section_id, entry in (
+                    vertical_intent.override_by_section_id.items()
+                )
+            }
+
+        pairing = build_committed_flow_return_pairing_temperature_evidence_v1(
+            committed_authority=committed_authority,
+            external_arrangement_authority=arrangement_authority,
+            design_flow_temperature_C=getattr(
+                design_temperatures, "flow_temp_c", None
+            ),
+            design_return_temperature_C=getattr(
+                design_temperatures, "return_temp_c", None
+            ),
+            project_upper_pipe_role=project_upper_role,
+            upper_pipe_role_override_by_section_id=vertical_overrides,
+        )
+        if not pairing.ready:
+            raise ValueError(
+                "; ".join(pairing.blockers or (pairing.status,))
+            )
+
+        spacing_intent = getattr(
+            self._project_state,
+            "hydronic_committed_pipe_pair_spacing_override_intent",
+            None,
+        )
+        raw_defaults = getattr(
+            environment,
+            "bare_pipe_pair_spacing_defaults_by_nominal_od_mm",
+            None,
+        )
+        effective_spacing_by_section_id = {}
+        for pairing_row in pairing.sections:
+            if not pairing_row.paired:
+                continue
+            effective = resolve_effective_committed_pipe_pair_spacing_v1(
+                committed_authority=committed_authority,
+                external_arrangement_by_section_id=arrangement_by_section_id,
+                raw_environment_defaults=raw_defaults,
+                local_intent=spacing_intent,
+                section_id=pairing_row.section_id,
+            )
+            if effective is None:
+                raise ValueError(
+                    f"{pairing_row.section_id}: effective stacked-pair "
+                    "spacing is required"
+                )
+            effective_spacing_by_section_id[pairing_row.section_id] = effective
+
+        ambient_air_temperature_C = getattr(
+            environment, "default_internal_temp_C", None
+        )
+        handoff = build_committed_pipe_external_convection_runtime_handoff_v1(
+            pairing_evidence=pairing,
+            effective_spacing_by_section_id=(
+                effective_spacing_by_section_id
+            ),
+            ambient_air_temperature_C=ambient_air_temperature_C,
+            pressure_Pa=101325.0,
+            ambient_air_temperature_source=(
+                "Environment default internal temperature — v1 local Tai "
+                "proxy pending section-to-space mapping"
+            ),
+        )
+        if not handoff.ready:
+            raise ValueError(
+                "; ".join(handoff.blockers or (handoff.status,))
+            )
+        return external_convection_mapping_from_runtime_handoff_v1(handoff)
+
     def _push_committed_pipe_pair_spacing_editor_v1(
             self,
             *,
@@ -7289,6 +7494,18 @@ class HydronicsSchematicPanelAdapter:
             if valid_intent and not stale
             else {}
         )
+        external_convection_by_section_id: dict[str, object] = {}
+        automatic_convection_blocker = ""
+        try:
+            external_convection_by_section_id = (
+                self._build_committed_pipe_external_convection_mapping_v1(
+                    committed_authority=committed_authority,
+                    design_temperatures=design_temperatures,
+                    environment=environment,
+                )
+            )
+        except (TypeError, ValueError) as exc:
+            automatic_convection_blocker = str(exc)
         automatic_resolution = (
             build_automatic_committed_pipe_thermal_basis_resolution_v1(
                 committed_authority=committed_authority,
@@ -7304,6 +7521,9 @@ class HydronicsSchematicPanelAdapter:
                 ),
                 default_pipe_emissivity=universal_emissivity,
                 thermal_basis_intent=intent,
+                external_convection_by_section_id=(
+                    external_convection_by_section_id
+                ),
             )
         )
         automatic_by_section_id = {
@@ -7362,9 +7582,64 @@ class HydronicsSchematicPanelAdapter:
                     "resolution_note": str(
                         getattr(automatic, "status", "") or ""
                     ),
+                    "automatic_complete": bool(
+                        getattr(automatic, "complete", False)
+                    ),
                 }
             )
         basis_count = sum(bool(row["has_basis"]) for row in rows)
+        automatic_preview_rows = tuple(
+            automatic
+            for section_id, automatic in automatic_by_section_id.items()
+            if section_id not in entries
+        )
+        n2d_h_count = sum(
+            getattr(
+                automatic,
+                "external_convection_coefficient_W_m2K",
+                None,
+            ) is not None
+            for automatic in automatic_preview_rows
+        )
+        automatic_blockers = tuple(
+            dict.fromkeys(
+                str(blocker).strip()
+                for automatic in automatic_preview_rows
+                for blocker in tuple(
+                    getattr(automatic, "blockers", ()) or ()
+                )
+                if str(blocker).strip()
+            )
+        )
+        if not automatic_preview_rows:
+            convection_status = (
+                "all committed sections have explicit thermal bases; no "
+                "missing automatic preview remains."
+            )
+        elif external_convection_by_section_id:
+            if n2d_h_count == len(automatic_preview_rows):
+                convection_status = (
+                    "automatic external h conv is resolved from N2D for all "
+                    f"{n2d_h_count} automatic section preview(s)."
+                )
+            else:
+                convection_status = (
+                    "automatic external h conv is only resolved from N2D for "
+                    f"{n2d_h_count} of {len(automatic_preview_rows)} automatic "
+                    "section preview(s)."
+                )
+        else:
+            convection_status = (
+                "automatic external h conv is blocked: "
+                f"{automatic_convection_blocker}."
+            )
+        incomplete_status = (
+            " Remaining incomplete automatic input(s): "
+            + "; ".join(automatic_blockers)
+            + "."
+            if automatic_blockers
+            else ""
+        )
         status = (
             "Blocked — persisted thermal bases are stale; clear all section "
             "bases before recording the current committed schedule."
@@ -7372,8 +7647,9 @@ class HydronicsSchematicPanelAdapter:
             else (
                 f"Ready — {basis_count} of {len(rows)} committed section(s) "
                 "have explicit thermal bases. Emissivity inherits the "
-                "Environment default unless locally overridden; external "
-                "h conv remains explicit."
+                "Environment default unless locally overridden; "
+                + convection_status
+                + incomplete_status
             )
         )
         setter(
