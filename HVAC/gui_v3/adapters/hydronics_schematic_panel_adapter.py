@@ -218,6 +218,12 @@ from HVAC.heatloss.physics.committed_pipe_pair_vertical_order_intent_v1 import (
     resolve_effective_committed_pipe_pair_vertical_order_v1,
     set_current_committed_section_pipe_pair_vertical_order_override_v1,
 )
+from HVAC.heatloss.physics.committed_pipe_section_room_mapping_intent_v1 import (
+    CommittedPipeSectionRoomMappingIntentV1,
+    build_committed_pipe_section_room_mapping_fingerprint_v1,
+    resolve_effective_committed_pipe_section_room_mapping_v1,
+    set_current_committed_pipe_section_room_mapping_v1,
+)
 from HVAC.heatloss.physics.environment_pipe_pair_spacing_defaults_v1 import (
     PIPE_PAIR_SUPPORT_LABELS_V1,
     SEPARATE_PIPE_V1,
@@ -526,6 +532,15 @@ class HydronicsSchematicPanelAdapter:
         ):
             self._panel.set_committed_pipe_pair_vertical_order_callback_v1(
                 self.set_committed_pipe_pair_vertical_order_intent_v1
+            )
+
+        # H-S66-N3B1 — exact committed-section room mapping intent.
+        if hasattr(
+                self._panel,
+                "set_committed_pipe_section_room_mapping_callback_v1",
+        ):
+            self._panel.set_committed_pipe_section_room_mapping_callback_v1(
+                self.set_committed_pipe_section_room_mapping_intent_v1
             )
 
         if hasattr(
@@ -1957,6 +1972,64 @@ class HydronicsSchematicPanelAdapter:
             try:
                 emit()
             except TypeError:
+                try:
+                    emit(project)
+                except TypeError:
+                    pass
+
+    def set_committed_pipe_section_room_mapping_intent_v1(
+            self,
+            payload: dict,
+    ) -> None:
+        """Persist or clear one exact H-S66-N3B section-room mapping."""
+        if not isinstance(payload, dict):
+            raise TypeError("Committed pipe-section room payload is required")
+        project = self._project_state
+        if project is None:
+            raise ValueError("ProjectState is unavailable")
+        action = str(payload.get("action") or "").strip().lower()
+        section_id = str(payload.get("section_id") or "").strip()
+        intent = getattr(
+            project,
+            "hydronic_committed_pipe_section_room_mapping_intent",
+            None,
+        )
+        if not isinstance(intent, CommittedPipeSectionRoomMappingIntentV1):
+            intent = CommittedPipeSectionRoomMappingIntentV1()
+
+        if action == "set":
+            snapshot = getattr(
+                project, "hydronic_proportioned_basis_snapshot", None
+            )
+            committed_authority = getattr(
+                snapshot, "hydraulic_input_authority", None
+            )
+            set_current_committed_pipe_section_room_mapping_v1(
+                intent=intent,
+                committed_authority=committed_authority,
+                available_room_ids=tuple(
+                    (getattr(project, "rooms", {}) or {}).keys()
+                ),
+                section_id=section_id,
+                room_id=payload.get("room_id"),
+            )
+        elif action == "clear":
+            if not section_id:
+                raise ValueError("Select a committed pipe section")
+            intent.clear_section_room(section_id)
+        elif action == "clear_all":
+            intent.clear_all()
+        else:
+            raise ValueError("action must be 'set', 'clear' or 'clear_all'")
+
+        project.hydronic_committed_pipe_section_room_mapping_intent = intent
+        if hasattr(project, "mark_dirty"):
+            project.mark_dirty()
+        self.refresh()
+        for signal_name in ("project_state_changed", "project_changed"):
+            signal = getattr(self._context, signal_name, None)
+            emit = getattr(signal, "emit", None)
+            if callable(emit):
                 try:
                     emit(project)
                 except TypeError:
@@ -6945,6 +7018,9 @@ class HydronicsSchematicPanelAdapter:
         self._push_committed_pipe_pair_vertical_order_editor_v1(
             committed_authority=committed_authority,
         )
+        self._push_committed_pipe_section_room_mapping_editor_v1(
+            committed_authority=committed_authority,
+        )
         handoff = (
             build_committed_pipe_section_bare_heat_loss_runtime_handoff_v1(
                 committed_authority=committed_authority,
@@ -7429,6 +7505,137 @@ class HydronicsSchematicPanelAdapter:
             status=status,
             stale=stale,
             has_any_override=has_any_override,
+        )
+
+    def _push_committed_pipe_section_room_mapping_editor_v1(
+            self,
+            *,
+            committed_authority,
+    ) -> None:
+        """Project N3B exact-room intent into the N3B1 controls."""
+        setter = getattr(
+            self._panel,
+            "set_committed_pipe_section_room_mapping_editor_rows_v1",
+            None,
+        )
+        if not callable(setter):
+            return
+        project = self._project_state
+        rooms = getattr(project, "rooms", {}) or {}
+        available_room_ids = tuple(rooms.keys())
+        available_rooms = [
+            {
+                "room_id": str(room_id),
+                "label": (
+                    f"{str(getattr(room, 'room_ref', '') or '').strip()} — "
+                    f"{str(getattr(room, 'name', room_id) or room_id)} | "
+                    f"{room_id}"
+                    if str(getattr(room, "room_ref", "") or "").strip()
+                    else f"{str(getattr(room, 'name', room_id) or room_id)} | {room_id}"
+                ),
+            }
+            for room_id, room in rooms.items()
+        ]
+        intent = getattr(
+            project,
+            "hydronic_committed_pipe_section_room_mapping_intent",
+            None,
+        )
+        valid_intent = isinstance(
+            intent, CommittedPipeSectionRoomMappingIntentV1
+        )
+        entries = dict(intent.mapping_by_section_id) if valid_intent else {}
+        has_any_mapping = bool(entries)
+        try:
+            fingerprint = (
+                build_committed_pipe_section_room_mapping_fingerprint_v1(
+                    committed_authority
+                )
+            )
+        except (TypeError, ValueError) as exc:
+            setter(
+                [],
+                available_rooms=available_rooms,
+                status=f"Blocked — {exc}",
+                stale=False,
+                has_any_mapping=has_any_mapping,
+            )
+            return
+
+        stale = bool(
+            has_any_mapping
+            and str(intent.committed_schedule_fingerprint or "").strip()
+            != fingerprint
+        )
+        room_labels = {
+            str(row["room_id"]): str(row["label"])
+            for row in available_rooms
+        }
+        rows: list[dict] = []
+        for section in tuple(
+            getattr(committed_authority, "sections", ()) or ()
+        ):
+            section_id = str(
+                getattr(section, "section_id", "") or ""
+            ).strip()
+            local_entry = entries.get(section_id)
+            effective = None
+            row_status = "Blocked — persisted room mappings are stale"
+            if not stale:
+                try:
+                    effective = (
+                        resolve_effective_committed_pipe_section_room_mapping_v1(
+                            committed_authority=committed_authority,
+                            available_room_ids=available_room_ids,
+                            intent=intent,
+                            section_id=section_id,
+                        )
+                    )
+                    row_status = str(
+                        getattr(effective, "status", "") or ""
+                    )
+                except (TypeError, ValueError) as exc:
+                    row_status = f"Blocked — {exc}"
+            mapped_room_id = str(
+                getattr(effective, "room_id", None)
+                or getattr(local_entry, "room_id", "")
+                or ""
+            )
+            rows.append(
+                {
+                    "section_id": section_id,
+                    "label": (
+                        f"{int(getattr(section, 'order', 0)) + 1:02d} | "
+                        f"{str(getattr(section, 'from_label', '—') or '—')} → "
+                        f"{str(getattr(section, 'to_label', '—') or '—')} | "
+                        f"{str(getattr(section, 'material_label', '—') or '—')} "
+                        f"{str(getattr(section, 'pipe_size_label', '—') or '—')} | "
+                        f"{section_id}"
+                    ),
+                    "ambient_scope": str(
+                        getattr(effective, "ambient_scope", "") or ""
+                    ),
+                    "room_id": mapped_room_id,
+                    "room_label": room_labels.get(mapped_room_id, mapped_room_id),
+                    "explicitly_mapped": local_entry is not None,
+                    "source": str(getattr(effective, "source", "") or ""),
+                    "status": row_status,
+                }
+            )
+        status = (
+            "Blocked — persisted pipe-section room mappings are stale; "
+            "clear all room mappings before recording the current committed "
+            "schedule"
+            if stale
+            else "Ready — mapped sections use their exact room; unmapped "
+                 "sections retain the Environment ambient fallback"
+        )
+        setter(
+            rows,
+            available_rooms=available_rooms,
+            status=status,
+            stale=stale,
+            has_any_mapping=has_any_mapping,
         )
 
     def _push_committed_pipe_thermal_basis_editor_v1(

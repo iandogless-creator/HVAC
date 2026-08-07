@@ -1796,6 +1796,118 @@ class HydronicsSchematicPanel(QWidget):
         )
         self._refresh_committed_pipe_pair_vertical_order_controls_v1()
 
+        # H-S66-N3B1 — manual exact-section room mapping controls.
+        self._committed_pipe_section_room_mapping_callback_v1 = None
+        self._committed_pipe_section_room_mapping_editor_rows_v1 = []
+        self._committed_pipe_section_room_mapping_selected_section_id_v1 = ""
+        room_mapping_editor = QFrame(self)
+        room_mapping_editor.setFrameShape(QFrame.StyledPanel)
+        room_mapping_layout = QGridLayout(room_mapping_editor)
+        room_mapping_layout.setContentsMargins(8, 6, 8, 6)
+        room_mapping_layout.setHorizontalSpacing(8)
+        room_mapping_layout.setVerticalSpacing(4)
+        room_mapping_notice = QLabel(
+            "Map a committed pipe section to a room only where its local "
+            "ambient is known. Unmapped sections retain the Environment "
+            "ambient fallback. Clear a mapping to restore that fallback.",
+            room_mapping_editor,
+        )
+        room_mapping_notice.setWordWrap(True)
+        room_mapping_layout.addWidget(room_mapping_notice, 0, 0, 1, 6)
+        room_mapping_layout.addWidget(
+            QLabel("Committed section:", room_mapping_editor), 1, 0
+        )
+        self._committed_pipe_section_room_mapping_section_combo_v1 = QComboBox(
+            room_mapping_editor
+        )
+        self._committed_pipe_section_room_mapping_section_combo_v1.currentIndexChanged.connect(
+            self._on_committed_pipe_section_room_mapping_section_changed_v1
+        )
+        room_mapping_layout.addWidget(
+            self._committed_pipe_section_room_mapping_section_combo_v1,
+            1,
+            1,
+            1,
+            5,
+        )
+        room_mapping_layout.addWidget(
+            QLabel("Effective ambient location:", room_mapping_editor), 2, 0
+        )
+        self._committed_pipe_section_room_mapping_effective_label_v1 = QLabel(
+            "Environment fallback", room_mapping_editor
+        )
+        room_mapping_layout.addWidget(
+            self._committed_pipe_section_room_mapping_effective_label_v1,
+            2,
+            1,
+            1,
+            5,
+        )
+        room_mapping_layout.addWidget(
+            QLabel("Map to room:", room_mapping_editor), 3, 0
+        )
+        self._committed_pipe_section_room_mapping_room_combo_v1 = QComboBox(
+            room_mapping_editor
+        )
+        room_mapping_layout.addWidget(
+            self._committed_pipe_section_room_mapping_room_combo_v1,
+            3,
+            1,
+            1,
+            2,
+        )
+        self._committed_pipe_section_room_mapping_apply_button_v1 = QPushButton(
+            "Apply room mapping", room_mapping_editor
+        )
+        self._committed_pipe_section_room_mapping_clear_button_v1 = QPushButton(
+            "Clear selected mapping", room_mapping_editor
+        )
+        self._committed_pipe_section_room_mapping_clear_all_button_v1 = QPushButton(
+            "Clear all room mappings", room_mapping_editor
+        )
+        self._committed_pipe_section_room_mapping_apply_button_v1.clicked.connect(
+            self._on_apply_committed_pipe_section_room_mapping_v1
+        )
+        self._committed_pipe_section_room_mapping_clear_button_v1.clicked.connect(
+            self._on_clear_committed_pipe_section_room_mapping_v1
+        )
+        self._committed_pipe_section_room_mapping_clear_all_button_v1.clicked.connect(
+            self._on_clear_all_committed_pipe_section_room_mappings_v1
+        )
+        room_mapping_layout.addWidget(
+            self._committed_pipe_section_room_mapping_apply_button_v1, 3, 3
+        )
+        room_mapping_layout.addWidget(
+            self._committed_pipe_section_room_mapping_clear_button_v1, 3, 4
+        )
+        room_mapping_layout.addWidget(
+            self._committed_pipe_section_room_mapping_clear_all_button_v1, 3, 5
+        )
+        self._committed_pipe_section_room_mapping_status_label_v1 = QLabel(
+            "Blocked — committed pipe sections are unavailable",
+            room_mapping_editor,
+        )
+        self._committed_pipe_section_room_mapping_status_label_v1.setWordWrap(
+            True
+        )
+        room_mapping_layout.addWidget(
+            self._committed_pipe_section_room_mapping_status_label_v1,
+            4,
+            0,
+            1,
+            6,
+        )
+        for column in (1, 2, 5):
+            room_mapping_layout.setColumnStretch(column, 1)
+        self._add_section(
+            self._pipe_resizing_bare_heat_loss_layout_v1,
+            title="Committed-section ambient location — room mapping",
+            table=room_mapping_editor,
+            min_height=205,
+            expanded=True,
+        )
+        self._refresh_committed_pipe_section_room_mapping_controls_v1()
+
         self._committed_pipe_bare_heat_loss_status_label_v1 = QLabel(
             "Blocked — committed-section thermal-condition basis is unavailable"
         )
@@ -12775,6 +12887,230 @@ QTableWidget::item:selected:!active {
             self,
     ) -> None:
         self._invoke_committed_pipe_pair_vertical_order_callback_v1(
+            {"action": "clear_all"}
+        )
+
+    def set_committed_pipe_section_room_mapping_callback_v1(
+            self,
+            callback,
+    ) -> None:
+        """Register the adapter-owned H-S66-N3B1 persistence callback."""
+        self._committed_pipe_section_room_mapping_callback_v1 = callback
+        self._refresh_committed_pipe_section_room_mapping_controls_v1()
+
+    def set_committed_pipe_section_room_mapping_editor_rows_v1(
+            self,
+            rows: list[dict],
+            *,
+            available_rooms: list[dict],
+            status: str,
+            stale: bool,
+            has_any_mapping: bool,
+    ) -> None:
+        section_combo = getattr(
+            self,
+            "_committed_pipe_section_room_mapping_section_combo_v1",
+            None,
+        )
+        if section_combo is None:
+            return
+        previous_section_id = str(
+            self._committed_pipe_section_room_mapping_selected_section_id_v1
+            or ""
+        )
+        self._committed_pipe_section_room_mapping_editor_rows_v1 = [
+            dict(row or {}) for row in (rows or [])
+        ]
+        previous = section_combo.blockSignals(True)
+        try:
+            section_combo.clear()
+            for row in self._committed_pipe_section_room_mapping_editor_rows_v1:
+                section_combo.addItem(
+                    str(row.get("label") or row.get("section_id") or "—"),
+                    str(row.get("section_id") or ""),
+                )
+            wanted_index = section_combo.findData(previous_section_id)
+            section_combo.setCurrentIndex(
+                wanted_index if wanted_index >= 0 else 0
+            )
+        finally:
+            section_combo.blockSignals(previous)
+
+        room_combo = self._committed_pipe_section_room_mapping_room_combo_v1
+        previous_room_id = str(room_combo.currentData() or "")
+        previous = room_combo.blockSignals(True)
+        try:
+            room_combo.clear()
+            for room in available_rooms or []:
+                room_combo.addItem(
+                    str(room.get("label") or room.get("room_id") or "—"),
+                    str(room.get("room_id") or ""),
+                )
+            wanted_index = room_combo.findData(previous_room_id)
+            room_combo.setCurrentIndex(wanted_index if wanted_index >= 0 else 0)
+        finally:
+            room_combo.blockSignals(previous)
+
+        self._committed_pipe_section_room_mapping_stale_v1 = bool(stale)
+        self._committed_pipe_section_room_mapping_has_any_mapping_v1 = bool(
+            has_any_mapping
+        )
+        self._committed_pipe_section_room_mapping_base_status_v1 = str(
+            status or ""
+        )
+        self._on_committed_pipe_section_room_mapping_section_changed_v1(
+            section_combo.currentIndex()
+        )
+
+    def _on_committed_pipe_section_room_mapping_section_changed_v1(
+            self,
+            index: int,
+    ) -> None:
+        combo = getattr(
+            self,
+            "_committed_pipe_section_room_mapping_section_combo_v1",
+            None,
+        )
+        if combo is None:
+            return
+        section_id = str(combo.itemData(index) or "") if index >= 0 else ""
+        self._committed_pipe_section_room_mapping_selected_section_id_v1 = (
+            section_id
+        )
+        row = next(
+            (
+                value
+                for value in self._committed_pipe_section_room_mapping_editor_rows_v1
+                if str(value.get("section_id") or "") == section_id
+            ),
+            {},
+        )
+        mapped = bool(row.get("explicitly_mapped"))
+        room_id = str(row.get("room_id") or "")
+        room_label = str(row.get("room_label") or room_id or "—")
+        source = str(row.get("source") or "")
+        effective = (
+            f"Room — {room_label}" if mapped else "Environment fallback"
+        )
+        self._committed_pipe_section_room_mapping_effective_label_v1.setText(
+            effective if not source else f"{effective} — {source}"
+        )
+        if mapped:
+            room_index = (
+                self._committed_pipe_section_room_mapping_room_combo_v1.findData(
+                    room_id
+                )
+            )
+            if room_index >= 0:
+                self._committed_pipe_section_room_mapping_room_combo_v1.setCurrentIndex(
+                    room_index
+                )
+        base_status = str(
+            getattr(
+                self,
+                "_committed_pipe_section_room_mapping_base_status_v1",
+                "",
+            )
+            or "Committed pipe-section room mapping unavailable"
+        )
+        row_status = str(row.get("status") or "")
+        self._committed_pipe_section_room_mapping_status_label_v1.setText(
+            base_status if not row_status else f"{base_status}\n{row_status}"
+        )
+        self._refresh_committed_pipe_section_room_mapping_controls_v1()
+
+    def _refresh_committed_pipe_section_room_mapping_controls_v1(self) -> None:
+        if not hasattr(
+            self,
+            "_committed_pipe_section_room_mapping_section_combo_v1",
+        ):
+            return
+        section_id = str(
+            self._committed_pipe_section_room_mapping_selected_section_id_v1
+            or ""
+        )
+        row = next(
+            (
+                value
+                for value in self._committed_pipe_section_room_mapping_editor_rows_v1
+                if str(value.get("section_id") or "") == section_id
+            ),
+            {},
+        )
+        has_callback = callable(
+            getattr(
+                self,
+                "_committed_pipe_section_room_mapping_callback_v1",
+                None,
+            )
+        )
+        stale = bool(
+            getattr(self, "_committed_pipe_section_room_mapping_stale_v1", False)
+        )
+        has_room = bool(
+            self._committed_pipe_section_room_mapping_room_combo_v1.currentData()
+        )
+        editable = bool(has_callback and section_id and has_room and not stale)
+        self._committed_pipe_section_room_mapping_room_combo_v1.setEnabled(
+            has_callback and bool(section_id) and not stale
+        )
+        self._committed_pipe_section_room_mapping_apply_button_v1.setEnabled(
+            editable
+        )
+        self._committed_pipe_section_room_mapping_clear_button_v1.setEnabled(
+            has_callback and bool(row.get("explicitly_mapped"))
+        )
+        self._committed_pipe_section_room_mapping_clear_all_button_v1.setEnabled(
+            has_callback
+            and bool(
+                getattr(
+                    self,
+                    "_committed_pipe_section_room_mapping_has_any_mapping_v1",
+                    False,
+                )
+            )
+        )
+
+    def _invoke_committed_pipe_section_room_mapping_callback_v1(
+            self,
+            payload: dict,
+    ) -> None:
+        callback = getattr(
+            self, "_committed_pipe_section_room_mapping_callback_v1", None
+        )
+        if not callable(callback):
+            return
+        try:
+            callback(payload)
+        except (TypeError, ValueError) as exc:
+            self._committed_pipe_section_room_mapping_status_label_v1.setText(
+                f"Blocked — {exc}"
+            )
+
+    def _on_apply_committed_pipe_section_room_mapping_v1(self) -> None:
+        self._invoke_committed_pipe_section_room_mapping_callback_v1(
+            {
+                "action": "set",
+                "section_id": (
+                    self._committed_pipe_section_room_mapping_selected_section_id_v1
+                ),
+                "room_id": (
+                    self._committed_pipe_section_room_mapping_room_combo_v1.currentData()
+                ),
+            }
+        )
+
+    def _on_clear_committed_pipe_section_room_mapping_v1(self) -> None:
+        section_id = (
+            self._committed_pipe_section_room_mapping_selected_section_id_v1
+        )
+        if section_id:
+            self._invoke_committed_pipe_section_room_mapping_callback_v1(
+                {"action": "clear", "section_id": section_id}
+            )
+
+    def _on_clear_all_committed_pipe_section_room_mappings_v1(self) -> None:
+        self._invoke_committed_pipe_section_room_mapping_callback_v1(
             {"action": "clear_all"}
         )
 

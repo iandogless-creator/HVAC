@@ -73,6 +73,11 @@ from HVAC.heatloss.physics.committed_pipe_pair_vertical_order_intent_v1 import (
     committed_pipe_pair_vertical_order_intent_from_dict_v1,
     committed_pipe_pair_vertical_order_intent_to_dict_v1,
 )
+from HVAC.heatloss.physics.committed_pipe_section_room_mapping_intent_v1 import (
+    CommittedPipeSectionRoomMappingIntentV1,
+    committed_pipe_section_room_mapping_intent_from_dict_v1,
+    committed_pipe_section_room_mapping_intent_to_dict_v1,
+)
 from HVAC.hydronics.topology.hydronic_topology_v1 import HydronicTopologyV1
 # ======================================================================
 # Hydronics emitter serialization
@@ -245,6 +250,10 @@ class ProjectState:
     # H-S66-N2B1 — project default plus sparse exact-section vertical order.
     hydronic_committed_pipe_pair_vertical_order_intent: Optional[
         CommittedPipePairVerticalOrderIntentV1
+    ] = None
+    # H-S66-N3B — sparse exact-section room location intent.
+    hydronic_committed_pipe_section_room_mapping_intent: Optional[
+        CommittedPipeSectionRoomMappingIntentV1
     ] = None
 
     # ------------------------------------------------------------------
@@ -511,6 +520,13 @@ class ProjectState:
                 if self.hydronic_committed_pipe_pair_vertical_order_intent
                 else None
             ),
+            "hydronic_committed_pipe_section_room_mapping_intent": (
+                committed_pipe_section_room_mapping_intent_to_dict_v1(
+                    self.hydronic_committed_pipe_section_room_mapping_intent
+                )
+                if self.hydronic_committed_pipe_section_room_mapping_intent
+                else None
+            ),
             "hydronics": {
                 "valid": self.hydronics_valid,
                 "results": _json_safe(self.hydronics_results),
@@ -721,6 +737,16 @@ class ProjectState:
             instance.hydronic_committed_pipe_pair_vertical_order_intent = (
                 committed_pipe_pair_vertical_order_intent_from_dict_v1(
                     raw_pipe_pair_vertical_order_intent
+                )
+            )
+
+        raw_pipe_section_room_mapping_intent = data.get(
+            "hydronic_committed_pipe_section_room_mapping_intent"
+        )
+        if isinstance(raw_pipe_section_room_mapping_intent, dict):
+            instance.hydronic_committed_pipe_section_room_mapping_intent = (
+                committed_pipe_section_room_mapping_intent_from_dict_v1(
+                    raw_pipe_section_room_mapping_intent
                 )
             )
 
