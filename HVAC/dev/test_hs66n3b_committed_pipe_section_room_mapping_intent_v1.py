@@ -15,11 +15,13 @@ if "HVAC.core" not in sys.modules:
 
 from HVAC.heatloss.physics.committed_pipe_section_room_mapping_intent_v1 import (
     ENVIRONMENT_AMBIENT_SCOPE_V1,
+    NOT_SET_AMBIENT_SCOPE_V1,
     ROOM_AMBIENT_SCOPE_V1,
     CommittedPipeSectionRoomMappingIntentV1,
     build_committed_pipe_section_room_mapping_fingerprint_v1,
     committed_pipe_section_room_mapping_intent_from_dict_v1,
     resolve_effective_committed_pipe_section_room_mapping_v1,
+    set_current_committed_pipe_section_environment_location_v1,
     set_current_committed_pipe_section_room_mapping_v1,
 )
 from HVAC.hydronics.proportioning.committed_proportioning_hydraulic_input_authority_v1 import (
@@ -73,17 +75,18 @@ authority = _authority(section_a, section_b)
 room_ids = ("room-a", "room-b")
 intent = CommittedPipeSectionRoomMappingIntentV1()
 
-# Absence is an explicit Environment fallback, not inferred room authority.
+# Absence is explicitly Not set and must not imply Environment authority.
 inherited = resolve_effective_committed_pipe_section_room_mapping_v1(
     committed_authority=authority,
     available_room_ids=room_ids,
     intent=intent,
     section_id="section-a",
 )
-assert inherited.ambient_scope == ENVIRONMENT_AMBIENT_SCOPE_V1
+assert inherited.ambient_scope == NOT_SET_AMBIENT_SCOPE_V1
 assert inherited.room_id is None
 assert inherited.explicitly_mapped is False
-assert "Environment" in inherited.source
+assert inherited.explicitly_set is False
+assert "No committed" in inherited.source
 
 set_current_committed_pipe_section_room_mapping_v1(
     intent=intent,
@@ -102,15 +105,31 @@ assert mapped.ambient_scope == ROOM_AMBIENT_SCOPE_V1
 assert mapped.room_id == "room-a"
 assert mapped.explicitly_mapped is True
 
-# Other exact sections remain on the Environment fallback.
+# Other exact sections remain Not set until explicitly disposed.
 other = resolve_effective_committed_pipe_section_room_mapping_v1(
     committed_authority=authority,
     available_room_ids=room_ids,
     intent=intent,
     section_id="section-b",
 )
-assert other.ambient_scope == ENVIRONMENT_AMBIENT_SCOPE_V1
+assert other.ambient_scope == NOT_SET_AMBIENT_SCOPE_V1
 assert other.room_id is None
+
+set_current_committed_pipe_section_environment_location_v1(
+    intent=intent,
+    committed_authority=authority,
+    section_id="section-b",
+)
+environment = resolve_effective_committed_pipe_section_room_mapping_v1(
+    committed_authority=authority,
+    available_room_ids=room_ids,
+    intent=intent,
+    section_id="section-b",
+)
+assert environment.ambient_scope == ENVIRONMENT_AMBIENT_SCOPE_V1
+assert environment.room_id is None
+assert environment.explicitly_set is True
+assert environment.explicitly_mapped is False
 
 try:
     set_current_committed_pipe_section_room_mapping_v1(
@@ -176,6 +195,7 @@ else:
     raise AssertionError("Mapping to a deleted room remained effective")
 
 assert intent.clear_section_room("section-a") is True
+assert intent.clear_section_room("section-b") is True
 assert intent.committed_schedule_fingerprint == ""
 assert not intent.mapping_by_section_id
 cleared = resolve_effective_committed_pipe_section_room_mapping_v1(
@@ -184,7 +204,7 @@ cleared = resolve_effective_committed_pipe_section_room_mapping_v1(
     intent=intent,
     section_id="section-a",
 )
-assert cleared.ambient_scope == ENVIRONMENT_AMBIENT_SCOPE_V1
+assert cleared.ambient_scope == NOT_SET_AMBIENT_SCOPE_V1
 
 invalid = committed_pipe_section_room_mapping_intent_from_dict_v1(
     {
@@ -205,6 +225,6 @@ assert "compute_cv_tai" not in source
 assert "ambient_air_temperature_C" not in source
 
 print(
-    "OK — H-S66-N3B persisted exact committed-section room mapping "
-    "intent with explicit Environment fallback passed."
+    "OK — H-S66-N3B persisted exact committed-section ambient-location "
+    "intent distinguishes Not set, Environment and exact room."
 )

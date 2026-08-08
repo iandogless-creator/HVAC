@@ -57,6 +57,14 @@ def build_automatic_committed_pipe_thermal_basis_resolution_v1(
         default_pipe_emissivity: object = None,
         thermal_basis_intent: Any = None,
         external_convection_by_section_id: Mapping[str, object] | None = None,
+        ambient_air_temperature_by_section_id: Mapping[str, object] | None = None,
+        ambient_air_temperature_source_by_section_id: (
+            Mapping[str, object] | None
+        ) = None,
+        mean_radiant_temperature_by_section_id: Mapping[str, object] | None = None,
+        mean_radiant_temperature_source_by_section_id: (
+            Mapping[str, object] | None
+        ) = None,
 ) -> AutomaticCommittedPipeThermalBasisResolutionV1:
     """Resolve defensible v1 values without silently committing assumptions.
 
@@ -64,8 +72,11 @@ def build_automatic_committed_pipe_thermal_basis_resolution_v1(
     -----------------------
     * Surface temperature is the arithmetic design mean-water temperature.
       This is explicitly a no-temperature-decay approximation.
-    * Ambient air uses the project Environment internal-temperature default.
-    * MRT equals that same Environment value as an explicit v1 approximation.
+    * Ambient air uses exact N3C section Tai evidence when supplied; otherwise
+      the project Environment internal-temperature default is retained for
+      compatibility.
+    * MRT uses separate section evidence when supplied. Compatibility callers
+      without that evidence retain the earlier air-equals-MRT approximation.
     * Emissivity inherits the explicit Environment project default unless a
       fresh committed-section local override exists.
     * External convection remains unresolved unless exact fresh N2D runtime
@@ -93,10 +104,14 @@ def build_automatic_committed_pipe_thermal_basis_resolution_v1(
         design_flow_temperature_C,
         design_return_temperature_C,
     )
-    internal_temperature_C, internal_blocker = _temperature_v1(
-        default_internal_temperature_C,
-        "Environment default internal temperature",
-    )
+    section_ambient_supplied = ambient_air_temperature_by_section_id is not None
+    if section_ambient_supplied:
+        internal_temperature_C, internal_blocker = None, ""
+    else:
+        internal_temperature_C, internal_blocker = _temperature_v1(
+            default_internal_temperature_C,
+            "Environment default internal temperature",
+        )
     universal_emissivity, emissivity_blocker = _emissivity_v1(
         default_pipe_emissivity,
         "Environment universal bare-pipe emissivity",
@@ -152,6 +167,97 @@ def build_automatic_committed_pipe_thermal_basis_resolution_v1(
                 else:
                     convection_by_id[section_id] = evidence
 
+    ambient_by_id: dict[str, float] = {}
+    ambient_source_by_id: dict[str, str] = {}
+    if section_ambient_supplied:
+        if not isinstance(ambient_air_temperature_by_section_id, Mapping):
+            authority_blockers.append(
+                "Committed section ambient-air temperature mapping is required"
+            )
+        else:
+            for raw_section_id, raw_temperature in (
+                ambient_air_temperature_by_section_id.items()
+            ):
+                section_id = str(raw_section_id or "").strip()
+                if not section_id or section_id != raw_section_id:
+                    authority_blockers.append(
+                        "Every section ambient-air entry requires canonical "
+                        "section identity"
+                    )
+                    continue
+                temperature_C, blocker = _temperature_v1(
+                    raw_temperature, f"{section_id} ambient-air temperature"
+                )
+                if blocker:
+                    authority_blockers.append(blocker)
+                elif temperature_C is not None:
+                    ambient_by_id[section_id] = temperature_C
+        if not isinstance(
+            ambient_air_temperature_source_by_section_id, Mapping
+        ):
+            authority_blockers.append(
+                "Committed section ambient-air source mapping is required"
+            )
+        else:
+            for raw_section_id, raw_source in (
+                ambient_air_temperature_source_by_section_id.items()
+            ):
+                section_id = str(raw_section_id or "").strip()
+                source = str(raw_source or "").strip()
+                if not section_id or section_id != raw_section_id or not source:
+                    authority_blockers.append(
+                        "Every section ambient-air source entry requires "
+                        "canonical section identity and source"
+                    )
+                else:
+                    ambient_source_by_id[section_id] = source
+
+    mrt_by_id: dict[str, float] = {}
+    mrt_source_by_id: dict[str, str] = {}
+    section_mrt_supplied = mean_radiant_temperature_by_section_id is not None
+    if section_mrt_supplied:
+        if not isinstance(mean_radiant_temperature_by_section_id, Mapping):
+            authority_blockers.append(
+                "Committed section mean-radiant temperature mapping is required"
+            )
+        else:
+            for raw_section_id, raw_temperature in (
+                mean_radiant_temperature_by_section_id.items()
+            ):
+                section_id = str(raw_section_id or "").strip()
+                if not section_id or section_id != raw_section_id:
+                    authority_blockers.append(
+                        "Every section mean-radiant entry requires canonical "
+                        "section identity"
+                    )
+                    continue
+                temperature_C, blocker = _temperature_v1(
+                    raw_temperature, f"{section_id} mean-radiant temperature"
+                )
+                if blocker:
+                    authority_blockers.append(blocker)
+                elif temperature_C is not None:
+                    mrt_by_id[section_id] = temperature_C
+        if not isinstance(
+            mean_radiant_temperature_source_by_section_id, Mapping
+        ):
+            authority_blockers.append(
+                "Committed section mean-radiant source mapping is required"
+            )
+        else:
+            for raw_section_id, raw_source in (
+                mean_radiant_temperature_source_by_section_id.items()
+            ):
+                section_id = str(raw_section_id or "").strip()
+                source = str(raw_source or "").strip()
+                if not section_id or section_id != raw_section_id or not source:
+                    authority_blockers.append(
+                        "Every section mean-radiant source entry requires "
+                        "canonical section identity and source"
+                    )
+                else:
+                    mrt_source_by_id[section_id] = source
+
     resolved: list[AutomaticCommittedPipeSectionThermalBasisV1] = []
     seen: set[str] = set()
     for section in sections:
@@ -167,6 +273,36 @@ def build_automatic_committed_pipe_thermal_basis_resolution_v1(
             )
             continue
         seen.add(section_id)
+        row_internal_temperature_C = (
+            ambient_by_id.get(section_id)
+            if section_ambient_supplied
+            else internal_temperature_C
+        )
+        row_internal_source = (
+            ambient_source_by_id.get(section_id, "Unresolved")
+            if section_ambient_supplied
+            else "Environment default internal temperature"
+        )
+        row_internal_blocker = (
+            f"{section_id}: committed section ambient-air temperature is required"
+            if section_ambient_supplied and row_internal_temperature_C is None
+            else internal_blocker
+        )
+        row_mean_radiant_temperature_C = (
+            mrt_by_id.get(section_id)
+            if section_mrt_supplied
+            else row_internal_temperature_C
+        )
+        row_mean_radiant_source = (
+            mrt_source_by_id.get(section_id, "Unresolved")
+            if section_mrt_supplied
+            else f"{row_internal_source} — MRT equals air v1 approximation"
+        )
+        row_mean_radiant_blocker = (
+            f"{section_id}: committed section mean-radiant temperature is required"
+            if section_mrt_supplied and row_mean_radiant_temperature_C is None
+            else ""
+        )
         manual = manual_entries.get(section_id)
         local_emissivity = emissivity_overrides.get(section_id)
         effective_emissivity = (
@@ -204,8 +340,10 @@ def build_automatic_committed_pipe_thermal_basis_resolution_v1(
         blockers: list[str] = []
         if water_blocker:
             blockers.append(water_blocker)
-        if internal_blocker:
-            blockers.append(internal_blocker)
+        if row_internal_blocker:
+            blockers.append(row_internal_blocker)
+        if row_mean_radiant_blocker:
+            blockers.append(row_mean_radiant_blocker)
         if effective_emissivity is None:
             blockers.append(emissivity_blocker)
         convection_evidence = convection_by_id.get(section_id)
@@ -252,10 +390,10 @@ def build_automatic_committed_pipe_thermal_basis_resolution_v1(
                     )
                 else:
                     if (
-                        internal_temperature_C is not None
+                        row_internal_temperature_C is not None
                         and not math.isclose(
                             evidence_ambient_C,
-                            internal_temperature_C,
+                            row_internal_temperature_C,
                             rel_tol=0.0,
                             abs_tol=1.0e-9,
                         )
@@ -309,7 +447,8 @@ def build_automatic_committed_pipe_thermal_basis_resolution_v1(
         blockers.extend(convection_blockers)
         complete = bool(
             mean_water_temperature_C is not None
-            and internal_temperature_C is not None
+            and row_internal_temperature_C is not None
+            and row_mean_radiant_temperature_C is not None
             and effective_emissivity is not None
             and convection_coefficient is not None
             and not blockers
@@ -318,8 +457,8 @@ def build_automatic_committed_pipe_thermal_basis_resolution_v1(
             AutomaticCommittedPipeSectionThermalBasisV1(
                 section_id=section_id,
                 surface_temperature_C=mean_water_temperature_C,
-                ambient_air_temperature_C=internal_temperature_C,
-                mean_radiant_temperature_C=internal_temperature_C,
+                ambient_air_temperature_C=row_internal_temperature_C,
+                mean_radiant_temperature_C=row_mean_radiant_temperature_C,
                 emissivity=effective_emissivity,
                 external_convection_coefficient_W_m2K=(
                     convection_coefficient
@@ -331,14 +470,13 @@ def build_automatic_committed_pipe_thermal_basis_resolution_v1(
                     else "Unresolved"
                 ),
                 ambient_air_temperature_source=(
-                    "Environment default internal temperature"
-                    if internal_temperature_C is not None
+                    row_internal_source
+                    if row_internal_temperature_C is not None
                     else "Unresolved"
                 ),
                 mean_radiant_temperature_source=(
-                    "Environment default internal temperature — "
-                    "MRT equals air v1 approximation"
-                    if internal_temperature_C is not None
+                    row_mean_radiant_source
+                    if row_mean_radiant_temperature_C is not None
                     else "Unresolved"
                 ),
                 emissivity_source=emissivity_source,
@@ -359,6 +497,41 @@ def build_automatic_committed_pipe_thermal_basis_resolution_v1(
             f"{section_id}: external-convection evidence has no committed "
             "section"
         )
+
+    if section_ambient_supplied:
+        for section_id in sorted(committed_ids - set(ambient_by_id)):
+            authority_blockers.append(
+                f"{section_id}: ambient-air temperature is required"
+            )
+        for section_id in sorted(committed_ids - set(ambient_source_by_id)):
+            authority_blockers.append(
+                f"{section_id}: ambient-air source is required"
+            )
+        for section_id in sorted(set(ambient_by_id) - committed_ids):
+            authority_blockers.append(
+                f"{section_id}: ambient-air temperature has no committed section"
+            )
+        for section_id in sorted(set(ambient_source_by_id) - committed_ids):
+            authority_blockers.append(
+                f"{section_id}: ambient-air source has no committed section"
+            )
+    if section_mrt_supplied:
+        for section_id in sorted(committed_ids - set(mrt_by_id)):
+            authority_blockers.append(
+                f"{section_id}: mean-radiant temperature is required"
+            )
+        for section_id in sorted(committed_ids - set(mrt_source_by_id)):
+            authority_blockers.append(
+                f"{section_id}: mean-radiant source is required"
+            )
+        for section_id in sorted(set(mrt_by_id) - committed_ids):
+            authority_blockers.append(
+                f"{section_id}: mean-radiant temperature has no committed section"
+            )
+        for section_id in sorted(set(mrt_source_by_id) - committed_ids):
+            authority_blockers.append(
+                f"{section_id}: mean-radiant source has no committed section"
+            )
 
     if stale_manual:
         authority_blockers.append(
@@ -391,7 +564,7 @@ def _automatic_row_status_v1(
 ) -> str:
     if complete:
         return (
-            "Ready — automatic Environment temperatures, effective "
+            "Ready — automatic local ambient/MRT temperatures, effective "
             "emissivity and N2D external convection resolved"
         )
     blocker_text = "; ".join(_unique_v1(blockers)) or "Unresolved input"

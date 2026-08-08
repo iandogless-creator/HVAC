@@ -219,10 +219,27 @@ from HVAC.heatloss.physics.committed_pipe_pair_vertical_order_intent_v1 import (
     set_current_committed_section_pipe_pair_vertical_order_override_v1,
 )
 from HVAC.heatloss.physics.committed_pipe_section_room_mapping_intent_v1 import (
+    ENVIRONMENT_AMBIENT_SCOPE_V1,
+    ROOM_AMBIENT_SCOPE_V1,
     CommittedPipeSectionRoomMappingIntentV1,
     build_committed_pipe_section_room_mapping_fingerprint_v1,
     resolve_effective_committed_pipe_section_room_mapping_v1,
+    set_all_unset_committed_pipe_section_ambient_locations_v1,
+    set_current_committed_pipe_section_environment_location_v1,
     set_current_committed_pipe_section_room_mapping_v1,
+)
+from HVAC.heatloss.adapters.committed_room_cv_tai_project_state_adapter_v1 import (
+    build_committed_room_cv_tai_from_project_state_v1,
+)
+from HVAC.heatloss.adapters.committed_room_mean_radiant_project_state_adapter_v1 import (
+    build_committed_room_mean_radiant_from_project_state_v1,
+)
+from HVAC.heatloss.physics.committed_pipe_section_ambient_tai_runtime_handoff_v1 import (
+    ambient_temperature_mapping_from_handoff_v1,
+    ambient_temperature_source_mapping_from_handoff_v1,
+    build_committed_pipe_section_ambient_tai_runtime_handoff_v1,
+    mean_radiant_temperature_mapping_from_handoff_v1,
+    mean_radiant_temperature_source_mapping_from_handoff_v1,
 )
 from HVAC.heatloss.physics.environment_pipe_pair_spacing_defaults_v1 import (
     PIPE_PAIR_SUPPORT_LABELS_V1,
@@ -1744,11 +1761,36 @@ class HydronicsSchematicPanelAdapter:
                 project
             )
             environment = getattr(project, "environment", None)
+            ambient_handoff = (
+                self._build_committed_pipe_section_ambient_tai_handoff_v1(
+                    committed_authority=committed_authority,
+                    environment=environment,
+                )
+            )
             external_convection_by_section_id = (
                 self._build_committed_pipe_external_convection_mapping_v1(
                     committed_authority=committed_authority,
                     design_temperatures=design_temperatures,
                     environment=environment,
+                    ambient_handoff=ambient_handoff,
+                )
+            )
+            ambient_by_section_id = (
+                ambient_temperature_mapping_from_handoff_v1(ambient_handoff)
+            )
+            ambient_source_by_section_id = (
+                ambient_temperature_source_mapping_from_handoff_v1(
+                    ambient_handoff
+                )
+            )
+            mean_radiant_by_section_id = (
+                mean_radiant_temperature_mapping_from_handoff_v1(
+                    ambient_handoff
+                )
+            )
+            mean_radiant_source_by_section_id = (
+                mean_radiant_temperature_source_mapping_from_handoff_v1(
+                    ambient_handoff
                 )
             )
             automatic_resolution = (
@@ -1770,6 +1812,18 @@ class HydronicsSchematicPanelAdapter:
                     thermal_basis_intent=intent,
                     external_convection_by_section_id=(
                         external_convection_by_section_id
+                    ),
+                    ambient_air_temperature_by_section_id=(
+                        ambient_by_section_id
+                    ),
+                    ambient_air_temperature_source_by_section_id=(
+                        ambient_source_by_section_id
+                    ),
+                    mean_radiant_temperature_by_section_id=(
+                        mean_radiant_by_section_id
+                    ),
+                    mean_radiant_temperature_source_by_section_id=(
+                        mean_radiant_source_by_section_id
                     ),
                 )
             )
@@ -1981,7 +2035,7 @@ class HydronicsSchematicPanelAdapter:
             self,
             payload: dict,
     ) -> None:
-        """Persist or clear one exact H-S66-N3B section-room mapping."""
+        """Persist or clear one exact H-S66-N3E2 ambient-location choice."""
         if not isinstance(payload, dict):
             raise TypeError("Committed pipe-section room payload is required")
         project = self._project_state
@@ -1997,22 +2051,44 @@ class HydronicsSchematicPanelAdapter:
         if not isinstance(intent, CommittedPipeSectionRoomMappingIntentV1):
             intent = CommittedPipeSectionRoomMappingIntentV1()
 
-        if action == "set":
+        if action in {"set_room", "set_environment", "set_all_not_set"}:
             snapshot = getattr(
                 project, "hydronic_proportioned_basis_snapshot", None
             )
             committed_authority = getattr(
                 snapshot, "hydraulic_input_authority", None
             )
-            set_current_committed_pipe_section_room_mapping_v1(
-                intent=intent,
-                committed_authority=committed_authority,
-                available_room_ids=tuple(
-                    (getattr(project, "rooms", {}) or {}).keys()
-                ),
-                section_id=section_id,
-                room_id=payload.get("room_id"),
-            )
+            if action == "set_all_not_set":
+                location = str(payload.get("ambient_location") or "").strip()
+                set_all_unset_committed_pipe_section_ambient_locations_v1(
+                    intent=intent,
+                    committed_authority=committed_authority,
+                    available_room_ids=tuple(
+                        (getattr(project, "rooms", {}) or {}).keys()
+                    ),
+                    ambient_scope=(
+                        ENVIRONMENT_AMBIENT_SCOPE_V1
+                        if location == "__environment__"
+                        else ROOM_AMBIENT_SCOPE_V1
+                    ),
+                    room_id=location,
+                )
+            elif action == "set_environment":
+                set_current_committed_pipe_section_environment_location_v1(
+                    intent=intent,
+                    committed_authority=committed_authority,
+                    section_id=section_id,
+                )
+            else:
+                set_current_committed_pipe_section_room_mapping_v1(
+                    intent=intent,
+                    committed_authority=committed_authority,
+                    available_room_ids=tuple(
+                        (getattr(project, "rooms", {}) or {}).keys()
+                    ),
+                    section_id=section_id,
+                    room_id=payload.get("room_id"),
+                )
         elif action == "clear":
             if not section_id:
                 raise ValueError("Select a committed pipe section")
@@ -2020,7 +2096,10 @@ class HydronicsSchematicPanelAdapter:
         elif action == "clear_all":
             intent.clear_all()
         else:
-            raise ValueError("action must be 'set', 'clear' or 'clear_all'")
+            raise ValueError(
+                "action must be 'set_room', 'set_environment', "
+                "'set_all_not_set', 'clear' or 'clear_all'"
+            )
 
         project.hydronic_committed_pipe_section_room_mapping_intent = intent
         if hasattr(project, "mark_dirty"):
@@ -7105,12 +7184,48 @@ class HydronicsSchematicPanelAdapter:
             )
         return arrangement_handoff.authority
 
+    def _build_committed_pipe_section_ambient_tai_handoff_v1(
+            self,
+            *,
+            committed_authority,
+            environment,
+    ):
+        """Resolve N3A/N3B/N3D evidence to exact local Tai/Tri per section."""
+        room_evidence = build_committed_room_cv_tai_from_project_state_v1(
+            self._project_state
+        )
+        room_mean_radiant_authority = (
+            build_committed_room_mean_radiant_from_project_state_v1(
+                self._project_state
+            )
+        )
+        handoff = build_committed_pipe_section_ambient_tai_runtime_handoff_v1(
+            committed_authority=committed_authority,
+            available_room_ids=tuple(
+                (getattr(self._project_state, "rooms", {}) or {}).keys()
+            ),
+            room_mapping_intent=getattr(
+                self._project_state,
+                "hydronic_committed_pipe_section_room_mapping_intent",
+                None,
+            ),
+            room_cv_tai_evidence=room_evidence,
+            room_mean_radiant_authority=room_mean_radiant_authority,
+            environment_fallback_temperature_C=getattr(
+                environment, "default_internal_temp_C", None
+            ),
+        )
+        if not handoff.ready:
+            raise ValueError("; ".join(handoff.blockers or (handoff.status,)))
+        return handoff
+
     def _build_committed_pipe_external_convection_mapping_v1(
             self,
             *,
             committed_authority,
             design_temperatures,
             environment,
+            ambient_handoff,
     ) -> dict[str, object]:
         """Orchestrate persisted N1/N2 evidence into the N2D/J mapping."""
 
@@ -7205,19 +7320,24 @@ class HydronicsSchematicPanelAdapter:
                 )
             effective_spacing_by_section_id[pairing_row.section_id] = effective
 
-        ambient_air_temperature_C = getattr(
-            environment, "default_internal_temp_C", None
+        ambient_by_section_id = (
+            ambient_temperature_mapping_from_handoff_v1(ambient_handoff)
+        )
+        ambient_source_by_section_id = (
+            ambient_temperature_source_mapping_from_handoff_v1(
+                ambient_handoff
+            )
         )
         handoff = build_committed_pipe_external_convection_runtime_handoff_v1(
             pairing_evidence=pairing,
             effective_spacing_by_section_id=(
                 effective_spacing_by_section_id
             ),
-            ambient_air_temperature_C=ambient_air_temperature_C,
+            ambient_air_temperature_C=None,
             pressure_Pa=101325.0,
-            ambient_air_temperature_source=(
-                "Environment default internal temperature — v1 local Tai "
-                "proxy pending section-to-space mapping"
+            ambient_air_temperature_by_section_id=ambient_by_section_id,
+            ambient_air_temperature_source_by_section_id=(
+                ambient_source_by_section_id
             ),
         )
         if not handoff.ready:
@@ -7512,7 +7632,7 @@ class HydronicsSchematicPanelAdapter:
             *,
             committed_authority,
     ) -> None:
-        """Project N3B exact-room intent into the N3B1 controls."""
+        """Project explicit N3E2 ambient-location intent into the controls."""
         setter = getattr(
             self._panel,
             "set_committed_pipe_section_room_mapping_editor_rows_v1",
@@ -7617,7 +7737,12 @@ class HydronicsSchematicPanelAdapter:
                     ),
                     "room_id": mapped_room_id,
                     "room_label": room_labels.get(mapped_room_id, mapped_room_id),
-                    "explicitly_mapped": local_entry is not None,
+                    "explicitly_mapped": bool(
+                        local_entry is not None
+                        and getattr(local_entry, "ambient_scope", "")
+                        == ROOM_AMBIENT_SCOPE_V1
+                    ),
+                    "explicitly_set": local_entry is not None,
                     "source": str(getattr(effective, "source", "") or ""),
                     "status": row_status,
                 }
@@ -7627,8 +7752,9 @@ class HydronicsSchematicPanelAdapter:
             "clear all room mappings before recording the current committed "
             "schedule"
             if stale
-            else "Ready — mapped sections use their exact room; unmapped "
-                 "sections retain the Environment ambient fallback"
+            else "Ready — every section must explicitly choose Not set, "
+                 "Environment / general space, or an exact room. Not set "
+                 "blocks automatic Tai/Tri and bulk thermal-basis acceptance."
         )
         setter(
             rows,
@@ -7702,13 +7828,42 @@ class HydronicsSchematicPanelAdapter:
             else {}
         )
         external_convection_by_section_id: dict[str, object] = {}
+        ambient_by_section_id: dict[str, float] = {}
+        ambient_source_by_section_id: dict[str, str] = {}
+        mean_radiant_by_section_id: dict[str, float] = {}
+        mean_radiant_source_by_section_id: dict[str, str] = {}
         automatic_convection_blocker = ""
         try:
+            ambient_handoff = (
+                self._build_committed_pipe_section_ambient_tai_handoff_v1(
+                    committed_authority=committed_authority,
+                    environment=environment,
+                )
+            )
+            ambient_by_section_id = (
+                ambient_temperature_mapping_from_handoff_v1(ambient_handoff)
+            )
+            ambient_source_by_section_id = (
+                ambient_temperature_source_mapping_from_handoff_v1(
+                    ambient_handoff
+                )
+            )
+            mean_radiant_by_section_id = (
+                mean_radiant_temperature_mapping_from_handoff_v1(
+                    ambient_handoff
+                )
+            )
+            mean_radiant_source_by_section_id = (
+                mean_radiant_temperature_source_mapping_from_handoff_v1(
+                    ambient_handoff
+                )
+            )
             external_convection_by_section_id = (
                 self._build_committed_pipe_external_convection_mapping_v1(
                     committed_authority=committed_authority,
                     design_temperatures=design_temperatures,
                     environment=environment,
+                    ambient_handoff=ambient_handoff,
                 )
             )
         except (TypeError, ValueError) as exc:
@@ -7730,6 +7885,16 @@ class HydronicsSchematicPanelAdapter:
                 thermal_basis_intent=intent,
                 external_convection_by_section_id=(
                     external_convection_by_section_id
+                ),
+                ambient_air_temperature_by_section_id=ambient_by_section_id,
+                ambient_air_temperature_source_by_section_id=(
+                    ambient_source_by_section_id
+                ),
+                mean_radiant_temperature_by_section_id=(
+                    mean_radiant_by_section_id
+                ),
+                mean_radiant_temperature_source_by_section_id=(
+                    mean_radiant_source_by_section_id
                 ),
             )
         )

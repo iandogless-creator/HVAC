@@ -18,22 +18,25 @@ from HVAC.hydronics.proportioning.committed_proportioning_hydraulic_input_author
 SCHEMA_V1 = "committed_pipe_section_room_mapping_intent_v1"
 ENVIRONMENT_AMBIENT_SCOPE_V1 = "environment"
 ROOM_AMBIENT_SCOPE_V1 = "room"
+NOT_SET_AMBIENT_SCOPE_V1 = "not_set"
 
 
 @dataclass(frozen=True, slots=True)
 class CommittedPipeSectionRoomMappingEntryV1:
     section_id: str
-    room_id: str
+    room_id: str | None
+    ambient_scope: str = ROOM_AMBIENT_SCOPE_V1
 
 
 @dataclass(slots=True)
 class CommittedPipeSectionRoomMappingIntentV1:
-    """Sparse exact-section room mappings for one committed schedule.
+    """Sparse explicit ambient-location choices for one committed schedule.
 
-    Absence is meaningful: an unmapped section retains the Environment local-
-    ambient fallback. Current v1 maps only to ProjectState room identities;
-    non-room spaces remain on that fallback until a wider space authority
-    exists. No temperature or heat-loss result is stored here.
+    Absence means Not set and is calculation-blocking.  A stored entry chooses
+    either an exact ProjectState room or Environment / general space.  No
+    temperature or heat-loss result is stored here.  V1 applies one location
+    to the whole committed section; user-entered or adjacency-derived
+    length-fraction allocation is explicitly deferred.
     """
 
     schema: str = SCHEMA_V1
@@ -71,6 +74,36 @@ class CommittedPipeSectionRoomMappingIntentV1:
             CommittedPipeSectionRoomMappingEntryV1(
                 section_id=stable_section_id,
                 room_id=stable_room_id,
+                ambient_scope=ROOM_AMBIENT_SCOPE_V1,
+            )
+        )
+
+    def set_section_environment(
+            self,
+            *,
+            section_id: object,
+            committed_schedule_fingerprint: object,
+    ) -> None:
+        stable_section_id = _text_v1(section_id)
+        fingerprint = _text_v1(committed_schedule_fingerprint)
+        if not stable_section_id:
+            raise ValueError("Committed pipe section identity is required")
+        if not fingerprint:
+            raise ValueError("Committed pipe schedule fingerprint is required")
+        if (
+            self.committed_schedule_fingerprint
+            and self.committed_schedule_fingerprint != fingerprint
+        ):
+            raise ValueError(
+                "Persisted pipe-section ambient locations are stale; clear "
+                "them before recording a different committed schedule"
+            )
+        self.committed_schedule_fingerprint = fingerprint
+        self.mapping_by_section_id[stable_section_id] = (
+            CommittedPipeSectionRoomMappingEntryV1(
+                section_id=stable_section_id,
+                room_id=None,
+                ambient_scope=ENVIRONMENT_AMBIENT_SCOPE_V1,
             )
         )
 
@@ -100,6 +133,7 @@ class EffectiveCommittedPipeSectionRoomMappingV1:
     ambient_scope: str
     room_id: str | None
     explicitly_mapped: bool
+    explicitly_set: bool
     source: str
     status: str
 
@@ -142,6 +176,80 @@ def set_current_committed_pipe_section_room_mapping_v1(
     )
 
 
+def set_current_committed_pipe_section_environment_location_v1(
+        *,
+        intent: CommittedPipeSectionRoomMappingIntentV1,
+        committed_authority: CommittedProportioningHydraulicInputAuthorityV1,
+        section_id: object,
+) -> None:
+    """Record an explicit Environment / general-space location."""
+
+    if not isinstance(intent, CommittedPipeSectionRoomMappingIntentV1):
+        raise TypeError("CommittedPipeSectionRoomMappingIntentV1 required")
+    stable_section_id = _exact_section_id_v1(
+        committed_authority, section_id
+    )
+    intent.set_section_environment(
+        section_id=stable_section_id,
+        committed_schedule_fingerprint=(
+            build_committed_pipe_section_room_mapping_fingerprint_v1(
+                committed_authority
+            )
+        ),
+    )
+
+
+def set_all_unset_committed_pipe_section_ambient_locations_v1(
+        *,
+        intent: CommittedPipeSectionRoomMappingIntentV1,
+        committed_authority: CommittedProportioningHydraulicInputAuthorityV1,
+        available_room_ids: Iterable[str],
+        ambient_scope: object,
+        room_id: object = None,
+) -> int:
+    """Atomically apply one explicit location to every currently unset section."""
+
+    if not isinstance(intent, CommittedPipeSectionRoomMappingIntentV1):
+        raise TypeError("CommittedPipeSectionRoomMappingIntentV1 required")
+    section_ids = _committed_section_ids_v1(committed_authority)
+    if not section_ids:
+        raise ValueError("Committed pipe sections are required")
+    fingerprint = build_committed_pipe_section_room_mapping_fingerprint_v1(
+        committed_authority
+    )
+    if (
+        intent.mapping_by_section_id
+        and intent.committed_schedule_fingerprint != fingerprint
+    ):
+        raise ValueError(
+            "Persisted pipe-section ambient locations are stale; clear them "
+            "before recording the current committed schedule"
+        )
+    scope = _text_v1(ambient_scope)
+    stable_room_id: str | None = None
+    if scope == ROOM_AMBIENT_SCOPE_V1:
+        stable_room_id = _text_v1(room_id)
+        if stable_room_id not in _available_room_ids_v1(available_room_ids):
+            raise ValueError("Exact current ProjectState room identity is required")
+    elif scope != ENVIRONMENT_AMBIENT_SCOPE_V1:
+        raise ValueError(
+            "Choose Environment / general space or one exact room"
+        )
+
+    pending = dict(intent.mapping_by_section_id)
+    unset = [section_id for section_id in section_ids if section_id not in pending]
+    for section_id in unset:
+        pending[section_id] = CommittedPipeSectionRoomMappingEntryV1(
+            section_id=section_id,
+            room_id=stable_room_id,
+            ambient_scope=scope,
+        )
+    if unset:
+        intent.mapping_by_section_id = pending
+        intent.committed_schedule_fingerprint = fingerprint
+    return len(unset)
+
+
 def resolve_effective_committed_pipe_section_room_mapping_v1(
         *,
         committed_authority: CommittedProportioningHydraulicInputAuthorityV1,
@@ -149,7 +257,7 @@ def resolve_effective_committed_pipe_section_room_mapping_v1(
         intent: CommittedPipeSectionRoomMappingIntentV1 | None,
         section_id: object,
 ) -> EffectiveCommittedPipeSectionRoomMappingV1:
-    """Resolve exact room mapping or the explicit Environment fallback."""
+    """Resolve explicit room/Environment location or calculation-blocking Not set."""
 
     stable_section_id = _exact_section_id_v1(
         committed_authority, section_id
@@ -178,10 +286,23 @@ def resolve_effective_committed_pipe_section_room_mapping_v1(
                 "Persisted pipe-section room mapping has no exact current "
                 "committed section"
             )
+        invalid_scopes = {
+            entry.ambient_scope
+            for entry in source_intent.mapping_by_section_id.values()
+            if entry.ambient_scope not in {
+                ROOM_AMBIENT_SCOPE_V1,
+                ENVIRONMENT_AMBIENT_SCOPE_V1,
+            }
+        }
+        if invalid_scopes:
+            raise ValueError(
+                "Persisted pipe-section ambient location is unsupported"
+            )
         unknown_rooms = {
             entry.room_id
             for entry in source_intent.mapping_by_section_id.values()
-            if entry.room_id not in room_ids
+            if entry.ambient_scope == ROOM_AMBIENT_SCOPE_V1
+            and entry.room_id not in room_ids
         }
         if unknown_rooms:
             raise ValueError(
@@ -193,17 +314,32 @@ def resolve_effective_committed_pipe_section_room_mapping_v1(
     if local is None:
         return EffectiveCommittedPipeSectionRoomMappingV1(
             section_id=stable_section_id,
+            ambient_scope=NOT_SET_AMBIENT_SCOPE_V1,
+            room_id=None,
+            explicitly_mapped=False,
+            explicitly_set=False,
+            source="No committed ambient-location disposition",
+            status=(
+                "Blocked — ambient location is Not set; explicitly choose "
+                "Environment / general space or an exact room"
+            ),
+        )
+    if local.ambient_scope == ENVIRONMENT_AMBIENT_SCOPE_V1:
+        return EffectiveCommittedPipeSectionRoomMappingV1(
+            section_id=stable_section_id,
             ambient_scope=ENVIRONMENT_AMBIENT_SCOPE_V1,
             room_id=None,
             explicitly_mapped=False,
-            source="Explicit unmapped-section Environment ambient fallback",
-            status="Ready — Environment ambient fallback retained",
+            explicitly_set=True,
+            source="Persisted explicit Environment / general-space intent",
+            status="Ready — explicit Environment / general-space location resolved",
         )
     return EffectiveCommittedPipeSectionRoomMappingV1(
         section_id=stable_section_id,
         ambient_scope=ROOM_AMBIENT_SCOPE_V1,
         room_id=local.room_id,
         explicitly_mapped=True,
+        explicitly_set=True,
         source="Persisted exact committed-section room mapping intent",
         status="Ready — exact committed-section room mapping resolved",
     )
@@ -226,6 +362,7 @@ def committed_pipe_section_room_mapping_intent_to_dict_v1(
             section_id: {
                 "section_id": entry.section_id,
                 "room_id": entry.room_id,
+                "ambient_scope": entry.ambient_scope,
             }
             for section_id, entry in sorted(
                 source.mapping_by_section_id.items()
@@ -256,16 +393,27 @@ def committed_pipe_section_room_mapping_intent_from_dict_v1(
             if not isinstance(raw_entry, dict):
                 return empty
             section_id = _text_v1(raw_entry.get("section_id"))
+            ambient_scope = _text_v1(
+                raw_entry.get("ambient_scope") or ROOM_AMBIENT_SCOPE_V1
+            )
             room_id = _text_v1(raw_entry.get("room_id"))
             if not section_id or section_id != _text_v1(raw_section_id):
                 return empty
-            if not room_id:
+            if ambient_scope == ROOM_AMBIENT_SCOPE_V1 and not room_id:
                 return empty
-            parsed.set_section_room(
-                section_id=section_id,
-                room_id=room_id,
-                committed_schedule_fingerprint=fingerprint,
-            )
+            if ambient_scope == ROOM_AMBIENT_SCOPE_V1:
+                parsed.set_section_room(
+                    section_id=section_id,
+                    room_id=room_id,
+                    committed_schedule_fingerprint=fingerprint,
+                )
+            elif ambient_scope == ENVIRONMENT_AMBIENT_SCOPE_V1 and not room_id:
+                parsed.set_section_environment(
+                    section_id=section_id,
+                    committed_schedule_fingerprint=fingerprint,
+                )
+            else:
+                return empty
     except (TypeError, ValueError):
         return empty
     return parsed

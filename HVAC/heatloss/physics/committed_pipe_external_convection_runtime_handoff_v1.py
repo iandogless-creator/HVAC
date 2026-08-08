@@ -79,6 +79,10 @@ def build_committed_pipe_external_convection_runtime_handoff_v1(
         ambient_air_temperature_source: object = (
             "Runtime local ambient-air input — future section-resolved Tai"
         ),
+        ambient_air_temperature_by_section_id: Mapping[str, object] | None = None,
+        ambient_air_temperature_source_by_section_id: (
+            Mapping[str, object] | None
+        ) = None,
 ) -> CommittedPipeExternalConvectionRuntimeHandoffV1:
     """Resolve separate/stacked coefficients and form H-S66-J evidence."""
 
@@ -96,17 +100,64 @@ def build_committed_pipe_external_convection_runtime_handoff_v1(
             or ("Committed flow/return pairing evidence is not ready",)
         )
     try:
-        ambient_C = _finite_v1(
-            ambient_air_temperature_C, "Ambient air temperature"
-        )
         pressure = _positive_finite_v1(pressure_Pa, "Dry-air pressure")
-        ambient_source = _text_v1(ambient_air_temperature_source)
-        if not ambient_source:
-            raise ValueError("Ambient air temperature source is required")
     except ValueError as exc:
         blockers.append(str(exc))
-        ambient_C = pressure = math.nan
-        ambient_source = ""
+        pressure = math.nan
+
+    ambient_by_id: dict[str, float] = {}
+    ambient_source_by_id: dict[str, str] = {}
+    section_ambient_supplied = ambient_air_temperature_by_section_id is not None
+    if section_ambient_supplied:
+        if not isinstance(ambient_air_temperature_by_section_id, Mapping):
+            blockers.append("Section ambient-air temperature mapping is required")
+        else:
+            for raw_section_id, raw_temperature in (
+                ambient_air_temperature_by_section_id.items()
+            ):
+                section_id = _text_v1(raw_section_id)
+                if not section_id or section_id != raw_section_id:
+                    blockers.append(
+                        "Every section ambient-air entry requires canonical section_id"
+                    )
+                    continue
+                try:
+                    ambient_by_id[section_id] = _finite_v1(
+                        raw_temperature, "Ambient air temperature"
+                    )
+                except ValueError as exc:
+                    blockers.append(f"{section_id}: {exc}")
+        if not isinstance(
+            ambient_air_temperature_source_by_section_id, Mapping
+        ):
+            blockers.append(
+                "Section ambient-air temperature source mapping is required"
+            )
+        else:
+            for raw_section_id, raw_source in (
+                ambient_air_temperature_source_by_section_id.items()
+            ):
+                section_id = _text_v1(raw_section_id)
+                source = _text_v1(raw_source)
+                if not section_id or section_id != raw_section_id or not source:
+                    blockers.append(
+                        "Every section ambient-air source entry requires "
+                        "canonical section_id and source"
+                    )
+                else:
+                    ambient_source_by_id[section_id] = source
+    else:
+        try:
+            shared_ambient_C = _finite_v1(
+                ambient_air_temperature_C, "Ambient air temperature"
+            )
+            shared_ambient_source = _text_v1(ambient_air_temperature_source)
+            if not shared_ambient_source:
+                raise ValueError("Ambient air temperature source is required")
+        except ValueError as exc:
+            blockers.append(str(exc))
+            shared_ambient_C = math.nan
+            shared_ambient_source = ""
 
     if not isinstance(effective_spacing_by_section_id, Mapping):
         blockers.append("Effective stacked-pair spacing mapping is required")
@@ -135,6 +186,21 @@ def build_committed_pipe_external_convection_runtime_handoff_v1(
             rows_by_id[section_id] = row
     if not rows_by_id:
         blockers.append("Committed flow/return pairing rows are required")
+
+    if section_ambient_supplied:
+        expected_ids = set(rows_by_id)
+        for section_id in sorted(expected_ids - set(ambient_by_id)):
+            blockers.append(f"{section_id}: section ambient-air temperature is required")
+        for section_id in sorted(expected_ids - set(ambient_source_by_id)):
+            blockers.append(f"{section_id}: section ambient-air source is required")
+        for section_id in sorted(set(ambient_by_id) - expected_ids):
+            blockers.append(
+                f"{section_id}: ambient-air temperature has no committed section"
+            )
+        for section_id in sorted(set(ambient_source_by_id) - expected_ids):
+            blockers.append(
+                f"{section_id}: ambient-air source has no committed section"
+            )
 
     stacked_ids = {
         section_id
@@ -168,6 +234,16 @@ def build_committed_pipe_external_convection_runtime_handoff_v1(
     resolved: list[CommittedPipeExternalConvectionRuntimeRowV1] = []
     for section_id, pairing_row in rows_by_id.items():
         try:
+            ambient_C = (
+                ambient_by_id[section_id]
+                if section_ambient_supplied
+                else shared_ambient_C
+            )
+            ambient_source = (
+                ambient_source_by_id[section_id]
+                if section_ambient_supplied
+                else shared_ambient_source
+            )
             flow_C = _finite_v1(
                 getattr(pairing_row, "flow_pipe_surface_temperature_C", None),
                 "Flow-pipe surface temperature",

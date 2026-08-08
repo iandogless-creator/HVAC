@@ -1370,11 +1370,12 @@ class HydronicsSchematicPanel(QWidget):
         thermal_layout.setVerticalSpacing(4)
 
         thermal_notice = QLabel(
-            "Automatic preview supplies mean-water surface temperature and "
-            "Environment air/MRT and universal pipe emissivity. A section "
-            "inherits emissivity unless its local override is selected. "
-            "Enter explicit h conv, or edit any preview value before applying "
-            "the complete basis.",
+            "Automatic preview displays every resolved value immediately. "
+            "Exact-room sections use room Tai and N3D room Tri; explicit "
+            "Environment / general-space sections use Environment air/MRT. "
+            "Not set is blocked. Blank fields mean the named evidence is "
+            "blocked; the status reports why. Apply persists the displayed "
+            "complete basis; editing a value records explicit manual intent.",
             thermal_editor,
         )
         thermal_notice.setWordWrap(True)
@@ -1807,9 +1808,11 @@ class HydronicsSchematicPanel(QWidget):
         room_mapping_layout.setHorizontalSpacing(8)
         room_mapping_layout.setVerticalSpacing(4)
         room_mapping_notice = QLabel(
-            "Map a committed pipe section to a room only where its local "
-            "ambient is known. Unmapped sections retain the Environment "
-            "ambient fallback. Clear a mapping to restore that fallback.",
+            "Explicitly choose the ambient location for every committed pipe "
+            "section: Environment / general space, or one exact room. Not set "
+            "is unresolved and blocks automatic temperatures. Clear returns "
+            "the selected section to Not set. This v1 choice applies to the "
+            "whole section; length-fraction allocation is deferred.",
             room_mapping_editor,
         )
         room_mapping_notice.setWordWrap(True)
@@ -1834,7 +1837,7 @@ class HydronicsSchematicPanel(QWidget):
             QLabel("Effective ambient location:", room_mapping_editor), 2, 0
         )
         self._committed_pipe_section_room_mapping_effective_label_v1 = QLabel(
-            "Environment fallback", room_mapping_editor
+            "Not set — unresolved", room_mapping_editor
         )
         room_mapping_layout.addWidget(
             self._committed_pipe_section_room_mapping_effective_label_v1,
@@ -1844,10 +1847,13 @@ class HydronicsSchematicPanel(QWidget):
             5,
         )
         room_mapping_layout.addWidget(
-            QLabel("Map to room:", room_mapping_editor), 3, 0
+            QLabel("Ambient location:", room_mapping_editor), 3, 0
         )
         self._committed_pipe_section_room_mapping_room_combo_v1 = QComboBox(
             room_mapping_editor
+        )
+        self._committed_pipe_section_room_mapping_room_combo_v1.currentIndexChanged.connect(
+            self._on_committed_pipe_section_ambient_location_choice_changed_v1
         )
         room_mapping_layout.addWidget(
             self._committed_pipe_section_room_mapping_room_combo_v1,
@@ -1857,13 +1863,17 @@ class HydronicsSchematicPanel(QWidget):
             2,
         )
         self._committed_pipe_section_room_mapping_apply_button_v1 = QPushButton(
-            "Apply room mapping", room_mapping_editor
+            "Apply ambient location", room_mapping_editor
         )
         self._committed_pipe_section_room_mapping_clear_button_v1 = QPushButton(
-            "Clear selected mapping", room_mapping_editor
+            "Clear selected location", room_mapping_editor
         )
         self._committed_pipe_section_room_mapping_clear_all_button_v1 = QPushButton(
-            "Clear all room mappings", room_mapping_editor
+            "Clear all ambient locations", room_mapping_editor
+        )
+        self._committed_pipe_section_room_mapping_apply_all_button_v1 = QPushButton(
+            "Apply selected location to all Not set sections",
+            room_mapping_editor,
         )
         self._committed_pipe_section_room_mapping_apply_button_v1.clicked.connect(
             self._on_apply_committed_pipe_section_room_mapping_v1
@@ -1874,6 +1884,9 @@ class HydronicsSchematicPanel(QWidget):
         self._committed_pipe_section_room_mapping_clear_all_button_v1.clicked.connect(
             self._on_clear_all_committed_pipe_section_room_mappings_v1
         )
+        self._committed_pipe_section_room_mapping_apply_all_button_v1.clicked.connect(
+            self._on_apply_all_unset_committed_pipe_section_locations_v1
+        )
         room_mapping_layout.addWidget(
             self._committed_pipe_section_room_mapping_apply_button_v1, 3, 3
         )
@@ -1882,6 +1895,13 @@ class HydronicsSchematicPanel(QWidget):
         )
         room_mapping_layout.addWidget(
             self._committed_pipe_section_room_mapping_clear_all_button_v1, 3, 5
+        )
+        room_mapping_layout.addWidget(
+            self._committed_pipe_section_room_mapping_apply_all_button_v1,
+            4,
+            1,
+            1,
+            5,
         )
         self._committed_pipe_section_room_mapping_status_label_v1 = QLabel(
             "Blocked — committed pipe sections are unavailable",
@@ -1892,7 +1912,7 @@ class HydronicsSchematicPanel(QWidget):
         )
         room_mapping_layout.addWidget(
             self._committed_pipe_section_room_mapping_status_label_v1,
-            4,
+            5,
             0,
             1,
             6,
@@ -1901,9 +1921,9 @@ class HydronicsSchematicPanel(QWidget):
             room_mapping_layout.setColumnStretch(column, 1)
         self._add_section(
             self._pipe_resizing_bare_heat_loss_layout_v1,
-            title="Committed-section ambient location — room mapping",
+            title="Committed-section ambient location — explicit intent",
             table=room_mapping_editor,
-            min_height=205,
+            min_height=235,
             expanded=True,
         )
         self._refresh_committed_pipe_section_room_mapping_controls_v1()
@@ -12941,6 +12961,10 @@ QTableWidget::item:selected:!active {
         previous = room_combo.blockSignals(True)
         try:
             room_combo.clear()
+            room_combo.addItem("Not set — unresolved", "")
+            room_combo.addItem(
+                "Environment / general space", "__environment__"
+            )
             for room in available_rooms or []:
                 room_combo.addItem(
                     str(room.get("label") or room.get("room_id") or "—"),
@@ -12986,12 +13010,17 @@ QTableWidget::item:selected:!active {
             {},
         )
         mapped = bool(row.get("explicitly_mapped"))
+        explicitly_set = bool(row.get("explicitly_set"))
+        ambient_scope = str(row.get("ambient_scope") or "")
         room_id = str(row.get("room_id") or "")
         room_label = str(row.get("room_label") or room_id or "—")
         source = str(row.get("source") or "")
-        effective = (
-            f"Room — {room_label}" if mapped else "Environment fallback"
-        )
+        if mapped:
+            effective = f"Exact room — {room_label}"
+        elif explicitly_set and ambient_scope == "environment":
+            effective = "Environment / general space — explicit"
+        else:
+            effective = "Not set — unresolved"
         self._committed_pipe_section_room_mapping_effective_label_v1.setText(
             effective if not source else f"{effective} — {source}"
         )
@@ -13005,6 +13034,18 @@ QTableWidget::item:selected:!active {
                 self._committed_pipe_section_room_mapping_room_combo_v1.setCurrentIndex(
                     room_index
                 )
+        elif explicitly_set and ambient_scope == "environment":
+            environment_index = (
+                self._committed_pipe_section_room_mapping_room_combo_v1.findData(
+                    "__environment__"
+                )
+            )
+            if environment_index >= 0:
+                self._committed_pipe_section_room_mapping_room_combo_v1.setCurrentIndex(
+                    environment_index
+                )
+        else:
+            self._committed_pipe_section_room_mapping_room_combo_v1.setCurrentIndex(0)
         base_status = str(
             getattr(
                 self,
@@ -13017,7 +13058,24 @@ QTableWidget::item:selected:!active {
         self._committed_pipe_section_room_mapping_status_label_v1.setText(
             base_status if not row_status else f"{base_status}\n{row_status}"
         )
+        self._select_committed_pipe_thermal_basis_section_v1(section_id)
         self._refresh_committed_pipe_section_room_mapping_controls_v1()
+
+    def _select_committed_pipe_thermal_basis_section_v1(
+            self,
+            section_id: str,
+    ) -> None:
+        """Keep the thermal preview focused on the room-mapping section."""
+        combo = getattr(
+            self,
+            "_committed_pipe_thermal_basis_section_combo_v1",
+            None,
+        )
+        if combo is None or not section_id:
+            return
+        index = combo.findData(str(section_id))
+        if index >= 0 and combo.currentIndex() != index:
+            combo.setCurrentIndex(index)
 
     def _refresh_committed_pipe_section_room_mapping_controls_v1(self) -> None:
         if not hasattr(
@@ -13058,7 +13116,7 @@ QTableWidget::item:selected:!active {
             editable
         )
         self._committed_pipe_section_room_mapping_clear_button_v1.setEnabled(
-            has_callback and bool(row.get("explicitly_mapped"))
+            has_callback and bool(row.get("explicitly_set"))
         )
         self._committed_pipe_section_room_mapping_clear_all_button_v1.setEnabled(
             has_callback
@@ -13070,6 +13128,20 @@ QTableWidget::item:selected:!active {
                 )
             )
         )
+        unset_count = sum(
+            not bool(value.get("explicitly_set"))
+            for value in self._committed_pipe_section_room_mapping_editor_rows_v1
+        )
+        self._committed_pipe_section_room_mapping_apply_all_button_v1.setEnabled(
+            editable and unset_count > 0
+        )
+
+    def _on_committed_pipe_section_ambient_location_choice_changed_v1(
+            self,
+            _index: int,
+    ) -> None:
+        """Refresh Apply actions when the pending ambient choice changes."""
+        self._refresh_committed_pipe_section_room_mapping_controls_v1()
 
     def _invoke_committed_pipe_section_room_mapping_callback_v1(
             self,
@@ -13088,15 +13160,21 @@ QTableWidget::item:selected:!active {
             )
 
     def _on_apply_committed_pipe_section_room_mapping_v1(self) -> None:
+        location = str(
+            self._committed_pipe_section_room_mapping_room_combo_v1.currentData()
+            or ""
+        )
         self._invoke_committed_pipe_section_room_mapping_callback_v1(
             {
-                "action": "set",
+                "action": (
+                    "set_environment"
+                    if location == "__environment__"
+                    else "set_room"
+                ),
                 "section_id": (
                     self._committed_pipe_section_room_mapping_selected_section_id_v1
                 ),
-                "room_id": (
-                    self._committed_pipe_section_room_mapping_room_combo_v1.currentData()
-                ),
+                "room_id": location,
             }
         )
 
@@ -13108,6 +13186,40 @@ QTableWidget::item:selected:!active {
             self._invoke_committed_pipe_section_room_mapping_callback_v1(
                 {"action": "clear", "section_id": section_id}
             )
+
+    def _on_apply_all_unset_committed_pipe_section_locations_v1(self) -> None:
+        location = str(
+            self._committed_pipe_section_room_mapping_room_combo_v1.currentData()
+            or ""
+        )
+        if not location:
+            return
+        unset_count = sum(
+            not bool(value.get("explicitly_set"))
+            for value in self._committed_pipe_section_room_mapping_editor_rows_v1
+        )
+        if unset_count <= 0:
+            return
+        label = str(
+            self._committed_pipe_section_room_mapping_room_combo_v1.currentText()
+            or location
+        )
+        answer = QMessageBox.question(
+            self,
+            "Apply ambient location to all Not set sections",
+            f"Apply {label} to all {unset_count} Not set committed section(s)?\n\n"
+            "Existing explicit locations will be preserved.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if answer != QMessageBox.StandardButton.Yes:
+            return
+        self._invoke_committed_pipe_section_room_mapping_callback_v1(
+            {
+                "action": "set_all_not_set",
+                "ambient_location": location,
+            }
+        )
 
     def _on_clear_all_committed_pipe_section_room_mappings_v1(self) -> None:
         self._invoke_committed_pipe_section_room_mapping_callback_v1(
@@ -14163,7 +14275,7 @@ QTableWidget::item:selected:!active {
 
             painter.drawLine(p1[0], p1[1], p2[0], p2[1])
 
-    def _paint_labels(
+    def hscmp_paint_labels(
         self,
         painter: QPainter,
         labels: list[SchematicLabelDTO],
