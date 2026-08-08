@@ -1,56 +1,77 @@
-from pathlib import Path
+from __future__ import annotations
+
+import hmac
 import json
+from pathlib import Path
+from typing import Any
 
 from HVAC.project.project_state import ProjectState
-from .saver import compute_checksum
+from .checksum import compute_checksum
 
-from HVAC.project.project_state import ProjectState
 
-MAX_BACKUPS = 5
+SUPPORTED_WRAPPER_SCHEMA_VERSIONS = frozenset({4})
 
 
 # ----------------------------------------------------------------------
 # Internal validation
 # ----------------------------------------------------------------------
 def _load_and_validate(file_path: Path) -> dict:
-    with file_path.open("r", encoding="utf-8") as f:
-        wrapper = json.load(f)
-    return wrapper
-#    if wrapper.get("schema_version") != 4:
- #       raise ValueError("Unsupported schema version")
+    """Return one validated ProjectState payload from ``file_path``."""
 
-    #payload = wrapper.get("payload")
-    #checksum = wrapper.get("checksum")
+    try:
+        with file_path.open("r", encoding="utf-8") as handle:
+            data = json.load(handle)
+    except json.JSONDecodeError as exc:
+        raise ValueError(
+            f"Invalid HVACgooee project JSON in {file_path}: {exc.msg}"
+        ) from exc
 
-    #if not isinstance(payload, dict) or not isinstance(checksum, str):
-     #   raise ValueError("Invalid project file structure")
+    return _validated_project_payload(data, file_path=file_path)
 
-    #computed = compute_checksum(payload)
 
-    #if computed != checksum:
-     #   raise ValueError("Checksum mismatch")
+def _validated_project_payload(data: Any, *, file_path: Path) -> dict:
+    if not isinstance(data, dict):
+        raise ValueError(
+            f"Invalid HVACgooee project file structure in {file_path}"
+        )
 
-#    return payload
+    # Authentic legacy files persisted ProjectState directly. ProjectState
+    # performs their payload-schema validation in from_dict().
+    if "project_id" in data:
+        if "payload" in data or "checksum" in data:
+            raise ValueError(
+                f"Ambiguous HVACgooee project file structure in {file_path}"
+            )
+        return data
 
-def _unwrap_project_payload(data: dict) -> dict:
-    payload = data
+    schema_version = data.get("schema_version")
+    if schema_version not in SUPPORTED_WRAPPER_SCHEMA_VERSIONS:
+        raise ValueError(
+            "Unsupported HVACgooee project wrapper schema version "
+            f"{schema_version!r} in {file_path}"
+        )
 
-    while (
-        isinstance(payload, dict)
-        and "project_id" not in payload
-        and isinstance(payload.get("payload"), dict)
+    payload = data.get("payload")
+    checksum = data.get("checksum")
+    if (
+        not isinstance(payload, dict)
+        or not isinstance(checksum, str)
+        or not checksum
     ):
-        payload = payload["payload"]
+        raise ValueError(
+            f"Invalid HVACgooee project wrapper structure in {file_path}"
+        )
+
+    computed_checksum = compute_checksum(payload)
+    if not hmac.compare_digest(computed_checksum, checksum):
+        raise ValueError(f"HVACgooee project checksum mismatch in {file_path}")
+
+    if "project_id" not in payload:
+        raise ValueError(
+            f"Invalid HVACgooee project payload: missing project_id in {file_path}"
+        )
 
     return payload
-
-
-
-# ----------------------------------------------------------------------
-# Backup restoration
-# ----------------------------------------------------------------------
-def _restore_backup(backup_path: Path, main_path: Path) -> None:
-    main_path.write_bytes(backup_path.read_bytes())
 
 
 # ----------------------------------------------------------------------
@@ -77,10 +98,7 @@ def load(project_path: Path) -> ProjectState:
     if not project_file.exists():
         raise FileNotFoundError(f"Project file not found: {project_file}")
 
-    with project_file.open("r", encoding="utf-8") as f:
-        data = json.load(f)
-
-    payload = _unwrap_project_payload(data)
+    payload = _load_and_validate(project_file)
 
     if "project_id" not in payload:
         raise ValueError(

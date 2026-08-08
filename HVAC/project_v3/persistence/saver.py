@@ -2,11 +2,10 @@ from pathlib import Path
 import json
 import tempfile
 import os
-import hashlib
 from HVAC.project.project_state import ProjectState
 from .checksum import compute_checksum
 
-MAX_BACKUPS = 3
+MAX_BACKUPS = 20
 
 def save(project_state: ProjectState, project_dir: Path) -> None:
     project_dir = project_dir.resolve()
@@ -19,7 +18,7 @@ def save(project_state: ProjectState, project_dir: Path) -> None:
 
     wrapper = {
         "schema_version": 4,
-        "checksum": _compute_checksum(payload),
+        "checksum": compute_checksum(payload),
         "payload": payload,
     }
 
@@ -51,7 +50,7 @@ def _rotate_backups(project_dir: Path) -> None:
     project.json
         → project.backup.1.json
         → project.backup.2.json
-        → project.backup.3.json
+        → project.backup.20.json
     """
 
     project_file = project_dir / "project.json"
@@ -74,15 +73,3 @@ def _rotate_backups(project_dir: Path) -> None:
     # Move current project.json to backup.1
     first_backup = project_dir / "project.backup.1.json"
     os.replace(project_file, first_backup)
-
-def _compute_checksum(payload: dict) -> str:
-    """
-    Deterministic SHA-256 checksum of payload.
-    """
-    canonical = json.dumps(
-        payload,
-        sort_keys=True,
-        separators=(",", ":"),
-    ).encode("utf-8")
-
-    return hashlib.sha256(canonical).hexdigest()
