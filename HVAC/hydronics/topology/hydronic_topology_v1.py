@@ -17,9 +17,12 @@ class HydronicSublegV1:
     """
     Hydronic subleg route authority.
 
-    A subleg only exists where the hydronic route actually splits.
-    No split = normal route node.
-    Split = subleg.
+    Canonical recursive position supplies its terminology:
+    - directly beneath a leg: principal subleg
+    - beneath another subleg: branch subleg
+
+    ``sublegs`` contains child branch sublegs. A subleg with no children is
+    a leaf. Kind and leaf status are derived and are not persisted fields.
 
     This DTO is authority for route/order only.
     It does not calculate pipe size, pressure drop, or proportioning.
@@ -31,6 +34,12 @@ class HydronicSublegV1:
     route_room_ids: list[str] = field(default_factory=list)
     index_room_id: str | None = None
     sublegs: list["HydronicSublegV1"] = field(default_factory=list)
+
+    @property
+    def is_leaf(self) -> bool:
+        """True when this subleg currently has no child branch sublegs."""
+
+        return not self.sublegs
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -70,12 +79,11 @@ class HydronicLegV1:
     """
     Hydronic leg route authority.
 
-    A leg is a primary heating route leaving the common/main path.
+    A leg leaves the common main and canonically owns no rooms directly.
+    Its top-level ``sublegs`` are principal sublegs; there may be any number.
 
-    This DTO preserves:
-    - stable room identity via room_id
-    - hydronic order via route_room_ids
-    - selected/default index point via index_room_id
+    ``route_room_ids`` and ``index_room_id`` remain transitional compatibility
+    mirrors until H-S67-C migrates accepted legacy topology.
     """
 
     leg_id: str
