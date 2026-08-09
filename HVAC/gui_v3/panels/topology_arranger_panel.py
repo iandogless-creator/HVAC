@@ -9,9 +9,12 @@ from typing import Any
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QAbstractItemView,
+    QComboBox,
+    QGridLayout,
     QHBoxLayout,
     QHeaderView,
     QLabel,
+    QLineEdit,
     QPushButton,
     QTableWidget,
     QTableWidgetItem,
@@ -62,6 +65,10 @@ class TopologyArrangerPanel(QWidget):
     move_down_requested = Signal(str)
     make_terminal_requested = Signal(str)
     set_index_requested = Signal(str)
+    leg_selection_requested = Signal(str)
+    principal_selection_requested = Signal(str)
+    add_leg_requested = Signal(str, str, str)
+    add_principal_requested = Signal(str, str)
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -72,6 +79,59 @@ class TopologyArrangerPanel(QWidget):
         self._status_label = QLabel("No topology loaded")
         self._status_label.setObjectName("topologyArrangerStatusLabel")
         self._status_label.setWordWrap(True)
+
+        self._leg_selector = QComboBox()
+        self._leg_selector.setObjectName("topologyArrangerLegSelector")
+        self._principal_selector = QComboBox()
+        self._principal_selector.setObjectName(
+            "topologyArrangerPrincipalSelector"
+        )
+        self._initial_room_selector = QComboBox()
+        self._initial_room_selector.setObjectName(
+            "topologyArrangerInitialRoomSelector"
+        )
+        self._leg_label_edit = QLineEdit()
+        self._leg_label_edit.setObjectName("topologyArrangerNewLegLabel")
+        self._leg_label_edit.setPlaceholderText("Automatic leg label")
+        self._principal_label_edit = QLineEdit()
+        self._principal_label_edit.setObjectName(
+            "topologyArrangerNewPrincipalLabel"
+        )
+        self._principal_label_edit.setPlaceholderText(
+            "Automatic principal label"
+        )
+        self._add_leg_button = QPushButton("Add Leg + Principal")
+        self._add_leg_button.setObjectName("topologyArrangerAddLegButton")
+        self._add_principal_button = QPushButton("Add Principal")
+        self._add_principal_button.setObjectName(
+            "topologyArrangerAddPrincipalButton"
+        )
+
+        creation_layout = QGridLayout()
+        creation_layout.addWidget(QLabel("View leg"), 0, 0)
+        creation_layout.addWidget(self._leg_selector, 0, 1)
+        creation_layout.addWidget(QLabel("View principal"), 0, 2)
+        creation_layout.addWidget(self._principal_selector, 0, 3)
+        creation_layout.addWidget(QLabel("Initial room (moves if allocated)"), 1, 0)
+        creation_layout.addWidget(self._initial_room_selector, 1, 1)
+        creation_layout.addWidget(QLabel("New leg label"), 2, 0)
+        creation_layout.addWidget(self._leg_label_edit, 2, 1)
+        creation_layout.addWidget(QLabel("New principal label"), 2, 2)
+        creation_layout.addWidget(self._principal_label_edit, 2, 3)
+        creation_layout.addWidget(self._add_leg_button, 3, 1)
+        creation_layout.addWidget(self._add_principal_button, 3, 3)
+
+        self._leg_selector.currentIndexChanged.connect(
+            self._emit_leg_selection
+        )
+        self._principal_selector.currentIndexChanged.connect(
+            self._emit_principal_selection
+        )
+        self._initial_room_selector.currentIndexChanged.connect(
+            self._refresh_creation_enablement
+        )
+        self._add_leg_button.clicked.connect(self._emit_add_leg)
+        self._add_principal_button.clicked.connect(self._emit_add_principal)
 
         self._table = QTableWidget(0, 4)
         self._table.setHorizontalHeaderLabels(
@@ -115,6 +175,7 @@ class TopologyArrangerPanel(QWidget):
         layout = QVBoxLayout(self)
         layout.addWidget(self._title_label)
         layout.addWidget(self._status_label)
+        layout.addLayout(creation_layout)
         layout.addWidget(self._table)
         layout.addLayout(button_layout)
 
@@ -127,6 +188,69 @@ class TopologyArrangerPanel(QWidget):
 
     def set_status(self, text: str) -> None:
         self._status_label.setText(str(text or ""))
+
+    def set_leg_options(
+        self,
+        options: list[dict[str, str]],
+        selected_leg_id: str,
+    ) -> None:
+        self._replace_combo_options(
+            self._leg_selector,
+            options,
+            selected_leg_id,
+        )
+        self._refresh_creation_enablement()
+
+    def set_principal_options(
+        self,
+        options: list[dict[str, str]],
+        selected_subleg_id: str,
+    ) -> None:
+        self._replace_combo_options(
+            self._principal_selector,
+            options,
+            selected_subleg_id,
+        )
+        self._refresh_creation_enablement()
+
+    def set_available_rooms(
+        self,
+        options: list[dict[str, str]],
+    ) -> None:
+        self._replace_combo_options(self._initial_room_selector, options, "")
+        self._refresh_creation_enablement()
+
+    def selected_leg_id(self) -> str:
+        return str(self._leg_selector.currentData() or "")
+
+    def selected_principal_subleg_id(self) -> str:
+        return str(self._principal_selector.currentData() or "")
+
+    def selected_initial_room_id(self) -> str:
+        return str(self._initial_room_selector.currentData() or "")
+
+    @staticmethod
+    def _replace_combo_options(
+        combo: QComboBox,
+        options: list[dict[str, str]],
+        selected_id: str,
+    ) -> None:
+        combo.blockSignals(True)
+        try:
+            combo.clear()
+            selected_index = -1
+            for index, option in enumerate(options):
+                identity = str(option.get("id", "") or "")
+                combo.addItem(
+                    str(option.get("label", "") or identity),
+                    identity,
+                )
+                if identity == str(selected_id or ""):
+                    selected_index = index
+            if selected_index >= 0:
+                combo.setCurrentIndex(selected_index)
+        finally:
+            combo.blockSignals(False)
 
     def set_rows(self, rows: list[dict[str, Any]]) -> None:
         """
@@ -169,8 +293,8 @@ class TopologyArrangerPanel(QWidget):
             self._table.setItem(row_index, self.COL_ROOM, room_item)
             self._table.setItem(row_index, self.COL_INDEX, index_item)
             self._table.setItem(row_index, self.COL_TERMINAL, terminal_item)
-        if previous_selected_room_id and room_id == previous_selected_room_id:
-            row_to_restore = row_index
+            if previous_selected_room_id and room_id == previous_selected_room_id:
+                row_to_restore = row_index
         self._table.resizeRowsToContents()
         if row_to_restore is not None:
             self._table.selectRow(row_to_restore)
@@ -287,3 +411,41 @@ class TopologyArrangerPanel(QWidget):
         room_id = self.selected_room_id()
         if room_id:
             self.set_index_requested.emit(room_id)
+
+    def _emit_leg_selection(self) -> None:
+        leg_id = self.selected_leg_id()
+        if leg_id:
+            self.leg_selection_requested.emit(leg_id)
+
+    def _emit_principal_selection(self) -> None:
+        subleg_id = self.selected_principal_subleg_id()
+        if subleg_id:
+            self.principal_selection_requested.emit(subleg_id)
+
+    def _emit_add_leg(self) -> None:
+        room_id = self.selected_initial_room_id()
+        if room_id:
+            self.add_leg_requested.emit(
+                self._leg_label_edit.text().strip(),
+                self._principal_label_edit.text().strip(),
+                room_id,
+            )
+
+    def _emit_add_principal(self) -> None:
+        room_id = self.selected_initial_room_id()
+        if room_id:
+            self.add_principal_requested.emit(
+                self._principal_label_edit.text().strip(),
+                room_id,
+            )
+
+    def clear_creation_labels(self) -> None:
+        self._leg_label_edit.clear()
+        self._principal_label_edit.clear()
+
+    def _refresh_creation_enablement(self) -> None:
+        has_room = bool(self.selected_initial_room_id())
+        self._add_leg_button.setEnabled(has_room)
+        self._add_principal_button.setEnabled(
+            has_room and bool(self.selected_leg_id())
+        )

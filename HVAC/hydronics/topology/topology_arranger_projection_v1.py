@@ -44,6 +44,8 @@ class TopologyArrangerProjectionV1:
 
     leg_id: str
     leg_label: str
+    principal_subleg_id: str
+    principal_subleg_label: str
     heat_source_room_id: str
     rows: tuple[TopologyArrangerRowV1, ...]
     selected_index_room_id: str | None = None
@@ -57,6 +59,7 @@ def build_topology_arranger_projection_v1(
     project_state: Any,
     *,
     leg_id: str = "leg-001",
+    principal_subleg_id: str | None = None,
 ) -> TopologyArrangerProjectionV1:
     """
     Build a read-only row projection for the future Topology Arranger.
@@ -84,7 +87,21 @@ def build_topology_arranger_projection_v1(
         raise TypeError("ProjectState.hydronic_topology is not HydronicTopologyV1")
 
     leg = HydronicTopologyEditorV1.require_leg(topology, leg_id)
-    primary_subleg = primary_subleg_for_leg_id(topology, leg_id)
+    if principal_subleg_id:
+        primary_subleg = next(
+            (
+                subleg
+                for subleg in leg.sublegs
+                if subleg.subleg_id == str(principal_subleg_id)
+            ),
+            None,
+        )
+        if primary_subleg is None:
+            raise ValueError(
+                f"Unknown principal subleg identity: {principal_subleg_id}"
+            )
+    else:
+        primary_subleg = primary_subleg_for_leg_id(topology, leg_id)
     rooms = getattr(project_state, "rooms", {}) or {}
 
     rows = _build_subleg_rows(
@@ -95,6 +112,8 @@ def build_topology_arranger_projection_v1(
     return TopologyArrangerProjectionV1(
         leg_id=leg.leg_id,
         leg_label=leg.label,
+        principal_subleg_id=primary_subleg.subleg_id,
+        principal_subleg_label=primary_subleg.label,
         heat_source_room_id=topology.heat_source_room_id,
         rows=tuple(rows),
         selected_index_room_id=primary_subleg.index_room_id,
