@@ -17,6 +17,9 @@ from HVAC.project.project_state import ProjectState
 from HVAC.hydronics.topology.primary_subleg_helpers_v1 import (
     primary_subleg_id_for_leg,
 )
+from HVAC.hydronics.topology.recursive_subleg_contract_v1 import (
+    build_recursive_subleg_positions_v1,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -25,6 +28,11 @@ class TopologyCreationCandidateV1:
     topology: HydronicTopologyV1 | None = None
     leg_id: str = ""
     principal_subleg_id: str = ""
+    created_subleg_id: str = ""
+    parent_subleg_id: str = ""
+    branch_origin_room_id: str = ""
+    focus_kind: str = "principal_subleg"
+    focus_target_id: str = ""
     initial_room_id: str = ""
     migration_applied: bool = False
     room_reallocated: bool = False
@@ -127,6 +135,80 @@ def build_add_principal_subleg_candidate_v1(
     )
 
 
+def build_add_branch_subleg_candidate_v1(
+    project_state: ProjectState,
+    *,
+    parent_subleg_id: str,
+    branch_origin_room_id: str,
+    initial_room_id: str,
+    branch_label: str = "",
+) -> TopologyCreationCandidateV1:
+    """Build one recursive Branch candidate beneath an exact parent."""
+
+    parent_id = str(parent_subleg_id or "").strip()
+    origin_room_id = str(branch_origin_room_id or "").strip()
+    initial_id = str(initial_room_id or "").strip()
+    if not parent_id:
+        return _blocked("An exact parent subleg is required")
+    if not origin_room_id:
+        return _blocked("A branch-origin room is required")
+    if initial_id == origin_room_id:
+        return _blocked(
+            "Branch first served room must differ from its parent "
+            "take-off room"
+        )
+
+    prepared = _copy_and_check_room(project_state, initial_id)
+    if isinstance(prepared, TopologyCreationCandidateV1):
+        return prepared
+    candidate, room_id, migration_applied, room_reallocated = prepared
+
+    position = next(
+        (
+            item
+            for item in build_recursive_subleg_positions_v1(candidate)
+            if item.subleg_id == parent_id
+        ),
+        None,
+    )
+    if position is None:
+        return _blocked(f"Unknown parent subleg identity: {parent_id}")
+    if origin_room_id not in {
+        str(value) for value in position.subleg.route_room_ids
+    }:
+        return _blocked(
+            f"Branch origin {origin_room_id} is not on immediate parent "
+            f"{parent_id}"
+        )
+
+    branch_number = len(position.subleg.sublegs) + 1
+    branch_id = _next_branch_id(candidate, parent_id, branch_number)
+    position.subleg.sublegs.append(
+        HydronicSublegV1(
+            subleg_id=branch_id,
+            label=(
+                str(branch_label or "").strip()
+                or f"Branch subleg {branch_number}"
+            ),
+            origin_room_id=origin_room_id,
+            route_room_ids=[room_id],
+            index_room_id=room_id,
+        )
+    )
+    return _validated_result(
+        project_state,
+        candidate,
+        leg_id=position.leg_id,
+        principal_subleg_id="",
+        initial_room_id=room_id,
+        migration_applied=migration_applied,
+        room_reallocated=room_reallocated,
+        status="Ready — recursive Branch creation candidate",
+        created_subleg_id=branch_id,
+        parent_subleg_id=parent_id,
+        branch_origin_room_id=origin_room_id,
+        focus_kind="branch_subleg",
+    )
 def topology_creation_room_ids_v1(
     project_state: ProjectState,
 ) -> tuple[str, ...]:
@@ -194,6 +276,10 @@ def _validated_result(
     migration_applied: bool,
     room_reallocated: bool,
     status: str,
+    created_subleg_id: str = "",
+    parent_subleg_id: str = "",
+    branch_origin_room_id: str = "",
+    focus_kind: str = "principal_subleg",
 ) -> TopologyCreationCandidateV1:
     validation = validate_canonical_hydronic_topology_v1(
         candidate,
@@ -206,6 +292,11 @@ def _validated_result(
         topology=candidate,
         leg_id=leg_id,
         principal_subleg_id=principal_subleg_id,
+        created_subleg_id=(created_subleg_id or principal_subleg_id),
+        parent_subleg_id=parent_subleg_id,
+        branch_origin_room_id=branch_origin_room_id,
+        focus_kind=focus_kind,
+        focus_target_id=(created_subleg_id or principal_subleg_id),
         initial_room_id=initial_room_id,
         migration_applied=migration_applied,
         room_reallocated=room_reallocated,
@@ -235,6 +326,23 @@ def _next_principal_id(leg: HydronicLegV1, starting_number: int) -> str:
     number = max(2, int(starting_number))
     while True:
         candidate = f"{leg.leg_id}-principal-subleg-{number:03d}"
+        if candidate not in existing:
+            return candidate
+        number += 1
+
+
+def _next_branch_id(
+    topology: HydronicTopologyV1,
+    parent_subleg_id: str,
+    starting_number: int,
+) -> str:
+    existing = {
+        position.subleg_id
+        for position in build_recursive_subleg_positions_v1(topology)
+    }
+    number = max(1, int(starting_number))
+    while True:
+        candidate = f"{parent_subleg_id}-branch-subleg-{number:03d}"
         if candidate not in existing:
             return candidate
         number += 1

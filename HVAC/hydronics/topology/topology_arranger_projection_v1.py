@@ -16,6 +16,10 @@ from HVAC.hydronics.topology.hydronic_topology_v1 import (
 from HVAC.hydronics.topology.primary_subleg_helpers_v1 import (
     primary_subleg_for_leg_id,
 )
+from HVAC.hydronics.topology.recursive_subleg_contract_v1 import (
+    PRINCIPAL_SUBLEG_KIND,
+    build_recursive_subleg_positions_v1,
+)
 
 # ======================================================================
 # DTOs
@@ -46,6 +50,7 @@ class TopologyArrangerProjectionV1:
     leg_label: str
     principal_subleg_id: str
     principal_subleg_label: str
+    selected_subleg_kind: str
     heat_source_room_id: str
     rows: tuple[TopologyArrangerRowV1, ...]
     selected_index_room_id: str | None = None
@@ -87,36 +92,41 @@ def build_topology_arranger_projection_v1(
         raise TypeError("ProjectState.hydronic_topology is not HydronicTopologyV1")
 
     leg = HydronicTopologyEditorV1.require_leg(topology, leg_id)
+    selected_kind = PRINCIPAL_SUBLEG_KIND
     if principal_subleg_id:
-        primary_subleg = next(
+        selected_position = next(
             (
-                subleg
-                for subleg in leg.sublegs
-                if subleg.subleg_id == str(principal_subleg_id)
+                position
+                for position in build_recursive_subleg_positions_v1(topology)
+                if position.leg_id == leg.leg_id
+                and position.subleg_id == str(principal_subleg_id)
             ),
             None,
         )
-        if primary_subleg is None:
+        if selected_position is None:
             raise ValueError(
-                f"Unknown principal subleg identity: {principal_subleg_id}"
+                f"Unknown subleg identity: {principal_subleg_id}"
             )
+        selected_subleg = selected_position.subleg
+        selected_kind = selected_position.kind
     else:
-        primary_subleg = primary_subleg_for_leg_id(topology, leg_id)
+        selected_subleg = primary_subleg_for_leg_id(topology, leg_id)
     rooms = getattr(project_state, "rooms", {}) or {}
 
     rows = _build_subleg_rows(
-        subleg=primary_subleg,
+        subleg=selected_subleg,
         rooms=rooms,
     )
 
     return TopologyArrangerProjectionV1(
         leg_id=leg.leg_id,
         leg_label=leg.label,
-        principal_subleg_id=primary_subleg.subleg_id,
-        principal_subleg_label=primary_subleg.label,
+        principal_subleg_id=selected_subleg.subleg_id,
+        principal_subleg_label=selected_subleg.label,
+        selected_subleg_kind=selected_kind,
         heat_source_room_id=topology.heat_source_room_id,
         rows=tuple(rows),
-        selected_index_room_id=primary_subleg.index_room_id,
+        selected_index_room_id=selected_subleg.index_room_id,
     )
 
 

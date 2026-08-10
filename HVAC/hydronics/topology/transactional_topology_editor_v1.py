@@ -31,6 +31,7 @@ FOCUS_LEG = "leg"
 FOCUS_PRINCIPAL_SUBLEG = "principal_subleg"
 FOCUS_BRANCH_SUBLEG = "branch_subleg"
 FOCUS_ROOM = "room"
+FOCUS_STAGING_ROOM = "staging_room"
 
 
 @dataclass(frozen=True, slots=True)
@@ -131,6 +132,7 @@ def commit_validated_topology_candidate_v1(
         candidate_copy,
         kind=focus_kind,
         target_id=focus_target_id,
+        known_room_ids=project_state.rooms,
     )
     if focus is None:
         return _transaction_blocked(
@@ -287,6 +289,7 @@ def _resolve_focus(
     *,
     kind: str,
     target_id: str,
+    known_room_ids: Any = (),
 ) -> TopologyFocusEvidenceV1 | None:
     clean_kind = str(kind or "").strip()
     clean_target = str(target_id or "").strip()
@@ -342,6 +345,23 @@ def _resolve_focus(
                     room_id=clean_target,
                     status=f"Focus room {clean_target}",
                 )
+        return None
+
+    if clean_kind == FOCUS_STAGING_ROOM:
+        known_rooms = {
+            str(room_id) for room_id in (known_room_ids or ())
+        }
+        if (
+            clean_target in known_rooms
+            and clean_target != str(topology.heat_source_room_id or "")
+            and clean_target not in set(topology.all_route_room_ids())
+        ):
+            return TopologyFocusEvidenceV1(
+                kind=FOCUS_STAGING_ROOM,
+                target_id=clean_target,
+                room_id=clean_target,
+                status=f"Focus staged room {clean_target}",
+            )
         return None
 
     return None
