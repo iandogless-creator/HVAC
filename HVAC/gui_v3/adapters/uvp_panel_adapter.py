@@ -12,6 +12,7 @@ from HVAC.constructions.physics.construction_model_save_candidate_v1 import (
     build_construction_model_save_candidate_v1,
 )
 from HVAC.core.construction_v1 import ConstructionV1
+from HVAC.core.value_resolution import resolve_effective_internal_temp_C
 
 class UVPPanelAdapter(QObject):
     """
@@ -141,15 +142,47 @@ class UVPPanelAdapter(QObject):
         elif hasattr(self._panel, "focus_surface"):
             self._panel.focus_surface(surface_id)
 
+    def _push_heat_flow_temperature_contexts(self) -> None:
+        ps = self._context.project_state
+        if ps is None:
+            self._panel.set_heat_flow_temperature_contexts([])
+            return
+        te_C = getattr(getattr(ps, "environment", None), "external_design_temp_C", None)
+        contexts = []
+        if te_C is not None:
+            for room_id, room in ps.rooms.items():
+                ti_C, source = resolve_effective_internal_temp_C(ps, room)
+                if ti_C is None:
+                    continue
+                contexts.append((
+                    str(room_id),
+                    str(getattr(room, "name", room_id) or room_id),
+                    float(ti_C),
+                    float(te_C),
+                    "room override" if source == "room" else "Environment default",
+                ))
+        surface_id = self._context.get_uvp_focus() or getattr(
+            self._context, "current_surface_id", None
+        )
+        segment = getattr(ps, "boundary_segments", {}).get(surface_id)
+        selected_room_id = (
+            str(getattr(segment, "owner_room_id", "") or "")
+            or str(getattr(self._context, "current_room_id", "") or "")
+        )
+        self._panel.set_heat_flow_temperature_contexts(
+            contexts, selected_room_id or None
+        )
+
     def refresh(self) -> None:
         ps = self._context.project_state
         if not ps:
             return
 
         # --------------------------------------------------
-        # 1. Push construction library
+        # 1. Push construction library and heat-flow context
         # --------------------------------------------------
         self._panel.set_constructions(ps.constructions)
+        self._push_heat_flow_temperature_contexts()
 
         # --------------------------------------------------
         # 2. Resolve current surface

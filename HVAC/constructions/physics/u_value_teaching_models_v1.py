@@ -2,6 +2,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from HVAC.constructions.physics.two_path_member_spacing_fraction_v1 import (
+    DECLARED_EFFECTIVE_MEMBER_FRACTION,
+    TwoPathMemberSpacingIntentV1,
+    resolve_two_path_member_spacing_fraction_v1,
+)
 from HVAC.constructions.physics.shared_construction_layer_path_evidence_v1 import (
     DECLARED_RESISTANCE_LAYER_BASIS,
     HOMOGENEOUS_LAYER_BASIS,
@@ -24,10 +29,30 @@ class UValueTeachingModelV1:
     label: str
     description: str
     evidence: SharedConstructionLayerPathEvidenceV1
+    member_spacing_intent: TwoPathMemberSpacingIntentV1 | None = None
 
 
 def build_u_value_teaching_models_v1() -> tuple[UValueTeachingModelV1, ...]:
-    """Return simple no-air-gap models for calculation and schematic teaching."""
+    """Return practical candidate models for calculation and visual inspection."""
+
+    stud_spacing_intent = TwoPathMemberSpacingIntentV1(
+        member_path_id="timber-stud",
+        clear_path_id="insulated-bay",
+        member_label="Timber stud",
+        member_width_m=0.038,
+        member_centres_m=0.600,
+        controlling_basis=DECLARED_EFFECTIVE_MEMBER_FRACTION,
+        declared_effective_member_fraction=0.15,
+        source_note=(
+            "38 mm member at 600 mm centres; 15% declared effective framing "
+            "fraction includes additional framing beyond repeating studs."
+        ),
+    )
+    stud_fraction = resolve_two_path_member_spacing_fraction_v1(
+        stud_spacing_intent
+    )
+    if not stud_fraction.ready:
+        raise RuntimeError("; ".join(stud_fraction.blockers))
 
     return (
         UValueTeachingModelV1(
@@ -173,13 +198,13 @@ def build_u_value_teaching_models_v1() -> tuple[UValueTeachingModelV1, ...]:
                     ConstructionHeatFlowPathEvidenceV1(
                         "insulated-bay",
                         "Insulated bay",
-                        0.85,
+                        stud_fraction.controlling_clear_fraction,
                         ("lining", "insulation", "sheathing"),
                     ),
                     ConstructionHeatFlowPathEvidenceV1(
                         "timber-stud",
                         "Timber stud",
-                        0.15,
+                        stud_fraction.controlling_member_fraction,
                         ("lining", "stud", "sheathing"),
                     ),
                 ),
@@ -187,9 +212,10 @@ def build_u_value_teaching_models_v1() -> tuple[UValueTeachingModelV1, ...]:
                 internal_surface_resistance_m2K_W=0.13,
                 external_surface_resistance_m2K_W=0.04,
                 source_kind="teaching_model",
-                source_ref="HVACgooee U-S5 two-path teaching model",
-                source_version="v1",
+                source_ref="HVACgooee U-S5D3 practical timber framing candidate",
+                source_version="v1 member-spacing basis",
             ),
+            member_spacing_intent=stud_spacing_intent,
         ),
         UValueTeachingModelV1(
             model_id=THREE_PATH_MODEL_ID,

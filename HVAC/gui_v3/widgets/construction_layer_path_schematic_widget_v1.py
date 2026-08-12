@@ -3,8 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 import json
 
-from PySide6.QtCore import QByteArray, QMimeData, QPoint, Qt, Signal
-from PySide6.QtGui import QDrag, QMouseEvent
+from PySide6.QtCore import QByteArray, QMimeData, QPoint, QPointF, QRectF, Qt, Signal
+from PySide6.QtGui import QColor, QDrag, QFont, QMouseEvent, QPainter, QPen
 from PySide6.QtWidgets import (
     QApplication,
     QFrame,
@@ -16,6 +16,15 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from HVAC.constructions.physics.two_path_member_spacing_fraction_v1 import (
+    TwoPathMemberSpacingIntentV1,
+    apply_two_path_member_spacing_fraction_v1,
+    resolve_two_path_member_spacing_fraction_v1,
+)
+from HVAC.constructions.physics.construction_path_heat_flow_temperature_evidence_v1 import (
+    ConstructionPathHeatFlowTemperatureEvidenceV1,
+    build_construction_path_heat_flow_temperature_evidence_v1,
+)
 from HVAC.constructions.physics.construction_layer_path_candidate_edit_v1 import (
     ConstructionLayerCandidateEditV1,
     StagedConstructionLayerV1,
@@ -210,6 +219,8 @@ class ConstructionPathDropRowV1(QFrame):
         path_label: str,
         area_fraction: float,
         layers: list[tuple[str, str, str, bool, bool]],
+        internal_surface_resistance_m2K_W: float,
+        external_surface_resistance_m2K_W: float,
         focused_layer_id: str = "",
         path_focused: bool = False,
     ) -> None:
@@ -246,7 +257,11 @@ class ConstructionPathDropRowV1(QFrame):
             lambda _checked=False: self.focus_requested.emit("path", self.path_id)
         )
         self.layout_row.addWidget(heading)
-        inside_label = QLabel("Inside →")
+        inside_label = QLabel(
+            f"Rsi\n{internal_surface_resistance_m2K_W:.3f}"
+        )
+        inside_label.setToolTip("Internal surface resistance, m²K/W")
+        inside_label.setAlignment(Qt.AlignCenter)
         inside_label.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Preferred)
         self.layout_row.addWidget(inside_label)
         for layer_id, label, detail, shared, included in layers:
@@ -265,7 +280,11 @@ class ConstructionPathDropRowV1(QFrame):
             token.focus_requested.connect(self.focus_requested.emit)
             self._tokens.append(token)
             self.layout_row.addWidget(token)
-        outside_label = QLabel("→ Outside")
+        outside_label = QLabel(
+            f"Rso\n{external_surface_resistance_m2K_W:.3f}"
+        )
+        outside_label.setToolTip("External surface resistance, m²K/W")
+        outside_label.setAlignment(Qt.AlignCenter)
         outside_label.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Preferred)
         self.layout_row.addWidget(outside_label)
         self.layout_row.addStretch()
@@ -303,6 +322,103 @@ class ConstructionPathDropRowV1(QFrame):
         )
         self.layer_drop_requested.emit(drag, self.path_id, target_index)
         event.acceptProposedAction()
+
+
+class ConstructionHeatFlowProfileGraphV1(QWidget):
+    """Read-only candidate path heat-flow and interface-temperature overlay."""
+
+    COLOURS = ("#1f5f99", "#df5b24", "#27844c", "#8b4aa5")
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setObjectName("constructionHeatFlowProfileGraph")
+        self._result: ConstructionPathHeatFlowTemperatureEvidenceV1 | None = None
+        self.setMinimumHeight(230)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+
+    def set_result(
+        self,
+        result: ConstructionPathHeatFlowTemperatureEvidenceV1 | None,
+    ) -> None:
+        self._result = result
+        self.setVisible(bool(result is not None and result.ready))
+        self.update()
+
+    def result(self) -> ConstructionPathHeatFlowTemperatureEvidenceV1 | None:
+        return self._result
+
+    def paintEvent(self, event) -> None:  # noqa: N802
+        super().paintEvent(event)
+        result = self._result
+        if result is None or not result.ready or not result.paths:
+            return
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+        painter.fillRect(self.rect(), QColor("#ffffff"))
+
+        left, top, right, bottom = 58.0, 34.0, 185.0, 55.0
+        plot = QRectF(
+            left,
+            top,
+            max(80.0, self.width() - left - right),
+            max(80.0, self.height() - top - bottom),
+        )
+        ti = float(result.internal_temperature_C)
+        te = float(result.external_temperature_C)
+        span = max(1.0, ti - te)
+
+        painter.setPen(QPen(QColor("#777777"), 1))
+        painter.drawLine(plot.bottomLeft(), plot.topLeft())
+        painter.drawLine(plot.bottomLeft(), plot.bottomRight())
+        painter.drawText(QPointF(8.0, 20.0), "Interface temperature °C")
+        for step in range(5):
+            value = te + span * step / 4.0
+            y = plot.bottom() - plot.height() * (value - te) / span
+            painter.setPen(QPen(QColor("#dddddd"), 1))
+            painter.drawLine(QPointF(plot.left(), y), QPointF(plot.right(), y))
+            painter.setPen(QPen(QColor("#444444"), 1))
+            painter.drawText(QPointF(8.0, y + 4.0), f"{value:.1f}")
+
+        max_points = max(len(path.points) for path in result.paths)
+        x_step = plot.width() / max(1, max_points - 1)
+        first_points = result.paths[0].points
+        for index, point in enumerate(first_points):
+            x = plot.left() + index * x_step
+            painter.setPen(QPen(QColor("#666666"), 1))
+            painter.drawText(
+                QRectF(x - 42.0, plot.bottom() + 5.0, 84.0, 34.0),
+                Qt.AlignHCenter | Qt.AlignTop,
+                point.label,
+            )
+
+        legend_x = plot.right() + 16.0
+        for path_index, path in enumerate(result.paths):
+            colour = QColor(self.COLOURS[path_index % len(self.COLOURS)])
+            pen = QPen(colour, 3 if path_index == 0 else 2)
+            painter.setPen(pen)
+            previous = None
+            for point_index, point in enumerate(path.points):
+                x = plot.left() + point_index * x_step
+                y = plot.bottom() - plot.height() * (point.temperature_C - te) / span
+                here = QPointF(x, y)
+                if previous is not None:
+                    painter.drawLine(previous, here)
+                painter.drawEllipse(here, 3.5, 3.5)
+                previous = here
+            painter.setPen(QPen(colour, 2))
+            legend_y = plot.top() + 18.0 + path_index * 36.0
+            painter.drawLine(
+                QPointF(legend_x, legend_y),
+                QPointF(legend_x + 20.0, legend_y),
+            )
+            painter.setPen(QPen(QColor("#222222"), 1))
+            painter.drawText(
+                QRectF(legend_x + 25.0, legend_y - 13.0, 145.0, 31.0),
+                Qt.AlignLeft | Qt.AlignVCenter,
+                f"{path.label}\n{path.heat_flow_W_m2:.3f} W/m²",
+            )
+
+        painter.end()
 
 
 class ConstructionLayerStagingTrayV1(QFrame):
@@ -373,6 +489,8 @@ class ConstructionLayerPathSchematicWidgetV1(QWidget):
         self._staged: dict[str, StagedConstructionLayerV1] = {}
         self._focused_kind = ""
         self._focused_id = ""
+        self._internal_temperature_C: float | None = None
+        self._external_temperature_C: float | None = None
         self._root = QVBoxLayout(self)
         self._root.setContentsMargins(6, 6, 6, 6)
         self._title = QLabel("No construction teaching model selected")
@@ -393,6 +511,9 @@ class ConstructionLayerPathSchematicWidgetV1(QWidget):
         self._root.addWidget(self._guidance)
         self._root.addWidget(self._staging)
         self._root.addLayout(self._rows)
+        self._profile_graph = ConstructionHeatFlowProfileGraphV1(self)
+        self._profile_graph.setVisible(False)
+        self._root.addWidget(self._profile_graph)
         self._root.addWidget(self._network)
         self._root.addWidget(self._status)
         self.setMinimumWidth(BASE_SCHEMATIC_MINIMUM_WIDTH)
@@ -406,6 +527,43 @@ class ConstructionLayerPathSchematicWidgetV1(QWidget):
         self._focused_kind = ""
         self._focused_id = ""
         self._rebuild()
+
+    def set_temperature_context(
+        self,
+        internal_temperature_C: float | None,
+        external_temperature_C: float | None,
+    ) -> None:
+        self._internal_temperature_C = internal_temperature_C
+        self._external_temperature_C = external_temperature_C
+        if self._evidence is not None:
+            self._rebuild()
+        else:
+            self.update()
+
+    def temperature_context(self) -> tuple[float | None, float | None]:
+        return self._internal_temperature_C, self._external_temperature_C
+
+    def resolve_member_spacing_intent(
+        self,
+        intent: TwoPathMemberSpacingIntentV1,
+    ):
+        return resolve_two_path_member_spacing_fraction_v1(intent)
+
+    def update_member_spacing_intent(
+        self,
+        intent: TwoPathMemberSpacingIntentV1,
+    ):
+        if self._evidence is None:
+            return apply_two_path_member_spacing_fraction_v1(None, intent)
+        result = apply_two_path_member_spacing_fraction_v1(
+            self._evidence,
+            intent,
+        )
+        if result.ready and result.evidence is not None:
+            self._evidence = result.evidence
+            self._rebuild()
+            self.candidate_changed.emit(self._evidence)
+        return result
 
     def candidate_evidence(self) -> SharedConstructionLayerPathEvidenceV1 | None:
         return self._evidence
@@ -565,6 +723,9 @@ class ConstructionLayerPathSchematicWidgetV1(QWidget):
 
     def _rebuild(self) -> None:
         _clear_layout(self._rows)
+        self._rows.invalidate()
+        self._root.invalidate()
+        self.setMinimumHeight(0)
         evidence = self._evidence
         if evidence is None:
             return
@@ -584,6 +745,12 @@ class ConstructionLayerPathSchematicWidgetV1(QWidget):
                 area_fraction=float(path.area_fraction),
                 focused_layer_id=(
                     self._focused_id if self._focused_kind == "layer" else ""
+                ),
+                internal_surface_resistance_m2K_W=float(
+                    evidence.internal_surface_resistance_m2K_W
+                ),
+                external_surface_resistance_m2K_W=float(
+                    evidence.external_surface_resistance_m2K_W
                 ),
                 path_focused=(
                     self._focused_kind == "path"
@@ -619,6 +786,17 @@ class ConstructionLayerPathSchematicWidgetV1(QWidget):
 
         iso = resolve_iso_6946_combined_u_value_v1(evidence)
         comparison = build_u_value_method_comparison_v1(evidence)
+        profile = None
+        if (
+            self._internal_temperature_C is not None
+            and self._external_temperature_C is not None
+        ):
+            profile = build_construction_path_heat_flow_temperature_evidence_v1(
+                evidence,
+                internal_temperature_C=self._internal_temperature_C,
+                external_temperature_C=self._external_temperature_C,
+            )
+        self._profile_graph.set_result(profile)
         if iso.ready:
             self._network.setText(
                 f"Knitted thermal network: {len(iso.network_nodes)} nodes, "
@@ -640,6 +818,50 @@ class ConstructionLayerPathSchematicWidgetV1(QWidget):
             self._status.setText(
                 "Candidate incomplete — " + "; ".join(comparison.blockers)
             )
+        # The path rows live in a nested layout.  Rebuilding that layout
+        # does not reliably invalidate the parent layout until the next
+        # event-loop pass, so activate it explicitly before measuring.
+        self._rows.invalidate()
+        self._rows.activate()
+        self._root.invalidate()
+        self._root.activate()
+        def _required_widget_height(widget: QWidget) -> int:
+            return max(
+                widget.minimumHeight(),
+                widget.minimumSizeHint().height(),
+                widget.sizeHint().height(),
+            )
+
+        path_spacing = max(0, self._rows.spacing())
+        path_rows_height = sum(
+            _required_widget_height(row) for row in path_rows
+        ) + path_spacing * max(0, len(path_rows) - 1)
+        surrounding_height = sum(
+            _required_widget_height(widget)
+            for widget in (
+                self._title,
+                self._guidance,
+                self._staging,
+                self._profile_graph,
+                self._network,
+                self._status,
+            )
+        )
+        root_spacing = max(0, self._root.spacing())
+        explicit_height = (
+            root_margins.top()
+            + root_margins.bottom()
+            + surrounding_height
+            + path_rows_height
+            + root_spacing * 6
+        )
+        required_height = max(
+            self._root.minimumSize().height(),
+            self._root.sizeHint().height(),
+            explicit_height,
+        )
+        self.setMinimumHeight(required_height)
+        self.resize(max(self.width(), required_width), required_height)
         self.updateGeometry()
         self.adjustSize()
 

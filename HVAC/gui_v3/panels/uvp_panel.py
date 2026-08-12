@@ -45,6 +45,11 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtWidgets import QListWidgetItem
 
+from HVAC.constructions.physics.two_path_member_spacing_fraction_v1 import (
+    CALCULATED_REPEATING_MEMBER_FRACTION,
+    DECLARED_EFFECTIVE_MEMBER_FRACTION,
+    TwoPathMemberSpacingIntentV1,
+)
 from HVAC.constructions.physics.u_value_teaching_models_v1 import (
     build_u_value_teaching_models_v1,
     teaching_model_by_id_v1,
@@ -211,6 +216,71 @@ class UVPPanel(QWidget):
         )
         self._teaching_model_description.setWordWrap(True)
         teaching_layout.addWidget(self._teaching_model_description)
+
+        self._heat_flow_room_combo = QComboBox(teaching_box)
+        self._heat_flow_room_combo.setObjectName(
+            "uValueHeatFlowRoomSelector"
+        )
+        self._heat_flow_room_combo.setToolTip(
+            "Select the room design-temperature context for the "
+            "candidate heat-flow profile"
+        )
+        teaching_layout.addWidget(self._heat_flow_room_combo)
+        self._heat_flow_temperature_context = QLabel(teaching_box)
+        self._heat_flow_temperature_context.setObjectName(
+            "uValueHeatFlowTemperatureContext"
+        )
+        teaching_layout.addWidget(self._heat_flow_temperature_context)
+
+        self._member_spacing_box = QGroupBox(
+            "Member spacing / path fractions",
+            teaching_box,
+        )
+        self._member_spacing_box.setObjectName("uValueMemberSpacingGroup")
+        member_form = QFormLayout(self._member_spacing_box)
+        self._member_width_mm = QDoubleSpinBox(self._member_spacing_box)
+        self._member_width_mm.setRange(1.0, 500.0)
+        self._member_width_mm.setDecimals(1)
+        self._member_width_mm.setSuffix(" mm")
+        self._member_centres_mm = QDoubleSpinBox(self._member_spacing_box)
+        self._member_centres_mm.setRange(10.0, 5000.0)
+        self._member_centres_mm.setDecimals(1)
+        self._member_centres_mm.setSuffix(" mm")
+        self._member_fraction_basis = QComboBox(self._member_spacing_box)
+        self._member_fraction_basis.addItem(
+            "Calculated from member width ÷ centres",
+            CALCULATED_REPEATING_MEMBER_FRACTION,
+        )
+        self._member_fraction_basis.addItem(
+            "Declared effective framing fraction",
+            DECLARED_EFFECTIVE_MEMBER_FRACTION,
+        )
+        self._member_declared_fraction = QDoubleSpinBox(self._member_spacing_box)
+        self._member_declared_fraction.setRange(0.1, 99.9)
+        self._member_declared_fraction.setDecimals(2)
+        self._member_declared_fraction.setSuffix(" %")
+        self._member_calculated_fraction = QLabel("—", self._member_spacing_box)
+        self._member_controlling_fraction = QLabel("—", self._member_spacing_box)
+        self._member_clear_fraction = QLabel("—", self._member_spacing_box)
+        self._member_spacing_apply = QPushButton(
+            "Apply member spacing to candidate",
+            self._member_spacing_box,
+        )
+        self._member_spacing_apply.setObjectName("uValueApplyMemberSpacing")
+        self._member_spacing_status = QLabel(self._member_spacing_box)
+        self._member_spacing_status.setWordWrap(True)
+        member_form.addRow("Finished member width", self._member_width_mm)
+        member_form.addRow("Member centres", self._member_centres_mm)
+        member_form.addRow("Calculated repeating fraction", self._member_calculated_fraction)
+        member_form.addRow("Controlling basis", self._member_fraction_basis)
+        member_form.addRow("Declared effective fraction", self._member_declared_fraction)
+        member_form.addRow("Controlling member fraction", self._member_controlling_fraction)
+        member_form.addRow("Clear insulated fraction", self._member_clear_fraction)
+        member_form.addRow(self._member_spacing_apply)
+        member_form.addRow(self._member_spacing_status)
+        teaching_layout.addWidget(self._member_spacing_box)
+        self._member_spacing_box.setVisible(False)
+        self._member_spacing_intent = None
 
         self._teaching_schematic = ConstructionLayerPathSchematicWidgetV1(
             teaching_box
@@ -420,6 +490,15 @@ class UVPPanel(QWidget):
         teaching_layout.addWidget(property_box)
         property_box.setVisible(False)
 
+        self._heat_flow_room_combo.currentIndexChanged.connect(
+            self._on_heat_flow_room_context_changed
+        )
+        self._member_fraction_basis.currentIndexChanged.connect(
+            self._on_member_fraction_basis_changed
+        )
+        self._member_spacing_apply.clicked.connect(
+            self._on_apply_member_spacing
+        )
         self._teaching_property_toggle.toggled.connect(
             self._on_teaching_property_editor_toggled
         )
@@ -548,6 +627,51 @@ class UVPPanel(QWidget):
     # Public API (called by adapters / main window)
     # ------------------------------------------------------------------
 
+    def set_heat_flow_temperature_contexts(
+        self,
+        contexts: list[tuple[str, str, float, float, str]],
+        selected_room_id: str | None = None,
+    ) -> None:
+        previous = str(
+            selected_room_id
+            or self._heat_flow_room_combo.currentData()
+            or ""
+        )
+        self._heat_flow_room_combo.blockSignals(True)
+        self._heat_flow_room_combo.clear()
+        for room_id, room_label, ti_C, te_C, source in contexts:
+            self._heat_flow_room_combo.addItem(
+                room_label,
+                (room_id, float(ti_C), float(te_C), source),
+            )
+        wanted = next(
+            (
+                index
+                for index in range(self._heat_flow_room_combo.count())
+                if str(self._heat_flow_room_combo.itemData(index)[0])
+                == previous
+            ),
+            0 if self._heat_flow_room_combo.count() else -1,
+        )
+        self._heat_flow_room_combo.setCurrentIndex(wanted)
+        self._heat_flow_room_combo.blockSignals(False)
+        self._on_heat_flow_room_context_changed(wanted)
+
+    def _on_heat_flow_room_context_changed(self, index: int) -> None:
+        data = self._heat_flow_room_combo.itemData(index)
+        if not data:
+            self._heat_flow_temperature_context.setText(
+                "Heat-flow temperature context unavailable"
+            )
+            self._teaching_schematic.set_temperature_context(None, None)
+            return
+        _room_id, ti_C, te_C, source = data
+        self._heat_flow_temperature_context.setText(
+            f"Ti {ti_C:.1f} °C ({source})   •   Te {te_C:.1f} °C "
+            "(Environment)"
+        )
+        self._teaching_schematic.set_temperature_context(ti_C, te_C)
+
     def set_constructions(self, constructions: dict) -> None:
         self._construction_list.clear()
 
@@ -638,6 +762,91 @@ class UVPPanel(QWidget):
         if u_value > 0:
             r = 1.0 / u_value
             self._r_label.setText(f"R-Value (m²·K/W): {r:.3f}")
+
+    def _load_member_spacing_intent(self, intent) -> None:
+        self._member_spacing_intent = intent
+        self._member_spacing_box.setVisible(intent is not None)
+        if intent is None:
+            return
+        controls = (
+            self._member_width_mm,
+            self._member_centres_mm,
+            self._member_fraction_basis,
+            self._member_declared_fraction,
+        )
+        for control in controls:
+            control.blockSignals(True)
+        self._member_width_mm.setValue(intent.member_width_m * 1000.0)
+        self._member_centres_mm.setValue(intent.member_centres_m * 1000.0)
+        basis_index = self._member_fraction_basis.findData(intent.controlling_basis)
+        self._member_fraction_basis.setCurrentIndex(max(0, basis_index))
+        self._member_declared_fraction.setValue(
+            100.0 * float(intent.declared_effective_member_fraction or 0.15)
+        )
+        for control in controls:
+            control.blockSignals(False)
+        self._on_member_fraction_basis_changed()
+        self._refresh_member_fraction_labels()
+
+    def _on_member_fraction_basis_changed(self, _index: int = -1) -> None:
+        declared = self._member_fraction_basis.currentData() == (
+            DECLARED_EFFECTIVE_MEMBER_FRACTION
+        )
+        self._member_declared_fraction.setEnabled(declared)
+
+    def _current_member_spacing_intent(self):
+        existing = self._member_spacing_intent
+        if existing is None:
+            return None
+        return TwoPathMemberSpacingIntentV1(
+            member_path_id=existing.member_path_id,
+            clear_path_id=existing.clear_path_id,
+            member_label=existing.member_label,
+            member_width_m=self._member_width_mm.value() / 1000.0,
+            member_centres_m=self._member_centres_mm.value() / 1000.0,
+            controlling_basis=str(self._member_fraction_basis.currentData() or ""),
+            declared_effective_member_fraction=(
+                self._member_declared_fraction.value() / 100.0
+            ),
+            source_note=existing.source_note,
+        )
+
+    def _on_apply_member_spacing(self) -> None:
+        intent = self._current_member_spacing_intent()
+        if intent is None:
+            return
+        result = self._teaching_schematic.update_member_spacing_intent(intent)
+        if not result.ready:
+            self._member_spacing_status.setText(
+                "Blocked — " + "; ".join(result.blockers)
+            )
+            self._member_spacing_status.setStyleSheet("color: #9b3a24;")
+            return
+        self._member_spacing_intent = intent
+        self._refresh_member_fraction_labels(result.fraction)
+        self._member_spacing_status.setText(result.status)
+        self._member_spacing_status.setStyleSheet("color: #2e7d32;")
+        self._resize_teaching_schematic_viewport()
+
+    def _refresh_member_fraction_labels(self, fraction=None) -> None:
+        intent = self._current_member_spacing_intent()
+        if intent is None:
+            return
+        if fraction is None:
+            fraction = self._teaching_schematic.resolve_member_spacing_intent(
+                intent
+            )
+        if not fraction.ready:
+            return
+        self._member_calculated_fraction.setText(
+            f"{fraction.calculated_repeating_member_fraction * 100:.2f} %"
+        )
+        self._member_controlling_fraction.setText(
+            f"{fraction.controlling_member_fraction * 100:.2f} %"
+        )
+        self._member_clear_fraction.setText(
+            f"{fraction.controlling_clear_fraction * 100:.2f} %"
+        )
 
     def set_teaching_model(self, model_id: str) -> None:
         """Select and reset one self-contained teaching candidate."""
@@ -962,6 +1171,7 @@ class UVPPanel(QWidget):
             return
         model = teaching_model_by_id_v1(str(model_id))
         self._teaching_model_description.setText(model.description)
+        self._load_member_spacing_intent(model.member_spacing_intent)
         self._teaching_schematic.set_evidence(model.evidence)
         self._resize_teaching_schematic_viewport()
         self._refresh_teaching_property_targets()
