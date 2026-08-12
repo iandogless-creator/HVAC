@@ -8,6 +8,11 @@ from HVAC.gui_v3.context.gui_project_context import GuiProjectContext
 from HVAC.gui_v3.panels.uvp_panel import UVPPanel
 from PySide6.QtCore import Qt, Signal, QObject
 
+from HVAC.constructions.physics.construction_model_save_candidate_v1 import (
+    build_construction_model_save_candidate_v1,
+)
+from HVAC.core.construction_v1 import ConstructionV1
+
 class UVPPanelAdapter(QObject):
     """
     GUI v3 — UVP Panel Adapter
@@ -53,6 +58,54 @@ class UVPPanelAdapter(QObject):
         self._panel.assign_requested.connect(
             self._context.request_assign_construction
         )
+        self._panel.construction_model_save_requested.connect(
+            self._on_construction_model_save_requested
+        )
+
+    def _on_construction_model_save_requested(
+        self,
+        name: str,
+        selected_method: str,
+        evidence,
+    ) -> None:
+        ps = self._context.project_state
+        if ps is None:
+            self._panel.set_construction_model_save_result(
+                ready=False,
+                status="Blocked — no project is open.",
+            )
+            return
+
+        result = build_construction_model_save_candidate_v1(
+            evidence,
+            name=name,
+            selected_method=selected_method,
+            existing_constructions=ps.constructions,
+        )
+        if not result.ready:
+            self._panel.set_construction_model_save_result(
+                ready=False,
+                status=result.status + ": " + "; ".join(result.blockers),
+            )
+            return
+
+        ps.constructions[result.construction_id] = ConstructionV1(
+            construction_id=result.construction_id,
+            name=result.name,
+            u_value_W_m2K=float(result.u_value_W_m2K),
+            layer_path_evidence=result.evidence.to_dict(),
+            u_value_method_acceptance=result.method_acceptance.to_dict(),
+        )
+        ps.mark_heatloss_dirty()
+        self._panel.set_constructions(ps.constructions)
+        self._panel.set_construction_model_save_result(
+            ready=True,
+            status=result.status,
+            construction_id=result.construction_id,
+            model_name=result.name,
+        )
+        self._context.set_current_construction_id(result.construction_id)
+        self._context.notify_project_changed()
 
     def _on_focus_changed(self, surface_id: str | None) -> None:
         """

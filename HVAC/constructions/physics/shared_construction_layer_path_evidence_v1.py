@@ -11,6 +11,19 @@ SHARED_CONSTRUCTION_LAYER_PATH_SCHEMA_V1 = (
 HOMOGENEOUS_LAYER_BASIS = "homogeneous_layer"
 DECLARED_RESISTANCE_LAYER_BASIS = "declared_resistance"
 
+UNSPECIFIED_MATERIAL_DIRECTION = "unspecified"
+ISOTROPIC_MATERIAL_DIRECTION = "isotropic"
+PARALLEL_MATERIAL_DIRECTION = "parallel_to_grain_or_structure"
+PERPENDICULAR_MATERIAL_DIRECTION = "perpendicular_to_grain_or_structure"
+MATERIAL_DIRECTIONS = frozenset(
+    {
+        UNSPECIFIED_MATERIAL_DIRECTION,
+        ISOTROPIC_MATERIAL_DIRECTION,
+        PARALLEL_MATERIAL_DIRECTION,
+        PERPENDICULAR_MATERIAL_DIRECTION,
+    }
+)
+
 UNSPECIFIED_HEAT_FLOW = "unspecified"
 HORIZONTAL_HEAT_FLOW = "horizontal"
 UPWARD_HEAT_FLOW = "upward"
@@ -34,12 +47,22 @@ class ConstructionThermalLayerEvidenceV1:
     layer_id: str
     label: str
     basis: str
+    included: bool = True
     thickness_m: float | None = None
     conductivity_W_mK: float | None = None
     declared_resistance_m2K_W: float | None = None
     source_kind: str = ""
     source_ref: str = ""
     source_version: str = ""
+    density_kg_m3: float | None = None
+    specific_heat_capacity_J_kgK: float | None = None
+    vapour_resistivity_MNs_gm: float | None = None
+    surface_emissivity: float | None = None
+    solar_absorptivity: float | None = None
+    material_direction: str = UNSPECIFIED_MATERIAL_DIRECTION
+    property_temperature_C: float | None = None
+    moisture_condition: str = ""
+    property_notes: str = ""
 
     def resolved_resistance_m2K_W(self) -> float:
         if self.basis == HOMOGENEOUS_LAYER_BASIS:
@@ -90,12 +113,24 @@ class ConstructionThermalLayerEvidenceV1:
             "layer_id": self.layer_id,
             "label": self.label,
             "basis": self.basis,
+            "included": self.included,
             "thickness_m": self.thickness_m,
             "conductivity_W_mK": self.conductivity_W_mK,
             "declared_resistance_m2K_W": self.declared_resistance_m2K_W,
             "source_kind": self.source_kind,
             "source_ref": self.source_ref,
             "source_version": self.source_version,
+            "density_kg_m3": self.density_kg_m3,
+            "specific_heat_capacity_J_kgK": (
+                self.specific_heat_capacity_J_kgK
+            ),
+            "vapour_resistivity_MNs_gm": self.vapour_resistivity_MNs_gm,
+            "surface_emissivity": self.surface_emissivity,
+            "solar_absorptivity": self.solar_absorptivity,
+            "material_direction": self.material_direction,
+            "property_temperature_C": self.property_temperature_C,
+            "moisture_condition": self.moisture_condition,
+            "property_notes": self.property_notes,
         }
 
     @classmethod
@@ -107,6 +142,7 @@ class ConstructionThermalLayerEvidenceV1:
             layer_id=str(data.get("layer_id") or ""),
             label=str(data.get("label") or ""),
             basis=str(data.get("basis") or ""),
+            included=bool(data.get("included", True)),
             thickness_m=_optional_float(data.get("thickness_m")),
             conductivity_W_mK=_optional_float(
                 data.get("conductivity_W_mK")
@@ -117,6 +153,28 @@ class ConstructionThermalLayerEvidenceV1:
             source_kind=str(data.get("source_kind") or ""),
             source_ref=str(data.get("source_ref") or ""),
             source_version=str(data.get("source_version") or ""),
+            density_kg_m3=_optional_float(data.get("density_kg_m3")),
+            specific_heat_capacity_J_kgK=_optional_float(
+                data.get("specific_heat_capacity_J_kgK")
+            ),
+            vapour_resistivity_MNs_gm=_optional_float(
+                data.get("vapour_resistivity_MNs_gm")
+            ),
+            surface_emissivity=_optional_float(
+                data.get("surface_emissivity")
+            ),
+            solar_absorptivity=_optional_float(
+                data.get("solar_absorptivity")
+            ),
+            material_direction=str(
+                data.get("material_direction")
+                or UNSPECIFIED_MATERIAL_DIRECTION
+            ),
+            property_temperature_C=_optional_float(
+                data.get("property_temperature_C")
+            ),
+            moisture_condition=str(data.get("moisture_condition") or ""),
+            property_notes=str(data.get("property_notes") or ""),
         )
 
 
@@ -181,6 +239,16 @@ class SharedConstructionLayerPathEvidenceV1:
         if path is None:
             raise KeyError(f"Unknown construction heat-flow path: {path_id}")
         return tuple(path.layer_ids)
+
+    def active_path_layer_ids(self, path_id: str) -> tuple[str, ...]:
+        """Return included layers without erasing excluded candidate data."""
+
+        layers = self.layer_by_id()
+        return tuple(
+            layer_id
+            for layer_id in self.complete_path_layer_ids(path_id)
+            if layers[layer_id].included
+        )
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -280,10 +348,46 @@ def validate_shared_construction_layer_path_evidence_v1(
     for layer in evidence.layers:
         if not str(layer.label or "").strip():
             blockers.append(f"Layer {layer.layer_id or '—'} requires a label")
-        try:
-            layer.resolved_resistance_m2K_W()
-        except (TypeError, ValueError) as exc:
-            blockers.append(str(exc))
+        if layer.included:
+            try:
+                layer.resolved_resistance_m2K_W()
+            except (TypeError, ValueError) as exc:
+                blockers.append(str(exc))
+        if layer.material_direction not in MATERIAL_DIRECTIONS:
+            blockers.append(
+                f"Layer {layer.layer_id} has unknown material direction: "
+                f"{layer.material_direction}"
+            )
+        for property_name, value in (
+            ("density", layer.density_kg_m3),
+            ("specific heat capacity", layer.specific_heat_capacity_J_kgK),
+            ("vapour resistivity", layer.vapour_resistivity_MNs_gm),
+        ):
+            if value is not None and (
+                not math.isfinite(float(value)) or float(value) <= 0.0
+            ):
+                blockers.append(
+                    f"Layer {layer.layer_id} {property_name} must be positive"
+                )
+        for property_name, value in (
+            ("surface emissivity", layer.surface_emissivity),
+            ("solar absorptivity", layer.solar_absorptivity),
+        ):
+            if value is not None and (
+                not math.isfinite(float(value))
+                or float(value) < 0.0
+                or float(value) > 1.0
+            ):
+                blockers.append(
+                    f"Layer {layer.layer_id} {property_name} must be between "
+                    "0 and 1"
+                )
+        if layer.property_temperature_C is not None and not math.isfinite(
+            float(layer.property_temperature_C)
+        ):
+            blockers.append(
+                f"Layer {layer.layer_id} property temperature must be finite"
+            )
 
     path_ids = [str(path.path_id or "").strip() for path in evidence.paths]
     if not path_ids:
@@ -336,6 +440,12 @@ def validate_shared_construction_layer_path_evidence_v1(
             )
         if not path_layer_ids:
             blockers.append(f"Path {path.path_id} has no thermal layers")
+        elif not any(
+            layer_id in known_layer_ids
+            and evidence.layer_by_id()[layer_id].included
+            for layer_id in path_layer_ids
+        ):
+            blockers.append(f"Path {path.path_id} has no included thermal layers")
         referenced_layer_ids.update(path_layer_ids)
 
     if evidence.paths and abs(fraction_sum - 1.0) > PATH_FRACTION_TOLERANCE:
@@ -371,6 +481,12 @@ def validate_shared_construction_layer_path_evidence_v1(
     if unused:
         warnings.append(
             "Unreferenced thermal layer(s): " + ", ".join(sorted(unused))
+        )
+    excluded = sorted(layer.layer_id for layer in evidence.layers if not layer.included)
+    if excluded:
+        warnings.append(
+            "Excluded candidate layer(s) omitted from calculation: "
+            + ", ".join(excluded)
         )
     if not evidence.source_ref:
         warnings.append("Construction evidence source reference is not set")

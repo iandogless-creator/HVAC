@@ -45,6 +45,8 @@ class ConstructionPanelAdapter:
         if hasattr(self._context, "surface_focus_changed"):
             self._context.surface_focus_changed.connect(self._on_surface_focus_changed)
 
+        self._context.project_changed.connect(self.refresh)
+
         self.refresh()
 
     def _build_library(self) -> dict[str, dict[str, list[tuple[str, str]]]]:
@@ -56,7 +58,11 @@ class ConstructionPanelAdapter:
 
         for cid, construction in sorted(ps.constructions.items()):
             name = getattr(construction, "name", cid) or cid
-            element, category = self._classify_construction(cid, name)
+            element, category = self._classify_construction(
+                cid,
+                name,
+                getattr(construction, "layer_path_evidence", None),
+            )
 
             library.setdefault(element, {}).setdefault(category, []).append(
                 (cid, name)
@@ -65,7 +71,28 @@ class ConstructionPanelAdapter:
         return library
 
     @staticmethod
-    def _classify_construction(cid: str, name: str) -> tuple[str, str]:
+    def _classify_construction(
+        cid: str,
+        name: str,
+        layer_path_evidence: dict | None = None,
+    ) -> tuple[str, str]:
+        element_kind = ""
+        if isinstance(layer_path_evidence, dict):
+            element_kind = str(
+                layer_path_evidence.get("element_kind") or ""
+            ).strip().lower()
+
+        if element_kind in {"external_wall", "wall", "wall_panel"}:
+            return "Wall", "External Wall"
+        if element_kind == "internal_wall":
+            return "Wall", "Internal Wall"
+        if element_kind in {"roof", "ceiling", "roof_ceiling"}:
+            return "Roof / Ceiling", "Roof / Ceiling"
+        if element_kind in {"floor", "ground_floor", "upper_floor"}:
+            return "Floor", "Floor"
+        if element_kind in {"window", "door", "fenestration"}:
+            return "Window / Door", "Window / Door"
+
         text = f"{cid} {name}".upper()
 
         if "INT-WALL" in text or "INTERNAL WALL" in text:

@@ -63,6 +63,9 @@ from HVAC.gui_v3.adapters.ach_mini_panel_adapter import ACHMiniPanelAdapter
 # ----------------------------------------------------------------------
 from HVAC.gui_v3.controllers.overlay_editor_controller import OverlayEditorController
 from HVAC.gui_v3.common.edit_context import EditContext
+from HVAC.gui_v3.common.wheel_input_safety_v1 import (
+    redirect_unsafe_input_wheel_event_v1,
+)
 
 from HVAC.heatloss.controller_v4_orchestrator import HeatLossControllerV4
 from HVAC.project_v3.persistence.loader import load as load_project
@@ -221,6 +224,8 @@ class MainWindowV3(QMainWindow):
     # ESC handling
     # ------------------------------------------------------------------
     def eventFilter(self, obj, event) -> bool:
+        if redirect_unsafe_input_wheel_event_v1(obj, event):
+            return True
         if event.type() == QEvent.KeyPress and event.key() == Qt.Key_Escape:
             if getattr(self._context, "hlpe_active", False):
                 if hasattr(self._context, "exit_hlpe"):

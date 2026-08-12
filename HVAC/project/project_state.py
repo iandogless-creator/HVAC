@@ -410,6 +410,24 @@ class ProjectState:
                     "construction_id": c.construction_id,
                     "name": c.name,
                     "u_value_W_m2K": c.u_value_W_m2K,
+                    **(
+                        {
+                            "layer_path_evidence": _json_safe(
+                                c.layer_path_evidence
+                            )
+                        }
+                        if c.layer_path_evidence is not None
+                        else {}
+                    ),
+                    **(
+                        {
+                            "u_value_method_acceptance": _json_safe(
+                                c.u_value_method_acceptance
+                            )
+                        }
+                        if c.u_value_method_acceptance is not None
+                        else {}
+                    ),
                 }
                 for cid, c in (self.constructions or {}).items()
             },
@@ -802,6 +820,18 @@ class ProjectState:
                     construction_id=str(cdata["construction_id"]),
                     name=str(cdata["name"]),
                     u_value_W_m2K=float(cdata["u_value_W_m2K"]),
+                    layer_path_evidence=(
+                        dict(cdata["layer_path_evidence"])
+                        if isinstance(cdata.get("layer_path_evidence"), dict)
+                        else None
+                    ),
+                    u_value_method_acceptance=(
+                        dict(cdata["u_value_method_acceptance"])
+                        if isinstance(
+                            cdata.get("u_value_method_acceptance"), dict
+                        )
+                        else None
+                    ),
                 )
                 for cid, cdata in raw_constructions.items()
             }
