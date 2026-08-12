@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from HVAC.constructions.physics.two_path_member_spacing_fraction_v1 import (
+    CALCULATED_REPEATING_MEMBER_FRACTION,
     DECLARED_EFFECTIVE_MEMBER_FRACTION,
     TwoPathMemberSpacingIntentV1,
     resolve_two_path_member_spacing_fraction_v1,
@@ -11,6 +12,7 @@ from HVAC.constructions.physics.shared_construction_layer_path_evidence_v1 impor
     DECLARED_RESISTANCE_LAYER_BASIS,
     HOMOGENEOUS_LAYER_BASIS,
     HORIZONTAL_HEAT_FLOW,
+    UPWARD_HEAT_FLOW,
     ConstructionHeatFlowPathEvidenceV1,
     ConstructionThermalLayerEvidenceV1,
     SharedConstructionLayerPathEvidenceV1,
@@ -20,6 +22,7 @@ from HVAC.constructions.physics.shared_construction_layer_path_evidence_v1 impor
 ONE_PATH_MODEL_ID = "one_path_solid_wall"
 CAVITY_WALL_MODEL_ID = "one_path_partial_fill_masonry_cavity_wall"
 TWO_PATH_MODEL_ID = "two_path_timber_stud_wall"
+ROOF_TWO_PATH_MODEL_ID = "two_path_insulated_roof_joist"
 THREE_PATH_MODEL_ID = "three_path_composite_panel"
 
 
@@ -53,6 +56,27 @@ def build_u_value_teaching_models_v1() -> tuple[UValueTeachingModelV1, ...]:
     )
     if not stud_fraction.ready:
         raise RuntimeError("; ".join(stud_fraction.blockers))
+
+    roof_joist_spacing_intent = TwoPathMemberSpacingIntentV1(
+        member_path_id="roof-timber-joist",
+        clear_path_id="roof-insulated-bay",
+        member_label="Timber joist",
+        member_width_m=0.044,
+        member_centres_m=0.450,
+        controlling_basis=CALCULATED_REPEATING_MEMBER_FRACTION,
+        declared_effective_member_fraction=0.15,
+        source_note=(
+            "Editable traditional candidate geometry: nominal "
+            "50 × 150 mm ex-stock, approximately 44 × 144 mm finished PSE, "
+            "at 450 mm centres. Finished width controls area fraction; "
+            "finished depth controls timber resistance."
+        ),
+    )
+    roof_joist_fraction = resolve_two_path_member_spacing_fraction_v1(
+        roof_joist_spacing_intent
+    )
+    if not roof_joist_fraction.ready:
+        raise RuntimeError("; ".join(roof_joist_fraction.blockers))
 
     return (
         UValueTeachingModelV1(
@@ -216,6 +240,103 @@ def build_u_value_teaching_models_v1() -> tuple[UValueTeachingModelV1, ...]:
                 source_version="v1 member-spacing basis",
             ),
             member_spacing_intent=stud_spacing_intent,
+        ),
+        UValueTeachingModelV1(
+            model_id=ROOF_TWO_PATH_MODEL_ID,
+            label=(
+                "Two paths — roof joists with continuous over-insulation"
+            ),
+            description=(
+                "A configurable insulated roof candidate. Internal lining "
+                "splits into insulation-between-joists and timber-joist "
+                "paths, then both pass through continuous insulation over "
+                "the joists and a shared roof deck. Starting geometry and "
+                "thermal properties are illustrative and must be confirmed."
+            ),
+            evidence=SharedConstructionLayerPathEvidenceV1(
+                construction_id="teaching-insulated-roof-joist-001",
+                label="Insulated roof with continuous over-joist insulation",
+                element_kind="roof",
+                heat_flow_direction=UPWARD_HEAT_FLOW,
+                layers=(
+                    _layer(
+                        "roof-lining",
+                        "Plasterboard ceiling lining",
+                        0.0125,
+                        0.19,
+                    ),
+                    _layer(
+                        "roof-between-insulation",
+                        "Insulation between joists",
+                        0.144,
+                        0.035,
+                    ),
+                    _layer(
+                        "roof-timber-joist-layer",
+                        "Timber joist — nominal 50 × 150; finished 44 × 144 mm PSE",
+                        0.144,
+                        0.13,
+                        property_notes=(
+                            "144 mm finished heat-flow depth is separate "
+                            "from the 44 mm finished width used for area fraction."
+                        ),
+                    ),
+                    _layer(
+                        "roof-over-joist-insulation",
+                        "Continuous insulation over joists",
+                        0.100,
+                        0.022,
+                        property_notes=(
+                            "Shared continuous layer across insulated-bay "
+                            "and timber-joist paths."
+                        ),
+                    ),
+                    _layer(
+                        "roof-deck",
+                        "Roof deck",
+                        0.018,
+                        0.13,
+                    ),
+                ),
+                paths=(
+                    ConstructionHeatFlowPathEvidenceV1(
+                        "roof-insulated-bay",
+                        "Insulation between joists",
+                        roof_joist_fraction.controlling_clear_fraction,
+                        (
+                            "roof-lining",
+                            "roof-between-insulation",
+                            "roof-over-joist-insulation",
+                            "roof-deck",
+                        ),
+                    ),
+                    ConstructionHeatFlowPathEvidenceV1(
+                        "roof-timber-joist",
+                        "Timber joist",
+                        roof_joist_fraction.controlling_member_fraction,
+                        (
+                            "roof-lining",
+                            "roof-timber-joist-layer",
+                            "roof-over-joist-insulation",
+                            "roof-deck",
+                        ),
+                    ),
+                ),
+                shared_layer_ids=(
+                    "roof-lining",
+                    "roof-over-joist-insulation",
+                    "roof-deck",
+                ),
+                internal_surface_resistance_m2K_W=0.10,
+                external_surface_resistance_m2K_W=0.04,
+                source_kind="teaching_model",
+                source_ref=(
+                    "HVACgooee U-S5D3B configurable insulated roof/joist "
+                    "candidate — verify geometry and catalogue properties"
+                ),
+                source_version="v1 practical candidate geometry",
+            ),
+            member_spacing_intent=roof_joist_spacing_intent,
         ),
         UValueTeachingModelV1(
             model_id=THREE_PATH_MODEL_ID,
