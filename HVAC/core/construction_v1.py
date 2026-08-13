@@ -23,3 +23,5 @@ class ConstructionV1:
     u_value_W_m2K: float
     layer_path_evidence: dict[str, Any] | None = None
     u_value_method_acceptance: dict[str, Any] | None = None
+    declared_whole_product_u_value_evidence: dict[str, Any] | None = None
+    declared_whole_product_u_value_acceptance: dict[str, Any] | None = None

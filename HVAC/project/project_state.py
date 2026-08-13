@@ -428,6 +428,24 @@ class ProjectState:
                         if c.u_value_method_acceptance is not None
                         else {}
                     ),
+                    **(
+                        {
+                            "declared_whole_product_u_value_evidence": _json_safe(
+                                c.declared_whole_product_u_value_evidence
+                            )
+                        }
+                        if c.declared_whole_product_u_value_evidence is not None
+                        else {}
+                    ),
+                    **(
+                        {
+                            "declared_whole_product_u_value_acceptance": _json_safe(
+                                c.declared_whole_product_u_value_acceptance
+                            )
+                        }
+                        if c.declared_whole_product_u_value_acceptance is not None
+                        else {}
+                    ),
                 }
                 for cid, c in (self.constructions or {}).items()
             },
@@ -829,6 +847,22 @@ class ProjectState:
                         dict(cdata["u_value_method_acceptance"])
                         if isinstance(
                             cdata.get("u_value_method_acceptance"), dict
+                        )
+                        else None
+                    ),
+                    declared_whole_product_u_value_evidence=(
+                        dict(cdata["declared_whole_product_u_value_evidence"])
+                        if isinstance(
+                            cdata.get("declared_whole_product_u_value_evidence"),
+                            dict,
+                        )
+                        else None
+                    ),
+                    declared_whole_product_u_value_acceptance=(
+                        dict(cdata["declared_whole_product_u_value_acceptance"])
+                        if isinstance(
+                            cdata.get("declared_whole_product_u_value_acceptance"),
+                            dict,
                         )
                         else None
                     ),
