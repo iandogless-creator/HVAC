@@ -34,3 +34,6 @@ class EffectiveProjectSnapshotDTO:
 
     # Ventilation participants
     rooms: List[EffectiveRoomSnapshotDTO]
+
+    # HL-S1B — false retains the original Ti calculation path.
+    use_internal_environmental_temperature: bool = False

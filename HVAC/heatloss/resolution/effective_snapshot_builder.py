@@ -23,7 +23,9 @@ from HVAC.heatloss.dto.fabric_inputs import (
 
 from HVAC.project.project_state import ProjectState
 from HVAC.core.room_state import RoomStateV1
-from HVAC.heatloss.fabric.fabric_from_segments_v1 import FabricFromSegmentsV1
+from HVAC.heatloss.fabric.room_fabric_rows_with_openings_v1 import (
+    build_room_fabric_rows_with_openings_v1,
+)
 
 # ----------------------------------------------------------------------
 # Room Snapshot (primitive)
@@ -128,7 +130,19 @@ def build_effective_project_snapshot(
         raise RuntimeError("External design temperature not defined")
 
     te_C = env.external_design_temp_C
-    delta_t = internal_design_temp_C - te_C
+    use_environmental_temperature = (
+        getattr(env, "use_internal_environmental_temperature", False) is True
+    )
+    if use_environmental_temperature:
+        if env.default_internal_temp_C is None:
+            raise RuntimeError(
+                "Internal environmental temperature (tei) not defined"
+            )
+        resolved_internal_temp_C = float(env.default_internal_temp_C)
+    else:
+        resolved_internal_temp_C = float(internal_design_temp_C)
+
+    delta_t = resolved_internal_temp_C - te_C
 
     if delta_t <= 0:
         raise RuntimeError("Invalid ΔT")
@@ -141,7 +155,7 @@ def build_effective_project_snapshot(
 
     for room in project.rooms.values():
 
-        rows = FabricFromSegmentsV1.build_rows_for_room(project, room)
+        rows = build_room_fabric_rows_with_openings_v1(project, room)
 
         if not rows:
             raise RuntimeError(
@@ -194,7 +208,7 @@ def build_effective_project_snapshot(
         build_effective_room_snapshot(
             project,
             room,
-            internal_design_temp_C=internal_design_temp_C,
+            internal_design_temp_C=resolved_internal_temp_C,
         )
         for room in project.rooms.values()
     ]
@@ -202,7 +216,10 @@ def build_effective_project_snapshot(
     return EffectiveProjectSnapshotDTO(
         project_id=project.project_id,
         external_design_temp_C=float(te_C),
-        internal_design_temp_C=float(internal_design_temp_C),
+        internal_design_temp_C=float(resolved_internal_temp_C),
         fabric_surfaces=surface_inputs,
         rooms=room_snapshots,
+        use_internal_environmental_temperature=(
+            use_environmental_temperature
+        ),
     )

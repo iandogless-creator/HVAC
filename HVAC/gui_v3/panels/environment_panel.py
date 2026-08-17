@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
     QComboBox,
     QFormLayout,
     QFrame,
+    QCheckBox,
 )
 
 from HVAC.heatloss.physics.environment_pipe_pair_spacing_defaults_v1 import (
@@ -32,6 +33,22 @@ _PIPE_EMISSIVITY_PRESETS_V1 = (
     ("Lightly oxidised metal — 0.20", 0.20),
     ("Bright/polished metal — 0.05", 0.05),
 )
+
+
+_ENVIRONMENT_FORM_LABEL_WIDTH_V1 = 255
+_ENVIRONMENT_NUMERIC_INPUT_WIDTH_V1 = 125
+
+
+def _compact_environment_form_v1(form: QFormLayout) -> None:
+    """Keep Environment values aligned without stretching across the panel."""
+    form.setFieldGrowthPolicy(QFormLayout.FieldsStayAtSizeHint)
+    form.setFormAlignment(Qt.AlignLeft | Qt.AlignTop)
+    form.setHorizontalSpacing(10)
+    for row in range(form.rowCount()):
+        item = form.itemAt(row, QFormLayout.LabelRole)
+        label = item.widget() if item is not None else None
+        if label is not None:
+            label.setFixedWidth(_ENVIRONMENT_FORM_LABEL_WIDTH_V1)
 
 # ======================================================================
 # EnvironmentPanel
@@ -61,10 +78,12 @@ class EnvironmentPanel(QWidget):
     # ------------------------------------------------------------------
     external_temp_changed = Signal(float)
     default_internal_temp_changed = Signal(float)
+    internal_environmental_temperature_mode_changed = Signal(bool)
     default_height_changed = Signal(float)
     default_ach_changed = Signal(float)
 
     # H-S21-A — Hydronic design source inputs
+    heat_source_room_changed = Signal(str)
     design_flow_temp_changed = Signal(float)
     design_return_temp_changed = Signal(float)
 
@@ -117,6 +136,30 @@ class EnvironmentPanel(QWidget):
         self._ti_input.setMinimumWidth(110)
         self._ti_input.valueChanged.connect(self.default_internal_temp_changed.emit)
 
+        self._internal_environmental_temperature_mode = QCheckBox(
+            "Ti",
+            self,
+        )
+        self._internal_environmental_temperature_mode.setObjectName(
+            "environmentalTemperatureModeCheckBox"
+        )
+        self._internal_environmental_temperature_mode.setAccessibleName(
+            "Internal temperature basis"
+        )
+        self._internal_environmental_temperature_mode.setToolTip(
+            "Unchecked: Ti. Checked: tei."
+        )
+        self._internal_environmental_temperature_mode.toggled.connect(
+            self._on_internal_environmental_temperature_mode_toggled
+        )
+        self._internal_temperature_label = QLabel(
+            "Default internal temperature, Ti (°C)",
+            self,
+        )
+        self._internal_temperature_label.setObjectName(
+            "environmentInternalTemperatureLabel"
+        )
+
         # Default room height
         self._height_input = QDoubleSpinBox(self)
         self._height_input.setRange(0.0, 10.0)
@@ -132,6 +175,20 @@ class EnvironmentPanel(QWidget):
         self._ach_input.setSingleStep(0.1)
         self._ach_input.setMinimumWidth(110)
         self._ach_input.valueChanged.connect(self.default_ach_changed.emit)
+
+        # H-S68-A — Project topology heat-source room selector
+        self._heat_source_room_input = QComboBox(self)
+        self._heat_source_room_input.setObjectName(
+            "environmentHeatSourceRoomCombo"
+        )
+        self._heat_source_room_input.setFixedWidth(235)
+        self._heat_source_room_input.setToolTip(
+            "Room containing the hydronic heat source. "
+            "Route membership is edited separately."
+        )
+        self._heat_source_room_input.currentIndexChanged.connect(
+            self._emit_heat_source_room_changed
+        )
 
         # H-S21-A — Hydronic design flow temperature
         self._design_flow_temp_input = QDoubleSpinBox(self)
@@ -205,12 +262,30 @@ class EnvironmentPanel(QWidget):
         )
         self._refresh_selected_pipe_pair_spacing_default_v1()
 
+        # Purpose-sized controls: values stay readable without consuming the
+        # complete panel width.  Widths are presentation only.
+        for numeric_input in (
+            self._te_input,
+            self._ti_input,
+            self._height_input,
+            self._ach_input,
+            self._design_flow_temp_input,
+            self._design_return_temp_input,
+            self._basic_ps_max_velocity_input,
+            self._bare_pipe_pair_centre_spacing_input_v1,
+        ):
+            numeric_input.setFixedWidth(_ENVIRONMENT_NUMERIC_INPUT_WIDTH_V1)
+        self._bare_pipe_emissivity_input.setFixedWidth(235)
+        self._bare_pipe_pair_size_input_v1.setFixedWidth(105)
+        self._bare_pipe_pair_support_input_v1.setFixedWidth(235)
+
         # --------------------------------------------------
         # Top form (Te only)
         # --------------------------------------------------
         form_te = QFormLayout()
         form_te.setLabelAlignment(Qt.AlignLeft)
         form_te.addRow("External design temperature (°C)", self._te_input)
+        _compact_environment_form_v1(form_te)
         root.addLayout(form_te)
 
         # --------------------------------------------------
@@ -226,9 +301,16 @@ class EnvironmentPanel(QWidget):
         # --------------------------------------------------
         form_defaults = QFormLayout()
         form_defaults.setLabelAlignment(Qt.AlignLeft)
-        form_defaults.addRow("Default internal temperature (°C)", self._ti_input)
+        form_defaults.addRow(
+            self._internal_environmental_temperature_mode
+        )
+        form_defaults.addRow(
+            self._internal_temperature_label,
+            self._ti_input,
+        )
         form_defaults.addRow("Default room height (m)", self._height_input)
         form_defaults.addRow("Default ACH", self._ach_input)
+        _compact_environment_form_v1(form_defaults)
         root.addLayout(form_defaults)
 
         # --------------------------------------------------
@@ -246,6 +328,10 @@ class EnvironmentPanel(QWidget):
         form_hydronic = QFormLayout()
         form_hydronic.setLabelAlignment(Qt.AlignLeft)
         form_hydronic.addRow(
+            "Heat Source room",
+            self._heat_source_room_input,
+        )
+        form_hydronic.addRow(
             "Design flow temperature (°C)",
             self._design_flow_temp_input,
         )
@@ -257,6 +343,7 @@ class EnvironmentPanel(QWidget):
             "Basic PS maximum pipe velocity (m/s)",
             self._basic_ps_max_velocity_input,
         )
+        _compact_environment_form_v1(form_hydronic)
         root.addLayout(form_hydronic)
 
         sep_pipe_heat_loss = QFrame(self)
@@ -301,6 +388,7 @@ class EnvironmentPanel(QWidget):
             "Universal pipe centre spacing",
             self._bare_pipe_pair_centre_spacing_input_v1,
         )
+        _compact_environment_form_v1(form_pipe_heat_loss)
         root.addLayout(form_pipe_heat_loss)
 
         root.addStretch(1)
@@ -318,6 +406,35 @@ class EnvironmentPanel(QWidget):
         self._ti_input.setValue(value if value is not None else 0.0)
         self._ti_input.blockSignals(False)
 
+    def set_internal_environmental_temperature_mode(
+        self,
+        enabled: bool,
+    ) -> None:
+        checkbox = self._internal_environmental_temperature_mode
+        checkbox.blockSignals(True)
+        checkbox.setChecked(bool(enabled))
+        checkbox.blockSignals(False)
+        self._refresh_internal_temperature_label(bool(enabled))
+
+    def _on_internal_environmental_temperature_mode_toggled(
+        self,
+        enabled: bool,
+    ) -> None:
+        self._refresh_internal_temperature_label(bool(enabled))
+        self.internal_environmental_temperature_mode_changed.emit(
+            bool(enabled)
+        )
+
+    def _refresh_internal_temperature_label(self, enabled: bool) -> None:
+        self._internal_environmental_temperature_mode.setText(
+            "tei" if enabled else "Ti"
+        )
+        self._internal_temperature_label.setText(
+            "Internal environmental temperature, tei (°C)"
+            if enabled
+            else "Default internal temperature, Ti (°C)"
+        )
+
     def set_default_height(self, value: Optional[float]) -> None:
         self._height_input.blockSignals(True)
         self._height_input.setValue(value if value is not None else 0.0)
@@ -327,6 +444,31 @@ class EnvironmentPanel(QWidget):
         self._ach_input.blockSignals(True)
         self._ach_input.setValue(value if value is not None else 0.0)
         self._ach_input.blockSignals(False)
+
+    def set_heat_source_room_choices(
+        self,
+        choices: list[tuple[str, str]],
+        selected_room_id: str,
+        *,
+        enabled: bool,
+    ) -> None:
+        combo = self._heat_source_room_input
+        combo.blockSignals(True)
+        combo.clear()
+        for room_id, room_label in choices:
+            combo.addItem(room_label, room_id)
+        selected_index = combo.findData(selected_room_id)
+        if selected_index < 0:
+            combo.insertItem(0, "Not assigned", "")
+            selected_index = 0
+        combo.setCurrentIndex(selected_index)
+        combo.setEnabled(bool(enabled and choices))
+        combo.blockSignals(False)
+
+    def _emit_heat_source_room_changed(self, *_args) -> None:
+        room_id = str(self._heat_source_room_input.currentData() or "")
+        if room_id:
+            self.heat_source_room_changed.emit(room_id)
 
     def set_design_flow_temp(self, value: Optional[float]) -> None:
         self._design_flow_temp_input.blockSignals(True)

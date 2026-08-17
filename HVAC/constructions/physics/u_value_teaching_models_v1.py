@@ -202,42 +202,210 @@ def build_u_value_teaching_models_v1() -> tuple[UValueTeachingModelV1, ...]:
         ),
         UValueTeachingModelV1(
             model_id=TWO_PATH_MODEL_ID,
-            label="Two paths — insulation and timber stud",
+            label="Two paths — complete UK timber-frame wall",
             description=(
-                "Common linings split into insulation and timber paths, "
-                "then rejoin."
+                "Complete configurable UK timber-frame candidate. Shared "
+                "internal layers split into mineral-wool and timber-stud "
+                "paths, then rejoin through structural OSB, continuous "
+                "external insulation, breather membrane, external cavity "
+                "and a brick-faced starting finish. Service void, cavity and "
+                "alternative outer finishes remain explicit include/exclude "
+                "options. Thermal, membrane and cavity properties are "
+                "illustrative until verified sources are selected."
             ),
             evidence=SharedConstructionLayerPathEvidenceV1(
                 construction_id="teaching-stud-wall-001",
-                label="Insulated timber stud wall",
+                label="UK timber-frame wall — configurable complete build-up",
                 element_kind="external_wall",
                 heat_flow_direction=HORIZONTAL_HEAT_FLOW,
                 layers=(
-                    _layer("lining", "Plasterboard lining", 0.0125, 0.19),
-                    _layer("insulation", "Mineral wool", 0.100, 0.035),
-                    _layer("stud", "Timber stud", 0.100, 0.13),
-                    _layer("sheathing", "Sheathing", 0.012, 0.13),
+                    _layer(
+                        "lining",
+                        "Plasterboard lining",
+                        0.0125,
+                        0.19,
+                    ),
+                    _declared_layer(
+                        "service-void",
+                        "Service void",
+                        0.025,
+                        0.18,
+                        included=False,
+                        source_ref=(
+                            "Illustrative unventilated service-void resistance "
+                            "pending audit"
+                        ),
+                        source_version="U-S5D3C v1 illustrative",
+                        property_notes=(
+                            "Optional service zone. Excluded by default because "
+                            "its effective air-layer resistance depends on the "
+                            "finished build-up."
+                        ),
+                    ),
+                    _layer(
+                        "avcl",
+                        "Air and vapour control layer",
+                        0.0002,
+                        0.20,
+                        property_notes=(
+                            "Thermal effect is negligible. Physical order is "
+                            "retained for the deferred condensation add-on; "
+                            "vapour properties require a verified source."
+                        ),
+                    ),
+                    _layer(
+                        "insulation",
+                        "Mineral wool between studs",
+                        0.140,
+                        0.035,
+                    ),
+                    _layer(
+                        "stud",
+                        "Timber stud — 38 × 140 mm finished CLS",
+                        0.140,
+                        0.13,
+                        property_notes=(
+                            "140 mm finished heat-flow depth is separate from "
+                            "the 38 mm finished width used for area fraction."
+                        ),
+                    ),
+                    _layer(
+                        "sheathing",
+                        "Structural OSB sheathing",
+                        0.011,
+                        0.13,
+                        property_notes=(
+                            "Default position is the external face of the "
+                            "timber studs; position remains editable."
+                        ),
+                    ),
+                    _layer(
+                        "continuous-external-insulation",
+                        "Continuous insulation outside frame",
+                        0.050,
+                        0.022,
+                        property_notes=(
+                            "Shared layer crossing both stud and insulated-bay "
+                            "paths to reduce repeating thermal bridging."
+                        ),
+                    ),
+                    _layer(
+                        "breather-membrane",
+                        "Breather membrane",
+                        0.0005,
+                        0.20,
+                        property_notes=(
+                            "Thermal effect is negligible. Physical order is "
+                            "retained for weather protection and the deferred "
+                            "condensation add-on; vapour properties require a "
+                            "verified source."
+                        ),
+                    ),
+                    _declared_layer(
+                        "external-cavity",
+                        "External cavity — declared R basis",
+                        0.050,
+                        0.18,
+                        source_ref=(
+                            "Illustrative external cavity resistance pending "
+                            "ventilation-category audit"
+                        ),
+                        source_version="U-S5D3C v1 illustrative",
+                        property_notes=(
+                            "Drained/ventilated construction context is "
+                            "explicit, but the controlling thermal resistance "
+                            "must be confirmed for the actual ventilation basis."
+                        ),
+                    ),
+                    _layer(
+                        "brick-outer-leaf",
+                        "Brick outer leaf",
+                        0.1025,
+                        0.77,
+                        property_notes="Default brick-faced starting finish.",
+                    ),
+                    _layer(
+                        "rainscreen-cladding",
+                        "Rainscreen cladding alternative",
+                        0.018,
+                        0.13,
+                        included=False,
+                        property_notes=(
+                            "Alternative outer finish retained but excluded "
+                            "while the brick outer leaf is selected."
+                        ),
+                    ),
+                    _layer(
+                        "render-carrier-board",
+                        "Render carrier-board alternative",
+                        0.012,
+                        0.30,
+                        included=False,
+                        property_notes=(
+                            "Alternative outer finish retained but excluded "
+                            "while the brick outer leaf is selected."
+                        ),
+                    ),
                 ),
                 paths=(
                     ConstructionHeatFlowPathEvidenceV1(
                         "insulated-bay",
                         "Insulated bay",
                         stud_fraction.controlling_clear_fraction,
-                        ("lining", "insulation", "sheathing"),
+                        (
+                            "lining",
+                            "service-void",
+                            "avcl",
+                            "insulation",
+                            "sheathing",
+                            "continuous-external-insulation",
+                            "breather-membrane",
+                            "external-cavity",
+                            "brick-outer-leaf",
+                            "rainscreen-cladding",
+                            "render-carrier-board",
+                        ),
                     ),
                     ConstructionHeatFlowPathEvidenceV1(
                         "timber-stud",
                         "Timber stud",
                         stud_fraction.controlling_member_fraction,
-                        ("lining", "stud", "sheathing"),
+                        (
+                            "lining",
+                            "service-void",
+                            "avcl",
+                            "stud",
+                            "sheathing",
+                            "continuous-external-insulation",
+                            "breather-membrane",
+                            "external-cavity",
+                            "brick-outer-leaf",
+                            "rainscreen-cladding",
+                            "render-carrier-board",
+                        ),
                     ),
                 ),
-                shared_layer_ids=("lining", "sheathing"),
+                shared_layer_ids=(
+                    "lining",
+                    "service-void",
+                    "avcl",
+                    "sheathing",
+                    "continuous-external-insulation",
+                    "breather-membrane",
+                    "external-cavity",
+                    "brick-outer-leaf",
+                    "rainscreen-cladding",
+                    "render-carrier-board",
+                ),
                 internal_surface_resistance_m2K_W=0.13,
                 external_surface_resistance_m2K_W=0.04,
                 source_kind="teaching_model",
-                source_ref="HVACgooee U-S5D3 practical timber framing candidate",
-                source_version="v1 member-spacing basis",
+                source_ref=(
+                    "HVACgooee U-S5D3C configurable UK timber-frame wall "
+                    "candidate — verify geometry, cavity basis and catalogue "
+                    "properties"
+                ),
+                source_version="v1 practical candidate geometry",
             ),
             member_spacing_intent=stud_spacing_intent,
         ),
@@ -401,6 +569,7 @@ def _layer(
     thickness_m: float,
     conductivity_W_mK: float,
     *,
+    included: bool = True,
     source_ref: str = "HVACgooee U-S5 teaching material",
     property_notes: str = "",
 ) -> ConstructionThermalLayerEvidenceV1:
@@ -408,6 +577,7 @@ def _layer(
         layer_id=layer_id,
         label=label,
         basis=HOMOGENEOUS_LAYER_BASIS,
+        included=included,
         thickness_m=thickness_m,
         conductivity_W_mK=conductivity_W_mK,
         source_kind="teaching_model",
@@ -421,19 +591,26 @@ def _declared_layer(
     label: str,
     thickness_m: float,
     declared_resistance_m2K_W: float,
+    *,
+    included: bool = True,
+    source_ref: str = "Illustrative unventilated cavity resistance pending audit",
+    source_version: str = "U-S5D1D v1 illustrative",
+    property_notes: str = "",
 ) -> ConstructionThermalLayerEvidenceV1:
     return ConstructionThermalLayerEvidenceV1(
         layer_id=layer_id,
         label=label,
         basis=DECLARED_RESISTANCE_LAYER_BASIS,
+        included=included,
         thickness_m=thickness_m,
         declared_resistance_m2K_W=declared_resistance_m2K_W,
         source_kind="teaching_model",
-        source_ref="Illustrative unventilated cavity resistance pending audit",
-        source_version="U-S5D1D v1 illustrative",
+        source_ref=source_ref,
+        source_version=source_version,
         property_notes=(
-            "Air cavity uses declared resistance authority; conductivity is "
-            "not applicable."
+            property_notes
+            or "Air cavity uses declared resistance authority; conductivity "
+            "is not applicable."
         ),
     )
 

@@ -119,6 +119,35 @@ class ConstructionLayerDragDropInteractionV1:
         )
 
 
+def _compact_schematic_layer_label(label: str) -> str:
+    full_label = str(label or "").strip()
+    compact = {
+        "plasterboard lining": "Lining",
+        "service void": "Service void",
+        "air and vapour control layer": "AVCL",
+        "mineral wool between studs": "Insulation",
+        "timber stud — 38 × 140 mm finished cls": "Stud",
+        "structural osb sheathing": "OSB",
+        "continuous insulation outside frame": "Ext. insulation",
+        "breather membrane": "Membrane",
+        "external cavity — declared r basis": "Cavity",
+        "brick outer leaf": "Brick",
+        "rainscreen cladding alternative": "Rainscreen",
+        "render carrier-board alternative": "Render board",
+    }
+    return compact.get(full_label.casefold(), full_label)
+
+
+def _schematic_layer_tooltip(full_label: str, detail: str) -> str:
+    label = str(full_label or "").strip()
+    existing_detail = str(detail or "").strip()
+    if not existing_detail:
+        return label or "Drag to reorder this candidate layer"
+    if label and label.casefold() not in existing_detail.casefold():
+        return f"{label}\n\n{existing_detail}"
+    return existing_detail
+
+
 class ConstructionLayerDragTokenV1(QLabel):
     focus_requested = Signal(str, str)
 
@@ -265,9 +294,14 @@ class ConstructionPathDropRowV1(QFrame):
         inside_label.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Preferred)
         self.layout_row.addWidget(inside_label)
         for layer_id, label, detail, shared, included in layers:
+            compact_label = _compact_schematic_layer_label(label)
             token = ConstructionLayerDragTokenV1(
-                label=label if included else f"{label}\nNot included",
-                detail=detail,
+                label=(
+                    compact_label
+                    if included
+                    else f"{compact_label}\nOff"
+                ),
+                detail=_schematic_layer_tooltip(label, detail),
                 included=included,
                 drag_evidence=ConstructionLayerDragEvidenceV1(
                     layer_id=layer_id,
@@ -324,6 +358,41 @@ class ConstructionPathDropRowV1(QFrame):
         event.acceptProposedAction()
 
 
+PROFILE_GRAPH_MAXIMUM_WIDTH = 1120
+PROFILE_GRAPH_POINT_RADIUS = 2.5
+
+
+def _compact_profile_graph_label(labels: tuple[str, ...]) -> str:
+    compact = {
+        "tai": "Ti",
+        "ti": "Ti",
+        "rsi": "Rsi",
+        "plasterboard lining": "Lining",
+        "air and vapour control layer": "AVCL",
+        "mineral wool between studs": "Insulation",
+        "timber stud — 38 × 140 mm finished cls": "Stud",
+        "structural osb sheathing": "OSB",
+        "continuous insulation outside frame": "Ext. insulation",
+        "breather membrane": "Membrane",
+        "external cavity — declared r basis": "Cavity",
+        "brick outer leaf": "Brick",
+        "rso": "Rso",
+    }
+    result: list[str] = []
+    for label in labels:
+        text = str(label or "").strip()
+        shortened = compact.get(text.casefold(), text)
+        if shortened and shortened not in result:
+            result.append(shortened)
+    return " / ".join(result)
+
+
+def _profile_temperature_label_y_offset(path_index: int) -> float:
+    if path_index % 2 == 0:
+        return -19.0 - 13.0 * (path_index // 2)
+    return 5.0 + 13.0 * (path_index // 2)
+
+
 class ConstructionHeatFlowProfileGraphV1(QWidget):
     """Read-only candidate path heat-flow and interface-temperature overlay."""
 
@@ -334,6 +403,7 @@ class ConstructionHeatFlowProfileGraphV1(QWidget):
         self.setObjectName("constructionHeatFlowProfileGraph")
         self._result: ConstructionPathHeatFlowTemperatureEvidenceV1 | None = None
         self.setMinimumHeight(230)
+        self.setMaximumWidth(PROFILE_GRAPH_MAXIMUM_WIDTH)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
 
     def set_result(
@@ -354,9 +424,16 @@ class ConstructionHeatFlowProfileGraphV1(QWidget):
             return
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
+        painter.setRenderHint(QPainter.TextAntialiasing)
         painter.fillRect(self.rect(), QColor("#ffffff"))
 
-        left, top, right, bottom = 58.0, 34.0, 185.0, 55.0
+        base_font = QFont(painter.font())
+        compact_font = QFont(base_font)
+        point_size = base_font.pointSizeF()
+        if point_size > 0.0:
+            compact_font.setPointSizeF(max(7.5, point_size * 0.82))
+
+        left, top, right, bottom = 58.0, 34.0, 165.0, 76.0
         plot = QRectF(
             left,
             top,
@@ -381,20 +458,37 @@ class ConstructionHeatFlowProfileGraphV1(QWidget):
 
         max_points = max(len(path.points) for path in result.paths)
         x_step = plot.width() / max(1, max_points - 1)
-        first_points = result.paths[0].points
-        for index, point in enumerate(first_points):
+        label_width = max(64.0, min(150.0, x_step * 1.70))
+        painter.setFont(compact_font)
+        for index in range(max_points):
+            labels = tuple(
+                path.points[index].label
+                for path in result.paths
+                if index < len(path.points)
+            )
+            label = _compact_profile_graph_label(labels)
+            label = painter.fontMetrics().elidedText(
+                label,
+                Qt.ElideRight,
+                int(label_width - 4.0),
+            )
             x = plot.left() + index * x_step
-            painter.setPen(QPen(QColor("#666666"), 1))
+            label_y = plot.bottom() + 5.0 + (index % 2) * 18.0
+            painter.setPen(QPen(QColor("#555555"), 1))
             painter.drawText(
-                QRectF(x - 42.0, plot.bottom() + 5.0, 84.0, 34.0),
+                QRectF(x - label_width / 2.0, label_y, label_width, 17.0),
                 Qt.AlignHCenter | Qt.AlignTop,
-                point.label,
+                label,
             )
 
         legend_x = plot.right() + 16.0
         for path_index, path in enumerate(result.paths):
             colour = QColor(self.COLOURS[path_index % len(self.COLOURS)])
-            pen = QPen(colour, 3 if path_index == 0 else 2)
+            colour.setAlpha(220)
+            pen = QPen(colour)
+            pen.setWidthF(2.5 if path_index == 0 else 2.0)
+            pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+            pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
             painter.setPen(pen)
             previous = None
             for point_index, point in enumerate(path.points):
@@ -403,14 +497,34 @@ class ConstructionHeatFlowProfileGraphV1(QWidget):
                 here = QPointF(x, y)
                 if previous is not None:
                     painter.drawLine(previous, here)
-                painter.drawEllipse(here, 3.5, 3.5)
+                painter.drawEllipse(
+                    here,
+                    PROFILE_GRAPH_POINT_RADIUS,
+                    PROFILE_GRAPH_POINT_RADIUS,
+                )
+                temperature_y = here.y() + _profile_temperature_label_y_offset(
+                    path_index
+                )
+                painter.setFont(compact_font)
+                painter.setPen(QPen(colour, 1))
+                painter.drawText(
+                    QRectF(here.x() - 24.0, temperature_y, 48.0, 14.0),
+                    Qt.AlignHCenter | Qt.AlignTop,
+                    f"{point.temperature_C:.1f}°",
+                )
+                painter.setPen(pen)
                 previous = here
-            painter.setPen(QPen(colour, 2))
+            legend_pen = QPen(colour)
+            legend_pen.setWidthF(2.0)
+            legend_pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+            legend_pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+            painter.setPen(legend_pen)
             legend_y = plot.top() + 18.0 + path_index * 36.0
             painter.drawLine(
                 QPointF(legend_x, legend_y),
                 QPointF(legend_x + 20.0, legend_y),
             )
+            painter.setFont(base_font)
             painter.setPen(QPen(QColor("#222222"), 1))
             painter.drawText(
                 QRectF(legend_x + 25.0, legend_y - 13.0, 145.0, 31.0),

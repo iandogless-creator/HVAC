@@ -53,6 +53,18 @@ def resolve_effective_internal_temp_C(project, room):
 
     env = project.environment
 
+    # HL-S1B — selected environmental mode makes Environment tei global.
+    # The room Ti override remains persisted but is inactive in this mode.
+    if (
+        env is not None
+        and getattr(env, "use_internal_environmental_temperature", False)
+        is True
+    ):
+        return _resolve(
+            None,
+            getattr(env, "default_internal_temp_C", None),
+        )
+
     return _resolve(
         getattr(room, "internal_temp_override_C", None),
         getattr(env, "default_internal_temp_C", None) if env else None,

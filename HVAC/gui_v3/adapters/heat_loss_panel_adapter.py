@@ -14,8 +14,8 @@ from HVAC.heatloss.validation.surface_edit_validator import SurfaceEditValidator
 from PySide6.QtGui import QColor, QBrush
 from PySide6.QtCore import Qt
 
-from HVAC.fabric.generate_fabric_from_topology import (
-    generate_fabric_from_topology,
+from HVAC.heatloss.fabric.room_fabric_rows_with_openings_v1 import (
+    build_room_fabric_rows_with_openings_v1,
 )
 from HVAC.gui_v3.common.worksheet_row_meta import (
     WorksheetRowMeta,
@@ -56,6 +56,7 @@ class HeatLossPanelAdapter:
         self._validator = SurfaceEditValidator()
 
         self._context.room_state_changed.connect(self.refresh)
+        self._context.environment_changed.connect(self.refresh)
         self._context.current_room_changed.connect(self._on_current_room_changed)
         self._context.construction_focus_changed.connect(
             self._on_construction_focus
@@ -82,6 +83,7 @@ class HeatLossPanelAdapter:
         panel = self._panel
 
         if ps is None:
+            panel.set_environmental_temperature_mode(False)
             panel.clear()
             panel.set_run_enabled(False)
             panel.set_heatloss_status(is_valid=False)
@@ -90,6 +92,16 @@ class HeatLossPanelAdapter:
         panel.set_heatloss_status(
             is_valid=bool(getattr(ps, "heatloss_valid", False))
         )
+        environment = getattr(ps, "environment", None)
+        environmental_mode = (
+            getattr(
+                environment,
+                "use_internal_environmental_temperature",
+                False,
+            )
+            is True
+        )
+        panel.set_environmental_temperature_mode(environmental_mode)
 
         room_id = self._context.current_room_id
         if not room_id:
@@ -127,7 +139,10 @@ class HeatLossPanelAdapter:
         if ps.environment is not None:
             te = getattr(ps.environment, "external_design_temp_C", None)
 
-        panel.set_internal_temperature(ti)
+        panel.set_internal_temperature(
+            ti,
+            environmental_mode=environmental_mode,
+        )
 
         room_name = getattr(room, "name", room_id)
         panel.set_room_header(room_name, room_id)
@@ -170,6 +185,7 @@ class HeatLossPanelAdapter:
         sum_qf = None
         qv = None
         qt = None
+        tai = None
 
         if bool(getattr(ps, "heatloss_valid", False)):
             hl = getattr(ps, "heatloss_results", None)
@@ -178,17 +194,22 @@ class HeatLossPanelAdapter:
                 sum_qf = self._resolve_committed_qf_W(hl, room_id)
                 qv = self._resolve_committed_qv_W(hl, room_id)
                 qt = self._resolve_committed_qt_W(hl, room_id)
+                if environmental_mode:
+                    tai = self._resolve_committed_tai_C(hl, room_id)
+                    if tai is None:
+                        qv = None
+                        qt = None
 
         if sum_qf is None:
             sum_qf = self._sum_qf_from_rows(rows)
 
-        if qv is None:
+        if qv is None and not environmental_mode:
             dt_room = None
             if ti is not None and te is not None:
                 dt_room = ti - te
             qv = self._compute_qv_live(room, ach, dt_room)
 
-        if qt is None:
+        if qt is None and not environmental_mode:
             qt = (sum_qf or 0.0) + (qv or 0.0)
 
         panel.set_room_results(
@@ -196,6 +217,7 @@ class HeatLossPanelAdapter:
             ach=ach,
             qv=qv,
             qt=qt,
+            tai=tai,
         )
         cid = getattr(self._context, "current_construction_id", None)
         if cid:
@@ -356,6 +378,25 @@ class HeatLossPanelAdapter:
             self._context.construction_focus_changed.emit(cid)
 
         self.highlight_rows_for_construction(cid)
+
+    def _resolve_committed_tai_C(
+        self,
+        results: dict,
+        room_id: str,
+    ) -> float | None:
+        room_totals = results.get("room_totals") or {}
+        room_total = room_totals.get(room_id)
+        if isinstance(room_total, dict):
+            value = room_total.get("tai_C")
+            if value is not None:
+                return float(value)
+
+        by_room = results.get("tai_C_by_room_id") or {}
+        if isinstance(by_room, dict):
+            value = by_room.get(room_id)
+            if value is not None:
+                return float(value)
+        return None
 
     def _resolve_committed_qf_W(
         self,
@@ -575,7 +616,7 @@ class HeatLossPanelAdapter:
         • adjacency-editable rows are marked from boundary_kind
         """
 
-        fabric_rows = generate_fabric_from_topology(ps, room)
+        fabric_rows = build_room_fabric_rows_with_openings_v1(ps, room)
 
         rows: list[dict] = []
         metas: list[WorksheetRowMeta] = []
@@ -794,11 +835,23 @@ class HeatLossPanelAdapter:
 
     def _format_dt(self, src) -> str:
         text = f"{float(src.delta_t_K):.1f}"
+        segment = getattr(src, "_segment", None)
+        boundary_kind = (
+            getattr(src, "boundary_kind", None)
+            or getattr(segment, "boundary_kind", None)
+        )
+        adjacent_room_id = (
+            getattr(src, "adjacent_room_id", None)
+            or getattr(segment, "adjacent_room_id", None)
+        )
+        element = str(getattr(src, "element", "") or "").lower()
+        if boundary_kind is None and element in {"window", "external_door"}:
+            boundary_kind = "EXTERNAL"
 
-        if src.boundary_kind == "INTER_ROOM" and src.adjacent_room_id:
-            return f"{text} → {src.adjacent_room_id}"
+        if boundary_kind == "INTER_ROOM" and adjacent_room_id:
+            return f"{text} → {adjacent_room_id}"
 
-        if src.boundary_kind == "EXTERNAL":
+        if boundary_kind == "EXTERNAL":
             return f"{text} → ext"
 
         return text

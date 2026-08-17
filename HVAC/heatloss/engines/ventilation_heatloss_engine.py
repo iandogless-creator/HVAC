@@ -53,8 +53,13 @@ class VentilationHeatLossEngine:
 
             seen_any_room = True
 
+            ventilation_reference_temp_C = (
+                snapshot.internal_air_temp_C
+                if snapshot.internal_air_temp_C is not None
+                else snapshot.internal_design_temp_C
+            )
             delta_t = (
-                snapshot.internal_design_temp_C
+                ventilation_reference_temp_C
                 - external_design_temp_C
             )
 

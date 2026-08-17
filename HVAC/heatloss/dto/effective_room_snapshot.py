@@ -30,3 +30,7 @@ class EffectiveRoomSnapshotDTO:
 
     # Thermal
     internal_design_temp_C: float
+
+    # HL-S1B — derived Tai used only by ventilation in environmental mode.
+    # None preserves the established Ti-based ventilation calculation.
+    internal_air_temp_C: float | None = None

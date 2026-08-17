@@ -31,6 +31,10 @@ class EnvironmentStateV1:
     default_room_height_m: Optional[float] = None
     default_ach: Optional[float] = None
 
+    # HL-S1A — Optional internal environmental-temperature calculation.
+    # False preserves the existing Ti-based Heat-Loss path exactly.
+    use_internal_environmental_temperature: bool = False
+
     # H-S21-A — Hydronic design source inputs.
     # Store source temperatures only. Derived values are calculated at use sites.
     design_flow_temp_c: Optional[float] = 75.0
@@ -58,6 +62,9 @@ class EnvironmentStateV1:
             "default_internal_temp_C": self.default_internal_temp_C,
             "default_room_height_m": self.default_room_height_m,
             "default_ach": self.default_ach,
+            "use_internal_environmental_temperature": (
+                self.use_internal_environmental_temperature
+            ),
             "design_flow_temp_c": self.design_flow_temp_c,
             "design_return_temp_c": self.design_return_temp_c,
             "basic_ps_max_velocity_m_s": self.basic_ps_max_velocity_m_s,
@@ -76,6 +83,9 @@ class EnvironmentStateV1:
             default_internal_temp_C=data.get("default_internal_temp_C"),
             default_room_height_m=data.get("default_room_height_m"),
             default_ach=data.get("default_ach"),
+            use_internal_environmental_temperature=(
+                data.get("use_internal_environmental_temperature") is True
+            ),
             design_flow_temp_c=data.get("design_flow_temp_c", 75.0),
             design_return_temp_c=data.get("design_return_temp_c", 65.0),
             basic_ps_max_velocity_m_s=data.get(

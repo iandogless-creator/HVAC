@@ -393,6 +393,10 @@ class ProjectState:
                 rid: room.to_dict()
                 for rid, room in self.rooms.items()
             },
+            "room_opening_schedules": {
+                room_id: schedule.to_dict()
+                for room_id, schedule in self.room_opening_schedules.items()
+            },
             "boundary_segments": {
                 seg_id: seg.to_dict()
                 for seg_id, seg in self.boundary_segments.items()
@@ -594,6 +598,18 @@ class ProjectState:
 
         for room_id, room_data in (data.get("rooms", {}) or {}).items():
             instance.rooms[room_id] = RoomStateV1.from_dict(room_id, room_data)
+
+        raw_room_opening_schedules = data.get("room_opening_schedules", {}) or {}
+        if not isinstance(raw_room_opening_schedules, dict):
+            raise ValueError("room_opening_schedules must be a dictionary")
+        instance.room_opening_schedules = {
+            str(room_id): RoomOpeningScheduleV1.from_dict(
+                schedule_data,
+                expected_room_id=str(room_id),
+            )
+            for room_id, schedule_data in raw_room_opening_schedules.items()
+        }
+
         # --------------------------------------------------
         # Hydronic emitters
         # --------------------------------------------------

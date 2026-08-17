@@ -97,12 +97,46 @@ class WallWizardAdapter:
         self._context = context
         self._parent = parent
         self._dialog: Optional[WallWizardDialog] = None
+        self._dialog_project_state: Any = None
 
         self._context.wall_wizard_requested.connect(
             self._open_for_surface
         )
+        self._context.project_changed.connect(
+            self._on_project_changed
+        )
+        self._context.current_room_changed.connect(
+            self._on_current_room_changed
+        )
 
 
+
+    # ------------------------------------------------------------------
+    # Dialog lifecycle
+    # ------------------------------------------------------------------
+
+    def _project_state_from_context(self) -> Any:
+        ps = _safe_get(self._context, "project_state", None)
+        if ps is None:
+            ps = _safe_get(self._context, "_project_state", None)
+        return ps
+
+    def _dismiss_dialog(self) -> None:
+        dialog = self._dialog
+        self._dialog = None
+        self._dialog_project_state = None
+        if dialog is not None:
+            dialog.close()
+
+    def _on_project_changed(self) -> None:
+        if self._dialog is None:
+            return
+        if self._dialog_project_state is self._project_state_from_context():
+            return
+        self._dismiss_dialog()
+
+    def _on_current_room_changed(self, _room_id: Any) -> None:
+        self._dismiss_dialog()
 
     # ------------------------------------------------------------------
     # Open
@@ -133,6 +167,7 @@ class WallWizardAdapter:
                 self._on_openings_clear_requested
             )
 
+        self._dialog_project_state = self._project_state_from_context()
         self._dialog.set_projection(projection)
         self._dialog.show()
         self._dialog.raise_()
@@ -214,7 +249,8 @@ class WallWizardAdapter:
             construction_id=construction_id,
             construction_name=construction_name,
             u_value_W_m2K=u_value,
-            openings=[],
+            openings=self._opening_previews_for_room(ps, room_id),
+            opening_construction_choices=self._opening_construction_choices(ps),
         )
 
     def _external_wall_gross_area_for_room(self, ps: Any, room_id: str | None) -> Optional[float]:
@@ -426,6 +462,66 @@ class WallWizardAdapter:
 
         return _safe_get(seg, "owner_room_id", None)
 
+    def _opening_construction_choices(
+            self,
+            ps: Any,
+    ) -> list[tuple[str, str, str]]:
+        choices: list[tuple[str, str, str]] = []
+        constructions = _safe_get(ps, "constructions", {}) or {}
+        for construction_id, construction in constructions.items():
+            cid = str(construction_id)
+            cid_upper = cid.upper()
+            if cid_upper.startswith("USR-DECLARED-WINDOW-") or cid_upper == "DEV-WINDOW":
+                opening_type = "WINDOW"
+            elif cid_upper.startswith("USR-DECLARED-DOOR-") or cid_upper in {
+                "DEV-EXT-DOOR",
+                "DEV-INT-DOOR",
+            }:
+                opening_type = "DOOR"
+            else:
+                continue
+            name = str(
+                _safe_get(construction, "name", None)
+                or _safe_get(construction, "display_name", None)
+                or cid
+            )
+            choices.append((cid, name, opening_type))
+        return sorted(choices, key=lambda row: (row[2], row[1].lower(), row[0]))
+
+    def _opening_previews_for_room(
+            self,
+            ps: Any,
+            room_id: str | None,
+    ) -> list[OpeningPreview]:
+        if not room_id:
+            return []
+        schedules = _safe_get(ps, "room_opening_schedules", {}) or {}
+        schedule = schedules.get(room_id)
+        if schedule is None:
+            return []
+        constructions = _safe_get(ps, "constructions", {}) or {}
+        previews: list[OpeningPreview] = []
+        for item in _safe_get(schedule, "openings", []) or []:
+            construction_id = str(_safe_get(item, "construction_id", "") or "")
+            construction = constructions.get(construction_id)
+            construction_name = str(
+                _safe_get(construction, "name", None)
+                or _safe_get(construction, "display_name", None)
+                or construction_id
+                or "—"
+            )
+            previews.append(OpeningPreview(
+                opening_type=str(_safe_get(item, "opening_type", "") or ""),
+                profile_id=str(_safe_get(item, "profile_id", "") or ""),
+                profile_name=str(_safe_get(item, "profile_name", "") or ""),
+                width_m=float(_safe_get(item, "width_m", 0.0) or 0.0),
+                height_m=float(_safe_get(item, "height_m", 0.0) or 0.0),
+                quantity=int(_safe_get(item, "quantity", 1) or 1),
+                construction_id=construction_id,
+                construction_name=construction_name,
+            ))
+        return previews
+
     def _construction_id_for_opening(self, opening: OpeningPreview) -> str:
         if opening.opening_type == "WINDOW":
             return "DEV-WINDOW"
@@ -437,6 +533,15 @@ class WallWizardAdapter:
             return "DEV-EXT-DOOR"
 
         return ""
+
+    def _notify_opening_schedule_changed(
+            self,
+            ps: Any,
+            room_id: str,
+    ) -> None:
+        """Invalidate committed Heat-Loss and refresh room observers."""
+        ps.mark_heatloss_dirty()
+        self._context.room_state_changed.emit(room_id)
 
     def _on_opening_requested(
             self,
@@ -469,10 +574,14 @@ class WallWizardAdapter:
             width_m=opening.width_m,
             height_m=opening.height_m,
             quantity=opening.quantity,
-            construction_id=self._construction_id_for_opening(opening),
+            construction_id=(
+                opening.construction_id
+                or self._construction_id_for_opening(opening)
+            ),
         )
 
         schedule.add_item(item)
+        self._notify_opening_schedule_changed(ps, room_id)
 
         print(
             "[WALL WIZARD] saved opening schedule item:",
@@ -514,7 +623,9 @@ class WallWizardAdapter:
             profile_id=opening.profile_id,
             width_m=opening.width_m,
             height_m=opening.height_m,
+            construction_id=opening.construction_id or None,
         )
+        self._notify_opening_schedule_changed(ps, room_id)
 
         print(
             "[WALL WIZARD] removed opening schedule group:",
@@ -547,6 +658,7 @@ class WallWizardAdapter:
             return
 
         schedule.clear()
+        self._notify_opening_schedule_changed(ps, room_id)
 
         print(
             "[WALL WIZARD] cleared opening schedule:",

@@ -209,21 +209,25 @@ class HeatLossPanelV3(QWidget):
         self._label_sum_qf = QLabel("ΣQf")
         self._label_ach = QLabel("ACH")
         self._label_qv = QLabel("Qv")
+        self._label_tai = QLabel("tai")
         self._label_qt = QLabel("Qt")
 
         self._value_sum_qf = QLabel("—")
         self._value_ach = ClickableLabel("—")
         self._value_qv = QLabel("—")
+        self._value_tai = QLabel("—")
         self._value_qt = QLabel("—")
 
         for lbl in (
             self._label_sum_qf,
             self._label_ach,
             self._label_qv,
+            self._label_tai,
             self._label_qt,
             self._value_sum_qf,
             self._value_ach,
             self._value_qv,
+            self._value_tai,
             self._value_qt,
         ):
             lbl.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
@@ -237,9 +241,14 @@ class HeatLossPanelV3(QWidget):
         results_layout.addWidget(self._label_qv, 2, 0)
         results_layout.addWidget(self._value_qv, 2, 1)
 
-        results_layout.addWidget(self._label_qt, 3, 0)
-        results_layout.addWidget(self._value_qt, 3, 1)
+        results_layout.addWidget(self._label_tai, 3, 0)
+        results_layout.addWidget(self._value_tai, 3, 1)
 
+        results_layout.addWidget(self._label_qt, 4, 0)
+        results_layout.addWidget(self._value_qt, 4, 1)
+
+        self._label_tai.hide()
+        self._value_tai.hide()
         results_layout.setColumnStretch(1, 1)
 
         root.addWidget(self._results_frame)
@@ -351,11 +360,24 @@ class HeatLossPanelV3(QWidget):
     def set_header_context(self, context: dict | None) -> None:
         return
 
-    def set_internal_temperature(self, ti: float | None) -> None:
+    def set_internal_temperature(
+        self,
+        ti: float | None,
+        *,
+        environmental_mode: bool = False,
+    ) -> None:
+        symbol = "tei" if environmental_mode else "Ti"
         if ti is None:
-            self._ti_label.setText("Ti: — °C")
+            self._ti_label.setText(f"{symbol}: — °C")
         else:
-            self._ti_label.setText(f"Ti: {ti:.1f} °C")
+            self._ti_label.setText(f"{symbol}: {ti:.1f} °C")
+
+    def set_environmental_temperature_mode(self, enabled: bool) -> None:
+        visible = bool(enabled)
+        self._label_tai.setVisible(visible)
+        self._value_tai.setVisible(visible)
+        if not visible:
+            self._value_tai.setText("—")
 
     def set_default_internal_temp(self, value: float) -> None:
         return
@@ -385,6 +407,7 @@ class HeatLossPanelV3(QWidget):
         self._value_sum_qf.setText("—")
         self._value_ach.setText("—")
         self._value_qv.setText("—")
+        self._value_tai.setText("—")
         self._value_qt.setText("—")
         self._readiness_label.setText("")
         self._unsafe_warning_label.hide()
@@ -766,6 +789,7 @@ class HeatLossPanelV3(QWidget):
         ach: float | None = None,
         qv: float | None,
         qt: float | None,
+        tai: float | None = None,
     ) -> None:
         def _fmt_w(value: float | None) -> str:
             if isinstance(value, (int, float)):
@@ -780,6 +804,9 @@ class HeatLossPanelV3(QWidget):
         self._value_sum_qf.setText(_fmt_w(sum_qf))
         self._value_ach.setText(_fmt_plain(ach))
         self._value_qv.setText(_fmt_w(qv))
+        self._value_tai.setText(
+            f"{tai:.1f} °C" if isinstance(tai, (int, float)) else "—"
+        )
         self._value_qt.setText(_fmt_w(qt))
 
     def set_results(

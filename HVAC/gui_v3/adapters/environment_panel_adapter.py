@@ -34,8 +34,14 @@ class EnvironmentPanelAdapter:
 
         panel.external_temp_changed.connect(self._on_external_temp_changed)
         panel.default_internal_temp_changed.connect(self._on_default_internal_temp_changed)
+        panel.internal_environmental_temperature_mode_changed.connect(
+            self._on_internal_environmental_temperature_mode_changed
+        )
         panel.default_height_changed.connect(self._on_default_height_changed)
         panel.default_ach_changed.connect(self._on_default_ach_changed)
+        panel.heat_source_room_changed.connect(
+            self._on_heat_source_room_changed
+        )
         panel.design_flow_temp_changed.connect(self._on_design_flow_temp_changed)
         panel.design_return_temp_changed.connect(self._on_design_return_temp_changed)
         panel.basic_ps_max_velocity_changed.connect(
@@ -70,6 +76,14 @@ class EnvironmentPanelAdapter:
             getattr(env, "default_internal_temp", None)
             or getattr(env, "default_internal_temp_C", None)
         )
+        self._panel.set_internal_environmental_temperature_mode(
+            getattr(
+                env,
+                "use_internal_environmental_temperature",
+                False,
+            )
+            is True
+        )
 
         self._panel.set_default_height(
             getattr(env, "default_room_height_m", None)
@@ -77,6 +91,20 @@ class EnvironmentPanelAdapter:
 
         self._panel.set_default_ach(
             getattr(env, "default_ach", None)
+        )
+
+        topology = getattr(ps, "hydronic_topology", None)
+        room_choices = [
+            (
+                str(room_id),
+                str(getattr(room, "name", None) or room_id),
+            )
+            for room_id, room in (getattr(ps, "rooms", {}) or {}).items()
+        ]
+        self._panel.set_heat_source_room_choices(
+            room_choices,
+            str(getattr(topology, "heat_source_room_id", "") or ""),
+            enabled=topology is not None,
         )
 
         self._panel.set_design_flow_temp(
@@ -156,6 +184,16 @@ class EnvironmentPanelAdapter:
 
         self._context.environment_changed.emit()
 
+    def _on_internal_environmental_temperature_mode_changed(
+        self,
+        enabled: bool,
+    ) -> None:
+        env = self._ensure_env()
+        env.use_internal_environmental_temperature = bool(enabled)
+
+        self._mark_dirty()
+        self._context.environment_changed.emit()
+
     def _on_default_height_changed(self, value: float) -> None:
         env = self._ensure_env()
         env.default_room_height_m = value
@@ -171,6 +209,24 @@ class EnvironmentPanelAdapter:
         self._mark_dirty()
 
         self._context.environment_changed.emit()
+
+    # ------------------------------------------------------------------
+    # H-S68-A — Hydronic heat-source room authority
+    # ------------------------------------------------------------------
+
+    def _on_heat_source_room_changed(self, room_id: str) -> None:
+        project = self._context.project_state
+        topology = getattr(project, "hydronic_topology", None)
+        if topology is None or room_id not in project.rooms:
+            return
+        if str(getattr(topology, "heat_source_room_id", "") or "") == room_id:
+            return
+
+        topology.heat_source_room_id = room_id
+        project.hydronics_valid = False
+
+        self._context.environment_changed.emit()
+        self._context.project_changed.emit()
 
     # ------------------------------------------------------------------
     # H-S21-A — Hydronic design source inputs

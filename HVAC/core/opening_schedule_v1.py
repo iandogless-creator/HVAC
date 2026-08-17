@@ -48,6 +48,31 @@ class OpeningScheduleItemV1:
     def total_area_m2(self) -> float:
         return self.area_each_m2 * int(self.quantity)
 
+    def to_dict(self) -> dict:
+        return {
+            "opening_type": self.opening_type,
+            "profile_id": self.profile_id,
+            "profile_name": self.profile_name,
+            "width_m": self.width_m,
+            "height_m": self.height_m,
+            "quantity": self.quantity,
+            "construction_id": self.construction_id,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "OpeningScheduleItemV1":
+        if not isinstance(data, dict):
+            raise ValueError("Opening schedule item must be a dictionary")
+        return cls(
+            opening_type=str(data.get("opening_type") or ""),
+            profile_id=str(data.get("profile_id") or ""),
+            profile_name=str(data.get("profile_name") or ""),
+            width_m=float(data.get("width_m", 0.0)),
+            height_m=float(data.get("height_m", 0.0)),
+            quantity=int(data.get("quantity", 1)),
+            construction_id=str(data.get("construction_id") or ""),
+        )
+
 
 # ======================================================================
 # RoomOpeningScheduleV1
@@ -67,6 +92,49 @@ class RoomOpeningScheduleV1:
 
     room_id: str
     openings: list[OpeningScheduleItemV1] = field(default_factory=list)
+
+    def to_dict(self) -> dict:
+        return {
+            "room_id": self.room_id,
+            "openings": [item.to_dict() for item in self.openings],
+        }
+
+    @classmethod
+    def from_dict(
+        cls,
+        data: dict,
+        *,
+        expected_room_id: str | None = None,
+    ) -> "RoomOpeningScheduleV1":
+        if not isinstance(data, dict):
+            raise ValueError("Room opening schedule must be a dictionary")
+
+        stored_room_id = str(data.get("room_id") or "")
+        if (
+            expected_room_id
+            and stored_room_id
+            and stored_room_id != expected_room_id
+        ):
+            raise ValueError(
+                "Room opening schedule identity mismatch: "
+                f"expected {expected_room_id!r}, found {stored_room_id!r}"
+            )
+
+        room_id = str(expected_room_id or stored_room_id)
+        if not room_id:
+            raise ValueError("Room opening schedule is missing room_id")
+
+        raw_openings = data.get("openings", []) or []
+        if not isinstance(raw_openings, list):
+            raise ValueError("Room opening schedule openings must be a list")
+
+        return cls(
+            room_id=room_id,
+            openings=[
+                OpeningScheduleItemV1.from_dict(item)
+                for item in raw_openings
+            ],
+        )
 
     @property
     def total_opening_area_m2(self) -> float:
@@ -94,6 +162,7 @@ class RoomOpeningScheduleV1:
         profile_id: str,
         width_m: float,
         height_m: float,
+        construction_id: str | None = None,
     ) -> None:
         """
         Remove all schedule items matching a grouped preview row.
@@ -110,6 +179,10 @@ class RoomOpeningScheduleV1:
                 item.profile_id == profile_id
                 and float(item.width_m) == float(width_m)
                 and float(item.height_m) == float(height_m)
+                and (
+                    construction_id is None
+                    or item.construction_id == construction_id
+                )
             )
         ]
 

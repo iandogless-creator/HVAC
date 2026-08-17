@@ -11,6 +11,9 @@ from PySide6.QtCore import Qt, Signal, QObject
 from HVAC.constructions.physics.construction_model_save_candidate_v1 import (
     build_construction_model_save_candidate_v1,
 )
+from HVAC.constructions.physics.declared_whole_product_construction_candidate_v1 import (
+    build_declared_whole_product_construction_candidate_v1,
+)
 from HVAC.core.construction_v1 import ConstructionV1
 from HVAC.core.value_resolution import resolve_effective_internal_temp_C
 
@@ -62,6 +65,63 @@ class UVPPanelAdapter(QObject):
         self._panel.construction_model_save_requested.connect(
             self._on_construction_model_save_requested
         )
+        self._panel.declared_opening_construction_save_requested.connect(
+            self._on_declared_opening_construction_save_requested
+        )
+
+    def _on_declared_opening_construction_save_requested(
+        self,
+        intent,
+    ) -> None:
+        ps = self._context.project_state
+        if ps is None:
+            self._panel.set_declared_opening_save_result(
+                ready=False,
+                status="Blocked — no project is open.",
+            )
+            return
+        data = dict(intent or {}) if isinstance(intent, dict) else {}
+        result = build_declared_whole_product_construction_candidate_v1(
+            opening_type=data.get("opening_type", ""),
+            name=data.get("name", ""),
+            declared_u_value_W_m2K=data.get(
+                "declared_u_value_W_m2K",
+                float("nan"),
+            ),
+            source_kind=data.get("source_kind", ""),
+            source_ref=data.get("source_ref", ""),
+            source_version=data.get("source_version", ""),
+            existing_constructions=ps.constructions,
+        )
+        if not result.ready:
+            self._panel.set_declared_opening_save_result(
+                ready=False,
+                status=result.status + ": " + "; ".join(result.blockers),
+            )
+            return
+
+        ps.constructions[result.construction_id] = ConstructionV1(
+            construction_id=result.construction_id,
+            name=result.name,
+            u_value_W_m2K=float(result.u_value_W_m2K),
+            declared_whole_product_u_value_evidence=result.evidence.to_dict(),
+            declared_whole_product_u_value_acceptance=(
+                result.acceptance.to_dict()
+            ),
+        )
+        ps.mark_heatloss_dirty()
+        self._panel.set_constructions(ps.constructions)
+        self._panel.set_declared_opening_save_result(
+            ready=True,
+            status=result.status,
+            construction_id=result.construction_id,
+            model_name=result.name,
+        )
+        self._context.set_current_construction_id(result.construction_id)
+        self._context.notify_project_changed()
+        # Project the complete focus after the wider project refresh so the
+        # selected row, displayed U-value and assignable identity stay aligned.
+        self._on_construction_focus(result.construction_id)
 
     def _on_construction_model_save_requested(
         self,
@@ -129,7 +189,22 @@ class UVPPanelAdapter(QObject):
             return
 
     def _on_construction_focus(self, cid: str) -> None:
-        self._panel.highlight_construction(cid)
+        ps = self._context.project_state
+        construction = (
+            ps.constructions.get(cid)
+            if ps is not None
+            else None
+        )
+        if construction is not None and hasattr(
+            self._panel,
+            "set_selected_construction",
+        ):
+            self._panel.set_selected_construction(
+                cid,
+                construction.u_value_W_m2K,
+            )
+        else:
+            self._panel.highlight_construction(cid)
 
         surface_id = getattr(self._context, "current_surface_id", None)
         if hasattr(self._panel, "set_selected_surface"):
@@ -224,7 +299,16 @@ class UVPPanelAdapter(QObject):
         # 4. Push to panel
         # --------------------------------------------------
         if hasattr(self._panel, "set_selected_construction"):
-            self._panel.set_selected_construction(assigned_cid)
+            construction = ps.constructions.get(assigned_cid)
+            u_value_W_m2K = (
+                getattr(construction, "u_value_W_m2K", None)
+                if construction is not None
+                else None
+            )
+            self._panel.set_selected_construction(
+                assigned_cid,
+                u_value_W_m2K,
+            )
         elif hasattr(self._panel, "highlight_construction"):
             self._panel.highlight_construction(assigned_cid)
         elif hasattr(self._panel, "_select_construction_in_list"):

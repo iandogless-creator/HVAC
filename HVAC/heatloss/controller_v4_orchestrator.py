@@ -5,6 +5,7 @@
 # ======================================================================
 
 from __future__ import annotations
+from dataclasses import replace
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -24,6 +25,7 @@ from HVAC.heatloss.engines.fabric_heatloss_engine import FabricHeatLossEngine
 from HVAC.heatloss.engines.ventilation_heatloss_engine import (
     VentilationHeatLossEngine,
 )
+from HVAC.heatloss.physics.cv_tai_model import compute_cv_tai
 
 # ----------------------------------------------------------------------
 # Authoritative results (locked)
@@ -61,6 +63,22 @@ def _aggregate_qf_by_room(fabric_result) -> dict[str, float]:
         )
 
     return qf_by_room_W
+
+
+def _aggregate_exposed_area_by_room(surfaces) -> dict[str, float]:
+    # Aggregate the exact fabric-participant area used by Cv/Tai.
+    area_by_room_m2: dict[str, float] = {}
+    for surface in surfaces or []:
+        room_id = getattr(surface, "room_id", None)
+        area_m2 = getattr(surface, "area_m2", None)
+        if room_id is None or area_m2 is None:
+            continue
+        room_key = str(room_id)
+        area_by_room_m2[room_key] = (
+            area_by_room_m2.get(room_key, 0.0) + float(area_m2)
+        )
+    return area_by_room_m2
+
 
 class HeatLossControllerV4:
     """
@@ -151,15 +169,51 @@ class HeatLossControllerV4:
         # --------------------------------------------------
         fabric_result = FabricHeatLossEngine.run(surfaces)
 
+        # --------------------------------------------------
+        # Optional environmental-temperature coupling
+        # --------------------------------------------------
+        # Fabric has already been calculated from tei.  Tai is derived from
+        # that fabric-only evidence and is supplied solely to ventilation.
+        qf_by_room_W = _aggregate_qf_by_room(fabric_result)
+        tai_by_room_C: dict[str, float] = {}
+        ventilation_room_snapshots = snapshot.rooms
+
+        if snapshot.use_internal_environmental_temperature:
+            area_by_room_m2 = _aggregate_exposed_area_by_room(surfaces)
+            resolved_room_snapshots = []
+            for room_snapshot in snapshot.rooms:
+                rid = room_snapshot.room_id
+                area_m2 = area_by_room_m2.get(rid)
+                if area_m2 is None or area_m2 <= 0.0:
+                    raise RuntimeError(
+                        f"Room '{rid}' has no exposed area for tai resolution"
+                    )
+                cv_tai = compute_cv_tai(
+                    total_fabric_heat_loss_w=float(
+                        qf_by_room_W.get(rid, 0.0)
+                    ),
+                    total_exposed_area_m2=float(area_m2),
+                    tei_internal_env_temp_c=float(
+                        snapshot.internal_design_temp_C
+                    ),
+                )
+                tai_by_room_C[rid] = float(cv_tai.tai_c)
+                resolved_room_snapshots.append(
+                    replace(
+                        room_snapshot,
+                        internal_air_temp_C=float(cv_tai.tai_c),
+                    )
+                )
+            ventilation_room_snapshots = resolved_room_snapshots
+
         ventilation_result = VentilationHeatLossEngine.run(
-            room_snapshots=snapshot.rooms,
+            room_snapshots=ventilation_room_snapshots,
             external_design_temp_C=snapshot.external_design_temp_C,
         )
 
         # --------------------------------------------------
         # Aggregate authoritative totals
         # --------------------------------------------------
-        qf_by_room_W = _aggregate_qf_by_room(fabric_result)
         qv_by_room_W = ventilation_result.qv_by_room_W
 
         room_results: list[RoomHeatLossResultDTO] = []
@@ -192,21 +246,30 @@ class HeatLossControllerV4:
         # --------------------------------------------------
         # Atomic commit
         # --------------------------------------------------
-        room_totals = {
-            r.room_id: {
-                "q_fabric_W": float(r.q_fabric_W),
-                "q_ventilation_W": float(r.q_ventilation_W),
-                "q_total_W": float(r.q_total_W),
+        room_totals = {}
+        for room_result in room_results:
+            room_total = {
+                "q_fabric_W": float(room_result.q_fabric_W),
+                "q_ventilation_W": float(room_result.q_ventilation_W),
+                "q_total_W": float(room_result.q_total_W),
             }
-            for r in room_results
-        }
+            if room_result.room_id in tai_by_room_C:
+                room_total["tai_C"] = float(
+                    tai_by_room_C[room_result.room_id]
+                )
+            room_totals[room_result.room_id] = room_total
 
-        self._project.heatloss_results = {
+        committed_results = {
             "result": result_dto,
             "room_totals": room_totals,
             "fabric": fabric_result,
             "ventilation": ventilation_result,
         }
+        if snapshot.use_internal_environmental_temperature:
+            committed_results["internal_environmental_temperature_mode"] = True
+            committed_results["tai_C_by_room_id"] = dict(tai_by_room_C)
+
+        self._project.heatloss_results = committed_results
         self._project.mark_heatloss_valid()
 
     def _apply_mutation(self, ctx, values) -> None:

@@ -36,6 +36,8 @@ class OpeningPreview:
     width_m: float
     height_m: float
     quantity: int = 1
+    construction_id: str = ""
+    construction_name: str = "—"
 
     @property
     def area_m2(self) -> float:
@@ -110,6 +112,9 @@ class WallWizardProjection:
     construction_name: str
     u_value_W_m2K: Optional[float]
     openings: list[OpeningPreview] = field(default_factory=list)
+    opening_construction_choices: list[tuple[str, str, str]] = field(
+        default_factory=list
+    )
 
 
 # ======================================================================
@@ -149,6 +154,7 @@ class WallWizardDialog(QDialog):
         self._current_surface_id: str | None = None
         self._current_gross_area_m2: float | None = None
         self._preview_openings: list[OpeningPreview] = []
+        self._opening_construction_choices: list[tuple[str, str, str]] = []
 
         root = QVBoxLayout(self)
 
@@ -193,17 +199,23 @@ class WallWizardDialog(QDialog):
         control_row = QHBoxLayout()
 
         self._profile_combo = QComboBox()
+        self._opening_construction_combo = QComboBox()
+        self._opening_construction_combo.setObjectName(
+            "wallWizardOpeningConstructionCombo"
+        )
 
         self._quantity_spin = QSpinBox()
         self._quantity_spin.setRange(1, 99)
         self._quantity_spin.setValue(1)
 
         self._add_opening_btn = QPushButton("Add opening")
-        self._remove_opening_btn = QPushButton("Remove selected")
+        self._remove_opening_btn = QPushButton("Remove")
         self._clear_openings_btn = QPushButton("Clear all")
 
         control_row.addWidget(QLabel("Profile:"))
         control_row.addWidget(self._profile_combo, 1)
+        control_row.addWidget(QLabel("Construction:"))
+        control_row.addWidget(self._opening_construction_combo, 1)
         control_row.addWidget(QLabel("Qty:"))
         control_row.addWidget(self._quantity_spin)
         control_row.addWidget(self._add_opening_btn)
@@ -215,9 +227,9 @@ class WallWizardDialog(QDialog):
         # --------------------------------------------------
         # Opening schedule table
         # --------------------------------------------------
-        self._opening_table = QTableWidget(0, 4)
+        self._opening_table = QTableWidget(0, 5)
         self._opening_table.setHorizontalHeaderLabels(
-            ["Profile", "Qty", "Size", "Area"]
+            ["Profile", "Construction", "Qty", "Size", "Area"]
         )
         self._opening_table.verticalHeader().setVisible(False)
         self._opening_table.setSelectionBehavior(QTableWidget.SelectRows)
@@ -225,9 +237,10 @@ class WallWizardDialog(QDialog):
 
         header = self._opening_table.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.Stretch)
-        header.setSectionResizeMode(1, QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(1, QHeaderView.Stretch)
         header.setSectionResizeMode(2, QHeaderView.ResizeToContents)
         header.setSectionResizeMode(3, QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(4, QHeaderView.ResizeToContents)
 
         self._opening_table.setMinimumHeight(120)
         root.addWidget(self._opening_table)
@@ -238,6 +251,9 @@ class WallWizardDialog(QDialog):
         # --------------------------------------------------
         # Signal wiring
         # --------------------------------------------------
+        self._profile_combo.currentIndexChanged.connect(
+            self._update_opening_construction_choices
+        )
         self._add_opening_btn.clicked.connect(self._add_selected_opening)
         self._remove_opening_btn.clicked.connect(self._remove_selected_opening)
         self._clear_openings_btn.clicked.connect(self._clear_openings)
@@ -256,6 +272,9 @@ class WallWizardDialog(QDialog):
         self._current_surface_id = projection.surface_id
         self._current_gross_area_m2 = projection.area_m2
         self._preview_openings = list(projection.openings)
+        self._opening_construction_choices = list(
+            projection.opening_construction_choices
+        )
 
         self._surface_id.setText(projection.surface_id or "—")
         self._room.setText(projection.room_label or "—")
@@ -293,6 +312,13 @@ class WallWizardDialog(QDialog):
         if not profile:
             return
 
+        construction_id = str(
+            self._opening_construction_combo.currentData() or ""
+        )
+        if not construction_id:
+            return
+
+        construction_name = self._opening_construction_combo.currentText().strip()
         quantity = int(self._quantity_spin.value())
 
         opening = OpeningPreview(
@@ -302,6 +328,8 @@ class WallWizardDialog(QDialog):
             width_m=float(profile["width_m"]),
             height_m=float(profile["height_m"]),
             quantity=quantity,
+            construction_id=construction_id,
+            construction_name=construction_name,
         )
 
         self._preview_openings.append(opening)
@@ -403,16 +431,21 @@ class WallWizardDialog(QDialog):
             self._opening_table.setItem(
                 row_index,
                 1,
-                QTableWidgetItem(str(opening.quantity)),
+                QTableWidgetItem(opening.construction_name),
             )
             self._opening_table.setItem(
                 row_index,
                 2,
-                QTableWidgetItem(opening.size_label),
+                QTableWidgetItem(str(opening.quantity)),
             )
             self._opening_table.setItem(
                 row_index,
                 3,
+                QTableWidgetItem(opening.size_label),
+            )
+            self._opening_table.setItem(
+                row_index,
+                4,
                 QTableWidgetItem(f"{opening.area_m2:.2f} m²"),
             )
 
@@ -420,8 +453,8 @@ class WallWizardDialog(QDialog):
         self._remove_opening_btn.setEnabled(has_rows)
         self._clear_openings_btn.setEnabled(has_rows)
 
-    def _grouped_openings(self) -> dict[tuple[str, str, float, float], OpeningPreview]:
-        grouped: dict[tuple[str, str, float, float], OpeningPreview] = {}
+    def _grouped_openings(self) -> dict[tuple[str, str, float, float, str], OpeningPreview]:
+        grouped: dict[tuple[str, str, float, float, str], OpeningPreview] = {}
 
         for opening in self._preview_openings:
             key = (
@@ -429,6 +462,7 @@ class WallWizardDialog(QDialog):
                 opening.profile_name,
                 opening.width_m,
                 opening.height_m,
+                opening.construction_id,
             )
 
             existing = grouped.get(key)
@@ -443,6 +477,8 @@ class WallWizardDialog(QDialog):
                 width_m=existing.width_m,
                 height_m=existing.height_m,
                 quantity=existing.quantity + opening.quantity,
+                construction_id=existing.construction_id,
+                construction_name=existing.construction_name,
             )
 
         return grouped
@@ -450,6 +486,30 @@ class WallWizardDialog(QDialog):
     # ------------------------------------------------------------------
     # Profile choices
     # ------------------------------------------------------------------
+
+    def _update_opening_construction_choices(self, _index: int = -1) -> None:
+        profile_id = str(self._profile_combo.currentData() or "")
+        profile = OPENING_PROFILES.get(profile_id, {})
+        opening_type = str(profile.get("opening_type", ""))
+
+        combo = self._opening_construction_combo
+        combo.blockSignals(True)
+        combo.clear()
+        for construction_id, construction_name, candidate_type in (
+            self._opening_construction_choices
+        ):
+            if candidate_type == opening_type:
+                combo.addItem(construction_name, construction_id)
+        combo.blockSignals(False)
+
+        ready = bool(opening_type and combo.count())
+        combo.setEnabled(ready)
+        self._add_opening_btn.setEnabled(ready)
+        if not ready and opening_type:
+            self._opening_hint.setText(
+                f"No declared {opening_type.lower()} construction is available. "
+                "Create one in U-Values first."
+            )
 
     def _update_opening_profile_choices(
         self,
@@ -490,7 +550,7 @@ class WallWizardDialog(QDialog):
 
         self._profile_combo.setEnabled(enabled)
         self._quantity_spin.setEnabled(enabled)
-        self._add_opening_btn.setEnabled(enabled)
+        self._update_opening_construction_choices()
 
         if self._preview_openings:
             return

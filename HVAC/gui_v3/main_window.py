@@ -15,7 +15,6 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QWidget,
     QFileDialog,
-    QInputDialog,
 )
 from typing import TypeVar
 
@@ -29,6 +28,7 @@ from HVAC.gui_v3.context.gui_settings import GuiSettings
 # Panels
 # ----------------------------------------------------------------------
 from HVAC.gui_v3.panels.project_panel import ProjectPanel
+from HVAC.gui_v3.adapters.project_panel_adapter import ProjectPanelAdapter
 from HVAC.gui_v3.panels.environment_panel import EnvironmentPanel
 from HVAC.gui_v3.panels.room_tree_panel import RoomTreePanel
 from HVAC.gui_v3.panels.construction_panel import ConstructionPanel
@@ -412,6 +412,10 @@ class MainWindowV3(QMainWindow):
         self._dock_dev.raise_()
 
         # Adapters
+        self._project_panel_adapter = ProjectPanelAdapter(
+            panel=self._project_panel,
+            context=self._context,
+        )
         self._environment_panel_adapter = EnvironmentPanelAdapter(self._context, self._environment_panel)
         self._room_tree_panel_adapter = RoomTreePanelAdapter(panel=self._room_tree_panel, context=self._context)
         self._readiness_adapter = ProjectHeatLossReadinessAdapter(panel=self._heat_loss_panel, context=self._context)
@@ -877,59 +881,27 @@ class MainWindowV3(QMainWindow):
         )
 
     def _save_project_as(self) -> None:
-        """
-        Save the current ProjectState into a new named project folder.
+        """Save into the final project folder selected by the user."""
 
-        HVACgooee project convention:
-            <project folder>/project.json
+        hvac_root = Path(__file__).resolve().parents[1]
+        default_dir = hvac_root / "HVACprojects"
 
-        Save As should therefore ask for:
-        • parent directory
-        • project folder name
-
-        It should not ask the user to rename project.json.
-        """
-
-        parent_directory = QFileDialog.getExistingDirectory(
+        directory = QFileDialog.getExistingDirectory(
             self,
-            "Choose parent folder for project",
+            "Choose or create project folder",
+            str(default_dir),
         )
-        if not parent_directory:
+        if not directory:
             return
 
+        project_dir = Path(directory).resolve()
         project = self._context.project_state
 
-        default_name = (
-                str(getattr(project, "name", "") or "").strip()
-                or "HVACgooee Project"
-        )
-
-        project_name, accepted = QInputDialog.getText(
-            self,
-            "Save Project As",
-            "Project folder name:",
-            text=default_name,
-        )
-
-        if not accepted:
-            return
-
-        project_name = str(project_name or "").strip()
-        if not project_name:
-            QMessageBox.warning(
-                self,
-                "Save Project As",
-                "Project folder name cannot be empty.",
-            )
-            return
-
-        project_dir = Path(parent_directory).resolve() / project_name
-        project_dir.mkdir(parents=True, exist_ok=True)
-
         project.project_dir = project_dir
-        project.name = project_name
+        project.name = project_dir.name
 
         save_project(project, project_dir)
+        self._project_panel_adapter.refresh()
 
         QMessageBox.information(
             self,
@@ -994,6 +966,9 @@ class MainWindowV3(QMainWindow):
     # Refresh
     # ------------------------------------------------------------------
     def _refresh_all_adapters(self) -> None:
+
+        if hasattr(self, "_project_panel_adapter"):
+            self._project_panel_adapter.refresh()
 
         if hasattr(self, "_heat_loss_panel_adapter"):
             self._heat_loss_panel_adapter.refresh()

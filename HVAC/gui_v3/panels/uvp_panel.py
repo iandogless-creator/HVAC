@@ -26,6 +26,7 @@ External controllers/adapters handle all mutations.
 from __future__ import annotations
 
 from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QColor, QPalette
 from PySide6.QtWidgets import (
     QWidget,
     QVBoxLayout,
@@ -96,6 +97,7 @@ class UVPPanel(QWidget):
     u_value_changed = Signal(str, float)       # cid, new_u
     assign_requested = Signal(str, str)        # surface_id, construction_id
     construction_model_save_requested = Signal(str, str, object)
+    declared_opening_construction_save_requested = Signal(object)
 
     # ------------------------------------------------------------------
     # Construction
@@ -178,10 +180,125 @@ class UVPPanel(QWidget):
         root.addWidget(thermal_box)
 
         # --------------------------------------------------------------
+        # Declared whole-window / whole-door construction
+        # --------------------------------------------------------------
+        self._declared_opening_toggle = QPushButton(
+            "▸ Show declared window/door entry",
+            self,
+        )
+        self._declared_opening_toggle.setObjectName(
+            "uValueDeclaredOpeningToggle"
+        )
+        self._declared_opening_toggle.setCheckable(True)
+        self._declared_opening_toggle.setChecked(False)
+        root.addWidget(self._declared_opening_toggle)
+
+        declared_box = QGroupBox(
+            "Declared Window / Door Construction",
+            self,
+        )
+        declared_box.setObjectName("uValueDeclaredOpeningGroup")
+        self._declared_opening_box = declared_box
+        declared_layout = QVBoxLayout(declared_box)
+        declared_note = QLabel(
+            "Enter a manufacturer or schedule whole-window Uw or "
+            "whole-door Ud. Saving explicitly accepts that declared "
+            "whole-product value; no frame or thermal-bridge calculation "
+            "is performed.",
+            declared_box,
+        )
+        declared_note.setWordWrap(True)
+        declared_layout.addWidget(declared_note)
+        declared_form = QFormLayout()
+        self._declared_opening_type = QComboBox(declared_box)
+        self._declared_opening_type.setObjectName("uValueDeclaredOpeningType")
+        self._declared_opening_type.addItem("Window", "WINDOW")
+        self._declared_opening_type.addItem("External door", "DOOR")
+        self._declared_opening_name = QLineEdit(declared_box)
+        self._declared_opening_name.setObjectName("uValueDeclaredOpeningName")
+        self._declared_opening_name.setPlaceholderText("Construction name")
+        self._declared_opening_u_value = QDoubleSpinBox(declared_box)
+        self._declared_opening_u_value.setObjectName(
+            "uValueDeclaredOpeningUValue"
+        )
+        self._declared_opening_u_value.setRange(0.01, 10.0)
+        self._declared_opening_u_value.setDecimals(3)
+        self._declared_opening_u_value.setSuffix(" W/m²K")
+        self._declared_opening_u_value.setValue(1.4)
+        self._declared_opening_source_kind = QComboBox(declared_box)
+        self._declared_opening_source_kind.setObjectName(
+            "uValueDeclaredOpeningSourceKind"
+        )
+        self._declared_opening_source_kind.addItem(
+            "Manufacturer declaration",
+            "manufacturer_declaration",
+        )
+        self._declared_opening_source_kind.addItem(
+            "Product schedule",
+            "product_schedule",
+        )
+        self._declared_opening_source_kind.addItem(
+            "Assessment / certificate",
+            "assessment_or_certificate",
+        )
+        self._declared_opening_source_ref = QLineEdit(declared_box)
+        self._declared_opening_source_ref.setObjectName(
+            "uValueDeclaredOpeningSourceRef"
+        )
+        self._declared_opening_source_ref.setPlaceholderText(
+            "Manufacturer, product or document reference"
+        )
+        self._declared_opening_source_version = QLineEdit(declared_box)
+        self._declared_opening_source_version.setObjectName(
+            "uValueDeclaredOpeningSourceVersion"
+        )
+        self._declared_opening_source_version.setPlaceholderText(
+            "Edition / version (optional)"
+        )
+        declared_form.addRow("Type", self._declared_opening_type)
+        declared_form.addRow("Construction name", self._declared_opening_name)
+        declared_form.addRow(
+            "Declared whole-product U-value",
+            self._declared_opening_u_value,
+        )
+        declared_form.addRow("Source type", self._declared_opening_source_kind)
+        declared_form.addRow("Source reference", self._declared_opening_source_ref)
+        declared_form.addRow(
+            "Edition / version",
+            self._declared_opening_source_version,
+        )
+        declared_layout.addLayout(declared_form)
+        self._declared_opening_save_button = QPushButton(
+            "Save declared construction",
+            declared_box,
+        )
+        self._declared_opening_save_button.setObjectName(
+            "uValueDeclaredOpeningSaveButton"
+        )
+        self._declared_opening_status = QLabel(
+            "Enter a unique name, declared U-value and source reference.",
+            declared_box,
+        )
+        self._declared_opening_status.setObjectName(
+            "uValueDeclaredOpeningStatus"
+        )
+        self._declared_opening_status.setWordWrap(True)
+        declared_layout.addWidget(self._declared_opening_save_button)
+        declared_layout.addWidget(self._declared_opening_status)
+        root.addWidget(declared_box)
+        declared_box.setVisible(False)
+        self._declared_opening_toggle.toggled.connect(
+            self._on_declared_opening_toggled
+        )
+        self._declared_opening_save_button.clicked.connect(
+            self._on_save_declared_opening_requested
+        )
+
+        # --------------------------------------------------------------
         # Candidate-only layer/path teaching schematic
         # --------------------------------------------------------------
         self._teaching_toggle = QPushButton(
-            "Show layer/path modeller",
+            "▸ Show layer/path modeller",
             self,
         )
         self._teaching_toggle.setObjectName(
@@ -297,7 +414,7 @@ class UVPPanel(QWidget):
         teaching_layout.addWidget(teaching_scroll)
 
         self._teaching_property_toggle = QPushButton(
-            "Edit focused layer/path properties…",
+            "▸ Edit focused layer/path properties…",
             teaching_box,
         )
         self._teaching_property_toggle.setObjectName(
@@ -474,7 +591,7 @@ class UVPPanel(QWidget):
         property_layout.addWidget(property_scroll)
 
         self._teaching_property_reset = QPushButton(
-            "Reset candidate to selected teaching model",
+            "Reset to selected preset",
             property_box,
         )
         self._teaching_property_status = QLabel(
@@ -613,6 +730,9 @@ class UVPPanel(QWidget):
 
         root.addWidget(notes)
 
+        self._apply_uvp_button_hierarchy_v1()
+        self._set_assign_target_available_v1(False)
+
         # Spacer
         root.addItem(
             QSpacerItem(
@@ -621,6 +741,237 @@ class UVPPanel(QWidget):
                 QSizePolicy.Minimum,
                 QSizePolicy.Expanding,
             )
+        )
+
+    def _apply_uvp_button_hierarchy_v1(self) -> None:
+        """Give U-Values section controls and actions distinct visual roles."""
+        primary_actions = (
+            self._declared_opening_save_button,
+            self._member_spacing_apply,
+            self._teaching_layer_apply,
+            self._teaching_path_apply,
+            self._teaching_save_button,
+            self._assign_btn,
+        )
+        for button in primary_actions:
+            button.setProperty("uvpButtonRole", "primaryAction")
+            button.setMinimumHeight(34)
+            button.setMinimumWidth(230)
+            button.setMaximumWidth(360)
+            button.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+            parent_layout = button.parentWidget().layout()
+            if parent_layout is not None:
+                parent_layout.setAlignment(button, Qt.AlignRight)
+
+        self._teaching_property_reset.setProperty(
+            "uvpButtonRole",
+            "secondaryAction",
+        )
+        self._teaching_property_reset.setMinimumHeight(34)
+        self._teaching_property_reset.setMinimumWidth(230)
+        self._teaching_property_reset.setMaximumWidth(360)
+        self._teaching_property_reset.setSizePolicy(
+            QSizePolicy.Preferred,
+            QSizePolicy.Fixed,
+        )
+        reset_layout = self._teaching_property_reset.parentWidget().layout()
+        if reset_layout is not None:
+            reset_layout.setAlignment(
+                self._teaching_property_reset,
+                Qt.AlignRight,
+            )
+
+        for toggle in (
+            self._declared_opening_toggle,
+            self._teaching_toggle,
+            self._teaching_property_toggle,
+        ):
+            toggle.setProperty("uvpButtonRole", "sectionToggle")
+            toggle.setMinimumHeight(32)
+            toggle.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+
+        # Let each selector follow its longest current option.  This also
+        # responds when adapters later replace room or construction choices.
+        for combo in self.findChildren(QComboBox):
+            combo.setProperty("uvpControlRole", "contentSizedCombo")
+            combo.setSizeAdjustPolicy(
+                QComboBox.SizeAdjustPolicy.AdjustToContents
+            )
+            combo.setMinimumWidth(0)
+            combo.setMaximumWidth(16777215)
+            combo.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+            parent_layout = combo.parentWidget().layout()
+            if parent_layout is not None:
+                parent_layout.setAlignment(combo, Qt.AlignLeft)
+
+        # Declared-product entries need useful writing space, not the entire
+        # panel width.  Derive their widths from their prompt text so they
+        # remain sensible with the active application font.
+        declared_entry_widths = (
+            (self._declared_opening_name, 300, 440),
+            (self._declared_opening_source_ref, 360, 560),
+            (self._declared_opening_source_version, 230, 340),
+        )
+        for entry, minimum, maximum in declared_entry_widths:
+            prompt = entry.placeholderText() or ("M" * 24)
+            text_width = entry.fontMetrics().horizontalAdvance(prompt) + 36
+            entry.setFixedWidth(max(minimum, min(maximum, text_width)))
+
+        u_value_width = (
+            self._declared_opening_u_value.fontMetrics().horizontalAdvance(
+                "10.000 W/m²K"
+            )
+            + 42
+        )
+        self._declared_opening_u_value.setFixedWidth(max(160, u_value_width))
+
+        edit_u_value_width = self._u_spin.fontMetrics().horizontalAdvance(
+            "10.000"
+        ) + 42
+        self._u_spin.setFixedWidth(max(130, edit_u_value_width))
+
+        member_spacing_width = max(
+            150,
+            self._member_centres_mm.fontMetrics().horizontalAdvance(
+                "5000.0 mm"
+            )
+            + 42,
+        )
+        for member_spin in (
+            self._member_width_mm,
+            self._member_centres_mm,
+            self._member_declared_fraction,
+        ):
+            member_spin.setFixedWidth(member_spacing_width)
+            member_layout = member_spin.parentWidget().layout()
+            if member_layout is not None:
+                member_layout.setAlignment(member_spin, Qt.AlignLeft)
+
+        # Keep the remaining editable values close to the amount of text they
+        # are intended to hold.  Longer references and notes retain more room.
+        remaining_entry_widths = (
+            (self._teaching_save_name, 320, 440),
+            (self._layer_label_edit, 300, 440),
+            (self._layer_thickness_edit, 180, 240),
+            (self._layer_conductivity_edit, 180, 240),
+            (self._layer_declared_r_edit, 180, 240),
+            (self._layer_density_edit, 180, 240),
+            (self._layer_specific_heat_edit, 180, 240),
+            (self._layer_vapour_edit, 220, 320),
+            (self._layer_emissivity_edit, 180, 240),
+            (self._layer_absorptivity_edit, 180, 240),
+            (self._layer_temperature_edit, 220, 300),
+            (self._layer_moisture_edit, 260, 360),
+            (self._layer_source_ref_edit, 360, 560),
+            (self._layer_source_version_edit, 230, 340),
+            (self._layer_notes_edit, 420, 620),
+            (self._path_label_edit, 300, 440),
+            (self._path_fraction_edit, 180, 240),
+        )
+        for entry, minimum, maximum in remaining_entry_widths:
+            prompt = entry.placeholderText() or ("M" * 24)
+            text_width = entry.fontMetrics().horizontalAdvance(prompt) + 36
+            entry.setFixedWidth(max(minimum, min(maximum, text_width)))
+
+        self.setStyleSheet(
+            self.styleSheet()
+            + """
+            QLineEdit {
+                selection-background-color: #e5a24f;
+                selection-color: #202020;
+            }
+            QAbstractSpinBox QLineEdit {
+                selection-background-color: #e5a24f;
+                selection-color: #202020;
+            }
+            QPushButton[uvpButtonRole="primaryAction"] {
+                background-color: #2e7d32;
+                color: white;
+                border: 1px solid #1f5d27;
+                border-radius: 4px;
+                padding: 6px 14px;
+                font-weight: 600;
+            }
+            QPushButton[uvpButtonRole="primaryAction"]:hover {
+                background-color: #3b9145;
+                border-color: #1d5525;
+            }
+            QPushButton[uvpButtonRole="primaryAction"]:pressed {
+                background-color: #25652e;
+            }
+            QPushButton[uvpButtonRole="primaryAction"]:disabled {
+                background-color: #b8c1c8;
+                color: #eef1f3;
+                border-color: #a5afb7;
+            }
+            QPushButton[uvpButtonRole="secondaryAction"] {
+                background-color: #e8edf1;
+                color: #263b4d;
+                border: 1px solid #8fa1b0;
+                border-radius: 4px;
+                padding: 6px 14px;
+                font-weight: 600;
+            }
+            QPushButton[uvpButtonRole="secondaryAction"]:hover {
+                background-color: #d9e2e9;
+                border-color: #667f93;
+            }
+            QPushButton[uvpButtonRole="sectionToggle"] {
+                background-color: #dfe8ef;
+                color: #243746;
+                border: 1px solid #91a5b4;
+                border-radius: 3px;
+                padding: 5px 10px;
+                font-weight: 600;
+                text-align: left;
+            }
+            QPushButton[uvpButtonRole="sectionToggle"]:hover {
+                background-color: #d1dee8;
+                border-color: #6f899d;
+            }
+            QPushButton[uvpButtonRole="sectionToggle"]:checked {
+                background-color: #c7d8e5;
+                border-color: #5f7f97;
+            }
+            """
+        )
+
+        # Qt platform themes may ignore selected-text colours inherited from
+        # a parent stylesheet, especially inside QAbstractSpinBox.  Apply the
+        # readable focus palette to each real editor explicitly.
+        for editor in self.findChildren(QLineEdit):
+            # A widget-local declaration outranks the native Mint theme and
+            # any stylesheet later installed on MainWindow.
+            editor.setStyleSheet(
+                editor.styleSheet()
+                + " selection-background-color: #e0a15a;"
+                + " selection-color: #000000;"
+            )
+            palette = editor.palette()
+            for group in (
+                QPalette.ColorGroup.Active,
+                QPalette.ColorGroup.Inactive,
+                QPalette.ColorGroup.Disabled,
+            ):
+                palette.setColor(
+                    group,
+                    QPalette.ColorRole.Highlight,
+                    QColor("#e0a15a"),
+                )
+                palette.setColor(
+                    group,
+                    QPalette.ColorRole.HighlightedText,
+                    QColor("#000000"),
+                )
+            editor.setPalette(palette)
+
+    def _set_assign_target_available_v1(self, available: bool) -> None:
+        ready = bool(available)
+        self._assign_btn.setEnabled(ready)
+        self._assign_btn.setToolTip(
+            "Assign the selected construction to the focused surface"
+            if ready
+            else "Select a surface before assigning a construction"
         )
 
     # ------------------------------------------------------------------
@@ -672,6 +1023,31 @@ class UVPPanel(QWidget):
         )
         self._teaching_schematic.set_temperature_context(ti_C, te_C)
 
+    def set_declared_opening_save_result(
+        self,
+        *,
+        ready: bool,
+        status: str,
+        construction_id: str = "",
+        model_name: str = "",
+    ) -> None:
+        if ready:
+            self._declared_opening_status.setText(
+                f"Created “{model_name}” ({construction_id}) — available "
+                "for assignment."
+            )
+            self._declared_opening_status.setStyleSheet(
+                "color: #2e7d32; font-weight: 600;"
+            )
+            self._declared_opening_name.clear()
+            self._declared_opening_source_ref.clear()
+            self._declared_opening_source_version.clear()
+            return
+        self._declared_opening_status.setText(status)
+        self._declared_opening_status.setStyleSheet(
+            "color: #9b3a24; font-weight: 600;"
+        )
+
     def set_constructions(self, constructions: dict) -> None:
         self._construction_list.clear()
 
@@ -685,6 +1061,7 @@ class UVPPanel(QWidget):
 
     def set_selected_surface(self, surface_id: str | None) -> None:
         self._selected_surface_id = surface_id
+        self._set_assign_target_available_v1(bool(surface_id))
 
         # --------------------------------------------------
         # Visible selected surface target
@@ -741,6 +1118,26 @@ class UVPPanel(QWidget):
             if item.data(Qt.UserRole) == cid:
                 list_widget.setCurrentItem(item)
                 return
+
+    def set_selected_construction(
+        self,
+        cid: str,
+        u_value_W_m2K: float | None,
+    ) -> None:
+        """Project one complete construction focus without emitting intent."""
+        wanted = str(cid or "")
+        if not wanted:
+            return
+        for i in range(self._construction_list.count()):
+            item = self._construction_list.item(i)
+            if item.data(Qt.UserRole) != wanted:
+                continue
+            self._construction_list.blockSignals(True)
+            self._construction_list.setCurrentItem(item)
+            self._construction_list.blockSignals(False)
+            self._selected_cid = wanted
+            self.set_u_value(u_value_W_m2K)
+            return
 
     def highlight_construction(self, cid: str) -> None:
         for i in range(self._construction_list.count()):
@@ -914,17 +1311,17 @@ class UVPPanel(QWidget):
     def _on_teaching_workspace_toggled(self, expanded: bool) -> None:
         self._teaching_box.setVisible(bool(expanded))
         self._teaching_toggle.setText(
-            "Hide layer/path modeller"
+            "▾ Hide layer/path modeller"
             if expanded
-            else "Show layer/path modeller"
+            else "▸ Show layer/path modeller"
         )
 
     def _on_teaching_property_editor_toggled(self, expanded: bool) -> None:
         self._teaching_property_box.setVisible(bool(expanded))
         self._teaching_property_toggle.setText(
-            "Hide focused layer/path properties"
+            "▾ Hide focused layer/path properties"
             if expanded
-            else "Edit focused layer/path properties…"
+            else "▸ Edit focused layer/path properties…"
         )
 
     def _refresh_teaching_property_targets(self) -> None:
@@ -991,7 +1388,9 @@ class UVPPanel(QWidget):
         kind, item_id = self._teaching_schematic.focused_item()
         self._teaching_layer_editor.setVisible(False)
         self._teaching_path_editor.setVisible(False)
-        if evidence is None or not item_id:
+        has_focused_item = evidence is not None and bool(item_id)
+        self._teaching_property_scroll.setVisible(has_focused_item)
+        if not has_focused_item:
             self._teaching_property_status.setText(
                 "Select a layer token or path heading to edit its candidate "
                 "values."
@@ -1176,6 +1575,32 @@ class UVPPanel(QWidget):
         self._resize_teaching_schematic_viewport()
         self._refresh_teaching_property_targets()
         self._load_focused_property_fields()
+
+    def _on_declared_opening_toggled(self, expanded: bool) -> None:
+        self._declared_opening_box.setVisible(bool(expanded))
+        self._declared_opening_toggle.setText(
+            "▾ Hide declared window/door entry"
+            if expanded
+            else "▸ Show declared window/door entry"
+        )
+
+    def _on_save_declared_opening_requested(self) -> None:
+        self.declared_opening_construction_save_requested.emit(
+            {
+                "opening_type": str(
+                    self._declared_opening_type.currentData() or ""
+                ),
+                "name": self._declared_opening_name.text(),
+                "declared_u_value_W_m2K": float(
+                    self._declared_opening_u_value.value()
+                ),
+                "source_kind": str(
+                    self._declared_opening_source_kind.currentData() or ""
+                ),
+                "source_ref": self._declared_opening_source_ref.text(),
+                "source_version": self._declared_opening_source_version.text(),
+            }
+        )
 
     def _on_save_teaching_model_requested(self) -> None:
         evidence = self._teaching_schematic.candidate_evidence()
