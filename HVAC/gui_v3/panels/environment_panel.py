@@ -84,6 +84,7 @@ class EnvironmentPanel(QWidget):
 
     # H-S21-A — Hydronic design source inputs
     heat_source_room_changed = Signal(str)
+    heat_source_served_room_mode_changed = Signal(bool)
     design_flow_temp_changed = Signal(float)
     design_return_temp_changed = Signal(float)
 
@@ -183,11 +184,32 @@ class EnvironmentPanel(QWidget):
         )
         self._heat_source_room_input.setFixedWidth(235)
         self._heat_source_room_input.setToolTip(
-            "Room containing the hydronic heat source. "
-            "Route membership is edited separately."
+            "Available when 'In served room' is checked. Choosing "
+            "a host room does not alter route membership."
         )
         self._heat_source_room_input.currentIndexChanged.connect(
             self._emit_heat_source_room_changed
+        )
+
+        # H-S68-A2B — explicit served-room Heat Source mode.
+        self._heat_source_served_room_mode = QCheckBox(
+            "In served room",
+            self,
+        )
+        self._heat_source_served_room_mode.setObjectName(
+            "environmentHeatSourceServedRoomModeCheckBox"
+        )
+        self._heat_source_served_room_mode.setAccessibleName(
+            "Heat Source location"
+        )
+        self._heat_source_served_room_mode.setToolTip(
+            "Unchecked: remote Heat Source with no room assignment. "
+            "Checked: the Heat Source is installed in a served room; "
+            "choose its host room below. Route membership is never "
+            "changed here."
+        )
+        self._heat_source_served_room_mode.toggled.connect(
+            self.heat_source_served_room_mode_changed.emit
         )
 
         # H-S21-A — Hydronic design flow temperature
@@ -328,6 +350,9 @@ class EnvironmentPanel(QWidget):
         form_hydronic = QFormLayout()
         form_hydronic.setLabelAlignment(Qt.AlignLeft)
         form_hydronic.addRow(
+            self._heat_source_served_room_mode
+        )
+        form_hydronic.addRow(
             "Heat Source room",
             self._heat_source_room_input,
         )
@@ -445,24 +470,53 @@ class EnvironmentPanel(QWidget):
         self._ach_input.setValue(value if value is not None else 0.0)
         self._ach_input.blockSignals(False)
 
+    def set_heat_source_served_room_mode(
+        self,
+        served_room: bool,
+        *,
+        enabled: bool,
+    ) -> None:
+        checkbox = self._heat_source_served_room_mode
+        checkbox.blockSignals(True)
+        checkbox.setChecked(bool(served_room))
+        checkbox.setEnabled(bool(enabled))
+        checkbox.blockSignals(False)
+
     def set_heat_source_room_choices(
         self,
         choices: list[tuple[str, str]],
         selected_room_id: str,
         *,
         enabled: bool,
+        remote_mode: bool = False,
     ) -> None:
         combo = self._heat_source_room_input
         combo.blockSignals(True)
         combo.clear()
         for room_id, room_label in choices:
             combo.addItem(room_label, room_id)
-        selected_index = combo.findData(selected_room_id)
-        if selected_index < 0:
-            combo.insertItem(0, "Not assigned", "")
+        if remote_mode:
+            combo.insertItem(0, "Remote / no room", "")
             selected_index = 0
+        else:
+            selected_index = combo.findData(selected_room_id)
+            if selected_index < 0:
+                combo.insertItem(0, "Select Heat Source room", "")
+                selected_index = 0
         combo.setCurrentIndex(selected_index)
         combo.setEnabled(bool(enabled and choices))
+        combo.blockSignals(False)
+
+    def set_heat_source_room_selection(
+        self,
+        selected_room_id: str,
+    ) -> None:
+        combo = self._heat_source_room_input
+        selected_index = combo.findData(selected_room_id)
+        if selected_index < 0:
+            return
+        combo.blockSignals(True)
+        combo.setCurrentIndex(selected_index)
         combo.blockSignals(False)
 
     def _emit_heat_source_room_changed(self, *_args) -> None:

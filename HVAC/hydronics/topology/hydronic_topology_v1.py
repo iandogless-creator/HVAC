@@ -8,6 +8,22 @@ from dataclasses import dataclass, field
 from typing import Any
 
 
+# H-S68-A2A — persisted Heat Source location semantics.
+REMOTE_HEAT_SOURCE_LOCATION_MODE_V1 = "remote"
+SERVED_ROOM_HEAT_SOURCE_LOCATION_MODE_V1 = "served_room"
+HEAT_SOURCE_LOCATION_MODES_V1 = frozenset({
+    REMOTE_HEAT_SOURCE_LOCATION_MODE_V1,
+    SERVED_ROOM_HEAT_SOURCE_LOCATION_MODE_V1,
+})
+
+
+def normalise_heat_source_location_mode_v1(value: object) -> str:
+    stable = str(value or REMOTE_HEAT_SOURCE_LOCATION_MODE_V1).strip()
+    if stable not in HEAT_SOURCE_LOCATION_MODES_V1:
+        raise ValueError(f"Unknown Heat Source location mode: {stable!r}")
+    return stable
+
+
 # ======================================================================
 # HydronicSublegV1
 # ======================================================================
@@ -144,17 +160,45 @@ class HydronicTopologyV1:
 
     heat_source_room_id: str
     legs: list[HydronicLegV1] = field(default_factory=list)
+    # Kept after legs so existing positional (heat_source, legs) calls
+    # retain their meaning. Legacy payloads default to remote.
+    heat_source_location_mode: str = REMOTE_HEAT_SOURCE_LOCATION_MODE_V1
+
+    def __post_init__(self) -> None:
+        self.heat_source_location_mode = (
+            normalise_heat_source_location_mode_v1(
+                self.heat_source_location_mode
+            )
+        )
+
+    @property
+    def heat_source_is_served_room(self) -> bool:
+        return (
+            normalise_heat_source_location_mode_v1(
+                self.heat_source_location_mode
+            )
+            == SERVED_ROOM_HEAT_SOURCE_LOCATION_MODE_V1
+        )
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "heat_source_room_id": self.heat_source_room_id,
             "legs": [leg.to_dict() for leg in self.legs],
+            "heat_source_location_mode": (
+                self.heat_source_location_mode
+            ),
         }
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "HydronicTopologyV1":
         return cls(
             heat_source_room_id=str(data.get("heat_source_room_id", "")),
+            heat_source_location_mode=normalise_heat_source_location_mode_v1(
+                data.get(
+                    "heat_source_location_mode",
+                    REMOTE_HEAT_SOURCE_LOCATION_MODE_V1,
+                )
+            ),
             legs=[
                 HydronicLegV1.from_dict(leg_data)
                 for leg_data in (data.get("legs", []) or [])

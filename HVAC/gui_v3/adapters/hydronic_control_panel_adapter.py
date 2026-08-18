@@ -13,6 +13,12 @@ from HVAC.hydronics.adapters.emitter_candidate_builder_v1 import (
     EmitterCandidateBuilderV1,
 )
 from HVAC.core.room_identity import room_short_label
+from HVAC.heatloss.physics.room_paired_pipe_length_intent_v1 import (
+    RoomPairedPipeLengthIntentV1,
+)
+from HVAC.hydronics.topology.topology_unassigned_room_inventory_v1 import (
+    build_topology_unassigned_room_inventory_v1,
+)
 # ======================================================================
 # HydronicControlPanelAdapter
 # ======================================================================
@@ -59,6 +65,10 @@ class HydronicControlPanelAdapter:
         self._panel.emitter_selected.connect(
             self._on_emitter_selected
         )
+        self._panel.room_selected.connect(self._on_room_selected)
+        self._panel.room_pipe_length_changed.connect(
+            self._on_room_pipe_length_changed
+        )
         self._default_emitters_bootstrapped = False
         self._refresh_all = refresh_all
         self.refresh()
@@ -98,6 +108,9 @@ class HydronicControlPanelAdapter:
         if current_room_id:
             self._panel.set_active_room(current_room_id)
 
+        active_room_id = current_room_id or self._panel.current_room_id()
+        self._project_room_pipework(active_room_id)
+
         self._panel.set_emitters(self._emitter_options())
 
         current_emitter_id = self._panel.current_emitter_id()
@@ -109,6 +122,120 @@ class HydronicControlPanelAdapter:
             return
 
         self._panel.set_no_existing_emitter()
+
+    # ------------------------------------------------------------------
+    # H-S68-B2 — room-centric paired-pipe projection
+    # ------------------------------------------------------------------
+
+    def _room_pipework_applicability(
+            self,
+            room_id: str,
+    ) -> tuple[bool, bool]:
+        topology = getattr(self._project_state, "hydronic_topology", None)
+        heat_source_room_id = str(
+            getattr(topology, "heat_source_room_id", "") or ""
+        )
+        is_heat_source_room = bool(
+            room_id and room_id == heat_source_room_id
+        )
+        is_terminal_room = False
+
+        inventory = build_topology_unassigned_room_inventory_v1(
+            self._project_state
+        )
+        if getattr(inventory, "ready", False):
+            row = next(
+                (
+                    item
+                    for item in getattr(inventory, "rows", ())
+                    if str(getattr(item, "room_id", "") or "") == room_id
+                ),
+                None,
+            )
+            is_terminal_room = bool(
+                getattr(row, "is_terminal", False)
+            )
+        else:
+            # H-S68-B2C — blocked inventory fallback.  Use only exact
+            # endpoints already stored on the accepted topology.  This is
+            # read-only evidence: it neither migrates nor repairs topology.
+            is_terminal_room = room_id in (
+                self._stored_topology_terminal_room_ids(topology)
+            )
+
+        return is_heat_source_room, is_terminal_room
+
+    @staticmethod
+    def _stored_topology_terminal_room_ids(topology: Any) -> set[str]:
+        terminal_room_ids: set[str] = set()
+
+        def collect_route(owner: Any) -> None:
+            route_room_ids = [
+                str(value)
+                for value in (
+                    getattr(owner, "route_room_ids", []) or []
+                )
+                if str(value)
+            ]
+            if route_room_ids:
+                terminal_room_ids.add(route_room_ids[-1])
+            for child in getattr(owner, "sublegs", []) or []:
+                collect_route(child)
+
+        for leg in getattr(topology, "legs", []) or []:
+            # Retain the legacy Leg endpoint during the current compatibility
+            # period, then collect every stored Principal/Branch endpoint.
+            legacy_route_room_ids = [
+                str(value)
+                for value in (
+                    getattr(leg, "route_room_ids", []) or []
+                )
+                if str(value)
+            ]
+            if legacy_route_room_ids:
+                terminal_room_ids.add(legacy_route_room_ids[-1])
+            for subleg in getattr(leg, "sublegs", []) or []:
+                collect_route(subleg)
+
+        return terminal_room_ids
+
+    def _project_room_pipework(self, room_id: str) -> None:
+        room_id = str(room_id or "")
+        intent = getattr(
+            self._project_state,
+            "hydronic_room_paired_pipe_length_intent",
+            None,
+        )
+        entry = (
+            intent.lengths_by_room_id.get(room_id)
+            if isinstance(intent, RoomPairedPipeLengthIntentV1)
+            else None
+        )
+        is_heat_source_room, is_terminal_room = (
+            self._room_pipework_applicability(room_id)
+            if room_id
+            else (False, False)
+        )
+        before_enabled = bool(room_id) and not is_heat_source_room
+        after_enabled = before_enabled and not is_terminal_room
+
+        self._panel.set_room_pipework_projection(
+            room_id=room_id,
+            before_emitter_length_m=(
+                getattr(entry, "before_emitter_length_m", None)
+                if before_enabled
+                else None
+            ),
+            after_emitter_length_m=(
+                getattr(entry, "after_emitter_length_m", None)
+                if after_enabled
+                else None
+            ),
+            before_enabled=before_enabled,
+            after_enabled=after_enabled,
+            is_heat_source_room=is_heat_source_room,
+            is_terminal_room=is_terminal_room,
+        )
 
     def _room_options(self) -> list[tuple[str, str]]:
         rooms = getattr(self._project_state, "rooms", {}) or {}
@@ -161,6 +288,90 @@ class HydronicControlPanelAdapter:
             options.append((emitter_id, label))
 
         return options
+
+    def _on_room_selected(self, room_id: str) -> None:
+        room_id = str(room_id or "")
+        if not room_id:
+            return
+        context = getattr(self, "_context", None)
+        set_current_room = getattr(context, "set_current_room", None)
+        if callable(set_current_room):
+            set_current_room(room_id)
+        self.refresh()
+
+    def _on_room_pipe_length_changed(
+            self,
+            room_id: str,
+            position: str,
+            length_m: object,
+    ) -> None:
+        room_id = str(room_id or "")
+        position = str(position or "")
+        rooms = getattr(self._project_state, "rooms", {}) or {}
+        if room_id not in rooms or position not in {"before", "after"}:
+            return
+
+        is_heat_source_room, is_terminal_room = (
+            self._room_pipework_applicability(room_id)
+        )
+        if is_heat_source_room:
+            self._project_room_pipework(room_id)
+            self._panel.set_status(
+                "Room pipework is not entered for the Heat Source room."
+            )
+            return
+        if position == "after" and is_terminal_room:
+            self._project_room_pipework(room_id)
+            self._panel.set_status(
+                "After-emitter pipework is not entered for a terminal room."
+            )
+            return
+
+        intent = getattr(
+            self._project_state,
+            "hydronic_room_paired_pipe_length_intent",
+            None,
+        )
+        if not isinstance(intent, RoomPairedPipeLengthIntentV1):
+            intent = RoomPairedPipeLengthIntentV1()
+
+        current = intent.lengths_by_room_id.get(room_id)
+        before_m = getattr(current, "before_emitter_length_m", None)
+        after_m = getattr(current, "after_emitter_length_m", None)
+        if position == "before":
+            before_m = length_m
+        else:
+            after_m = length_m
+
+        try:
+            intent.set_room_lengths(
+                room_id=room_id,
+                before_emitter_length_m=before_m,
+                after_emitter_length_m=after_m,
+            )
+        except (TypeError, ValueError) as exc:
+            self._project_room_pipework(room_id)
+            self._panel.set_status(f"Cannot save room pipework: {exc}")
+            return
+
+        self._project_state.hydronic_room_paired_pipe_length_intent = (
+            intent if intent.lengths_by_room_id else None
+        )
+        mark_dirty = getattr(
+            self._project_state,
+            "mark_hydronics_dirty",
+            None,
+        )
+        if callable(mark_dirty):
+            mark_dirty()
+
+        self._project_room_pipework(room_id)
+        if self._refresh_all is not None:
+            self._refresh_all()
+        action = "Cleared" if length_m is None else "Saved"
+        self._panel.set_status(
+            f"{action} {position}-emitter room pipework."
+        )
 
     def _on_emitter_selected(self, emitter_id: str) -> None:
         emitter_id = str(emitter_id or "")

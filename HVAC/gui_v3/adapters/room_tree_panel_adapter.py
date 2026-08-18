@@ -8,9 +8,15 @@
 
 from __future__ import annotations
 
+from PySide6.QtWidgets import QMessageBox
+
 from HVAC.gui_v3.context.gui_project_context import GuiProjectContext
 from HVAC.gui_v3.panels.room_tree_panel import RoomTreePanel
 from HVAC.core.room_identity import room_short_label
+from HVAC.project.guarded_room_deletion_v1 import (
+    build_guarded_room_deletion_plan_v1,
+    delete_room_guarded_v1,
+)
 
 class RoomTreePanelAdapter:
     """
@@ -41,6 +47,9 @@ class RoomTreePanelAdapter:
 
         # GUI → context
         self._panel.room_selected.connect(self._on_room_selected)
+        self._panel.room_remove_requested.connect(
+            self._on_room_remove_requested
+        )
 
         # context → GUI
         # context → GUI
@@ -104,3 +113,47 @@ class RoomTreePanelAdapter:
         Room selection changed elsewhere (bootstrap, programmatic).
         """
         self._panel.set_active_room(room_id)
+
+    def _on_room_remove_requested(self, room_id: str | None) -> None:
+        ps = self._context.project_state
+        if ps is None or not room_id:
+            return
+
+        plan = build_guarded_room_deletion_plan_v1(ps, room_id)
+        if not plan.ready:
+            QMessageBox.warning(
+                self._panel,
+                "Remove Room",
+                "Room cannot be removed:\n\n"
+                + "\n".join(f"• {reason}" for reason in plan.blockers),
+            )
+            return
+
+        room = ps.rooms.get(room_id)
+        room_label = room_short_label(room_id, room)
+        answer = QMessageBox.question(
+            self._panel,
+            "Remove Room",
+            f"Remove {room_label}?\n\n"
+            "Its room-owned surfaces and opening schedule will also be removed.",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
+        )
+        if answer != QMessageBox.Yes:
+            return
+
+        ordered_room_ids = list(ps.rooms)
+        removed_index = ordered_room_ids.index(room_id)
+        remaining_room_ids = [
+            candidate
+            for candidate in ordered_room_ids
+            if candidate != room_id
+        ]
+        next_room_id = remaining_room_ids[
+            min(removed_index, len(remaining_room_ids) - 1)
+        ]
+
+        self._context.set_current_room(None)
+        delete_room_guarded_v1(ps, room_id)
+        self._context.notify_project_changed()
+        self._context.set_current_room(next_room_id)

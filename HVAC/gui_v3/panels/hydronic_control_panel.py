@@ -48,6 +48,9 @@ class HydronicControlPanel(QWidget):
     update_emitter_requested = Signal(dict)
     remove_emitter_requested = Signal(str)  # emitter_id
     emitter_selected = Signal(str)  # emitter_id
+    # H-S68-B2 — room focus and live paired-pipe intent only.
+    room_selected = Signal(str)  # room_id
+    room_pipe_length_changed = Signal(str, str, object)  # room, position, m | None
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
@@ -91,6 +94,33 @@ class HydronicControlPanel(QWidget):
         self._design_output_W.setSuffix(" W")
         self._design_output_W.setSpecialValueText("—")
 
+        # H-S68-B2 — sparse room-level paired flow/return route lengths.
+        self._before_emitter_length_m = QDoubleSpinBox()
+        self._before_emitter_length_m.setObjectName(
+            "hydronicRoomPipeworkBeforeInput"
+        )
+        self._before_emitter_length_m.setRange(-0.01, 1000.0)
+        self._before_emitter_length_m.setDecimals(2)
+        self._before_emitter_length_m.setSingleStep(0.10)
+        self._before_emitter_length_m.setSuffix(" m")
+        self._before_emitter_length_m.setSpecialValueText("—")
+        self._before_emitter_length_m.setValue(-0.01)
+        self._before_emitter_length_m.setMaximumWidth(120)
+        self._before_emitter_length_m.setKeyboardTracking(False)
+
+        self._after_emitter_length_m = QDoubleSpinBox()
+        self._after_emitter_length_m.setObjectName(
+            "hydronicRoomPipeworkAfterInput"
+        )
+        self._after_emitter_length_m.setRange(-0.01, 1000.0)
+        self._after_emitter_length_m.setDecimals(2)
+        self._after_emitter_length_m.setSingleStep(0.10)
+        self._after_emitter_length_m.setSuffix(" m")
+        self._after_emitter_length_m.setSpecialValueText("—")
+        self._after_emitter_length_m.setValue(-0.01)
+        self._after_emitter_length_m.setMaximumWidth(120)
+        self._after_emitter_length_m.setKeyboardTracking(False)
+
         self._flow_temp_C = QDoubleSpinBox()
         self._flow_temp_C.setRange(0.0, 100.0)
         self._flow_temp_C.setDecimals(1)
@@ -112,6 +142,21 @@ class HydronicControlPanel(QWidget):
         form.addRow("Emitter type:", self._emitter_type)
         form.addRow("Quantity:", self._quantity)
         form.addRow("Design output:", self._design_output_W)
+
+        self._room_pipework_heading = QLabel("Room pipework")
+        self._room_pipework_heading.setStyleSheet("font-weight: 700;")
+        form.addRow(self._room_pipework_heading)
+        self._before_emitter_label = QLabel("Before emitter:")
+        self._after_emitter_label = QLabel("After emitter:")
+        form.addRow(
+            self._before_emitter_label,
+            self._before_emitter_length_m,
+        )
+        form.addRow(
+            self._after_emitter_label,
+            self._after_emitter_length_m,
+        )
+
         form.addRow("Legacy emitter flow override:", self._flow_temp_C)
         form.addRow("Legacy emitter return override:", self._return_temp_C)
 
@@ -146,6 +191,13 @@ class HydronicControlPanel(QWidget):
         self._add_btn.clicked.connect(self._emit_add_requested)
         self._update_btn.clicked.connect(self._emit_update_requested)
         self._remove_btn.clicked.connect(self._emit_remove_requested)
+        self._room_combo.currentIndexChanged.connect(self._emit_room_selected)
+        self._before_emitter_length_m.editingFinished.connect(
+            lambda: self._emit_room_pipe_length_changed("before")
+        )
+        self._after_emitter_length_m.editingFinished.connect(
+            lambda: self._emit_room_pipe_length_changed("after")
+        )
         self._emitter_combo.currentIndexChanged.connect(
         self._emit_emitter_selected
     )
@@ -261,6 +313,82 @@ class HydronicControlPanel(QWidget):
         finally:
             self._room_combo.blockSignals(False)
 
+    def set_room_pipework_projection(
+            self,
+            *,
+            room_id: str,
+            before_emitter_length_m: float | None,
+            after_emitter_length_m: float | None,
+            before_enabled: bool,
+            after_enabled: bool,
+            is_heat_source_room: bool,
+            is_terminal_room: bool,
+    ) -> None:
+        """Project room pipework evidence without owning its authority."""
+
+        before_help = (
+            "Paired flow/return route distance in this room before the "
+            "emitter. Enter the route distance once; it is not the sum of "
+            "both pipes."
+        )
+        after_help = (
+            "Paired flow/return route distance in this room after the "
+            "emitter. Enter the route distance once; it is not the sum of "
+            "both pipes."
+        )
+        if not room_id:
+            reason = "Select a room first."
+            before_help += f"\n\n{reason}"
+            after_help += f"\n\n{reason}"
+        elif is_heat_source_room:
+            reason = "Room pipework is not entered for the Heat Source room."
+            before_help += f"\n\n{reason}"
+            after_help += f"\n\n{reason}"
+        elif is_terminal_room:
+            after_help += (
+                "\n\nAfter-emitter pipework is not entered for a terminal room."
+            )
+
+        self._is_priming = True
+        self._before_emitter_length_m.blockSignals(True)
+        self._after_emitter_length_m.blockSignals(True)
+        try:
+            self._before_emitter_length_m.setValue(
+                -0.01
+                if before_emitter_length_m is None
+                else float(before_emitter_length_m)
+            )
+            self._after_emitter_length_m.setValue(
+                -0.01
+                if after_emitter_length_m is None
+                else float(after_emitter_length_m)
+            )
+            self._before_emitter_length_m.setEnabled(bool(before_enabled))
+            self._after_emitter_length_m.setEnabled(bool(after_enabled))
+            # H-S68-B2B — make hover help reachable from the spin-box
+            # text area and from the still-enabled row label when an input
+            # is disabled by topology.
+            before_targets = (
+                self._before_emitter_label,
+                self._before_emitter_length_m,
+                self._before_emitter_length_m.lineEdit(),
+            )
+            after_targets = (
+                self._after_emitter_label,
+                self._after_emitter_length_m,
+                self._after_emitter_length_m.lineEdit(),
+            )
+            for target in before_targets:
+                target.setToolTip(before_help)
+                target.setToolTipDuration(12000)
+            for target in after_targets:
+                target.setToolTip(after_help)
+                target.setToolTipDuration(12000)
+        finally:
+            self._after_emitter_length_m.blockSignals(False)
+            self._before_emitter_length_m.blockSignals(False)
+            self._is_priming = False
+
     def set_emitters(self, emitters: list[tuple[str, str]]) -> None:
         """
         Observer projection.
@@ -327,6 +455,31 @@ class HydronicControlPanel(QWidget):
     # ------------------------------------------------------------------
     # Intent emitters
     # ------------------------------------------------------------------
+
+    def _emit_room_selected(self) -> None:
+        if self._is_priming:
+            return
+        room_id = self.current_room_id()
+        if room_id:
+            self.room_selected.emit(room_id)
+
+    def _emit_room_pipe_length_changed(self, position: str) -> None:
+        if self._is_priming:
+            return
+        room_id = self.current_room_id()
+        if not room_id:
+            return
+        input_widget = (
+            self._before_emitter_length_m
+            if position == "before"
+            else self._after_emitter_length_m
+        )
+        value = float(input_widget.value())
+        self.room_pipe_length_changed.emit(
+            room_id,
+            position,
+            None if value < 0.0 else value,
+        )
 
     def _emit_add_requested(self) -> None:
         if self._is_priming:

@@ -62,9 +62,22 @@ def validate_canonical_hydronic_topology_v1(
     )
 
     heat_source_room_id = str(topology.heat_source_room_id or "").strip()
-    if not heat_source_room_id:
-        blockers.append("Heat-source room identity is required")
-    elif known_rooms is not None and heat_source_room_id not in known_rooms:
+    try:
+        heat_source_is_served_room = topology.heat_source_is_served_room
+    except ValueError as exc:
+        blockers.append(str(exc))
+        # Fail closed: an unknown mode retains remote-source rules.
+        heat_source_is_served_room = False
+
+    if heat_source_is_served_room and not heat_source_room_id:
+        blockers.append(
+            "Served-room Heat Source requires a host-room identity"
+        )
+    elif (
+        heat_source_room_id
+        and known_rooms is not None
+        and heat_source_room_id not in known_rooms
+    ):
         blockers.append(
             f"Unknown heat-source room identity: {heat_source_room_id}"
         )
@@ -136,7 +149,10 @@ def validate_canonical_hydronic_topology_v1(
             else:
                 room_owner_by_id[room_id] = display_id
 
-            if room_id == heat_source_room_id:
+            if (
+                room_id == heat_source_room_id
+                and not heat_source_is_served_room
+            ):
                 blockers.append(
                     f"{display_id}: heat-source room cannot be a served route room"
                 )

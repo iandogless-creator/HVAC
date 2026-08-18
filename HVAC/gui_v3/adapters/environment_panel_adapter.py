@@ -4,6 +4,11 @@
 
 from __future__ import annotations
 
+from HVAC.hydronics.topology.hydronic_topology_v1 import (
+    REMOTE_HEAT_SOURCE_LOCATION_MODE_V1,
+    SERVED_ROOM_HEAT_SOURCE_LOCATION_MODE_V1,
+)
+
 from HVAC.core.environment_state import EnvironmentStateV1
 from HVAC.gui_v3.context.gui_project_context import GuiProjectContext
 from HVAC.gui_v3.panels.environment_panel import EnvironmentPanel
@@ -41,6 +46,9 @@ class EnvironmentPanelAdapter:
         panel.default_ach_changed.connect(self._on_default_ach_changed)
         panel.heat_source_room_changed.connect(
             self._on_heat_source_room_changed
+        )
+        panel.heat_source_served_room_mode_changed.connect(
+            self._on_heat_source_served_room_mode_changed
         )
         panel.design_flow_temp_changed.connect(self._on_design_flow_temp_changed)
         panel.design_return_temp_changed.connect(self._on_design_return_temp_changed)
@@ -101,10 +109,25 @@ class EnvironmentPanelAdapter:
             )
             for room_id, room in (getattr(ps, "rooms", {}) or {}).items()
         ]
+        has_location_mode = bool(
+            topology is not None
+            and hasattr(topology, "heat_source_location_mode")
+        )
+        served_room_mode = bool(
+            getattr(topology, "heat_source_is_served_room", False)
+        )
+        self._panel.set_heat_source_served_room_mode(
+            served_room_mode,
+            enabled=topology is not None,
+        )
         self._panel.set_heat_source_room_choices(
             room_choices,
             str(getattr(topology, "heat_source_room_id", "") or ""),
-            enabled=topology is not None,
+            enabled=bool(
+                topology is not None
+                and (served_room_mode or not has_location_mode)
+            ),
+            remote_mode=bool(has_location_mode and not served_room_mode),
         )
 
         self._panel.set_design_flow_temp(
@@ -214,17 +237,73 @@ class EnvironmentPanelAdapter:
     # H-S68-A — Hydronic heat-source room authority
     # ------------------------------------------------------------------
 
+    @staticmethod
+    def _room_is_on_served_route(
+        topology,
+        room_id: str,
+    ) -> bool:
+        # H-S68-A SimpleNamespace fixtures pre-date location mode and
+        # retain their original selector behaviour.
+        if not hasattr(topology, "heat_source_location_mode"):
+            return False
+        route_room_ids = getattr(topology, "all_route_room_ids", None)
+        if not callable(route_room_ids):
+            return False
+        return room_id in {str(value) for value in route_room_ids()}
+
     def _on_heat_source_room_changed(self, room_id: str) -> None:
         project = self._context.project_state
         topology = getattr(project, "hydronic_topology", None)
         if topology is None or room_id not in project.rooms:
             return
-        if str(getattr(topology, "heat_source_room_id", "") or "") == room_id:
+        current_room_id = str(
+            getattr(topology, "heat_source_room_id", "") or ""
+        )
+        if current_room_id == room_id:
+            return
+
+        if (
+            getattr(topology, "heat_source_location_mode", None)
+            == REMOTE_HEAT_SOURCE_LOCATION_MODE_V1
+            and self._room_is_on_served_route(topology, room_id)
+        ):
+            self._panel.set_heat_source_room_selection(current_room_id)
             return
 
         topology.heat_source_room_id = room_id
         project.hydronics_valid = False
 
+        self._context.environment_changed.emit()
+        self._context.project_changed.emit()
+
+    def _on_heat_source_served_room_mode_changed(
+        self,
+        served_room: bool,
+    ) -> None:
+        project = self._context.project_state
+        topology = getattr(project, "hydronic_topology", None)
+        if topology is None:
+            return
+
+        next_mode = (
+            SERVED_ROOM_HEAT_SOURCE_LOCATION_MODE_V1
+            if served_room
+            else REMOTE_HEAT_SOURCE_LOCATION_MODE_V1
+        )
+        current_mode = str(
+            getattr(topology, "heat_source_location_mode", "") or ""
+        )
+        if current_mode == next_mode:
+            return
+
+        topology.heat_source_location_mode = next_mode
+        if next_mode == REMOTE_HEAT_SOURCE_LOCATION_MODE_V1:
+            # Clear only the Heat Source host reference. The room itself,
+            # its emitter and every route membership remain untouched.
+            topology.heat_source_room_id = ""
+        project.hydronics_valid = False
+
+        self.refresh()
         self._context.environment_changed.emit()
         self._context.project_changed.emit()
 

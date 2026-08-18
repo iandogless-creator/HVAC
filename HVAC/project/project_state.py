@@ -78,6 +78,11 @@ from HVAC.heatloss.physics.committed_pipe_section_room_mapping_intent_v1 import 
     committed_pipe_section_room_mapping_intent_from_dict_v1,
     committed_pipe_section_room_mapping_intent_to_dict_v1,
 )
+from HVAC.heatloss.physics.room_paired_pipe_length_intent_v1 import (
+    RoomPairedPipeLengthIntentV1,
+    room_paired_pipe_length_intent_from_dict_v1,
+    room_paired_pipe_length_intent_to_dict_v1,
+)
 from HVAC.hydronics.topology.hydronic_topology_v1 import HydronicTopologyV1
 # ======================================================================
 # Hydronics emitter serialization
@@ -254,6 +259,10 @@ class ProjectState:
     # H-S66-N3B — sparse exact-section room location intent.
     hydronic_committed_pipe_section_room_mapping_intent: Optional[
         CommittedPipeSectionRoomMappingIntentV1
+    ] = None
+    # H-S68-B1 — sparse preliminary room-centric paired-pipe lengths.
+    hydronic_room_paired_pipe_length_intent: Optional[
+        RoomPairedPipeLengthIntentV1
     ] = None
 
     # ------------------------------------------------------------------
@@ -567,6 +576,13 @@ class ProjectState:
                 if self.hydronic_committed_pipe_section_room_mapping_intent
                 else None
             ),
+            "hydronic_room_paired_pipe_length_intent": (
+                room_paired_pipe_length_intent_to_dict_v1(
+                    self.hydronic_room_paired_pipe_length_intent
+                )
+                if self.hydronic_room_paired_pipe_length_intent
+                else None
+            ),
             "hydronics": {
                 "valid": self.hydronics_valid,
                 "results": _json_safe(self.hydronics_results),
@@ -799,6 +815,16 @@ class ProjectState:
             instance.hydronic_committed_pipe_section_room_mapping_intent = (
                 committed_pipe_section_room_mapping_intent_from_dict_v1(
                     raw_pipe_section_room_mapping_intent
+                )
+            )
+
+        raw_room_paired_pipe_length_intent = data.get(
+            "hydronic_room_paired_pipe_length_intent"
+        )
+        if isinstance(raw_room_paired_pipe_length_intent, dict):
+            instance.hydronic_room_paired_pipe_length_intent = (
+                room_paired_pipe_length_intent_from_dict_v1(
+                    raw_room_paired_pipe_length_intent
                 )
             )
 
