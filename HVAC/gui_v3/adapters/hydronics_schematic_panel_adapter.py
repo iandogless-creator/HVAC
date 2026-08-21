@@ -2455,68 +2455,15 @@ class HydronicsSchematicPanelAdapter:
         self._restore_rr_manual_extra_length_to_panel()
 
         """
-        Hydronics schematic panel refresh.
+        Downstream Hydronics workspace refresh.
 
-        Projection only:
-        • demand summary
-        • hydronic skeleton
-        • pipe-run intent
-        • index route accumulator
-        • index route pipe size suggestion
-        • linear index route trace
-        • basic hydronics worksheet
-        • legacy schematic DTO if available
+        Projection only; Basic Hydronics owns the first-pass setup
+        and read-only Basic PS evidence.
 
         No ProjectState mutation.
         No emitter creation.
         No hydronic physics.
         """
-
-        # --------------------------------------------------
-        # Emitter demand summary
-        # --------------------------------------------------
-        demand_rows = RoomEmitterDemandAdapterV1().build_rows(
-            self._project_state
-        )
-        self._panel.set_emitter_demand_rows(demand_rows)
-
-        # --------------------------------------------------
-        # Hydronic skeleton
-        # --------------------------------------------------
-        skeleton = build_hydronic_skeleton_from_project_state_v1(
-            self._project_state
-        )
-        self._panel.set_hydronic_skeleton_rows(
-            self._build_skeleton_rows(skeleton)
-        )
-
-        # --------------------------------------------------
-        # Pipe-run intent
-        # --------------------------------------------------
-        pipe_runs = build_pipe_run_intents_from_skeleton_v1(skeleton)
-        self._panel.set_pipe_run_intent_rows(
-            self._build_pipe_run_rows(skeleton, pipe_runs)
-        )
-
-        # --------------------------------------------------
-        # Pipe authority summary
-        # --------------------------------------------------
-        index_route = build_index_route_accumulator_v1(
-            self._project_state
-        )
-
-        pipe_authority_summary = build_pipe_authority_summary_v1(
-            project_state=self._project_state,
-            skeleton=skeleton,
-            pipe_runs=pipe_runs,
-            index_route=index_route,
-        )
-
-        self._panel.set_pipe_authority_summary_rows(
-            self._build_pipe_authority_summary_rows(
-                pipe_authority_summary
-            )
-        )
 
         # --------------------------------------------------
         # Proportioning readiness
@@ -2750,15 +2697,6 @@ class HydronicsSchematicPanelAdapter:
         self._panel.set_proportioning_schematic(proportioning_schematic)
 
         # --------------------------------------------------
-        # Leg / subleg topology
-        # --------------------------------------------------
-        leg_subleg_topology = build_leg_subleg_topology_v1(
-            self._project_state
-        )
-        self._panel.set_leg_subleg_topology_rows(
-            self._build_leg_subleg_topology_rows(leg_subleg_topology)
-        )
-        # --------------------------------------------------
         # H-S19-J — DEV common-main / leg / subleg topology
         # --------------------------------------------------
         common_main_leg_subleg_rows = []
@@ -2869,34 +2807,6 @@ class HydronicsSchematicPanelAdapter:
             )
 
         # --------------------------------------------------
-        # Index route accumulator
-        # --------------------------------------------------
-
-        self._panel.set_index_route_accumulator_rows(
-            self._build_index_route_rows(index_route)
-        )
-
-        # --------------------------------------------------
-        # Index route pipe size suggestion
-        # --------------------------------------------------
-        pipe_size_suggestion = build_basic_pipe_size_suggestion_v1(
-            self._project_state
-        )
-        self._panel.set_pipe_size_suggestion_rows(
-            self._build_pipe_size_suggestion_rows(pipe_size_suggestion)
-        )
-
-        # --------------------------------------------------
-        # Linear index route trace
-        # --------------------------------------------------
-        self._panel.set_index_route_trace(
-            **self._build_index_route_trace(
-                index_route,
-                pipe_size_suggestion,
-            )
-        )
-
-        # --------------------------------------------------
         # H-S25-F — Final Proportioning snapshot refresh
         # --------------------------------------------------
         # Some Proportioning preview tables depend on several row feeds:
@@ -2914,42 +2824,11 @@ class HydronicsSchematicPanelAdapter:
         )
 
         # --------------------------------------------------
-        # Basic hydronics worksheet
-        # --------------------------------------------------
-        worksheet = build_basic_hydronics_worksheet_v1(
-            self._project_state
-        )
-        sizing_suggestion = build_emitter_sizing_suggestion_v1(
-            self._project_state,
-            allowance_percent=self._resolve_emitter_allowance_percent(),
-            rounding_step_W=50.0,
-        )
-
-        self._panel.set_basic_hydronics_worksheet_rows(
-            self._build_basic_hydronics_rows(
-                worksheet,
-                sizing_suggestion,
-            )
-        )
-
-        # --------------------------------------------------
         # H-S36-A1 — explicit section-evidence delivery
         # --------------------------------------------------
         # Run after the adapter pass has assembled its read-only evidence.
         # This is display wiring only; no calculation or ProjectState change.
         self._push_clean_proportioned_focused_section_source_rows_v1()
-
-        # --------------------------------------------------
-        # Legacy drawn topology schematic
-        # --------------------------------------------------
-        snapshot = self._resolve_topology_snapshot()
-
-        if snapshot is None:
-            self._panel.render_empty_state()
-            return
-
-        dto = self._build_schematic_dto(snapshot)
-        self._panel._set_schematic(dto)
 
     # --------------------------------------------------
     # H-S27-B — Proportioned resolved return-arrangement basis rows

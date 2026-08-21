@@ -4,7 +4,7 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import Signal
+from PySide6.QtCore import Signal, Qt
 from PySide6.QtWidgets import (
     QWidget,
     QVBoxLayout,
@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
     QSpinBox,
     QDoubleSpinBox,
     QPushButton,
+    QToolButton,
     QHBoxLayout,
 )
 
@@ -65,17 +66,27 @@ class HydronicControlPanel(QWidget):
 
     def _build_ui(self) -> None:
         root = QVBoxLayout(self)
+        root.setContentsMargins(10, 8, 10, 8)
+        root.setSpacing(5)
 
         title = QLabel("Hydronic emitters")
-        title.setStyleSheet("font-weight: 700; padding: 6px;")
+        title.setStyleSheet("font-weight: 700; padding: 2px;")
         root.addWidget(title)
 
         form = QFormLayout()
+        form.setFieldGrowthPolicy(
+            QFormLayout.FieldGrowthPolicy.FieldsStayAtSizeHint
+        )
+        form.setHorizontalSpacing(10)
+        form.setVerticalSpacing(5)
 
         self._room_combo = QComboBox()
+        self._room_combo.setFixedWidth(260)
         self._emitter_combo = QComboBox()
+        self._emitter_combo.setFixedWidth(420)
 
         self._emitter_type = QComboBox()
+        self._emitter_type.setFixedWidth(180)
 
         self._emitter_type.addItem("Radiator", "radiator")
         self._emitter_type.addItem("Towel rail", "towel_rail")
@@ -86,6 +97,7 @@ class HydronicControlPanel(QWidget):
         self._quantity = QSpinBox()
         self._quantity.setRange(1, 99)
         self._quantity.setValue(1)
+        self._quantity.setFixedWidth(90)
 
         self._design_output_W = QDoubleSpinBox()
         self._design_output_W.setRange(0.0, 100000.0)
@@ -93,6 +105,7 @@ class HydronicControlPanel(QWidget):
         self._design_output_W.setSingleStep(50.0)
         self._design_output_W.setSuffix(" W")
         self._design_output_W.setSpecialValueText("—")
+        self._design_output_W.setFixedWidth(150)
 
         # H-S68-B2 — sparse room-level paired flow/return route lengths.
         self._before_emitter_length_m = QDoubleSpinBox()
@@ -105,7 +118,7 @@ class HydronicControlPanel(QWidget):
         self._before_emitter_length_m.setSuffix(" m")
         self._before_emitter_length_m.setSpecialValueText("—")
         self._before_emitter_length_m.setValue(-0.01)
-        self._before_emitter_length_m.setMaximumWidth(120)
+        self._before_emitter_length_m.setFixedWidth(120)
         self._before_emitter_length_m.setKeyboardTracking(False)
 
         self._after_emitter_length_m = QDoubleSpinBox()
@@ -118,7 +131,7 @@ class HydronicControlPanel(QWidget):
         self._after_emitter_length_m.setSuffix(" m")
         self._after_emitter_length_m.setSpecialValueText("—")
         self._after_emitter_length_m.setValue(-0.01)
-        self._after_emitter_length_m.setMaximumWidth(120)
+        self._after_emitter_length_m.setFixedWidth(120)
         self._after_emitter_length_m.setKeyboardTracking(False)
 
         self._flow_temp_C = QDoubleSpinBox()
@@ -128,6 +141,7 @@ class HydronicControlPanel(QWidget):
         self._flow_temp_C.setSuffix(" °C")
         self._flow_temp_C.setSpecialValueText("unset")
         self._flow_temp_C.setValue(0.0)
+        self._flow_temp_C.setFixedWidth(140)
 
         self._return_temp_C = QDoubleSpinBox()
         self._return_temp_C.setRange(0.0, 100.0)
@@ -136,6 +150,7 @@ class HydronicControlPanel(QWidget):
         self._return_temp_C.setSuffix(" °C")
         self._return_temp_C.setSpecialValueText("unset")
         self._return_temp_C.setValue(0.0)
+        self._return_temp_C.setFixedWidth(140)
 
         form.addRow("Room:", self._room_combo)
         form.addRow("Existing emitter:", self._emitter_combo)
@@ -157,24 +172,85 @@ class HydronicControlPanel(QWidget):
             self._after_emitter_length_m,
         )
 
-        form.addRow("Legacy emitter flow override:", self._flow_temp_C)
-        form.addRow("Legacy emitter return override:", self._return_temp_C)
-
-        self._temperature_authority_note = QLabel(
-            "Temperature authority: Environment sets the normal design "
-            "flow/return temperatures. Leave emitter overrides unset unless "
-            "a legacy or special emitter override is required."
+        # H-S69-A3 — legacy values remain fully supported, but do not
+        # dominate the ordinary emitter workflow. Stored overrides open the
+        # section automatically so existing evidence is never concealed.
+        self._legacy_overrides_toggle = QToolButton(self)
+        self._legacy_overrides_toggle.setObjectName(
+            "hydronicEmitterLegacyOverridesToggle"
         )
-        self._temperature_authority_note.setWordWrap(True)
-        form.addRow(self._temperature_authority_note)
+        self._legacy_overrides_toggle.setText("Legacy overrides")
+        self._legacy_overrides_toggle.setCheckable(True)
+        self._legacy_overrides_toggle.setChecked(False)
+        self._legacy_overrides_toggle.setArrowType(Qt.ArrowType.RightArrow)
+        self._legacy_overrides_toggle.setToolButtonStyle(
+            Qt.ToolButtonStyle.ToolButtonTextBesideIcon
+        )
+        legacy_help = (
+            "Normally leave these unset.\n"
+            "Environment supplies the design flow and return temperatures.\n"
+            "Open only for legacy or special emitter data."
+        )
+        self._legacy_overrides_toggle.setToolTip(legacy_help)
+        self._legacy_overrides_toggle.setToolTipDuration(12000)
+        form.addRow(self._legacy_overrides_toggle)
+
+        self._legacy_overrides_container = QWidget(self)
+        legacy_form = QFormLayout(self._legacy_overrides_container)
+        legacy_form.setContentsMargins(18, 0, 0, 0)
+        legacy_form.setHorizontalSpacing(10)
+        legacy_form.setVerticalSpacing(4)
+        legacy_form.setFieldGrowthPolicy(
+            QFormLayout.FieldGrowthPolicy.FieldsStayAtSizeHint
+        )
+        legacy_form.addRow("Flow override:", self._flow_temp_C)
+        legacy_form.addRow("Return override:", self._return_temp_C)
+        for target in (self._flow_temp_C, self._return_temp_C):
+            target.setToolTip(legacy_help)
+            target.setToolTipDuration(12000)
+        self._legacy_overrides_container.setVisible(False)
+        form.addRow(self._legacy_overrides_container)
 
         root.addLayout(form)
 
         button_row = QHBoxLayout()
 
-        self._add_btn = QPushButton("Add emitter")
-        self._update_btn = QPushButton("Update selected")
-        self._remove_btn = QPushButton("Remove selected")
+        self._add_btn = QPushButton("Add")
+        self._add_btn.setObjectName("hydronicEmitterAddAction")
+        self._update_btn = QPushButton("Update")
+        self._update_btn.setObjectName("hydronicEmitterUpdateAction")
+        self._remove_btn = QPushButton("Remove")
+        self._remove_btn.setObjectName("hydronicEmitterRemoveAction")
+
+        purpose_button_base = (
+            "QPushButton { padding: 4px 14px; min-width: 86px; "
+            "font-weight: 600; border-radius: 3px; } "
+            "QPushButton:disabled { background: #eeeeee; color: #888888; "
+            "border: 1px solid #cccccc; }"
+        )
+        self._add_btn.setStyleSheet(
+            purpose_button_base
+            + " QPushButton:enabled { background: #d9ead3; color: #1f3d1f; "
+              "border: 1px solid #78a66a; }"
+        )
+        self._update_btn.setStyleSheet(
+            purpose_button_base
+            + " QPushButton:enabled { background: #dbe9f6; color: #1d3550; "
+              "border: 1px solid #7aa7cc; }"
+        )
+        self._remove_btn.setStyleSheet(
+            purpose_button_base
+            + " QPushButton:enabled { background: #f4d7d7; color: #5a1f1f; "
+              "border: 1px solid #c77b7b; }"
+        )
+        self._add_btn.setToolTip("Add this emitter to the selected room.")
+        self._update_btn.setToolTip(
+            "Update the selected emitter with the displayed values."
+        )
+        self._remove_btn.setToolTip(
+            "Remove the selected emitter.\n"
+            "Room pipework intent is retained separately."
+        )
 
         button_row.addWidget(self._add_btn)
         button_row.addWidget(self._update_btn)
@@ -183,7 +259,8 @@ class HydronicControlPanel(QWidget):
         root.addLayout(button_row)
 
         self._status = QLabel("Hydronic emitters ready.")
-        self._status.setStyleSheet("color: #666; padding: 6px;")
+        self._status.setWordWrap(True)
+        self._status.setStyleSheet("color: #666; padding: 4px 2px;")
         root.addWidget(self._status)
 
         root.addStretch(1)
@@ -191,6 +268,9 @@ class HydronicControlPanel(QWidget):
         self._add_btn.clicked.connect(self._emit_add_requested)
         self._update_btn.clicked.connect(self._emit_update_requested)
         self._remove_btn.clicked.connect(self._emit_remove_requested)
+        self._legacy_overrides_toggle.toggled.connect(
+            self._set_legacy_overrides_expanded_v1
+        )
         self._room_combo.currentIndexChanged.connect(self._emit_room_selected)
         self._before_emitter_length_m.editingFinished.connect(
             lambda: self._emit_room_pipe_length_changed("before")
@@ -201,6 +281,20 @@ class HydronicControlPanel(QWidget):
         self._emitter_combo.currentIndexChanged.connect(
         self._emit_emitter_selected
     )
+    def _set_legacy_overrides_expanded_v1(self, expanded: bool) -> None:
+        """Presentation-only disclosure for exceptional temperature intent."""
+        expanded = bool(expanded)
+        if self._legacy_overrides_toggle.isChecked() != expanded:
+            self._legacy_overrides_toggle.blockSignals(True)
+            self._legacy_overrides_toggle.setChecked(expanded)
+            self._legacy_overrides_toggle.blockSignals(False)
+        self._legacy_overrides_toggle.setArrowType(
+            Qt.ArrowType.DownArrow
+            if expanded
+            else Qt.ArrowType.RightArrow
+        )
+        self._legacy_overrides_container.setVisible(expanded)
+
     # ------------------------------------------------------------------
     # Adapter ingress
     # ------------------------------------------------------------------
@@ -234,6 +328,9 @@ class HydronicControlPanel(QWidget):
 
             self._return_temp_C.setValue(
                 float(return_temp_C) if return_temp_C is not None else 0.0
+            )
+            self._set_legacy_overrides_expanded_v1(
+                flow_temp_C is not None or return_temp_C is not None
             )
         finally:
             self._is_priming = False

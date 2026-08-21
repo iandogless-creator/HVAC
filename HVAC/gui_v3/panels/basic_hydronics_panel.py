@@ -24,7 +24,16 @@ from PySide6.QtWidgets import (
     QTableWidgetItem,
     QHeaderView,
     QAbstractItemView,
+    QScrollArea,
+    QFrame,
+    QSizePolicy,
 )
+
+from HVAC.gui_v3.widgets.common_main_leg_subleg_schematic_widget_v1 import (
+    CommonMainLegSublegSchematicV1,
+    CommonMainLegSublegSchematicWidgetV1,
+)
+
 
 # ======================================================================
 # BasicHydronicsPanel
@@ -72,6 +81,21 @@ class BasicHydronicsPanel(QWidget):
         title.setObjectName("BasicHydronicsTitle")
         root.addWidget(title)
 
+        self._workspace_tabs = QTabWidget()
+        self._workspace_tabs.setDocumentMode(True)
+        self._workspace_tabs.tabBar().setExpanding(False)
+        self._workspace_tabs.setSizePolicy(
+            QSizePolicy.Expanding,
+            QSizePolicy.Expanding,
+        )
+        root.addWidget(self._workspace_tabs, 1)
+
+        setup_tab = QWidget()
+        setup_layout = QVBoxLayout(setup_tab)
+        setup_layout.setContentsMargins(6, 6, 6, 6)
+        setup_layout.setSpacing(6)
+        self._workspace_tabs.addTab(setup_tab, "Setup")
+
         # --------------------------------------------------------------
         # Intent group
         # --------------------------------------------------------------
@@ -79,13 +103,10 @@ class BasicHydronicsPanel(QWidget):
         intent_layout = QFormLayout(intent_box)
 
         self._basis_mode = QComboBox()
-        self._basis_mode.addItems(
-            [
-                "INDEX_LENGTH",
-                "BASIC_SECTIONS",
-            ]
-        )
-        intent_layout.addRow("Basis mode:", self._basis_mode)
+        # H-S69-A2: INDEX_LENGTH is the sole new-user v1 method.
+        # Legacy persisted identities remain load-compatible in the model.
+        self._basis_mode.addItem("INDEX_LENGTH")
+        intent_layout.addRow("Method:", self._basis_mode)
 
         self._index_room = QComboBox()
         intent_layout.addRow("Index room:", self._index_room)
@@ -97,7 +118,7 @@ class BasicHydronicsPanel(QWidget):
         self._total_index_length.setRange(0.0, 10000.0)
         self._total_index_length.setDecimals(2)
         self._total_index_length.setSuffix(" m")
-        intent_layout.addRow("Total index length:", self._total_index_length)
+        intent_layout.addRow("Index length:", self._total_index_length)
 
         self._nominal_gradient = QDoubleSpinBox()
         self._nominal_gradient.setRange(0.0, 100000.0)
@@ -115,7 +136,7 @@ class BasicHydronicsPanel(QWidget):
         )
         intent_layout.addRow("Gradient source:", self._pressure_gradient_source)
 
-        root.addWidget(intent_box)
+        setup_layout.addWidget(intent_box)
 
         # --------------------------------------------------------------
         # Basic PS topology section projection
@@ -158,7 +179,8 @@ class BasicHydronicsPanel(QWidget):
         # --------------------------------------------------------------
         # Read-only Basic PS projection tabs
         # --------------------------------------------------------------
-        self._projection_tabs = QTabWidget()
+        # Compatibility alias retained for existing projection tests.
+        self._projection_tabs = self._workspace_tabs
 
         sections_tab = QWidget()
         sections_layout = QVBoxLayout(sections_tab)
@@ -166,6 +188,29 @@ class BasicHydronicsPanel(QWidget):
         sections_layout.addWidget(self._ps_sections_table)
 
         self._projection_tabs.addTab(sections_tab, "Sections")
+
+        schematic_tab = QWidget()
+        schematic_layout = QVBoxLayout(schematic_tab)
+        schematic_layout.setContentsMargins(0, 0, 0, 0)
+
+        self._basic_ps_schematic_widget = (
+            CommonMainLegSublegSchematicWidgetV1(self)
+        )
+        self._basic_ps_schematic_widget.set_hover_enabled_v1(True)
+        self._basic_ps_schematic_scroll = QScrollArea(self)
+        self._basic_ps_schematic_scroll.setWidgetResizable(False)
+        self._basic_ps_schematic_scroll.setFrameShape(QFrame.NoFrame)
+        self._basic_ps_schematic_scroll.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarAsNeeded
+        )
+        self._basic_ps_schematic_scroll.setVerticalScrollBarPolicy(
+            Qt.ScrollBarAsNeeded
+        )
+        self._basic_ps_schematic_scroll.setWidget(
+            self._basic_ps_schematic_widget
+        )
+        schematic_layout.addWidget(self._basic_ps_schematic_scroll)
+        self._projection_tabs.addTab(schematic_tab, "Schematic")
 
         pressure_preview_tab = QWidget()
         pressure_preview_layout = QVBoxLayout(pressure_preview_tab)
@@ -235,18 +280,14 @@ class BasicHydronicsPanel(QWidget):
 
         candidate_ranking_layout.addWidget(self._candidate_ranking_table)
 
-        self._projection_tabs.addTab(pressure_preview_tab, "Pressure preview")
-        self._projection_tabs.addTab(candidate_ranking_tab, "Candidate ranking")
-
-        root.addWidget(QLabel("Basic PS read-only projections"))
+        self._projection_tabs.addTab(pressure_preview_tab, "Pressure")
+        self._projection_tabs.addTab(candidate_ranking_tab, "Candidates")
 
         self._basic_ps_flow_basis_label = QLabel(
             "Hydronic mass-flow basis: —"
         )
         self._basic_ps_flow_basis_label.setWordWrap(True)
-        root.addWidget(self._basic_ps_flow_basis_label)
-
-        root.addWidget(self._projection_tabs)
+        sections_layout.insertWidget(0, self._basic_ps_flow_basis_label)
 
         # --------------------------------------------------------------
         # Derived display group
@@ -257,7 +298,7 @@ class BasicHydronicsPanel(QWidget):
         self._derived_allowance = QLabel("— Pa")
         derived_layout.addRow("Nominal pipework allowance:", self._derived_allowance)
 
-        root.addWidget(derived_box)
+        setup_layout.addWidget(derived_box)
 
         # --------------------------------------------------------------
         # Notes
@@ -271,7 +312,8 @@ class BasicHydronicsPanel(QWidget):
         )
         notes_layout.addWidget(self._notes)
 
-        root.addWidget(notes_box)
+        self._notes.setMaximumHeight(82)
+        setup_layout.addWidget(notes_box)
 
         # --------------------------------------------------------------
         # Actions
@@ -279,14 +321,74 @@ class BasicHydronicsPanel(QWidget):
         action_row = QHBoxLayout()
         action_row.addStretch(1)
 
-        self._commit_button = QPushButton("Apply Basic Hydronics Intent")
+        self._commit_button = QPushButton("Apply")
+        self._commit_button.setObjectName("basicHydronicsApplyAction")
         action_row.addWidget(self._commit_button)
 
         self._pass_to_proportioning_button = QPushButton("Pass to Proportioning")
+        self._pass_to_proportioning_button.setObjectName(
+            "basicHydronicsPassToProportioningAction"
+        )
         action_row.addWidget(self._pass_to_proportioning_button)
 
+        purpose_button_base = (
+            "QPushButton { padding: 4px 14px; font-weight: 600; "
+            "border-radius: 3px; } "
+            "QPushButton:disabled { background: #eeeeee; color: #888888; "
+            "border: 1px solid #cccccc; }"
+        )
+        self._commit_button.setStyleSheet(
+            purpose_button_base
+            + " QPushButton:enabled { background: #d9ead3; color: #1f3d1f; "
+              "border: 1px solid #78a66a; }"
+        )
+        self._pass_to_proportioning_button.setStyleSheet(
+            purpose_button_base
+            + " QPushButton:enabled { background: #dbe9f6; color: #1d3550; "
+              "border: 1px solid #7aa7cc; }"
+        )
+
+        self._handoff_status = QLabel("")
+        self._handoff_status.setObjectName(
+            "basicHydronicsPassToProportioningStatus"
+        )
+        self._handoff_status.setWordWrap(True)
+        self._handoff_status.setVisible(False)
+        root.addWidget(self._handoff_status)
         root.addLayout(action_row)
-        root.addStretch(1)
+        setup_layout.addStretch(1)
+
+        # H-S69-A2 — purpose-sized inputs and concise wrapped help.
+        for control, width in (
+            (self._basis_mode, 180),
+            (self._index_room, 390),
+            (self._index_emitter, 460),
+            (self._total_index_length, 150),
+            (self._nominal_gradient, 150),
+            (self._length_source, 180),
+            (self._pressure_gradient_source, 180),
+        ):
+            control.setMaximumWidth(width)
+
+        self._basis_mode.setToolTip(
+            "Basic PS v1 uses index length.\n"
+            "Section-based selection remains deferred."
+        )
+        self._total_index_length.setToolTip(
+            "Total paired route length used by the\n"
+            "first-pass nominal allowance."
+        )
+        self._nominal_gradient.setToolTip(
+            "Nominal pressure gradient for the\n"
+            "first-pass index-length allowance."
+        )
+        self._commit_button.setToolTip(
+            "Store the displayed Basic PS intent."
+        )
+        self._pass_to_proportioning_button.setToolTip(
+            "Apply this intent, align the selected index terminal,\n"
+            "then open the downstream Proportioning workspace."
+        )
 
         # --------------------------------------------------------------
         # Signals
@@ -301,6 +403,22 @@ class BasicHydronicsPanel(QWidget):
         )
         self._nominal_gradient.valueChanged.connect(
             self._refresh_local_derived_display
+        )
+
+    def set_handoff_status(
+            self,
+            message: str,
+            *,
+            success: bool = False,
+    ) -> None:
+        """Show concise navigation feedback without owning its authority."""
+        message = str(message or "")
+        self._handoff_status.setText(message)
+        self._handoff_status.setVisible(bool(message))
+        self._handoff_status.setStyleSheet(
+            "color: #2e7d32; font-weight: 600; padding: 3px 2px;"
+            if success
+            else "color: #9b3a24; font-weight: 600; padding: 3px 2px;"
         )
 
     # ==================================================================
@@ -476,6 +594,13 @@ class BasicHydronicsPanel(QWidget):
                 self._ps_sections_table.setItem(row_index, col, item)
 
         self._ps_sections_table.resizeRowsToContents()
+
+    def set_basic_ps_schematic(
+        self,
+        schematic: CommonMainLegSublegSchematicV1 | None,
+    ) -> None:
+        """Replace the read-only Basic PS schematic projection."""
+        self._basic_ps_schematic_widget.set_schematic(schematic)
 
     def set_pressure_preview_rows(self, rows: list[dict[str, Any]]) -> None:
         """

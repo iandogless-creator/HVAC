@@ -49,7 +49,7 @@ def main() -> None:
     source = PANEL_PATH.read_text(encoding="utf-8")
 
     for label in (
-        "Balancing & Authority",
+        "Balancing && Authority",
         "Kvs Design",
         "Product Search",
         "Manufacturer Valves",
@@ -58,6 +58,17 @@ def main() -> None:
 
     assert "_proportioning_workspace_tabs_v1 = QTabWidget(" in source
     assert "setDocumentMode(True)" in source
+
+    commit_ready_source = _method_source(
+        source,
+        "set_commit_proportioning_ready",
+    )
+    # Enabled commit/recommit is a positive engineering action; disabled
+    # remains deliberately neutral grey.
+    assert "#43a047" in commit_ready_source
+    assert "#2e7d32" in commit_ready_source
+    assert "#e0e0e0" in commit_ready_source
+    assert "#666666" in commit_ready_source
     assert "setWidgetResizable(True)" in _method_source(
         source,
         "_make_proportioning_workspace_tab_v1",

@@ -18,6 +18,9 @@ from HVAC.hydronics.indexing.hydronic_index_intent_v1 import (
 from HVAC.hydronics.sizing.basic_ps_readonly_projection_v1 import (
     build_basic_ps_readonly_projection_v1,
 )
+from HVAC.hydronics.sizing.basic_ps_schematic_projection_v1 import (
+    build_basic_ps_schematic_projection_v1,
+)
 
 # ======================================================================
 # BasicHydronicsPanelAdapter
@@ -87,6 +90,10 @@ class BasicHydronicsPanelAdapter:
         """
         project = self._context.project_state
         if project is None:
+            if hasattr(self._panel, "set_handoff_status"):
+                self._panel.set_handoff_status(
+                    "Cannot pass to Proportioning.\nNo project is loaded."
+                )
             return
 
         payload = dict(payload or {})
@@ -104,8 +111,19 @@ class BasicHydronicsPanelAdapter:
         )
 
         if requested_room_id and requested_room_id == heat_source_room_id:
+            room = (getattr(project, "rooms", {}) or {}).get(
+                requested_room_id
+            )
+            room_label = self._room_display_name(requested_room_id, room)
+            message = (
+                "Cannot pass to Proportioning.\n"
+                f"{room_label} is the Heat Source room.\n"
+                "Choose another index room."
+            )
+            if hasattr(self._panel, "set_handoff_status"):
+                self._panel.set_handoff_status(message)
             print(
-                "[PASS TO PROPORTIONING IGNORED] "
+                "[PASS TO PROPORTIONING BLOCKED] "
                 f"Heat-source room cannot be index route terminal: "
                 f"{requested_room_id!r}"
             )
@@ -130,6 +148,12 @@ class BasicHydronicsPanelAdapter:
         signal = getattr(self._context, "room_state_changed", None)
         if signal is not None:
             signal.emit(str(index_room_id))
+
+        if hasattr(self._panel, "set_handoff_status"):
+            self._panel.set_handoff_status(
+                "Basic intent passed to Proportioning.",
+                success=True,
+            )
 
         if hasattr(self._context, "request_pass_to_proportioning"):
             self._context.request_pass_to_proportioning(payload)
@@ -233,6 +257,9 @@ class BasicHydronicsPanelAdapter:
         if project is None or getattr(project, "hydronic_topology", None) is None:
             self._panel.set_basic_ps_sections([])
 
+            if hasattr(self._panel, "set_basic_ps_schematic"):
+                self._panel.set_basic_ps_schematic(None)
+
             if hasattr(self._panel, "set_basic_ps_flow_basis"):
                 self._panel.set_basic_ps_flow_basis("Hydronic mass-flow basis: —")
 
@@ -255,9 +282,20 @@ class BasicHydronicsPanelAdapter:
                     _basic_ps_flow_basis_text(project, basic_ps_projection)
                 )
 
+            if hasattr(self._panel, "set_basic_ps_schematic"):
+                self._panel.set_basic_ps_schematic(
+                    build_basic_ps_schematic_projection_v1(
+                        project,
+                        basic_ps_projection,
+                    )
+                )
+
         except Exception as exc:
             print("[BASIC PS SECTIONS ERROR]", repr(exc))
             self._panel.set_basic_ps_sections([])
+
+            if hasattr(self._panel, "set_basic_ps_schematic"):
+                self._panel.set_basic_ps_schematic(None)
 
             if hasattr(self._panel, "set_basic_ps_flow_basis"):
                 self._panel.set_basic_ps_flow_basis("Hydronic mass-flow basis: —")
