@@ -6,8 +6,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import QEvent, Qt, QSettings, Signal, QObject
-from PySide6.QtGui import QAction, QCursor
+from PySide6.QtCore import QEvent, Qt, QSettings, QTimer, Signal, QObject
+from PySide6.QtGui import QAction, QActionGroup, QCursor
 from PySide6.QtWidgets import (
     QApplication,
     QDockWidget,
@@ -23,6 +23,14 @@ from typing import TypeVar
 # ----------------------------------------------------------------------
 from HVAC.gui_v3.context.gui_project_context import GuiProjectContext
 from HVAC.gui_v3.context.gui_settings import GuiSettings
+from HVAC.gui_v3.context.appearance_scheme_v1 import (
+    application_palette_v1,
+    application_stylesheet_v1,
+)
+from HVAC.gui_v3.context.workspace_view_geometry_v1 import (
+    WorkspaceScreenGeometryV1,
+    resolve_exploded_dock_geometry_v1,
+)
 
 # ----------------------------------------------------------------------
 # Panels
@@ -157,31 +165,6 @@ class MainWindowV3(QMainWindow):
         # --------------------------------------------------
         self.setWindowTitle("HVACgooee")
         self.setMinimumWidth(260)
-        self.setStyleSheet("""
-        QTableWidget::item:selected,
-        QListWidget::item:selected,
-        QTreeWidget::item:selected,
-        QComboBox QAbstractItemView::item:selected {
-            background: #e0a15a;
-            color: #000000;
-        }
-
-        QTableWidget::item:selected:active,
-        QListWidget::item:selected:active,
-        QTreeWidget::item:selected:active,
-        QComboBox QAbstractItemView::item:selected:active {
-            background: #e0a15a;
-            color: #000000;
-        }
-
-        QTableWidget::item:selected:!active,
-        QListWidget::item:selected:!active,
-        QTreeWidget::item:selected:!active,
-        QComboBox QAbstractItemView::item:selected:!active {
-            background: #e0a15a;
-            color: #000000;
-        }
-        """)
 
         # --------------------------------------------------
         # Settings
@@ -194,6 +177,10 @@ class MainWindowV3(QMainWindow):
             self._on_construction_focus_changed
         )
         self._build_menu()
+        self._apply_appearance_scheme_v1(
+            self._gui_settings.appearance_scheme_v1(),
+            persist=False,
+        )
         self._wire_context_fanout()
         self._restore_workspace()
 
@@ -210,13 +197,46 @@ class MainWindowV3(QMainWindow):
     def _restore_workspace(self) -> None:
         if self._gui_settings.window_geometry:
             self.restoreGeometry(self._gui_settings.window_geometry)
+        # H-S69-B3A — never feed an opaque, potentially obsolete dock-state
+        # blob back into Qt. Named exploded-view geometry is restored by the
+        # owning view preset in H-S69-B3B.
+        # Restore the selected named presentation only after Qt has entered
+        # its event loop, so screen and floating-window geometry are ready.
+        QTimer.singleShot(0, self._restore_last_workspace_presentation_v1)
 
-        if self._gui_settings.window_state:
-            self.restoreState(self._gui_settings.window_state)
+    def _restore_last_workspace_presentation_v1(self) -> None:
+        presentation = (
+            self._gui_settings.last_workspace_presentation_v1()
+        )
+        if presentation is None:
+            return
+
+        view_id = presentation["view_id"]
+        mode = presentation["mode"]
+        handlers = {
+            ("heat_loss", "docked"): self._apply_heat_loss_view_v1,
+            ("building_edit", "docked"): self._apply_building_edit_view_v1,
+            ("openings", "docked"): self._apply_openings_view_v1,
+            ("hydronics_setup", "docked"): self._apply_hydronics_setup_view_v1,
+            ("basic_sizing", "docked"): self._apply_basic_sizing_view_v1,
+            ("proportioning", "docked"): self._apply_proportioning_view_v1,
+            ("results", "docked"): self._apply_hydronics_results_view_v1,
+            ("heat_loss", "exploded"): self._apply_heat_loss_exploded_view_v1,
+            ("building_edit", "exploded"): self._apply_building_edit_exploded_view_v1,
+            ("openings", "exploded"): self._apply_openings_exploded_view_v1,
+            ("hydronics_setup", "exploded"): self._apply_hydronics_setup_exploded_view_v1,
+            ("basic_sizing", "exploded"): self._apply_basic_sizing_exploded_view_v1,
+            ("proportioning", "exploded"): self._apply_proportioning_exploded_view_v1,
+            ("results", "exploded"): self._apply_hydronics_results_exploded_view_v1,
+        }
+        handler = handlers.get((view_id, mode))
+        if handler is not None:
+            handler()
 
     def closeEvent(self, event):
+        self._save_active_exploded_workspace_layout_v1()
         self._gui_settings.window_geometry = bytes(self.saveGeometry())
-        self._gui_settings.window_state = bytes(self.saveState())
+        self._gui_settings.window_state = None
         self._gui_settings.save()
         super().closeEvent(event)
 
@@ -232,6 +252,30 @@ class MainWindowV3(QMainWindow):
                     self._context.exit_hlpe()
                 return True
         return super().eventFilter(obj, event)
+
+    # ------------------------------------------------------------------
+    # H-S69-B3C — GUI-only appearance
+    # ------------------------------------------------------------------
+    def _apply_appearance_scheme_v1(
+            self,
+            scheme: str,
+            *,
+            persist: bool = True,
+    ) -> None:
+        if not self._gui_settings.set_appearance_scheme_v1(scheme):
+            return
+        stable_scheme = self._gui_settings.appearance_scheme_v1()
+        app = QApplication.instance()
+        if app is not None:
+            app.setPalette(application_palette_v1(stable_scheme))
+            app.setStyleSheet(application_stylesheet_v1(stable_scheme))
+        action = getattr(
+            self, "_appearance_actions_v1", {}
+        ).get(stable_scheme)
+        if action is not None:
+            action.setChecked(True)
+        if persist:
+            self._gui_settings.save()
 
     # ------------------------------------------------------------------
     # UI
@@ -719,12 +763,84 @@ class MainWindowV3(QMainWindow):
         file_menu.addAction(action_exit)
 
         # ---------------------------
-        # View Menu
+        # View Menu — H-S69-B3B
         # ---------------------------
         view_menu = menubar.addMenu("View")
 
-        for dock in self.findChildren(QDockWidget):
-            view_menu.addAction(dock.toggleViewAction())
+        appearance_menu = view_menu.addMenu("Appearance")
+        self._appearance_action_group_v1 = QActionGroup(self)
+        self._appearance_action_group_v1.setExclusive(True)
+        self._appearance_actions_v1: dict[str, QAction] = {}
+        for scheme, label in (("light", "Light"), ("dark", "Dark")):
+            action = QAction(label, self)
+            action.setCheckable(True)
+            action.triggered.connect(
+                lambda _checked=False, selected=scheme: (
+                    self._apply_appearance_scheme_v1(selected)
+                )
+            )
+            self._appearance_action_group_v1.addAction(action)
+            self._appearance_actions_v1[scheme] = action
+            appearance_menu.addAction(action)
+
+        view_menu.addSeparator()
+        main_views_menu = view_menu.addMenu("Main Window Views")
+        docked_view_actions = (
+            ("Heat Loss", self._apply_heat_loss_view_v1),
+            ("Building Edit", self._apply_building_edit_view_v1),
+            ("Openings", self._apply_openings_view_v1),
+            ("Hydronics Setup", self._apply_hydronics_setup_view_v1),
+            ("Basic Sizing", self._apply_basic_sizing_view_v1),
+            ("Proportioning", self._apply_proportioning_view_v1),
+            ("Results", self._apply_hydronics_results_view_v1),
+        )
+        for label, handler in docked_view_actions:
+            action = QAction(label, self)
+            action.triggered.connect(handler)
+            main_views_menu.addAction(action)
+
+        exploded_views_menu = view_menu.addMenu("Exploded Views")
+        exploded_view_actions = (
+            ("Heat Loss", self._apply_heat_loss_exploded_view_v1),
+            ("Building Edit", self._apply_building_edit_exploded_view_v1),
+            ("Openings", self._apply_openings_exploded_view_v1),
+            ("Hydronics Setup", self._apply_hydronics_setup_exploded_view_v1),
+            ("Basic Sizing", self._apply_basic_sizing_exploded_view_v1),
+            ("Proportioning", self._apply_proportioning_exploded_view_v1),
+            ("Results", self._apply_hydronics_results_exploded_view_v1),
+        )
+        for label, handler in exploded_view_actions:
+            action = QAction(label, self)
+            action.triggered.connect(handler)
+            exploded_views_menu.addAction(action)
+
+        view_menu.addSeparator()
+        project_panels_menu = view_menu.addMenu("Project & Heat-Loss Panels")
+        for dock in (
+            self._dock_project,
+            self._dock_environment,
+            self._dock_rooms,
+            self._dock_construction,
+            self._dock_uvp,
+            self._dock_heat_loss,
+            self._dock_education,
+            self._dock_geometry,
+            self._dock_ach,
+        ):
+            project_panels_menu.addAction(dock.toggleViewAction())
+
+        hydronics_panels_menu = view_menu.addMenu("Hydronics Panels")
+        for dock in (
+            self._dock_hydronics,
+            self._dock_hydronic_control,
+            self._dock_basic_hydronics,
+            self._dock_local_k,
+            self._dock_topology_arranger,
+        ):
+            hydronics_panels_menu.addAction(dock.toggleViewAction())
+
+        utility_panels_menu = view_menu.addMenu("Utility Panels")
+        utility_panels_menu.addAction(self._dock_dev.toggleViewAction())
 
         # ---------------------------
         # Help Menu
@@ -1009,6 +1125,419 @@ class MainWindowV3(QMainWindow):
 
         if hasattr(self, "_hydronic_control_adapter"):
             self._hydronic_control_adapter.refresh()
+
+    # ------------------------------------------------------------------
+    # H-S69-B1/B3B — navigation-only workspace presets
+    # ------------------------------------------------------------------
+    def _workspace_docks_v1(
+            self,
+            view_id: str,
+    ) -> tuple[QDockWidget, ...]:
+        views = {
+            "heat_loss": (
+                self._dock_heat_loss,
+                self._dock_environment,
+                self._dock_rooms,
+                self._dock_geometry,
+                self._dock_ach,
+            ),
+            "building_edit": (
+                self._dock_uvp,
+                self._dock_construction,
+                self._dock_rooms,
+                self._dock_geometry,
+            ),
+            "openings": (
+                self._dock_uvp,
+                self._dock_heat_loss,
+                self._dock_rooms,
+                self._dock_construction,
+            ),
+            "hydronics_setup": (
+                self._dock_topology_arranger,
+                self._dock_environment,
+                self._dock_hydronic_control,
+                self._dock_rooms,
+            ),
+            "basic_sizing": (
+                self._dock_basic_hydronics,
+                self._dock_local_k,
+                self._dock_rooms,
+            ),
+            "proportioning": (
+                self._dock_hydronics,
+                self._dock_local_k,
+            ),
+            "results": (
+                self._dock_hydronics,
+                self._dock_project,
+                self._dock_rooms,
+            ),
+        }
+        try:
+            return views[str(view_id)]
+        except KeyError as exc:
+            raise ValueError(f"Unknown workspace view: {view_id!r}") from exc
+
+    def _save_active_exploded_workspace_layout_v1(self) -> None:
+        view_id = str(
+            getattr(self, "_active_exploded_workspace_view_id_v1", "") or ""
+        )
+        docks = tuple(
+            getattr(self, "_active_exploded_workspace_docks_v1", ()) or ()
+        )
+        if not view_id or not docks:
+            return
+
+        existing = self._gui_settings.named_workspace_layout_v1(view_id) or {}
+        saved_docks = dict(existing.get("docks") or {})
+        temporarily_clamped = set(
+            getattr(self, "_temporarily_clamped_workspace_docks_v1", set())
+            or set()
+        )
+        for dock in docks:
+            dock_id = str(dock.objectName() or "")
+            if not dock_id:
+                continue
+            # If a remembered monitor is temporarily absent, retain its
+            # original placement rather than overwriting it with fallback.
+            if dock_id in temporarily_clamped and dock_id in saved_docks:
+                continue
+            geometry = dock.geometry()
+            screen = dock.screen()
+            saved_docks[dock_id] = {
+                "x": int(geometry.x()),
+                "y": int(geometry.y()),
+                "width": int(geometry.width()),
+                "height": int(geometry.height()),
+                "screen_name": str(screen.name() if screen else ""),
+            }
+        if saved_docks:
+            self._gui_settings.set_named_workspace_layout_v1(
+                view_id,
+                {"docks": saved_docks},
+            )
+            self._gui_settings.save()
+
+    def _finish_active_exploded_workspace_v1(self) -> None:
+        docks = tuple(
+            getattr(self, "_active_exploded_workspace_docks_v1", ()) or ()
+        )
+        self._save_active_exploded_workspace_layout_v1()
+        for dock in docks:
+            dock.hide()
+            if dock.isFloating():
+                dock.setFloating(False)
+        self._active_exploded_workspace_view_id_v1 = ""
+        self._active_exploded_workspace_docks_v1 = ()
+        self._temporarily_clamped_workspace_docks_v1 = set()
+
+    def _prepare_hydronics_workspace_view_v1(
+            self,
+            view_id: str,
+            visible_docks: tuple[QDockWidget, ...],
+    ) -> None:
+        """Reset only dock presentation for one user-selected view."""
+        self._finish_active_exploded_workspace_v1()
+        self._gui_settings.set_last_workspace_presentation_v1(
+            view_id, "docked"
+        )
+        self._gui_settings.save()
+        self.showMaximized()
+        self.setDockNestingEnabled(True)
+
+        central_widget = self.centralWidget()
+        if central_widget is not None:
+            central_widget.hide()
+
+        for dock in self.findChildren(QDockWidget):
+            dock.hide()
+
+        for dock in visible_docks:
+            dock.setFloating(False)
+            self.removeDockWidget(dock)
+
+    @staticmethod
+    def _show_hydronics_workspace_docks_v1(
+            docks: tuple[QDockWidget, ...],
+    ) -> None:
+        for dock in docks:
+            dock.show()
+
+    def _qt_workspace_screens_v1(self) -> tuple[WorkspaceScreenGeometryV1, ...]:
+        app = QApplication.instance()
+        screens = list(app.screens()) if app is not None else []
+        primary = app.primaryScreen() if app is not None else None
+        if primary in screens:
+            screens.remove(primary)
+            screens.insert(0, primary)
+        result: list[WorkspaceScreenGeometryV1] = []
+        for screen in screens:
+            available = screen.availableGeometry()
+            result.append(WorkspaceScreenGeometryV1(
+                name=str(screen.name() or ""),
+                x=int(available.x()),
+                y=int(available.y()),
+                width=int(available.width()),
+                height=int(available.height()),
+            ))
+        return tuple(result)
+
+    def _apply_exploded_workspace_view_v1(
+            self,
+            view_id: str,
+            docks: tuple[QDockWidget, ...],
+    ) -> None:
+        self._finish_active_exploded_workspace_v1()
+        self.showNormal()
+        central_widget = self.centralWidget()
+        if central_widget is not None:
+            central_widget.hide()
+        for dock in self.findChildren(QDockWidget):
+            dock.hide()
+
+        storage_id = f"{view_id}:exploded"
+        stored = self._gui_settings.named_workspace_layout_v1(storage_id) or {}
+        stored_docks = dict(stored.get("docks") or {})
+        screens = self._qt_workspace_screens_v1()
+        clamped: set[str] = set()
+
+        for index, dock in enumerate(docks):
+            dock_id = str(dock.objectName() or "")
+            saved_geometry = stored_docks.get(dock_id)
+            resolved = resolve_exploded_dock_geometry_v1(
+                saved_geometry=saved_geometry,
+                screens=screens,
+                dock_index=index,
+                dock_count=len(docks),
+            )
+            target_geometry = None
+            if resolved is not None:
+                target_geometry = (
+                    resolved.x,
+                    resolved.y,
+                    resolved.width,
+                    resolved.height,
+                )
+                if resolved.used_fallback_screen:
+                    clamped.add(dock_id)
+
+            # Some Linux window managers replace a floating dock's requested
+            # rectangle while its native window is first being shown. Apply
+            # the validated rectangle after show(), then once more when Qt
+            # returns to the event loop.
+            dock.setFloating(True)
+            dock.show()
+            if target_geometry is not None:
+                dock.setGeometry(*target_geometry)
+                QTimer.singleShot(
+                    0,
+                    lambda dock=dock, geometry=target_geometry: (
+                        dock.setGeometry(*geometry)
+                    ),
+                )
+            dock.raise_()
+
+        self._active_exploded_workspace_view_id_v1 = storage_id
+        self._active_exploded_workspace_docks_v1 = tuple(docks)
+        self._temporarily_clamped_workspace_docks_v1 = clamped
+        self._gui_settings.set_last_workspace_presentation_v1(
+            view_id, "exploded"
+        )
+        self._gui_settings.save()
+        # With every working panel floating, retain a compact menu
+        # shell rather than a maximised or full-height empty window.
+        self.resize(360, 96)
+        QTimer.singleShot(0, lambda: self.resize(360, 96))
+
+    def _apply_heat_loss_view_v1(self) -> None:
+        docks = self._workspace_docks_v1("heat_loss")
+        self._prepare_hydronics_workspace_view_v1(
+            "heat_loss", docks
+        )
+        self.addDockWidget(Qt.LeftDockWidgetArea, self._dock_heat_loss)
+        self.addDockWidget(Qt.RightDockWidgetArea, self._dock_environment)
+        self.addDockWidget(Qt.RightDockWidgetArea, self._dock_rooms)
+        self.addDockWidget(Qt.RightDockWidgetArea, self._dock_geometry)
+        self.addDockWidget(Qt.RightDockWidgetArea, self._dock_ach)
+        self.splitDockWidget(self._dock_environment, self._dock_rooms, Qt.Vertical)
+        self.tabifyDockWidget(self._dock_rooms, self._dock_geometry)
+        self.tabifyDockWidget(self._dock_rooms, self._dock_ach)
+        self._show_hydronics_workspace_docks_v1(docks)
+        self._dock_rooms.raise_()
+        self._dock_heat_loss.raise_()
+        self.resizeDocks(
+            [self._dock_heat_loss, self._dock_environment],
+            [1200, 480],
+            Qt.Horizontal,
+        )
+
+    def _apply_building_edit_view_v1(self) -> None:
+        docks = self._workspace_docks_v1("building_edit")
+        self._prepare_hydronics_workspace_view_v1(
+            "building_edit", docks
+        )
+        self.addDockWidget(Qt.LeftDockWidgetArea, self._dock_uvp)
+        self.addDockWidget(Qt.RightDockWidgetArea, self._dock_construction)
+        self.addDockWidget(Qt.RightDockWidgetArea, self._dock_rooms)
+        self.addDockWidget(Qt.RightDockWidgetArea, self._dock_geometry)
+        self.splitDockWidget(self._dock_construction, self._dock_rooms, Qt.Vertical)
+        self.tabifyDockWidget(self._dock_rooms, self._dock_geometry)
+        self._show_hydronics_workspace_docks_v1(docks)
+        self._dock_rooms.raise_()
+        self._dock_uvp.raise_()
+        self.resizeDocks(
+            [self._dock_uvp, self._dock_construction],
+            [1200, 480],
+            Qt.Horizontal,
+        )
+
+    def _apply_openings_view_v1(self) -> None:
+        docks = self._workspace_docks_v1("openings")
+        self._prepare_hydronics_workspace_view_v1(
+            "openings", docks
+        )
+        self.addDockWidget(Qt.LeftDockWidgetArea, self._dock_uvp)
+        self.addDockWidget(Qt.LeftDockWidgetArea, self._dock_construction)
+        self.addDockWidget(Qt.RightDockWidgetArea, self._dock_heat_loss)
+        self.addDockWidget(Qt.RightDockWidgetArea, self._dock_rooms)
+        self.tabifyDockWidget(self._dock_uvp, self._dock_construction)
+        self.tabifyDockWidget(self._dock_heat_loss, self._dock_rooms)
+        self._show_hydronics_workspace_docks_v1(docks)
+        self._dock_uvp.raise_()
+        self._dock_heat_loss.raise_()
+        self.resizeDocks(
+            [self._dock_uvp, self._dock_heat_loss],
+            [1050, 600],
+            Qt.Horizontal,
+        )
+
+    def _apply_hydronics_setup_view_v1(self) -> None:
+        docks = (
+            self._dock_environment,
+            self._dock_topology_arranger,
+            self._dock_rooms,
+            self._dock_hydronic_control,
+        )
+        self._prepare_hydronics_workspace_view_v1(
+            "hydronics_setup", docks
+        )
+        self.addDockWidget(Qt.LeftDockWidgetArea, self._dock_environment)
+        self.addDockWidget(Qt.LeftDockWidgetArea, self._dock_hydronic_control)
+        self.addDockWidget(Qt.LeftDockWidgetArea, self._dock_rooms)
+        self.addDockWidget(Qt.RightDockWidgetArea, self._dock_topology_arranger)
+        self.splitDockWidget(
+            self._dock_environment,
+            self._dock_hydronic_control,
+            Qt.Vertical,
+        )
+        self.tabifyDockWidget(self._dock_hydronic_control, self._dock_rooms)
+        self._show_hydronics_workspace_docks_v1(docks)
+        self._dock_hydronic_control.raise_()
+        self._dock_topology_arranger.raise_()
+        self.resizeDocks(
+            [self._dock_environment, self._dock_topology_arranger],
+            [420, 1200],
+            Qt.Horizontal,
+        )
+
+    def _apply_basic_sizing_view_v1(self) -> None:
+        docks = (
+            self._dock_basic_hydronics,
+            self._dock_local_k,
+            self._dock_rooms,
+        )
+        self._prepare_hydronics_workspace_view_v1(
+            "basic_sizing", docks
+        )
+        self.addDockWidget(Qt.LeftDockWidgetArea, self._dock_basic_hydronics)
+        self.addDockWidget(Qt.RightDockWidgetArea, self._dock_local_k)
+        self.addDockWidget(Qt.RightDockWidgetArea, self._dock_rooms)
+        self.tabifyDockWidget(self._dock_local_k, self._dock_rooms)
+        self._show_hydronics_workspace_docks_v1(docks)
+        self._dock_local_k.raise_()
+        self._dock_basic_hydronics.raise_()
+        self.resizeDocks(
+            [self._dock_basic_hydronics, self._dock_local_k],
+            [1100, 500],
+            Qt.Horizontal,
+        )
+
+    def _apply_proportioning_view_v1(self) -> None:
+        docks = (self._dock_hydronics, self._dock_local_k)
+        self._prepare_hydronics_workspace_view_v1(
+            "proportioning", docks
+        )
+        self.addDockWidget(Qt.LeftDockWidgetArea, self._dock_hydronics)
+        self.addDockWidget(Qt.RightDockWidgetArea, self._dock_local_k)
+        self._show_hydronics_workspace_docks_v1(docks)
+        self._hydronics_panel.select_proportioning_tab()
+        self._dock_hydronics.raise_()
+        self.resizeDocks(
+            [self._dock_hydronics, self._dock_local_k],
+            [1250, 400],
+            Qt.Horizontal,
+        )
+
+    def _apply_hydronics_results_view_v1(self) -> None:
+        docks = (
+            self._dock_hydronics,
+            self._dock_project,
+            self._dock_rooms,
+        )
+        self._prepare_hydronics_workspace_view_v1(
+            "results", docks
+        )
+        self.addDockWidget(Qt.LeftDockWidgetArea, self._dock_hydronics)
+        self.addDockWidget(Qt.RightDockWidgetArea, self._dock_project)
+        self.addDockWidget(Qt.RightDockWidgetArea, self._dock_rooms)
+        self.tabifyDockWidget(self._dock_project, self._dock_rooms)
+        self._show_hydronics_workspace_docks_v1(docks)
+        self._hydronics_panel.select_proportioned_tab()
+        self._dock_project.raise_()
+        self._dock_hydronics.raise_()
+        self.resizeDocks(
+            [self._dock_hydronics, self._dock_project],
+            [1250, 350],
+            Qt.Horizontal,
+        )
+
+    def _apply_heat_loss_exploded_view_v1(self) -> None:
+        self._apply_exploded_workspace_view_v1(
+            "heat_loss", self._workspace_docks_v1("heat_loss")
+        )
+
+    def _apply_building_edit_exploded_view_v1(self) -> None:
+        self._apply_exploded_workspace_view_v1(
+            "building_edit", self._workspace_docks_v1("building_edit")
+        )
+
+    def _apply_openings_exploded_view_v1(self) -> None:
+        self._apply_exploded_workspace_view_v1(
+            "openings", self._workspace_docks_v1("openings")
+        )
+
+    def _apply_hydronics_setup_exploded_view_v1(self) -> None:
+        self._apply_exploded_workspace_view_v1(
+            "hydronics_setup", self._workspace_docks_v1("hydronics_setup")
+        )
+
+    def _apply_basic_sizing_exploded_view_v1(self) -> None:
+        self._apply_exploded_workspace_view_v1(
+            "basic_sizing", self._workspace_docks_v1("basic_sizing")
+        )
+
+    def _apply_proportioning_exploded_view_v1(self) -> None:
+        self._hydronics_panel.select_proportioning_tab()
+        self._apply_exploded_workspace_view_v1(
+            "proportioning", self._workspace_docks_v1("proportioning")
+        )
+
+    def _apply_hydronics_results_exploded_view_v1(self) -> None:
+        self._hydronics_panel.select_proportioned_tab()
+        self._apply_exploded_workspace_view_v1(
+            "results", self._workspace_docks_v1("results")
+        )
 
     # ------------------------------------------------------------------
     # Helpers

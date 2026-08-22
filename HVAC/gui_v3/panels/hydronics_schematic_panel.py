@@ -310,6 +310,16 @@ class HydronicsSchematicPanel(QWidget):
                 self._tabs.setCurrentIndex(index)
                 return
 
+    def select_proportioned_tab(self) -> None:
+        """Select the read-only Proportioned results tab."""
+        if not hasattr(self, "_tabs"):
+            return
+
+        for index in range(self._tabs.count()):
+            if self._tabs.tabText(index) == "Proportioned":
+                self._tabs.setCurrentIndex(index)
+                return
+
     # ------------------------------------------------------------------
     # Adapter ingress
     # ------------------------------------------------------------------

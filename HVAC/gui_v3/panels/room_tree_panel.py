@@ -73,6 +73,8 @@ class RoomTreePanel(QWidget):
         root.addWidget(self._tree)
 
         self._remove_room_btn = QPushButton("Remove")
+        self._remove_room_btn.setProperty("hvacAction", "remove")
+        self._remove_room_btn.setMinimumWidth(96)
         self._remove_room_btn.setEnabled(False)
         self._remove_room_btn.setToolTip(
             "Remove selected room.\n"
@@ -80,7 +82,7 @@ class RoomTreePanel(QWidget):
             "is on a route, or is referenced elsewhere."
         )
         self._remove_room_btn.clicked.connect(self._emit_remove_requested)
-        root.addWidget(self._remove_room_btn)
+        root.addWidget(self._remove_room_btn, 0, Qt.AlignRight)
 
     # ------------------------------------------------------------------
     # Adapter-facing API (Phase E-A)

@@ -11,6 +11,7 @@ from PySide6.QtGui import QFont, QColor, QPen
 from PySide6.QtWidgets import (
     QWidget,
     QVBoxLayout,
+    QHBoxLayout,
     QTableWidget,
     QTableWidgetItem,
     QPushButton,
@@ -254,13 +255,24 @@ class HeatLossPanelV3(QWidget):
         root.addWidget(self._results_frame)
 
         # --------------------------------------------------------------
-        # Run button
+        # Compact presentation-only action row
         # --------------------------------------------------------------
-        self._run_button = QPushButton("Run Heat-Loss")
-        root.addWidget(self._run_button)
+        action_row = QHBoxLayout()
+        action_row.setContentsMargins(0, 0, 0, 0)
+        action_row.setSpacing(6)
+        action_row.addStretch(1)
 
         self._add_room_btn = QPushButton("Add Room")
-        root.addWidget(self._add_room_btn)
+        self._add_room_btn.setProperty("hvacAction", "add")
+        self._add_room_btn.setMinimumWidth(96)
+        action_row.addWidget(self._add_room_btn)
+
+        self._run_button = QPushButton("Calculate")
+        self._run_button.setToolTip("Calculate Heat-Loss")
+        self._run_button.setProperty("hvacAction", "calculate")
+        self._run_button.setMinimumWidth(96)
+        action_row.addWidget(self._run_button)
+        root.addLayout(action_row)
 
         # --------------------------------------------------------------
         # Fix U-values link

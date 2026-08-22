@@ -65,6 +65,14 @@ class LocalKPanel(QWidget):
         section_layout = QFormLayout(section_box)
 
         self._section_combo = QComboBox()
+        # H-S69-B2 — keep route identity readable without allowing the
+        # selector to consume the full width of a large workspace dock.
+        self._section_combo.setMinimumWidth(420)
+        self._section_combo.setMaximumWidth(720)
+        self._section_combo.setToolTip(
+            "Choose the stable Basic PS section.\n"
+            "Fitting counts and straight length are stored per section."
+        )
         section_layout.addRow("Section:", self._section_combo)
 
         self._pipe_label = QLabel("—")
@@ -82,7 +90,11 @@ class LocalKPanel(QWidget):
         # --------------------------------------------------
         # Local K counts
         # --------------------------------------------------
-        fittings_box = QGroupBox("Local fittings — count per selected section")
+        fittings_box = QGroupBox("Local fittings — selected section")
+        fittings_box.setToolTip(
+            "Counts apply only to the selected section.\n"
+            "They remain preliminary Local K intent."
+        )
         fittings_layout = QFormLayout(fittings_box)
 
         self._bend_90 = self._make_count_spin()
@@ -97,6 +109,11 @@ class LocalKPanel(QWidget):
         self._misc_k.setRange(0.0, 999.0)
         self._misc_k.setDecimals(2)
         self._misc_k.setSingleStep(0.1)
+        self._misc_k.setMaximumWidth(120)
+        self._misc_k.setToolTip(
+            "Additional dimensionless K allowance.\n"
+            "Use only for fittings not listed above."
+        )
 
         fittings_layout.addRow("90° bends:", self._bend_90)
         fittings_layout.addRow("45° bends:", self._bend_45)
@@ -112,13 +129,22 @@ class LocalKPanel(QWidget):
         # --------------------------------------------------
         # Length / preview
         # --------------------------------------------------
-        preview_box = QGroupBox("Preview — not final proportioning")
+        preview_box = QGroupBox("Pressure-drop preview")
+        preview_box.setToolTip(
+            "Combines straight and local pressure-drop evidence.\n"
+            "This is not final proportioning or pump duty."
+        )
         preview_layout = QFormLayout(preview_box)
 
         self._length_m = QDoubleSpinBox()
         self._length_m.setRange(0.0, 10000.0)
         self._length_m.setDecimals(2)
         self._length_m.setSuffix(" m")
+        self._length_m.setMaximumWidth(130)
+        self._length_m.setToolTip(
+            "Straight length for the selected section.\n"
+            "Used with the displayed straight Δp/m in this preview."
+        )
         self._straight_dp_label = QLabel("0.0 Pa")
         self._section_total_dp_label = QLabel("0.0 Pa")
 
@@ -239,6 +265,11 @@ class LocalKPanel(QWidget):
     def _make_count_spin(self) -> QSpinBox:
         spin = QSpinBox()
         spin.setRange(0, 99)
+        spin.setMaximumWidth(90)
+        spin.setToolTip(
+            "Count on the selected section.\n"
+            "The value is stored as Local K intent."
+        )
         return spin
 
     def _on_section_changed(self) -> None:
