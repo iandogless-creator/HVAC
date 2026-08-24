@@ -44,7 +44,7 @@ class EducationPanelAdapter:
 
         self._domain = domain
         self._topic = topic
-        self._mode = mode  # "standard" | "classical"
+        self._mode = mode  # beginner | standard | classical
 
         # Wire UI → adapter
         self._panel.mode_changed.connect(self.set_mode)
@@ -82,10 +82,10 @@ class EducationPanelAdapter:
         Parameters
         ----------
         mode:
-            "standard" | "classical"
+            "beginner" | "standard" | "classical"
         """
         mode = mode.lower()
-        if mode not in ("standard", "classical"):
+        if mode not in ("beginner", "standard", "classical"):
             return
 
         if mode == self._mode:
@@ -98,9 +98,9 @@ class EducationPanelAdapter:
         """
         Convenience toggle (not required, but useful for shortcuts).
         """
-        self.set_mode(
-            "classical" if self._mode == "standard" else "standard"
-        )
+        modes = ("beginner", "standard", "classical")
+        index = modes.index(self._mode) if self._mode in modes else 0
+        self.set_mode(modes[(index + 1) % len(modes)])
 
     # ------------------------------------------------------------------
     # Domain switching
@@ -129,6 +129,10 @@ class EducationPanelAdapter:
 
         Used when switching panels or modes.
         """
+        domain = str(domain or "").lower()
+        topic = str(topic or "").lower()
+        if domain == self._domain and topic == self._topic:
+            return
         self._domain = domain
         self._topic = topic
         self.refresh()

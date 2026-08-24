@@ -20,6 +20,8 @@ WORKSPACE_VIEW_IDS_V1 = frozenset({
     "basic_sizing",
     "proportioning",
     "results",
+    # H-S69-B3D — one safe, GUI-only user exploded workspace.
+    "user",
 })
 WORKSPACE_VIEW_MODES_V1 = frozenset({"docked", "exploded"})
 APPEARANCE_SCHEMES_V1 = frozenset({"light", "dark"})
@@ -28,6 +30,38 @@ APPEARANCE_SCHEMES_V1 = frozenset({"light", "dark"})
 def _normalise_appearance_scheme_v1(value: object) -> str:
     scheme = str(value or "").strip().lower()
     return scheme if scheme in APPEARANCE_SCHEMES_V1 else "light"
+
+
+def _normalise_workspace_panel_sets_v1(
+        value: object,
+) -> dict[str, list[str]]:
+    """Return bounded GUI-only panel membership for factory docked views."""
+    if not isinstance(value, dict):
+        return {}
+    result: dict[str, list[str]] = {}
+    for raw_storage_id, raw_panel_ids in value.items():
+        storage_id = str(raw_storage_id or "").strip()
+        view_id, separator, mode = storage_id.partition(":")
+        if (
+            not separator
+            or view_id not in WORKSPACE_VIEW_IDS_V1
+            or view_id == "user"
+            or mode != "docked"
+            or not isinstance(raw_panel_ids, (list, tuple))
+        ):
+            continue
+        panel_ids: list[str] = []
+        for raw_panel_id in raw_panel_ids[:64]:
+            panel_id = str(raw_panel_id or "").strip()
+            if (
+                panel_id
+                and len(panel_id) <= 128
+                and panel_id not in panel_ids
+            ):
+                panel_ids.append(panel_id)
+        if panel_ids:
+            result[storage_id] = panel_ids
+    return result
 
 
 def _normalise_last_workspace_presentation_v1(
@@ -41,6 +75,9 @@ def _normalise_last_workspace_presentation_v1(
     if view_id not in WORKSPACE_VIEW_IDS_V1:
         return None
     if mode not in WORKSPACE_VIEW_MODES_V1:
+        return None
+    # The user workspace deliberately stores explicit floating geometry only.
+    if view_id == "user" and mode != "exploded":
         return None
     return {"view_id": view_id, "mode": mode}
 
@@ -95,10 +132,27 @@ def _normalise_named_workspace_layouts_v1(value: object) -> dict[str, dict]:
             docks[dock_id] = coordinates
 
         if docks:
-            layouts[name] = {
+            layout = {
                 "schema": NAMED_WORKSPACE_LAYOUT_SCHEMA_V1,
                 "docks": docks,
             }
+            # H-S69-B3E — optional bounded user override of stable GUI dock
+            # identities. Unknown or malformed identities are ignored later
+            # by the owning main window; no ProjectState meaning is stored.
+            raw_panel_ids = raw_layout.get("panel_ids")
+            if isinstance(raw_panel_ids, (list, tuple)):
+                panel_ids: list[str] = []
+                for raw_panel_id in raw_panel_ids[:64]:
+                    panel_id = str(raw_panel_id or "").strip()
+                    if (
+                        panel_id
+                        and len(panel_id) <= 128
+                        and panel_id not in panel_ids
+                    ):
+                        panel_ids.append(panel_id)
+                if panel_ids:
+                    layout["panel_ids"] = panel_ids
+            layouts[name] = layout
     return layouts
 
 
@@ -127,6 +181,8 @@ class GuiSettings:
         self.named_workspace_layouts_v1: dict[str, dict] = {}
         # H-S69-B3B1 — last selected GUI-only preset and mode.
         self._last_workspace_presentation_v1: dict[str, str] | None = None
+        # H-S69-B3F — user panel membership for factory docked views.
+        self.workspace_panel_sets_v1: dict[str, list[str]] = {}
         # H-S69-B3C — application appearance only; never ProjectState.
         self._appearance_scheme_v1 = "light"
 
@@ -160,6 +216,11 @@ class GuiSettings:
                     data.get("last_workspace_presentation_v1")
                 )
             )
+            self.workspace_panel_sets_v1 = (
+                _normalise_workspace_panel_sets_v1(
+                    data.get("workspace_panel_sets_v1")
+                )
+            )
             self._appearance_scheme_v1 = (
                 _normalise_appearance_scheme_v1(
                     data.get("appearance_scheme_v1")
@@ -171,6 +232,7 @@ class GuiSettings:
             self.window_state = None
             self.named_workspace_layouts_v1 = {}
             self._last_workspace_presentation_v1 = None
+            self.workspace_panel_sets_v1 = {}
             self._appearance_scheme_v1 = "light"
 
     def named_workspace_layout_v1(self, name: str) -> dict | None:
@@ -191,6 +253,32 @@ class GuiSettings:
             return False
         self.named_workspace_layouts_v1[stable_name] = candidate[stable_name]
         return True
+
+    def workspace_panel_set_v1(
+            self,
+            storage_id: str,
+    ) -> tuple[str, ...] | None:
+        stable_id = str(storage_id or "").strip()
+        panel_ids = self.workspace_panel_sets_v1.get(stable_id)
+        return tuple(panel_ids) if panel_ids is not None else None
+
+    def set_workspace_panel_set_v1(
+            self,
+            storage_id: str,
+            panel_ids: list[str] | tuple[str, ...],
+    ) -> bool:
+        stable_id = str(storage_id or "").strip()
+        candidate = _normalise_workspace_panel_sets_v1({
+            stable_id: panel_ids,
+        })
+        if stable_id not in candidate:
+            return False
+        self.workspace_panel_sets_v1[stable_id] = candidate[stable_id]
+        return True
+
+    def clear_workspace_panel_set_v1(self, storage_id: str) -> bool:
+        stable_id = str(storage_id or "").strip()
+        return self.workspace_panel_sets_v1.pop(stable_id, None) is not None
 
     def last_workspace_presentation_v1(self) -> dict[str, str] | None:
         presentation = self._last_workspace_presentation_v1
@@ -241,6 +329,11 @@ class GuiSettings:
                     self._last_workspace_presentation_v1
                 )
                 or {}
+            ),
+            "workspace_panel_sets_v1": (
+                _normalise_workspace_panel_sets_v1(
+                    self.workspace_panel_sets_v1
+                )
             ),
             "appearance_scheme_v1": (
                 _normalise_appearance_scheme_v1(

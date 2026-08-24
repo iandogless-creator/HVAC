@@ -12,6 +12,7 @@ from PySide6.QtGui import QPalette
 from PySide6.QtWidgets import QApplication
 
 from HVAC.gui_v3.context.appearance_scheme_v1 import (
+    appearance_tokens_v1,
     application_palette_v1,
     application_stylesheet_v1,
 )
@@ -54,24 +55,26 @@ def main() -> None:
         QPalette.ColorRole.Window
     )
     for scheme in ("light", "dark"):
+        tokens = appearance_tokens_v1(scheme)
         stylesheet = application_stylesheet_v1(scheme)
         assert "QDockWidget" in stylesheet
         assert 'QPushButton[hvacAction="calculate"]' in stylesheet
         assert 'QPushButton[hvacAction="add"]' in stylesheet
         assert 'QPushButton[hvacAction="remove"]' in stylesheet
-        assert "background: #e0a15a" in stylesheet
+        assert f"background: {tokens.panel_focus_fill}" in stylesheet
+        assert f"color: {tokens.panel_focus_text}" in stylesheet
 
     app = QApplication.instance() or QApplication([])
     heat_loss = HeatLossPanelV3()
     rooms = RoomTreePanel()
     assert heat_loss._run_button.property("hvacAction") == "calculate"
     assert heat_loss._add_room_btn.property("hvacAction") == "add"
-    assert rooms._remove_room_btn.property("hvacAction") == "remove"
+    assert heat_loss._remove_room_btn.property("hvacAction") == "remove"
     assert heat_loss._run_button.minimumWidth() == 96
     assert heat_loss._run_button.text() == "Calculate"
     assert heat_loss._run_button.toolTip() == "Calculate Heat-Loss"
     assert heat_loss._add_room_btn.minimumWidth() == 96
-    assert rooms._remove_room_btn.minimumWidth() == 96
+    assert heat_loss._remove_room_btn.minimumWidth() == 96
     heat_loss.close()
     rooms.close()
     app.processEvents()
@@ -97,7 +100,7 @@ def main() -> None:
         "HVAC/gui_v3/panels/room_tree_panel.py"
     ).read_text(encoding="utf-8")
     room_build = _method_source(room_source, "_build_ui")
-    assert "Qt.AlignRight" in room_build
+    assert "_remove_room_btn" not in room_build
     assert "room_remove_requested" not in room_build
 
     print(

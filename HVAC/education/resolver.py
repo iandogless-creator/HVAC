@@ -26,6 +26,9 @@ from typing import Tuple
 from HVAC.education.hydronics.concepts import HYDRONICS_CONCEPTS
 from HVAC.education.heatloss.concepts import HEATLOSS_CONCEPTS
 from HVAC.education.fenestration.concepts import FENESTRATION_CONCEPTS
+from HVAC.education.workspace_guidance_v1 import (
+    WORKSPACE_GUIDANCE_V1,
+)
 
 
 # ----------------------------------------------------------------------
@@ -47,7 +50,7 @@ def resolve(
     topic:
         Topic key within the domain (e.g. "overview")
     mode:
-        Content mode ("standard" | "classical")
+        Content mode ("beginner" | "standard" | "classical")
 
     Returns
     -------
@@ -67,6 +70,9 @@ def resolve(
     if domain == "fenestration":
         return _resolve_from(FENESTRATION_CONCEPTS, domain, topic, mode)
 
+    if domain == "workspace":
+        return _resolve_from(WORKSPACE_GUIDANCE_V1, domain, topic, mode)
+
     return _missing(domain, topic, mode)
 
 
@@ -85,13 +91,20 @@ def _resolve_from(
         return _missing(domain, topic, mode)
 
     entry = topic_block.get(mode)
-    if not entry:
-        return _missing(domain, topic, mode)
+    if isinstance(entry, dict):
+        title = entry.get("title", "Education")
+        body = entry.get("body", "")
+        return title, body
 
-    title = entry.get("title", "Education")
-    body = entry.get("body", "")
+    # Compatibility with Education v1's original flat topic dictionaries.
+    # Their text remains read-only and is shared across the three levels.
+    if "title" in topic_block or "body" in topic_block:
+        return (
+            topic_block.get("title", "Education"),
+            topic_block.get("body", ""),
+        )
 
-    return title, body
+    return _missing(domain, topic, mode)
 
 
 def _missing(domain: str, topic: str, mode: str) -> Tuple[str, str]:

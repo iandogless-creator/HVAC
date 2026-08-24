@@ -15,7 +15,6 @@ from PySide6.QtWidgets import (
     QLabel,
     QTreeWidget,
     QTreeWidgetItem,
-    QPushButton,
 )
 
 class RoomTreePanel(QWidget):
@@ -36,7 +35,6 @@ class RoomTreePanel(QWidget):
     # Signals
     # ------------------------------------------------------------------
     room_selected = Signal(object)  # room_id (opaque)
-    room_remove_requested = Signal(object)  # room_id (opaque)
 
     # ------------------------------------------------------------------
     # Init
@@ -72,17 +70,6 @@ class RoomTreePanel(QWidget):
 
         root.addWidget(self._tree)
 
-        self._remove_room_btn = QPushButton("Remove")
-        self._remove_room_btn.setProperty("hvacAction", "remove")
-        self._remove_room_btn.setMinimumWidth(96)
-        self._remove_room_btn.setEnabled(False)
-        self._remove_room_btn.setToolTip(
-            "Remove selected room.\n"
-            "Blocked if it hosts the Heat Source,\n"
-            "is on a route, or is referenced elsewhere."
-        )
-        self._remove_room_btn.clicked.connect(self._emit_remove_requested)
-        root.addWidget(self._remove_room_btn, 0, Qt.AlignRight)
 
     # ------------------------------------------------------------------
     # Adapter-facing API (Phase E-A)
@@ -104,7 +91,6 @@ class RoomTreePanel(QWidget):
 
         try:
             self._tree.clear()
-            self._remove_room_btn.setEnabled(False)
 
             for entry in rooms:
                 if isinstance(entry, tuple) and len(entry) >= 2:
@@ -130,7 +116,6 @@ class RoomTreePanel(QWidget):
         """
         self._is_priming = True
         self._tree.blockSignals(True)
-        self._remove_room_btn.setEnabled(False)
 
         try:
             if room_id is None:
@@ -146,7 +131,6 @@ class RoomTreePanel(QWidget):
                 try:
                     if item.data(0, Qt.UserRole) == room_id:
                         item.setSelected(True)
-                        self._remove_room_btn.setEnabled(True)
 
                         try:
                             self._tree.scrollToItem(item)
@@ -172,7 +156,6 @@ class RoomTreePanel(QWidget):
             return
 
         items = self._tree.selectedItems()
-        self._remove_room_btn.setEnabled(bool(items))
         if not items:
             return
 
@@ -182,13 +165,3 @@ class RoomTreePanel(QWidget):
             return
 
         self.room_selected.emit(room_id)
-
-    def _emit_remove_requested(self) -> None:
-        items = self._tree.selectedItems()
-        if not items:
-            return
-        try:
-            room_id = items[0].data(0, Qt.UserRole)
-        except RuntimeError:
-            return
-        self.room_remove_requested.emit(room_id)

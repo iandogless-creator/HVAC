@@ -11,6 +11,9 @@ from PySide6.QtWidgets import QApplication
 
 from HVAC.gui_v3.context.gui_project_context import GuiProjectContext
 from HVAC.gui_v3.main_window import MainWindowV3
+from HVAC.gui_v3.widgets.startup_splash_widget_v1 import (
+    StartupSplashWidgetV1,
+)
 
 from HVAC.project.project_state import ProjectState
 from HVAC.core.environment_state import EnvironmentStateV1
@@ -142,16 +145,30 @@ def _select_first_room(context: GuiProjectContext) -> None:
 def main() -> None:
     app = QApplication(sys.argv)
 
-    project_state = make_dev_bootstrap_project_state()
-    _ensure_default_constructions(project_state)
+    # H-S69-B3K1A — enter the real event loop with only the splash visible.
+    # Project and panel construction starts after its complete drop-and-splash
+    # cycle, so synchronous GUI construction cannot hide or freeze that cycle.
+    splash = StartupSplashWidgetV1()
+    splash.show()
+    runtime_v1: dict[str, object] = {"splash": splash}
 
-    context = GuiProjectContext(project_state=project_state)
+    def build_main_window_v1() -> None:
+        project_state = make_dev_bootstrap_project_state()
+        _ensure_default_constructions(project_state)
 
-    win = MainWindowV3(context=context)
-    win.show()
+        context = GuiProjectContext(project_state=project_state)
+        win = MainWindowV3(context=context)
+        runtime_v1["context"] = context
+        runtime_v1["window"] = win
 
-    # Auto-select first room AFTER UI is ready
-    QTimer.singleShot(0, lambda: _select_first_room(context))
+        splash.finish_v1(win)
+        # Auto-select first room AFTER the existing UI is visible.
+        QTimer.singleShot(0, lambda: _select_first_room(context))
+
+    QTimer.singleShot(
+        splash.remaining_minimum_ms_v1(),
+        build_main_window_v1,
+    )
 
     sys.exit(app.exec())
 

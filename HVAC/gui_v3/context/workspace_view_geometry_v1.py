@@ -115,3 +115,47 @@ def resolve_exploded_dock_geometry_v1(
         height=cell_height,
         used_fallback_screen=False,
     )
+
+def resolve_user_workspace_dock_geometry_v1(
+        *,
+        screens: tuple[WorkspaceScreenGeometryV1, ...],
+        dock_index: int,
+        dock_count: int,
+) -> ResolvedDockGeometryV1 | None:
+    """Return a compact first setout for user-selected floating panels."""
+    if not screens:
+        return None
+
+    count = max(1, int(dock_count))
+    index = max(0, min(int(dock_index), count - 1))
+    screen_count = min(len(screens), count)
+    screen_index = index % screen_count
+    screen = screens[screen_index]
+    local_index = index // screen_count
+    local_count = (count - screen_index + screen_count - 1) // screen_count
+
+    margin = 18
+    gap = 12
+    columns = 1 if local_count == 1 else 2
+    rows = max(1, ceil(local_count / columns))
+    cell_width = max(240, (
+        screen.width - 2 * margin - gap * (columns - 1)
+    ) // columns)
+    cell_height = max(160, (
+        screen.height - 2 * margin - gap * (rows - 1)
+    ) // rows)
+    width = min(720, cell_width)
+    height = min(820, cell_height)
+    column = local_index % columns
+    row = local_index // columns
+    cell_x = screen.x + margin + column * (cell_width + gap)
+    cell_y = screen.y + margin + row * (cell_height + gap)
+
+    return _clamped_geometry_v1(
+        screen=screen,
+        x=cell_x + max(0, (cell_width - width) // 2),
+        y=cell_y + max(0, (cell_height - height) // 2),
+        width=width,
+        height=height,
+        used_fallback_screen=False,
+    )

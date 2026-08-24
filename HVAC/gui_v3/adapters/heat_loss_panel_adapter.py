@@ -690,9 +690,21 @@ class HeatLossPanelAdapter:
                 # HeatLossPanelV3.set_rows() expects lowercase "element".
                 "element": element,
 
-                "A": float(src.area_m2),
-                "U": float(src.u_value_W_m2K),
-                "dT": float(src.delta_t_K),
+                "A": (
+                    float(src.area_m2)
+                    if src.area_m2 is not None
+                    else None
+                ),
+                "U": (
+                    float(src.u_value_W_m2K)
+                    if src.u_value_W_m2K is not None
+                    else None
+                ),
+                "dT": (
+                    float(src.delta_t_K)
+                    if src.delta_t_K is not None
+                    else None
+                ),
                 "Qf": self._compute_qf(src),
 
                 # Retained internally, not displayed as HLP column.
@@ -751,8 +763,13 @@ class HeatLossPanelAdapter:
 
         return rows, metas
 
-    def _compute_qf(self, src) -> float:
-        return float(src.area_m2 * src.u_value_W_m2K * src.delta_t_K)
+    def _compute_qf(self, src) -> float | None:
+        area_m2 = getattr(src, "area_m2", None)
+        u_value = getattr(src, "u_value_W_m2K", None)
+        delta_t_K = getattr(src, "delta_t_K", None)
+        if area_m2 is None or u_value is None or delta_t_K is None:
+            return None
+        return float(area_m2 * u_value * delta_t_K)
 
     def _format_element(self, src) -> str:
         def read(obj, key: str, default=None):

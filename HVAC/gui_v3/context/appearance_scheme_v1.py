@@ -24,6 +24,13 @@ class AppearanceTokensV1:
     add_hover: str
     remove: str
     remove_hover: str
+    category_main_border: str
+    category_main_title: str
+    category_helper_border: str
+    category_helper_title: str
+    panel_focus_fill: str
+    panel_focus_border: str
+    panel_focus_text: str
 
 
 _LIGHT = AppearanceTokensV1(
@@ -44,6 +51,13 @@ _LIGHT = AppearanceTokensV1(
     add_hover="#536f84",
     remove="#985f54",
     remove_hover="#844f46",
+    category_main_border="#667f94",
+    category_main_title="#dce6ed",
+    category_helper_border="#7d70a0",
+    category_helper_title="#e8e3f0",
+    panel_focus_fill="#f3cf9c",
+    panel_focus_border="#a76222",
+    panel_focus_text="#202326",
 )
 
 _DARK = AppearanceTokensV1(
@@ -64,6 +78,13 @@ _DARK = AppearanceTokensV1(
     add_hover="#6d8da4",
     remove="#9d655b",
     remove_hover="#ad7469",
+    category_main_border="#7898b3",
+    category_main_title="#607f96",
+    category_helper_border="#a090bd",
+    category_helper_title="#8073a3",
+    panel_focus_fill="#e5b36f",
+    panel_focus_border="#f0a14a",
+    panel_focus_text="#202326",
 )
 
 
@@ -86,8 +107,8 @@ def application_palette_v1(scheme: str) -> QPalette:
         QPalette.ColorRole.ButtonText: tokens.text,
         QPalette.ColorRole.BrightText: "#ffffff",
         QPalette.ColorRole.Link: tokens.link,
-        QPalette.ColorRole.Highlight: "#e0a15a",
-        QPalette.ColorRole.HighlightedText: "#000000",
+        QPalette.ColorRole.Highlight: tokens.panel_focus_fill,
+        QPalette.ColorRole.HighlightedText: tokens.panel_focus_text,
         QPalette.ColorRole.PlaceholderText: tokens.disabled_text,
     }
     for role, colour in roles.items():
@@ -115,6 +136,30 @@ def application_stylesheet_v1(scheme: str) -> str:
         background: {tokens.dock_title};
         border-bottom: 1px solid {tokens.border};
         padding: 4px 6px;
+    }}
+    QDockWidget[hvacPanelCategory="main_readonly"] {{
+        border: 2px solid {tokens.category_main_border};
+    }}
+    QDockWidget[hvacPanelCategory="main_readonly"]::title {{
+        background: {tokens.category_main_title};
+        color: {tokens.text};
+        border-bottom: 2px solid {tokens.category_main_border};
+    }}
+    QDockWidget[hvacPanelCategory="helper_input"] {{
+        border: 2px solid {tokens.category_helper_border};
+    }}
+    QDockWidget[hvacPanelCategory="helper_input"]::title {{
+        background: {tokens.category_helper_title};
+        color: {tokens.text};
+        border-bottom: 2px solid {tokens.category_helper_border};
+    }}
+    QDockWidget[hvacPanelFocus="active"] {{
+        border: 3px solid {tokens.panel_focus_border};
+    }}
+    QDockWidget[hvacPanelFocus="active"]::title {{
+        background: {tokens.panel_focus_fill};
+        color: {tokens.panel_focus_text};
+        border-bottom: 3px solid {tokens.panel_focus_border};
     }}
     QPushButton {{
         background: {tokens.button};
@@ -177,7 +222,7 @@ def application_stylesheet_v1(scheme: str) -> str:
     QListWidget::item:selected:!active,
     QTreeWidget::item:selected:!active,
     QComboBox QAbstractItemView::item:selected:!active {{
-        background: #e0a15a;
-        color: #000000;
+        background: {tokens.panel_focus_fill};
+        color: {tokens.panel_focus_text};
     }}
     """.strip()

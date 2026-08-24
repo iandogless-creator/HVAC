@@ -33,22 +33,33 @@ class ProjectFactoryV3:
             design_return_temp_c=65.0,
         )
 
-        # Default construction library
+        # Canonical construction library used by topology, fabric,
+        # Wall Wizard and U-Values projection throughout GUI v3.
         project.constructions = {
-            "DEFAULT-WALL": ConstructionV1(
-                construction_id="DEFAULT-WALL",
-                name="Default External Wall",
-                u_value_W_m2K=0.28,
+            "DEV-EXT-WALL": ConstructionV1(
+                construction_id="DEV-EXT-WALL",
+                name="External Wall",
+                u_value_W_m2K=0.26,
             ),
-            "DEFAULT-WINDOW": ConstructionV1(
-                construction_id="DEFAULT-WINDOW",
-                name="Default Window",
-                u_value_W_m2K=1.40,
+            "DEV-INT-WALL": ConstructionV1(
+                construction_id="DEV-INT-WALL",
+                name="Internal Wall",
+                u_value_W_m2K=1.50,
             ),
-            "DEFAULT-ROOF": ConstructionV1(
-                construction_id="DEFAULT-ROOF",
-                name="Default Roof",
+            "DEV-FLOOR": ConstructionV1(
+                construction_id="DEV-FLOOR",
+                name="Floor",
                 u_value_W_m2K=0.18,
+            ),
+            "DEV-ROOF": ConstructionV1(
+                construction_id="DEV-ROOF",
+                name="Roof / Ceiling",
+                u_value_W_m2K=0.16,
+            ),
+            "DEV-WINDOW": ConstructionV1(
+                construction_id="DEV-WINDOW",
+                name="Window / Door",
+                u_value_W_m2K=1.60,
             ),
         }
 

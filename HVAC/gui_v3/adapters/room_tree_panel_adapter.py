@@ -47,9 +47,6 @@ class RoomTreePanelAdapter:
 
         # GUI → context
         self._panel.room_selected.connect(self._on_room_selected)
-        self._panel.room_remove_requested.connect(
-            self._on_room_remove_requested
-        )
 
         # context → GUI
         # context → GUI
@@ -114,7 +111,13 @@ class RoomTreePanelAdapter:
         """
         self._panel.set_active_room(room_id)
 
-    def _on_room_remove_requested(self, room_id: str | None) -> None:
+    def request_room_removal_v1(
+            self,
+            room_id: str | None,
+            *,
+            parent=None,
+    ) -> None:
+        dialog_parent = parent if parent is not None else self._panel
         ps = self._context.project_state
         if ps is None or not room_id:
             return
@@ -122,7 +125,7 @@ class RoomTreePanelAdapter:
         plan = build_guarded_room_deletion_plan_v1(ps, room_id)
         if not plan.ready:
             QMessageBox.warning(
-                self._panel,
+                dialog_parent,
                 "Remove Room",
                 "Room cannot be removed:\n\n"
                 + "\n".join(f"• {reason}" for reason in plan.blockers),
@@ -132,7 +135,7 @@ class RoomTreePanelAdapter:
         room = ps.rooms.get(room_id)
         room_label = room_short_label(room_id, room)
         answer = QMessageBox.question(
-            self._panel,
+            dialog_parent,
             "Remove Room",
             f"Remove {room_label}?\n\n"
             "Its room-owned surfaces and opening schedule will also be removed.",

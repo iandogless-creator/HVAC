@@ -38,11 +38,11 @@ class EducationPanel(QWidget):
     Shows:
     - Title
     - Body text
-    - Standard / Classical toggle
+    - Beginner / Standard / Classical level
     """
 
     # Emitted when user toggles mode
-    mode_changed = Signal(str)  # "standard" | "classical"
+    mode_changed = Signal(str)  # beginner | standard | classical
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -73,13 +73,21 @@ class EducationPanel(QWidget):
         header.addWidget(self._title)
         header.addStretch()
 
+        self._btn_beginner = QPushButton("Beginner")
         self._btn_standard = QPushButton("Standard")
         self._btn_classical = QPushButton("Classical")
 
-        for btn in (self._btn_standard, self._btn_classical):
+        for btn in (
+            self._btn_beginner,
+            self._btn_standard,
+            self._btn_classical,
+        ):
             btn.setCheckable(True)
             btn.setFixedHeight(22)
 
+        self._btn_beginner.clicked.connect(
+            lambda: self._set_mode("beginner")
+        )
         self._btn_standard.clicked.connect(
             lambda: self._set_mode("standard")
         )
@@ -87,6 +95,7 @@ class EducationPanel(QWidget):
             lambda: self._set_mode("classical")
         )
 
+        header.addWidget(self._btn_beginner)
         header.addWidget(self._btn_standard)
         header.addWidget(self._btn_classical)
 
@@ -153,16 +162,14 @@ class EducationPanel(QWidget):
         self.mode_changed.emit(mode)
 
     def _apply_mode_buttons(self) -> None:
-        self._btn_standard.setChecked(self._mode == "standard")
-        self._btn_classical.setChecked(self._mode == "classical")
-
-        if self._mode == "standard":
-            self._btn_standard.setStyleSheet(
-                "font-weight: bold;"
+        buttons = {
+            "beginner": self._btn_beginner,
+            "standard": self._btn_standard,
+            "classical": self._btn_classical,
+        }
+        for mode, button in buttons.items():
+            selected = self._mode == mode
+            button.setChecked(selected)
+            button.setStyleSheet(
+                "font-weight: bold;" if selected else ""
             )
-            self._btn_classical.setStyleSheet("")
-        else:
-            self._btn_classical.setStyleSheet(
-                "font-weight: bold;"
-            )
-            self._btn_standard.setStyleSheet("")

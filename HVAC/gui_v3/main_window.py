@@ -10,7 +10,12 @@ from PySide6.QtCore import QEvent, Qt, QSettings, QTimer, Signal, QObject
 from PySide6.QtGui import QAction, QActionGroup, QCursor
 from PySide6.QtWidgets import (
     QApplication,
+    QCheckBox,
+    QDialog,
+    QDialogButtonBox,
     QDockWidget,
+    QGridLayout,
+    QLabel,
     QMainWindow,
     QMessageBox,
     QWidget,
@@ -27,9 +32,16 @@ from HVAC.gui_v3.context.appearance_scheme_v1 import (
     application_palette_v1,
     application_stylesheet_v1,
 )
+from HVAC.gui_v3.context.panel_category_v1 import (
+    panel_category_for_dock_id_v1,
+)
 from HVAC.gui_v3.context.workspace_view_geometry_v1 import (
     WorkspaceScreenGeometryV1,
     resolve_exploded_dock_geometry_v1,
+    resolve_user_workspace_dock_geometry_v1,
+)
+from HVAC.education.workspace_guidance_v1 import (
+    education_topic_for_dock_id_v1,
 )
 
 # ----------------------------------------------------------------------
@@ -159,6 +171,14 @@ class MainWindowV3(QMainWindow):
         self._heat_loss_panel.add_room_requested.connect(
             self._on_add_room_requested
         )
+        self._heat_loss_panel.remove_room_requested.connect(
+            lambda room_id: (
+                self._room_tree_panel_adapter.request_room_removal_v1(
+                    room_id,
+                    parent=self._heat_loss_panel,
+                )
+            )
+        )
 
         # --------------------------------------------------
         # Window setup
@@ -228,6 +248,7 @@ class MainWindowV3(QMainWindow):
             ("basic_sizing", "exploded"): self._apply_basic_sizing_exploded_view_v1,
             ("proportioning", "exploded"): self._apply_proportioning_exploded_view_v1,
             ("results", "exploded"): self._apply_hydronics_results_exploded_view_v1,
+            ("user", "exploded"): self._apply_user_workspace_v1,
         }
         handler = handlers.get((view_id, mode))
         if handler is not None:
@@ -241,9 +262,81 @@ class MainWindowV3(QMainWindow):
         super().closeEvent(event)
 
     # ------------------------------------------------------------------
+    # H-S69-B3J1B — global active dock-panel focus
+    # ------------------------------------------------------------------
+    @staticmethod
+    def _refresh_dock_focus_style_v1(dock: QDockWidget) -> None:
+        style = dock.style()
+        if style is not None:
+            style.unpolish(dock)
+            style.polish(dock)
+        dock.update()
+
+    def _update_active_dock_focus_v1(self, obj: object) -> None:
+        current = obj if isinstance(obj, QObject) else None
+        seen: set[int] = set()
+        dock: QDockWidget | None = None
+        while current is not None and id(current) not in seen:
+            seen.add(id(current))
+            if isinstance(current, QDockWidget):
+                dock = current
+                break
+            current = current.parent()
+
+        if dock is None or dock.objectName() not in self._docks:
+            return
+
+        previous = getattr(self, "_active_focus_dock_v1", None)
+        if previous is dock:
+            return
+        if isinstance(previous, QDockWidget):
+            previous.setProperty("hvacPanelFocus", "")
+            self._refresh_dock_focus_style_v1(previous)
+
+        self._active_focus_dock_v1 = dock
+        dock.setProperty("hvacPanelFocus", "active")
+        self._refresh_dock_focus_style_v1(dock)
+
+    # ------------------------------------------------------------------
     # ESC handling
     # ------------------------------------------------------------------
+    def _update_education_from_event_object_v1(self, obj) -> None:
+        current = obj
+        for _depth in range(32):
+            if current is None:
+                return
+            if isinstance(current, QDockWidget):
+                topic = education_topic_for_dock_id_v1(
+                    str(current.objectName() or "")
+                )
+                if topic:
+                    education = getattr(
+                        self, "_education_panel_adapter", None
+                    )
+                    if education is not None:
+                        education.set_topic(
+                            domain="workspace",
+                            topic=topic,
+                        )
+                return
+            try:
+                current = current.parent()
+            except (AttributeError, RuntimeError):
+                return
+
     def eventFilter(self, obj, event) -> bool:
+        if event.type() in (
+            QEvent.FocusIn,
+            QEvent.MouseButtonPress,
+            QEvent.WindowActivate,
+        ):
+            self._update_active_dock_focus_v1(obj)
+        if event.type() in (
+            QEvent.FocusIn,
+            QEvent.MouseButtonPress,
+            QEvent.WindowActivate,
+        ):
+            self._update_education_from_event_object_v1(obj)
         if redirect_unsafe_input_wheel_event_v1(obj, event):
             return True
         if event.type() == QEvent.KeyPress and event.key() == Qt.Key_Escape:
@@ -463,7 +556,12 @@ class MainWindowV3(QMainWindow):
         self._environment_panel_adapter = EnvironmentPanelAdapter(self._context, self._environment_panel)
         self._room_tree_panel_adapter = RoomTreePanelAdapter(panel=self._room_tree_panel, context=self._context)
         self._readiness_adapter = ProjectHeatLossReadinessAdapter(panel=self._heat_loss_panel, context=self._context)
-        self._education_panel_adapter = EducationPanelAdapter(panel=self._education_panel, domain="heatloss", topic="overview", mode="standard")
+        self._education_panel_adapter = EducationPanelAdapter(
+            panel=self._education_panel,
+            domain="workspace",
+            topic="heat_loss",
+            mode="standard",
+        )
         self._hydronic_control_adapter = HydronicControlPanelAdapter(
             panel=self._hydronic_control_panel,
             project_state=self._context.project_state,
@@ -724,14 +822,8 @@ class MainWindowV3(QMainWindow):
     # ------------------------------------------------------------------
     def _build_menu(self) -> None:
         menubar = self.menuBar()
-        # ---------------------------
-        # Project Menu
-        # ---------------------------
-        project_menu = menubar.addMenu("Project")
-
-        action_run_heatloss = QAction("Run Heat-Loss", self)
-        action_run_heatloss.triggered.connect(self._run_heatloss_project_action)
-        project_menu.addAction(action_run_heatloss)
+        # H-S69-B3H — the duplicate top-level Project menu was removed.
+        # Project files remain under File; Heat-Loss runs from Calculate.
 
         # ---------------------------
         # File Menu
@@ -799,6 +891,24 @@ class MainWindowV3(QMainWindow):
             action.triggered.connect(handler)
             main_views_menu.addAction(action)
 
+        # H-S69-B3F — editable membership; factory docking stays authoritative.
+        main_views_menu.addSeparator()
+        choose_current_main_view_panels_action = QAction(
+            "Choose Current View Panels…", self
+        )
+        choose_current_main_view_panels_action.triggered.connect(
+            self._choose_current_docked_view_panels_v1
+        )
+        main_views_menu.addAction(choose_current_main_view_panels_action)
+
+        reset_current_main_view_panels_action = QAction(
+            "Reset Current View Panels", self
+        )
+        reset_current_main_view_panels_action.triggered.connect(
+            self._reset_current_docked_view_panels_v1
+        )
+        main_views_menu.addAction(reset_current_main_view_panels_action)
+
         exploded_views_menu = view_menu.addMenu("Exploded Views")
         exploded_view_actions = (
             ("Heat Loss", self._apply_heat_loss_exploded_view_v1),
@@ -813,6 +923,52 @@ class MainWindowV3(QMainWindow):
             action = QAction(label, self)
             action.triggered.connect(handler)
             exploded_views_menu.addAction(action)
+
+        # H-S69-B3E/B3E1 — edit and explicitly save the active view.
+        exploded_views_menu.addSeparator()
+        save_current_view_action = QAction("Save Current View", self)
+        save_current_view_action.triggered.connect(
+            self._save_current_exploded_view_v1
+        )
+        exploded_views_menu.addAction(save_current_view_action)
+
+        choose_current_view_panels_action = QAction(
+            "Choose Current View Panels…", self
+        )
+        choose_current_view_panels_action.triggered.connect(
+            self._choose_current_exploded_view_panels_v1
+        )
+        exploded_views_menu.addAction(choose_current_view_panels_action)
+
+        reset_current_view_panels_action = QAction(
+            "Reset Current View Panels", self
+        )
+        reset_current_view_panels_action.triggered.connect(
+            self._reset_current_exploded_view_panels_v1
+        )
+        exploded_views_menu.addAction(reset_current_view_panels_action)
+
+        # H-S69-B3D — one user-selected safe exploded setout.
+        view_menu.addSeparator()
+        self._user_workspace_action_v1 = QAction("User Workspace", self)
+        self._user_workspace_action_v1.setCheckable(True)
+        self._user_workspace_action_v1.setEnabled(
+            self._gui_settings.named_workspace_layout_v1(
+                "user:exploded"
+            ) is not None
+        )
+        self._user_workspace_action_v1.triggered.connect(
+            self._apply_user_workspace_v1
+        )
+        view_menu.addAction(self._user_workspace_action_v1)
+
+        choose_user_workspace_action = QAction(
+            "Choose User Workspace Panels…", self
+        )
+        choose_user_workspace_action.triggered.connect(
+            self._choose_user_workspace_panels_v1
+        )
+        view_menu.addAction(choose_user_workspace_action)
 
         view_menu.addSeparator()
         project_panels_menu = view_menu.addMenu("Project & Heat-Loss Panels")
@@ -1179,6 +1335,323 @@ class MainWindowV3(QMainWindow):
         except KeyError as exc:
             raise ValueError(f"Unknown workspace view: {view_id!r}") from exc
 
+    def _set_user_workspace_checked_v1(self, checked: bool) -> None:
+        action = getattr(self, "_user_workspace_action_v1", None)
+        if action is not None:
+            action.setChecked(bool(checked))
+
+    def _choose_workspace_panels_v1(
+            self,
+            *,
+            title: str,
+            selected_ids: set[str],
+    ) -> tuple[QDockWidget, ...] | None:
+        """Return a checked dock set without showing or resizing any panel."""
+        docks = tuple(sorted(
+            (
+                dock
+                for dock in self.findChildren(QDockWidget)
+                if str(dock.objectName() or "")
+            ),
+            key=lambda dock: str(dock.windowTitle() or "").casefold(),
+        ))
+        if not docks:
+            return None
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle(title)
+        dialog.setMinimumWidth(460)
+        layout = QGridLayout(dialog)
+        layout.addWidget(
+            QLabel("Select the panels for this workspace."),
+            0, 0, 1, 2,
+        )
+
+        choices: list[tuple[QCheckBox, QDockWidget]] = []
+        for index, dock in enumerate(docks):
+            dock_id = str(dock.objectName() or "")
+            checkbox = QCheckBox(str(dock.windowTitle() or dock_id))
+            checkbox.setChecked(dock_id in selected_ids)
+            layout.addWidget(checkbox, 1 + index // 2, index % 2)
+            choices.append((checkbox, dock))
+
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok
+            | QDialogButtonBox.StandardButton.Cancel
+        )
+        apply_button = buttons.button(
+            QDialogButtonBox.StandardButton.Ok
+        )
+        if apply_button is not None:
+            apply_button.setText("Apply")
+        buttons.accepted.connect(dialog.accept)
+        buttons.rejected.connect(dialog.reject)
+        layout.addWidget(buttons, 2 + (len(docks) - 1) // 2, 0, 1, 2)
+
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return None
+        selected_docks = tuple(
+            dock for checkbox, dock in choices if checkbox.isChecked()
+        )
+        if not selected_docks:
+            QMessageBox.information(
+                self,
+                title,
+                "Select at least one panel.",
+            )
+            return None
+        return selected_docks
+
+    def _choose_user_workspace_panels_v1(self) -> None:
+        stored = (
+            self._gui_settings.named_workspace_layout_v1(
+                "user:exploded"
+            )
+            or {}
+        )
+        selected_docks = self._choose_workspace_panels_v1(
+            title="User Workspace",
+            selected_ids=set((stored.get("docks") or {}).keys()),
+        )
+        if selected_docks is not None:
+            self._create_user_workspace_v1(selected_docks)
+
+    def _create_user_workspace_v1(
+            self,
+            docks: tuple[QDockWidget, ...],
+    ) -> None:
+        """Create a bounded initial setout, then use normal remembered geometry."""
+        self._save_active_exploded_workspace_layout_v1()
+        screens = self._qt_workspace_screens_v1()
+        saved_docks: dict[str, dict] = {}
+        for index, dock in enumerate(docks):
+            dock_id = str(dock.objectName() or "")
+            if not dock_id:
+                continue
+            resolved = resolve_user_workspace_dock_geometry_v1(
+                screens=screens,
+                dock_index=index,
+                dock_count=len(docks),
+            )
+            if resolved is None:
+                continue
+            saved_docks[dock_id] = {
+                "x": resolved.x,
+                "y": resolved.y,
+                "width": resolved.width,
+                "height": resolved.height,
+                "screen_name": resolved.screen_name,
+            }
+
+        if not saved_docks:
+            return
+        if not self._gui_settings.set_named_workspace_layout_v1(
+            "user:exploded",
+            {"docks": saved_docks},
+        ):
+            return
+
+        action = getattr(self, "_user_workspace_action_v1", None)
+        if action is not None:
+            action.setEnabled(True)
+        self._apply_user_workspace_v1()
+
+    def _active_factory_docked_view_id_v1(self) -> str:
+        view_id = str(
+            getattr(self, "_active_docked_workspace_view_id_v1", "")
+            or ""
+        )
+        if not view_id:
+            return ""
+        try:
+            self._workspace_docks_v1(view_id)
+        except ValueError:
+            return ""
+        return view_id
+
+    def _apply_factory_docked_view_by_id_v1(self, view_id: str) -> None:
+        handlers = {
+            "heat_loss": self._apply_heat_loss_view_v1,
+            "building_edit": self._apply_building_edit_view_v1,
+            "openings": self._apply_openings_view_v1,
+            "hydronics_setup": self._apply_hydronics_setup_view_v1,
+            "basic_sizing": self._apply_basic_sizing_view_v1,
+            "proportioning": self._apply_proportioning_view_v1,
+            "results": self._apply_hydronics_results_view_v1,
+        }
+        handler = handlers.get(str(view_id or ""))
+        if handler is not None:
+            handler()
+
+    def _choose_current_docked_view_panels_v1(self) -> None:
+        view_id = self._active_factory_docked_view_id_v1()
+        if not view_id:
+            QMessageBox.information(
+                self,
+                "Main Window Views",
+                "Open one of the seven Main Window Views first.",
+            )
+            return
+        storage_id = f"{view_id}:docked"
+        factory_docks = self._workspace_docks_v1(view_id)
+        stored_ids = self._gui_settings.workspace_panel_set_v1(storage_id)
+        selected_ids = (
+            set(stored_ids)
+            if stored_ids
+            else {str(dock.objectName() or "") for dock in factory_docks}
+        )
+        selected_docks = self._choose_workspace_panels_v1(
+            title="Main Window View Panels",
+            selected_ids=selected_ids,
+        )
+        if selected_docks is None:
+            return
+        panel_ids = [str(dock.objectName() or "") for dock in selected_docks]
+        if not self._gui_settings.set_workspace_panel_set_v1(
+            storage_id, panel_ids
+        ):
+            return
+        self._gui_settings.save()
+        self._apply_factory_docked_view_by_id_v1(view_id)
+
+    def _reset_current_docked_view_panels_v1(self) -> None:
+        view_id = self._active_factory_docked_view_id_v1()
+        if not view_id:
+            QMessageBox.information(
+                self,
+                "Main Window Views",
+                "Open one of the seven Main Window Views first.",
+            )
+            return
+        self._gui_settings.clear_workspace_panel_set_v1(
+            f"{view_id}:docked"
+        )
+        self._gui_settings.save()
+        self._apply_factory_docked_view_by_id_v1(view_id)
+
+    def _save_current_exploded_view_v1(self) -> None:
+        """Explicitly persist the active user or factory exploded setout."""
+        storage_id = str(
+            getattr(self, "_active_exploded_workspace_view_id_v1", "")
+            or ""
+        )
+        docks = tuple(
+            getattr(self, "_active_exploded_workspace_docks_v1", ())
+            or ()
+        )
+        if not storage_id.endswith(":exploded") or not docks:
+            QMessageBox.information(
+                self,
+                "Exploded Views",
+                "Open an Exploded View or User Workspace first.",
+            )
+            return
+        self._save_active_exploded_workspace_layout_v1()
+
+    def _active_factory_exploded_view_id_v1(self) -> str:
+        storage_id = str(
+            getattr(self, "_active_exploded_workspace_view_id_v1", "")
+            or ""
+        )
+        suffix = ":exploded"
+        if not storage_id.endswith(suffix):
+            return ""
+        view_id = storage_id[:-len(suffix)]
+        if not view_id or view_id == "user":
+            return ""
+        try:
+            self._workspace_docks_v1(view_id)
+        except ValueError:
+            return ""
+        return view_id
+
+    def _choose_current_exploded_view_panels_v1(self) -> None:
+        view_id = self._active_factory_exploded_view_id_v1()
+        if not view_id:
+            QMessageBox.information(
+                self,
+                "Exploded Views",
+                "Open one of the seven Exploded Views first.",
+            )
+            return
+
+        storage_id = f"{view_id}:exploded"
+        stored = self._gui_settings.named_workspace_layout_v1(storage_id) or {}
+        factory_docks = self._workspace_docks_v1(view_id)
+        panel_ids = tuple(stored.get("panel_ids") or ())
+        selected_ids = (
+            set(panel_ids)
+            if panel_ids
+            else {str(dock.objectName() or "") for dock in factory_docks}
+        )
+        selected_docks = self._choose_workspace_panels_v1(
+            title="Exploded View Panels",
+            selected_ids=selected_ids,
+        )
+        if selected_docks is None:
+            return
+
+        self._save_active_exploded_workspace_layout_v1()
+        stored = self._gui_settings.named_workspace_layout_v1(storage_id) or {}
+        saved_docks = dict(stored.get("docks") or {})
+        selected_panel_ids = [
+            str(dock.objectName() or "") for dock in selected_docks
+        ]
+        if not self._gui_settings.set_named_workspace_layout_v1(
+            storage_id,
+            {
+                "docks": saved_docks,
+                "panel_ids": selected_panel_ids,
+            },
+        ):
+            return
+        self._apply_exploded_workspace_view_v1(view_id, factory_docks)
+
+    def _reset_current_exploded_view_panels_v1(self) -> None:
+        view_id = self._active_factory_exploded_view_id_v1()
+        if not view_id:
+            QMessageBox.information(
+                self,
+                "Exploded Views",
+                "Open one of the seven Exploded Views first.",
+            )
+            return
+
+        storage_id = f"{view_id}:exploded"
+        factory_docks = self._workspace_docks_v1(view_id)
+        self._save_active_exploded_workspace_layout_v1()
+        stored = self._gui_settings.named_workspace_layout_v1(storage_id) or {}
+        saved_docks = dict(stored.get("docks") or {})
+        if not self._gui_settings.set_named_workspace_layout_v1(
+            storage_id,
+            {"docks": saved_docks},
+        ):
+            return
+        self._apply_exploded_workspace_view_v1(view_id, factory_docks)
+
+    def _apply_user_workspace_v1(self, _checked: bool = False) -> None:
+        stored = (
+            self._gui_settings.named_workspace_layout_v1(
+                "user:exploded"
+            )
+            or {}
+        )
+        stored_docks = dict(stored.get("docks") or {})
+        docks_by_id = {
+            str(dock.objectName() or ""): dock
+            for dock in self.findChildren(QDockWidget)
+            if str(dock.objectName() or "")
+        }
+        docks = tuple(
+            docks_by_id[dock_id]
+            for dock_id in stored_docks
+            if dock_id in docks_by_id
+        )
+        if not docks:
+            self._set_user_workspace_checked_v1(False)
+            return
+        self._apply_exploded_workspace_view_v1("user", docks)
+
     def _save_active_exploded_workspace_layout_v1(self) -> None:
         view_id = str(
             getattr(self, "_active_exploded_workspace_view_id_v1", "") or ""
@@ -1213,9 +1686,13 @@ class MainWindowV3(QMainWindow):
                 "screen_name": str(screen.name() if screen else ""),
             }
         if saved_docks:
+            layout = {"docks": saved_docks}
+            panel_ids = tuple(existing.get("panel_ids") or ())
+            if panel_ids:
+                layout["panel_ids"] = list(panel_ids)
             self._gui_settings.set_named_workspace_layout_v1(
                 view_id,
-                {"docks": saved_docks},
+                layout,
             )
             self._gui_settings.save()
 
@@ -1232,6 +1709,39 @@ class MainWindowV3(QMainWindow):
         self._active_exploded_workspace_docks_v1 = ()
         self._temporarily_clamped_workspace_docks_v1 = set()
 
+    @staticmethod
+    def _workspace_window_title_v1(view_id: str, mode: str) -> str:
+        labels = {
+            "heat_loss": "Heat-Loss",
+            "building_edit": "Building Edit",
+            "openings": "Openings",
+            "hydronics_setup": "Hydronics Setup",
+            "basic_sizing": "Basic Sizing",
+            "proportioning": "Proportioning",
+            "results": "Proportioned Results",
+            "user": "User Workspace",
+        }
+        view_label = labels.get(str(view_id or ""), "Workspace")
+        if view_id == "user":
+            mode_label = "Floating"
+        elif mode == "exploded":
+            mode_label = "Exploded"
+        else:
+            mode_label = "Main Window"
+        return f"HVACgooee — {view_label} — {mode_label}"
+
+    def _set_workspace_window_title_v1(
+            self,
+            view_id: str,
+            mode: str,
+    ) -> None:
+        self.setWindowTitle(
+            self._workspace_window_title_v1(view_id, mode)
+        )
+        education = getattr(self, "_education_panel_adapter", None)
+        if education is not None:
+            education.set_topic(domain="workspace", topic=view_id)
+
     def _prepare_hydronics_workspace_view_v1(
             self,
             view_id: str,
@@ -1239,6 +1749,18 @@ class MainWindowV3(QMainWindow):
     ) -> None:
         """Reset only dock presentation for one user-selected view."""
         self._finish_active_exploded_workspace_v1()
+        self._set_user_workspace_checked_v1(False)
+        previous_docks = tuple(
+            getattr(self, "_active_docked_workspace_docks_v1", ()) or ()
+        )
+        for dock in previous_docks:
+            dock.hide()
+            if dock.isFloating():
+                dock.setFloating(False)
+            self.removeDockWidget(dock)
+        self._active_docked_workspace_docks_v1 = ()
+        self._active_docked_workspace_view_id_v1 = str(view_id)
+        self._set_workspace_window_title_v1(view_id, "docked")
         self._gui_settings.set_last_workspace_presentation_v1(
             view_id, "docked"
         )
@@ -1257,12 +1779,52 @@ class MainWindowV3(QMainWindow):
             dock.setFloating(False)
             self.removeDockWidget(dock)
 
-    @staticmethod
     def _show_hydronics_workspace_docks_v1(
+            self,
             docks: tuple[QDockWidget, ...],
     ) -> None:
-        for dock in docks:
+        view_id = str(
+            getattr(self, "_active_docked_workspace_view_id_v1", "")
+            or ""
+        )
+        stored_ids = self._gui_settings.workspace_panel_set_v1(
+            f"{view_id}:docked"
+        )
+        visible_docks = tuple(docks)
+        if stored_ids:
+            docks_by_id = {
+                str(dock.objectName() or ""): dock
+                for dock in self.findChildren(QDockWidget)
+                if str(dock.objectName() or "")
+            }
+            override_docks = tuple(
+                docks_by_id[panel_id]
+                for panel_id in stored_ids
+                if panel_id in docks_by_id
+            )
+            if override_docks:
+                visible_docks = override_docks
+
+        factory_docks = set(docks)
+        anchor = next((
+            dock
+            for dock in visible_docks
+            if dock in factory_docks
+            and self.dockWidgetArea(dock) == Qt.RightDockWidgetArea
+        ), None)
+        for dock in visible_docks:
+            if dock not in factory_docks:
+                dock.hide()
+                if dock.isFloating():
+                    dock.setFloating(False)
+                self.removeDockWidget(dock)
+                self.addDockWidget(Qt.RightDockWidgetArea, dock)
+                if anchor is not None:
+                    self.tabifyDockWidget(anchor, dock)
+                else:
+                    anchor = dock
             dock.show()
+        self._active_docked_workspace_docks_v1 = visible_docks
 
     def _qt_workspace_screens_v1(self) -> tuple[WorkspaceScreenGeometryV1, ...]:
         app = QApplication.instance()
@@ -1289,6 +1851,10 @@ class MainWindowV3(QMainWindow):
             docks: tuple[QDockWidget, ...],
     ) -> None:
         self._finish_active_exploded_workspace_v1()
+        self._active_docked_workspace_view_id_v1 = ""
+        self._active_docked_workspace_docks_v1 = ()
+        self._set_workspace_window_title_v1(view_id, "exploded")
+        self._set_user_workspace_checked_v1(view_id == "user")
         self.showNormal()
         central_widget = self.centralWidget()
         if central_widget is not None:
@@ -1299,6 +1865,20 @@ class MainWindowV3(QMainWindow):
         storage_id = f"{view_id}:exploded"
         stored = self._gui_settings.named_workspace_layout_v1(storage_id) or {}
         stored_docks = dict(stored.get("docks") or {})
+        panel_ids = tuple(stored.get("panel_ids") or ())
+        if view_id != "user" and panel_ids:
+            docks_by_id = {
+                str(dock.objectName() or ""): dock
+                for dock in self.findChildren(QDockWidget)
+                if str(dock.objectName() or "")
+            }
+            override_docks = tuple(
+                docks_by_id[panel_id]
+                for panel_id in panel_ids
+                if panel_id in docks_by_id
+            )
+            if override_docks:
+                docks = override_docks
         screens = self._qt_workspace_screens_v1()
         clamped: set[str] = set()
 
@@ -1572,6 +2152,11 @@ class MainWindowV3(QMainWindow):
 
         d = QDockWidget(title, self)
         d.setObjectName(name)
+        d.setProperty("hvacPanelFocus", "")
+        category = panel_category_for_dock_id_v1(name)
+        if category is not None:
+            d.setProperty("hvacPanelCategory", category)
+            widget.setProperty("hvacPanelCategory", category)
         d.setWidget(widget)
 
         self._docks[name] = d

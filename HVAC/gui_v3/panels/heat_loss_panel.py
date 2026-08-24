@@ -103,6 +103,7 @@ class HeatLossPanelV3(QWidget):
     adjacency_edit_requested = Signal(str)  # surface_id
     internal_design_temp_changed = Signal(float)
     add_room_requested = Signal()
+    remove_room_requested = Signal(object)  # current room_id
     wall_wizard_requested = Signal(str)  # surface_id
 
     # ------------------------------------------------------------------
@@ -267,6 +268,17 @@ class HeatLossPanelV3(QWidget):
         self._add_room_btn.setMinimumWidth(96)
         action_row.addWidget(self._add_room_btn)
 
+        self._remove_room_btn = QPushButton("Remove")
+        self._remove_room_btn.setProperty("hvacAction", "remove")
+        self._remove_room_btn.setMinimumWidth(96)
+        self._remove_room_btn.setEnabled(False)
+        self._remove_room_btn.setToolTip(
+            "Remove the current room.\n"
+            "Blocked if it hosts the Heat Source,\n"
+            "is on a route, or is referenced elsewhere."
+        )
+        action_row.addWidget(self._remove_room_btn)
+
         self._run_button = QPushButton("Calculate")
         self._run_button.setToolTip("Calculate Heat-Loss")
         self._run_button.setProperty("hvacAction", "calculate")
@@ -302,6 +314,9 @@ class HeatLossPanelV3(QWidget):
     def _wire_signals(self) -> None:
         self._run_button.clicked.connect(self.run_requested.emit)
         self._add_room_btn.clicked.connect(self.add_room_requested.emit)
+        self._remove_room_btn.clicked.connect(
+            self._emit_remove_room_requested
+        )
 
         self._geometry_label.clicked.connect(self.geometry_edit_requested.emit)
         self._value_ach.clicked.connect(self.ach_edit_requested.emit)
@@ -312,6 +327,11 @@ class HeatLossPanelV3(QWidget):
         self._fix_uvalues_link.linkActivated.connect(
             lambda _href: self.open_uvalues_requested.emit(None)
         )
+
+    def _emit_remove_room_requested(self) -> None:
+        if not self._current_room_id:
+            return
+        self.remove_room_requested.emit(self._current_room_id)
 
     # ------------------------------------------------------------------
     # Compatibility / no-op hooks
@@ -399,6 +419,7 @@ class HeatLossPanelV3(QWidget):
     # ------------------------------------------------------------------
     def set_room(self, room_id: str | None) -> None:
         self._current_room_id = room_id
+        self._remove_room_btn.setEnabled(bool(room_id))
 
         if room_id:
             self._header.setText(f"Heat Loss — {room_id}")
@@ -407,10 +428,12 @@ class HeatLossPanelV3(QWidget):
 
     def set_room_header(self, room_name: str, room_id: str) -> None:
         self._current_room_id = room_id
+        self._remove_room_btn.setEnabled(True)
         self._header.setText(f"Heat Loss — {room_name}")
 
     def clear(self) -> None:
         self._current_room_id = None
+        self._remove_room_btn.setEnabled(False)
         self._header.setText("Heat Loss — No room selected")
         self._status_label.setText("")
         self._geometry_label.setText("Geometry: —")
