@@ -28,6 +28,11 @@ from HVAC.hydronics.proportioning.balancing_point_kvs_candidate_acceptance_inten
     balancing_point_kvs_candidate_acceptance_intent_from_dict_v1,
     balancing_point_kvs_candidate_acceptance_intent_to_dict_v1,
 )
+from HVAC.hydronics.proportioning.balancing_completion_basis_acceptance_intent_v1 import (
+    BalancingCompletionBasisAcceptanceIntentV1,
+    balancing_completion_basis_acceptance_intent_from_dict_v1,
+    balancing_completion_basis_acceptance_intent_to_dict_v1,
+)
 from HVAC.hydronics.proportioning.balancing_point_accepted_kvs_consequence_disposition_intent_v1 import (
     BalancingPointAcceptedKvsConsequenceDispositionIntentV1,
     balancing_point_accepted_kvs_consequence_disposition_intent_from_dict_v1,
@@ -218,6 +223,10 @@ class ProjectState:
     hydronic_return_arrangement_intent: Optional[ReturnArrangementIntentV1] = None
     hydronic_point_kvs_candidate_acceptance_intent: Optional[
         BalancingPointKvsCandidateAcceptanceIntentV1
+    ] = None
+    # H-S70-B1 — explicit final-balancing method/Kvs-basis intent.
+    hydronic_balancing_completion_basis_acceptance_intent: Optional[
+        BalancingCompletionBasisAcceptanceIntentV1
     ] = None
     hydronic_point_accepted_kvs_consequence_disposition_intent: Optional[
         BalancingPointAcceptedKvsConsequenceDispositionIntentV1
@@ -494,6 +503,13 @@ class ProjectState:
                 if self.hydronic_point_kvs_candidate_acceptance_intent
                 else None
             ),
+            "hydronic_balancing_completion_basis_acceptance_intent": (
+                balancing_completion_basis_acceptance_intent_to_dict_v1(
+                    self.hydronic_balancing_completion_basis_acceptance_intent
+                )
+                if self.hydronic_balancing_completion_basis_acceptance_intent
+                else None
+            ),
             "hydronic_point_accepted_kvs_consequence_disposition_intent": (
                 balancing_point_accepted_kvs_consequence_disposition_intent_to_dict_v1(
                     self.hydronic_point_accepted_kvs_consequence_disposition_intent
@@ -685,6 +701,16 @@ class ProjectState:
             instance.hydronic_point_kvs_candidate_acceptance_intent = (
                 balancing_point_kvs_candidate_acceptance_intent_from_dict_v1(
                     raw_point_kvs_acceptance_intent
+                )
+            )
+
+        raw_balancing_completion_acceptance_intent = data.get(
+            "hydronic_balancing_completion_basis_acceptance_intent"
+        )
+        if isinstance(raw_balancing_completion_acceptance_intent, dict):
+            instance.hydronic_balancing_completion_basis_acceptance_intent = (
+                balancing_completion_basis_acceptance_intent_from_dict_v1(
+                    raw_balancing_completion_acceptance_intent
                 )
             )
 
