@@ -820,6 +820,53 @@ class MainWindowV3(QMainWindow):
     # ------------------------------------------------------------------
     # Overlay triggers
     # ------------------------------------------------------------------
+    def _add_exclusive_panel_action_v1(
+            self,
+            menu,
+            dock: QDockWidget,
+    ) -> QAction:
+        """Add a panel navigation action, not a raw visibility toggle."""
+        action = QAction(str(dock.windowTitle() or dock.objectName()), self)
+        action.triggered.connect(
+            lambda _checked=False, target=dock: (
+                self._show_exclusive_panel_view_v1(target)
+            )
+        )
+        menu.addAction(action)
+        return action
+
+    def _show_exclusive_panel_view_v1(self, dock: QDockWidget) -> None:
+        """End any named workspace and show one panel in the main window."""
+        if dock not in self.findChildren(QDockWidget):
+            return
+
+        # Save the active exploded/user geometry before closing it. The
+        # selected panel action is navigation; it must not inherit floating
+        # state or leave any previous workspace visible.
+        self._finish_active_exploded_workspace_v1()
+        self._set_user_workspace_checked_v1(False)
+        self._active_docked_workspace_view_id_v1 = ""
+        self._active_docked_workspace_docks_v1 = ()
+        self._active_single_panel_dock_v1 = dock
+
+        for candidate in self.findChildren(QDockWidget):
+            candidate.hide()
+            if candidate.isFloating():
+                candidate.setFloating(False)
+
+        self.removeDockWidget(dock)
+        self.addDockWidget(Qt.RightDockWidgetArea, dock)
+        central_widget = self.centralWidget()
+        if central_widget is not None:
+            central_widget.hide()
+        self.showMaximized()
+        dock.show()
+        dock.raise_()
+        dock.setFocus()
+        self.setWindowTitle(
+            f"HVACgooee — {str(dock.windowTitle() or 'Panel')} — Main Window"
+        )
+
     def _build_menu(self) -> None:
         menubar = self.menuBar()
         # H-S69-B3H — the duplicate top-level Project menu was removed.
@@ -983,7 +1030,9 @@ class MainWindowV3(QMainWindow):
             self._dock_geometry,
             self._dock_ach,
         ):
-            project_panels_menu.addAction(dock.toggleViewAction())
+            self._add_exclusive_panel_action_v1(
+                project_panels_menu, dock
+            )
 
         hydronics_panels_menu = view_menu.addMenu("Hydronics Panels")
         for dock in (
@@ -993,10 +1042,14 @@ class MainWindowV3(QMainWindow):
             self._dock_local_k,
             self._dock_topology_arranger,
         ):
-            hydronics_panels_menu.addAction(dock.toggleViewAction())
+            self._add_exclusive_panel_action_v1(
+                hydronics_panels_menu, dock
+            )
 
         utility_panels_menu = view_menu.addMenu("Utility Panels")
-        utility_panels_menu.addAction(self._dock_dev.toggleViewAction())
+        self._add_exclusive_panel_action_v1(
+            utility_panels_menu, self._dock_dev
+        )
 
         # ---------------------------
         # Help Menu
@@ -1340,6 +1393,39 @@ class MainWindowV3(QMainWindow):
         if action is not None:
             action.setChecked(bool(checked))
 
+    def _current_workspace_dock_ids_v1(self) -> set[str]:
+        """Return current presentation membership for picker annotation only."""
+        single = getattr(self, "_active_single_panel_dock_v1", None)
+        if isinstance(single, QDockWidget) and single.isVisible():
+            dock_id = str(single.objectName() or "")
+            return {dock_id} if dock_id else set()
+
+        active_exploded = tuple(
+            getattr(self, "_active_exploded_workspace_docks_v1", ()) or ()
+        )
+        active_docked = tuple(
+            getattr(self, "_active_docked_workspace_docks_v1", ()) or ()
+        )
+        return {
+            str(dock.objectName() or "")
+            for dock in (active_exploded or active_docked)
+            if str(dock.objectName() or "")
+        }
+
+    def _current_workspace_annotation_v1(self) -> str:
+        single = getattr(self, "_active_single_panel_dock_v1", None)
+        if isinstance(single, QDockWidget) and single.isVisible():
+            panel_title = str(
+                single.windowTitle() or single.objectName() or "Panel"
+            ).strip()
+            return f"{panel_title} — Main Window"
+
+        title = str(self.windowTitle() or "").strip()
+        prefix = "HVACgooee — "
+        if title.startswith(prefix):
+            title = title[len(prefix):]
+        return title or "No active view"
+
     def _choose_workspace_panels_v1(
             self,
             *,
@@ -1362,15 +1448,22 @@ class MainWindowV3(QMainWindow):
         dialog.setWindowTitle(title)
         dialog.setMinimumWidth(460)
         layout = QGridLayout(dialog)
-        layout.addWidget(
-            QLabel("Select the panels for this workspace."),
-            0, 0, 1, 2,
+        current_view_dock_ids = self._current_workspace_dock_ids_v1()
+        guidance = QLabel(
+            "Select the panels for this workspace.\n"
+            f"Current view: {self._current_workspace_annotation_v1()}",
+            dialog,
         )
+        guidance.setWordWrap(True)
+        layout.addWidget(guidance, 0, 0, 1, 2)
 
         choices: list[tuple[QCheckBox, QDockWidget]] = []
         for index, dock in enumerate(docks):
             dock_id = str(dock.objectName() or "")
-            checkbox = QCheckBox(str(dock.windowTitle() or dock_id))
+            dock_label = str(dock.windowTitle() or dock_id)
+            if dock_id in current_view_dock_ids:
+                dock_label += " — current view"
+            checkbox = QCheckBox(dock_label)
             checkbox.setChecked(dock_id in selected_ids)
             layout.addWidget(checkbox, 1 + index // 2, index % 2)
             choices.append((checkbox, dock))
@@ -1750,6 +1843,7 @@ class MainWindowV3(QMainWindow):
         """Reset only dock presentation for one user-selected view."""
         self._finish_active_exploded_workspace_v1()
         self._set_user_workspace_checked_v1(False)
+        self._active_single_panel_dock_v1 = None
         previous_docks = tuple(
             getattr(self, "_active_docked_workspace_docks_v1", ()) or ()
         )
@@ -1851,6 +1945,7 @@ class MainWindowV3(QMainWindow):
             docks: tuple[QDockWidget, ...],
     ) -> None:
         self._finish_active_exploded_workspace_v1()
+        self._active_single_panel_dock_v1 = None
         self._active_docked_workspace_view_id_v1 = ""
         self._active_docked_workspace_docks_v1 = ()
         self._set_workspace_window_title_v1(view_id, "exploded")
