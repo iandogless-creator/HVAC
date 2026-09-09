@@ -44,8 +44,10 @@ def main() -> None:
     editor_start = panel_source.index(
         "# H-S48-B — Manual point generic-Kvs acceptance editor"
     )
+    # H-S70-B2E1 — stop at the actual next section. Later Product
+    # Search and Manufacturer controls are outside the H-S48-B editor.
     editor_end = panel_source.index(
-        "# H-S27-F — Chosen-basis proportioned readiness summary",
+        "# H-S49-A — approved product-search duty envelopes",
         editor_start,
     )
     editor_source = panel_source[editor_start:editor_end]

@@ -265,6 +265,18 @@ from HVAC.hydronics.proportioning.preliminary_balancing_resistance_basis_v1 impo
 from HVAC.hydronics.proportioning.balancing_point_topology_authority_v1 import (
     build_balancing_point_topology_authority_v1,
 )
+from HVAC.hydronics.proportioning.balancing_completion_readiness_v1 import (
+    build_balancing_completion_readiness_v1,
+)
+from HVAC.hydronics.proportioning.balancing_completion_basis_acceptance_intent_v1 import (
+    BalancingCompletionBasisAcceptanceIntentV1,
+    build_balancing_completion_basis_fingerprint_v1,
+    resolve_balancing_completion_basis_acceptance_v1,
+)
+from HVAC.hydronics.proportioning.balancing_method_design_v1 import (
+    NONE_REQUIRED,
+    PROPORTIONAL_ADDED_RESISTANCE,
+)
 from HVAC.hydronics.proportioning.balancing_point_resistance_allocation_v1 import (
     build_balancing_point_resistance_allocation_v1,
 )
@@ -495,6 +507,15 @@ class HydronicsSchematicPanelAdapter:
         ):
             self._panel.set_balancing_point_kvs_acceptance_callback(
                 self.set_balancing_point_kvs_candidate_acceptance
+            )
+
+        # H-S70-B2 — system-level acceptance remains adapter-owned.
+        if hasattr(
+                self._panel,
+                "set_balancing_completion_basis_acceptance_callback_v1",
+        ):
+            self._panel.set_balancing_completion_basis_acceptance_callback_v1(
+                self.set_balancing_completion_basis_acceptance_v1
             )
 
         # H-S61-B2B2 — explicit proposed material-family intent callback.
@@ -1524,6 +1545,196 @@ class HydronicsSchematicPanelAdapter:
         )
         self.refresh()
         return True
+
+    @staticmethod
+    def _emit_project_refresh_v1(context, project) -> None:
+        for signal_name in ("project_state_changed", "project_changed"):
+            signal = getattr(context, signal_name, None)
+            emit = getattr(signal, "emit", None)
+            if not callable(emit):
+                continue
+            try:
+                emit()
+            except TypeError:
+                try:
+                    emit(project)
+                except TypeError:
+                    pass
+
+    def _current_balancing_completion_basis_v1(self):
+        project = self._project_state
+        snapshot = getattr(
+            project,
+            "hydronic_proportioned_basis_snapshot",
+            None,
+        )
+        topology = build_balancing_point_topology_authority_v1(project)
+        readiness = build_balancing_completion_readiness_v1(
+            snapshot=snapshot,
+            topology=topology,
+        )
+        resolution = resolve_balancing_completion_basis_acceptance_v1(
+            intent=getattr(
+                project,
+                "hydronic_balancing_completion_basis_acceptance_intent",
+                None,
+            ),
+            readiness=readiness,
+            snapshot=snapshot,
+        )
+        return snapshot, readiness, resolution
+
+    def set_balancing_completion_basis_acceptance_v1(
+            self,
+            payload: dict,
+    ) -> None:
+        """Accept or clear the exact current H-S70 balancing basis.
+
+        This is manual basis intent only. It selects no valve product,
+        valve setting, final schedule, pump duty or pump product.
+        """
+        if not isinstance(payload, dict):
+            raise ValueError(
+                "Balancing completion acceptance payload must be a dictionary"
+            )
+        project = self._project_state
+        if project is None:
+            return
+        action = str(payload.get("action") or "").strip().lower()
+
+        if action == "accept":
+            snapshot, readiness, _resolution = (
+                self._current_balancing_completion_basis_v1()
+            )
+            if not bool(getattr(readiness, "ready", False)):
+                blockers = "; ".join(
+                    str(value)
+                    for value in tuple(getattr(readiness, "blockers", ()) or ())
+                    if value
+                )
+                raise ValueError(
+                    blockers
+                    or "H-S70-A balancing completion readiness required"
+                )
+            fingerprint = build_balancing_completion_basis_fingerprint_v1(
+                readiness=readiness,
+                snapshot=snapshot,
+            )
+            kvs_by_point_id = {
+                str(getattr(row, "balancing_point_id", "") or "").strip(): (
+                    getattr(row, "accepted_kvs_basis", None)
+                )
+                for row in tuple(
+                    getattr(snapshot, "committed_point_valve_bases", ()) or ()
+                )
+                if str(
+                    getattr(row, "balancing_point_id", "") or ""
+                ).strip()
+            }
+            valve_duty_ids = set(
+                tuple(getattr(readiness, "valve_duty_point_ids", ()) or ())
+            )
+            intent = BalancingCompletionBasisAcceptanceIntentV1()
+            for point_id in tuple(
+                    getattr(readiness, "allocated_point_ids", ()) or ()
+            ):
+                valve_duty_required = point_id in valve_duty_ids
+                intent.accept_point_basis(
+                    balancing_point_id=point_id,
+                    accepted_method_id=(
+                        PROPORTIONAL_ADDED_RESISTANCE
+                        if valve_duty_required
+                        else NONE_REQUIRED
+                    ),
+                    accepted_kvs_basis=(
+                        kvs_by_point_id.get(point_id)
+                        if valve_duty_required
+                        else None
+                    ),
+                    basis_fingerprint=fingerprint,
+                )
+            project.hydronic_balancing_completion_basis_acceptance_intent = (
+                intent
+            )
+        elif action == "clear":
+            if getattr(
+                    project,
+                    "hydronic_balancing_completion_basis_acceptance_intent",
+                    None,
+            ) is None:
+                self.refresh()
+                return
+            project.hydronic_balancing_completion_basis_acceptance_intent = None
+        else:
+            raise ValueError("action must be 'accept' or 'clear'")
+
+        project.hydronics_valid = False
+        if hasattr(project, "mark_dirty"):
+            project.mark_dirty()
+        self.refresh()
+        self._emit_project_refresh_v1(self._context, project)
+
+    def _refresh_balancing_completion_basis_acceptance_v1(self) -> None:
+        setter = getattr(
+            self._panel,
+            "set_balancing_completion_basis_rows_v1",
+            None,
+        )
+        if not callable(setter):
+            return
+        _snapshot, readiness, resolution = (
+            self._current_balancing_completion_basis_v1()
+        )
+
+        def number(value) -> str:
+            try:
+                return f"{float(value):g}"
+            except (TypeError, ValueError):
+                return "—"
+
+        rows = [
+            {
+                "balancing_point_id": str(
+                    getattr(row, "balancing_point_id", "") or "—"
+                ),
+                "duty": (
+                    "Added resistance"
+                    if bool(getattr(row, "valve_duty_required", False))
+                    else "None"
+                ),
+                "required_method": str(
+                    getattr(row, "required_method_id", "") or "—"
+                ).replace("_", " ").title(),
+                "committed_kvs": number(
+                    getattr(row, "committed_kvs_basis", None)
+                ),
+                "accepted": (
+                    "Yes" if bool(getattr(row, "accepted", False)) else "No"
+                ),
+                "status": str(getattr(row, "status", "") or "—"),
+                "blockers": "; ".join(
+                    str(value)
+                    for value in tuple(getattr(row, "blockers", ()) or ())
+                    if value
+                ) or "—",
+            }
+            for row in tuple(getattr(resolution, "rows", ()) or ())
+        ]
+        stored_intent = getattr(
+            self._project_state,
+            "hydronic_balancing_completion_basis_acceptance_intent",
+            None,
+        )
+        setter(
+            rows,
+            readiness_ready=bool(getattr(readiness, "ready", False)),
+            accepted_ready=bool(getattr(resolution, "ready", False)),
+            has_acceptance=bool(
+                getattr(stored_intent, "accepted_by_point_id", {})
+            ),
+            status=str(getattr(resolution, "status", "") or "—"),
+            blockers=tuple(getattr(resolution, "blockers", ()) or ()),
+        )
 
     def set_balancing_point_kvs_candidate_acceptance(
             self,
@@ -4303,13 +4514,25 @@ class HydronicsSchematicPanelAdapter:
                     getattr(evidence_row, "kvs_candidates", ()) or ()
                 )
             )
-            # H-S48-B edits only points for which a valve/Kvs is required.
-            if not point_id or not candidates:
+            if not point_id:
                 continue
             display = display_by_id.get(point_id, {})
             resolved = resolved_by_id.get(point_id)
             consequence = consequence_by_id.get(point_id)
             disposition = disposition_by_id.get(point_id)
+
+            # H-S70-B2E — ordinary no-valve points remain absent from the
+            # editor. A no-valve point carrying obsolete H-S48-A/H-S48-D
+            # intent remains selectable solely so that intent can be cleared.
+            accepted_kvs = getattr(resolved, "accepted_kvs", None)
+            disposition_value = str(
+                getattr(disposition, "disposition", "") or ""
+            )
+            has_stored_decision = (
+                accepted_kvs is not None or bool(disposition_value)
+            )
+            if not candidates and not has_stored_decision:
+                continue
             rows.append(
                 {
                     "balancing_point_id": point_id,
@@ -8026,6 +8249,10 @@ class HydronicsSchematicPanelAdapter:
             self._panel,
             "set_balancing_method_candidate_rows",
         )
+        has_balancing_completion_basis_table = hasattr(
+            self._panel,
+            "set_balancing_completion_basis_rows_v1",
+        )
         has_valve_authority_input_table = hasattr(
             self._panel,
             "set_valve_authority_input_rows",
@@ -8061,6 +8288,7 @@ class HydronicsSchematicPanelAdapter:
                 and not has_readiness_table
                 and not has_provisional_burden_table
                 and not has_balancing_method_candidate_table
+                and not has_balancing_completion_basis_table
                 and not has_valve_authority_input_table
                 and not has_balancing_point_evidence_table
                 and not has_proportioned_status_table
@@ -8072,6 +8300,7 @@ class HydronicsSchematicPanelAdapter:
 
         if (
                 has_committed_point_valve_basis_detail_table
+                or has_balancing_completion_basis_table
                 or has_committed_point_reconciliation_table
                 or has_proportioned_status_table
                 or has_committed_csv_export_control
@@ -8081,6 +8310,8 @@ class HydronicsSchematicPanelAdapter:
                 "hydronic_proportioned_basis_snapshot",
                 None,
             )
+            if has_balancing_completion_basis_table:
+                self._refresh_balancing_completion_basis_acceptance_v1()
             committed_authority = getattr(
                 committed_snapshot,
                 "hydraulic_input_authority",

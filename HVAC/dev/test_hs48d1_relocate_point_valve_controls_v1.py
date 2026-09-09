@@ -22,9 +22,22 @@ def main() -> None:
     assert "Manual point Kvs candidate acceptance — design intent" in (
         point_valve_section
     )
-    assert point_valve_section.count(
-        "self._add_section(\n            proportioning_layout,"
-    ) == 2
+    table_binding = "table=self._balancing_point_evidence_table,"
+    editor_binding = "table=kvs_editor,"
+    assert point_valve_section.count(table_binding) == 1
+    assert point_valve_section.count(editor_binding) == 1
+
+    for binding in (table_binding, editor_binding):
+        binding_index = point_valve_section.index(binding)
+        add_index = point_valve_section.rfind(
+            "self._add_section(",
+            0,
+            binding_index,
+        )
+        assert add_index >= 0
+        assert "proportioning_layout," in point_valve_section[
+            add_index:binding_index
+        ]
     assert "self._add_section(\n            proportioned_layout," not in (
         point_valve_section
     )

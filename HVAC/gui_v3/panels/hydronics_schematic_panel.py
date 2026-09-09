@@ -2250,6 +2250,71 @@ class HydronicsSchematicPanel(QWidget):
         self.set_balancing_method_candidate_rows([])
 
         # --------------------------------------------------
+        # H-S70-B2 — Explicit balancing completion basis acceptance
+        # --------------------------------------------------
+        self._balancing_completion_basis_table = self._make_table(
+            columns=[
+                "Point",
+                "Duty",
+                "Required method",
+                "Committed Kvs",
+                "Accepted",
+                "Status",
+                "Blockers",
+            ],
+            stretch_columns={0, 2, 5, 6},
+        )
+        self._add_section(
+            proportioned_layout,
+            title="Balancing completion basis acceptance",
+            table=self._balancing_completion_basis_table,
+            min_height=145,
+            expanded=True,
+        )
+
+        completion_controls = QFrame(self)
+        completion_layout = QGridLayout(completion_controls)
+        completion_layout.setContentsMargins(8, 4, 8, 8)
+        completion_layout.setHorizontalSpacing(8)
+        self._balancing_completion_basis_status_label = QLabel(
+            "Waiting for H-S70-A balancing completion readiness",
+            completion_controls,
+        )
+        self._balancing_completion_basis_status_label.setWordWrap(True)
+        self._balancing_completion_basis_accept_button = QPushButton(
+            "Accept Current Basis",
+            completion_controls,
+        )
+        self._balancing_completion_basis_clear_button = QPushButton(
+            "Clear Acceptance",
+            completion_controls,
+        )
+        self._balancing_completion_basis_accept_button.clicked.connect(
+            self._on_accept_balancing_completion_basis_v1
+        )
+        self._balancing_completion_basis_clear_button.clicked.connect(
+            self._on_clear_balancing_completion_basis_v1
+        )
+        completion_layout.addWidget(
+            self._balancing_completion_basis_status_label, 0, 0, 1, 2
+        )
+        completion_layout.addWidget(
+            self._balancing_completion_basis_accept_button, 1, 0
+        )
+        completion_layout.addWidget(
+            self._balancing_completion_basis_clear_button, 1, 1
+        )
+        proportioned_layout.addWidget(completion_controls)
+        self.set_balancing_completion_basis_rows_v1(
+            [],
+            readiness_ready=False,
+            accepted_ready=False,
+            has_acceptance=False,
+            status="Waiting for H-S70-A balancing completion readiness",
+            blockers=(),
+        )
+
+        # --------------------------------------------------
         # H-S32-D — Valve authority input preview
         # --------------------------------------------------
         self._valve_authority_input_table = self._make_table(
@@ -2284,16 +2349,16 @@ class HydronicsSchematicPanel(QWidget):
         # --------------------------------------------------
         self._balancing_point_evidence_table = self._make_table(
             columns=[
-                "Point",
+                "Stable balancing point",
                 "Scope",
-                "Role",
+                "Hydraulic role",
                 "Topology",
                 "Governed routes",
                 "Flow kg/s",
                 "Allocated Δp",
                 "Resistance Pa/(kg/s)²",
-                "Method",
-                "Valve duty",
+                "Balancing method",
+                "Valve duty required?",
                 "Required Kv",
                 "Kvs candidates",
                 "Kvs utilisation",
@@ -2303,12 +2368,31 @@ class HydronicsSchematicPanel(QWidget):
                 "Consequence disposition",
                 "Controlled circuit Δp",
                 "Design authority",
-                "Ready",
-                "Status",
-                "Blockers",
+                "Basis ready?",
+                "Acceptance status",
+                "Readiness blockers",
             ],
-            stretch_columns={0, 4, 8, 9, 11, 12, 14, 15, 20, 21},
+            stretch_columns=set(),
         )
+        # H-S70-B2F — linked Kvs evidence focus and readable presentation.
+        # Long evidence remains available through horizontal scrolling and
+        # cell tooltips instead of squeezing every heading into a sliver.
+        evidence_header = self._balancing_point_evidence_table.horizontalHeader()
+        for column_index, width in {
+            0: 360,
+            2: 180,
+            4: 260,
+            11: 260,
+            12: 280,
+            16: 380,
+            20: 300,
+            21: 380,
+        }.items():
+            evidence_header.setSectionResizeMode(
+                column_index,
+                QHeaderView.Interactive,
+            )
+            evidence_header.resizeSection(column_index, width)
         self._add_section(
             proportioning_layout,
             title=(
@@ -2341,6 +2425,7 @@ class HydronicsSchematicPanel(QWidget):
 
         kvs_layout.addWidget(QLabel("Balancing point:", kvs_editor), 1, 0)
         self._point_kvs_acceptance_point_combo = QComboBox(kvs_editor)
+        self._point_kvs_acceptance_point_combo.setMinimumWidth(520)
         self._point_kvs_acceptance_point_combo.currentIndexChanged.connect(
             self._on_point_kvs_acceptance_point_changed_v1
         )
@@ -2360,15 +2445,16 @@ class HydronicsSchematicPanel(QWidget):
             self._point_kvs_acceptance_evidence_label, 2, 3
         )
 
-        kvs_layout.addWidget(QLabel("Accept Kvs:", kvs_editor), 3, 0)
+        kvs_layout.addWidget(QLabel("Candidate Kvs:", kvs_editor), 3, 0)
         self._point_kvs_acceptance_candidate_combo = QComboBox(kvs_editor)
+        self._point_kvs_acceptance_candidate_combo.setMinimumWidth(180)
         self._point_kvs_acceptance_candidate_combo.currentIndexChanged.connect(
             self._on_point_kvs_acceptance_candidate_changed_v1
         )
         kvs_layout.addWidget(
             self._point_kvs_acceptance_candidate_combo, 3, 1
         )
-        kvs_layout.addWidget(QLabel("Resolved status:", kvs_editor), 3, 2)
+        kvs_layout.addWidget(QLabel("Acceptance status:", kvs_editor), 3, 2)
         self._point_kvs_acceptance_status_label = QLabel("—", kvs_editor)
         self._point_kvs_acceptance_status_label.setWordWrap(True)
         kvs_layout.addWidget(
@@ -2409,7 +2495,7 @@ class HydronicsSchematicPanel(QWidget):
             self._on_kvs_consequence_disposition_changed_v1
         )
         kvs_layout.addWidget(self._kvs_consequence_disposition_combo, 6, 1)
-        kvs_layout.addWidget(QLabel("Disposition status:", kvs_editor), 6, 2)
+        kvs_layout.addWidget(QLabel("Consequence status:", kvs_editor), 6, 2)
         self._kvs_consequence_disposition_status_label = QLabel("—", kvs_editor)
         self._kvs_consequence_disposition_status_label.setWordWrap(True)
         kvs_layout.addWidget(
@@ -2436,6 +2522,8 @@ class HydronicsSchematicPanel(QWidget):
         kvs_layout.addWidget(
             self._kvs_consequence_disposition_clear_button, 7, 3
         )
+        kvs_layout.setColumnMinimumWidth(0, 145)
+        kvs_layout.setColumnMinimumWidth(2, 155)
         kvs_layout.setColumnStretch(1, 1)
         kvs_layout.setColumnStretch(3, 2)
 
@@ -7269,6 +7357,106 @@ class HydronicsSchematicPanel(QWidget):
         for row_index in range(table.rowCount()):
             table.setRowHeight(row_index, 24)
 
+    def set_balancing_completion_basis_acceptance_callback_v1(
+            self,
+            callback,
+    ) -> None:
+        """Register the adapter-owned H-S70-B2 acceptance callback."""
+        self._balancing_completion_basis_acceptance_callback_v1 = callback
+
+    def set_balancing_completion_basis_rows_v1(
+            self,
+            rows: list[dict],
+            *,
+            readiness_ready: bool,
+            accepted_ready: bool,
+            has_acceptance: bool,
+            status: str,
+            blockers: tuple[str, ...],
+    ) -> None:
+        """Display H-S70-A/B1 evidence without owning engineering state."""
+        table = getattr(self, "_balancing_completion_basis_table", None)
+        if table is None:
+            return
+        display_rows = list(rows or [])
+        if not display_rows:
+            display_rows = [{
+                "balancing_point_id": "—",
+                "duty": "—",
+                "required_method": "—",
+                "committed_kvs": "—",
+                "accepted": "No",
+                "status": str(status or "Not ready"),
+                "blockers": "; ".join(
+                    str(value) for value in tuple(blockers or ()) if value
+                ) or "—",
+            }]
+        table.setRowCount(len(display_rows))
+        for row_index, row in enumerate(display_rows):
+            values = [
+                row.get("balancing_point_id", "—"),
+                row.get("duty", "—"),
+                row.get("required_method", "—"),
+                row.get("committed_kvs", "—"),
+                row.get("accepted", "No"),
+                row.get("status", "—"),
+                row.get("blockers", "—"),
+            ]
+            for col_index, value in enumerate(values):
+                item = QTableWidgetItem(str(value))
+                item.setFlags(item.flags() & ~Qt.ItemIsEditable)
+                table.setItem(row_index, col_index, item)
+        table.setWordWrap(False)
+        for row_index in range(table.rowCount()):
+            table.setRowHeight(row_index, 24)
+        self._fit_table_height(table, min_height=120, max_height=240)
+
+        blocker_text = "; ".join(
+            str(value) for value in tuple(blockers or ()) if value
+        )
+        label = getattr(
+            self, "_balancing_completion_basis_status_label", None
+        )
+        if label is not None:
+            label.setText(
+                str(status or "—")
+                if not blocker_text
+                else f"{status or 'Not ready'} — {blocker_text}"
+            )
+        accept_button = getattr(
+            self, "_balancing_completion_basis_accept_button", None
+        )
+        clear_button = getattr(
+            self, "_balancing_completion_basis_clear_button", None
+        )
+        if accept_button is not None:
+            accept_button.setEnabled(bool(readiness_ready))
+            accept_button.setText(
+                "Current Basis Accepted"
+                if accepted_ready
+                else "Accept Current Basis"
+            )
+        if clear_button is not None:
+            clear_button.setEnabled(bool(has_acceptance))
+
+    def _on_accept_balancing_completion_basis_v1(self) -> None:
+        callback = getattr(
+            self,
+            "_balancing_completion_basis_acceptance_callback_v1",
+            None,
+        )
+        if callable(callback):
+            callback({"action": "accept"})
+
+    def _on_clear_balancing_completion_basis_v1(self) -> None:
+        callback = getattr(
+            self,
+            "_balancing_completion_basis_acceptance_callback_v1",
+            None,
+        )
+        if callable(callback):
+            callback({"action": "clear"})
+
     def set_balancing_point_evidence_rows(
             self,
             rows: list[dict],
@@ -7310,7 +7498,9 @@ class HydronicsSchematicPanel(QWidget):
             values = [
                 row.get("balancing_point_id", "—"),
                 row.get("point_scope", "—"),
-                row.get("point_role", "—"),
+                self._balancing_point_evidence_role_label_v1(
+                    row.get("point_role", "—")
+                ),
                 row.get("topology", "—"),
                 row.get("governed_routes", "—"),
                 row.get("point_flow", "—"),
@@ -7332,13 +7522,18 @@ class HydronicsSchematicPanel(QWidget):
                 row.get("blockers", "—"),
             ]
             for col_index, value in enumerate(values):
-                item = QTableWidgetItem(str(value))
+                text = str(value)
+                item = QTableWidgetItem(text)
                 item.setFlags(item.flags() & ~Qt.ItemIsEditable)
+                item.setToolTip(text)
                 table.setItem(row_index, col_index, item)
         table.setWordWrap(False)
         for row_index in range(table.rowCount()):
             table.setRowHeight(row_index, 24)
         self._fit_table_height(table, min_height=120, max_height=260)
+        self._focus_balancing_point_evidence_row_v1(
+            getattr(self, "_point_kvs_acceptance_selected_point_id", "")
+        )
 
     def set_accepted_kvs_consequence_disposition_callback(
             self,
@@ -7382,8 +7577,17 @@ class HydronicsSchematicPanel(QWidget):
                 if not point_id:
                     continue
                 scope = str(row.get("point_scope") or "point")
-                role = str(row.get("point_role") or "—")
-                combo.addItem(f"{scope} | {role} | {point_id}", point_id)
+                scope_label = scope.replace("_", " ").capitalize()
+                role_label = self._balancing_point_evidence_role_label_v1(
+                    row.get("point_role") or "—"
+                )
+                display = f"{scope_label} — {role_label} — {point_id}"
+                combo.addItem(display, point_id)
+                combo.setItemData(
+                    combo.count() - 1,
+                    f"{display}\nStable ID: {point_id}",
+                    Qt.ToolTipRole,
+                )
             wanted = combo.findData(previous_id)
             if wanted < 0 and combo.count():
                 wanted = 0
@@ -7391,6 +7595,56 @@ class HydronicsSchematicPanel(QWidget):
         finally:
             combo.blockSignals(blocked)
         self._on_point_kvs_acceptance_point_changed_v1(combo.currentIndex())
+
+    @staticmethod
+    def _balancing_point_evidence_role_label_v1(value) -> str:
+        """Return a presentation label while retaining the stable point ID."""
+        raw = str(value or "—")
+        labels = {
+            "common_main_takeoff": "Common-main take-off",
+            "leg_entry": "Leg entry",
+            "common_route_downstream": "Common route downstream",
+        }
+        if raw in labels:
+            return labels[raw]
+        if raw == "—":
+            return raw
+        return raw.replace("_", " ").capitalize()
+
+    def _focus_balancing_point_evidence_row_v1(
+            self,
+            balancing_point_id: str,
+    ) -> None:
+        """Link the manual Kvs selector to its read-only evidence row."""
+        table = getattr(self, "_balancing_point_evidence_table", None)
+        if table is None:
+            return
+
+        for row_index in range(table.rowCount()):
+            for column_index in range(table.columnCount()):
+                item = table.item(row_index, column_index)
+                if item is not None:
+                    item.setBackground(QBrush())
+
+        wanted = str(balancing_point_id or "")
+        if not wanted:
+            return
+
+        for row_index in range(table.rowCount()):
+            point_item = table.item(row_index, 0)
+            if point_item is None or point_item.text() != wanted:
+                continue
+
+            focus_brush = QBrush(QColor(255, 238, 210))
+            for column_index in range(table.columnCount()):
+                item = table.item(row_index, column_index)
+                if item is not None:
+                    item.setBackground(focus_brush)
+            table.scrollToItem(
+                point_item,
+                QAbstractItemView.PositionAtCenter,
+            )
+            return
 
     def _on_point_kvs_acceptance_point_changed_v1(
             self,
@@ -7404,6 +7658,7 @@ class HydronicsSchematicPanel(QWidget):
             {},
         )
         self._point_kvs_acceptance_selected_point_id = point_id
+        self._focus_balancing_point_evidence_row_v1(point_id)
         candidates = tuple(row.get("kvs_candidates", ()) or ())
         accepted_kvs = row.get("accepted_kvs")
         disposition_combo = self._kvs_consequence_disposition_combo
@@ -13118,6 +13373,14 @@ QTableWidget::item:selected:!active {
             return
 
         ready = bool(ready)
+        fallback_reason = (
+            "Accept a Direct or Reverse return arrangement basis before "
+            "committing proportioning."
+        )
+        self._commit_proportioning_ready_v1 = ready
+        self._commit_proportioning_blocker_v1 = (
+            "" if ready else str(reason or fallback_reason)
+        )
         button.setEnabled(ready)
 
         if ready:
@@ -13158,6 +13421,48 @@ QTableWidget::item:selected:!active {
                 "committing proportioning."
             )
 
+        self._refresh_commit_proportioning_status_label_v1()
+
+    def _refresh_commit_proportioning_status_label_v1(self) -> None:
+        """Keep the exact commit/recommit gate visible without changing it."""
+        label = getattr(
+            self,
+            "_return_arrangement_acceptance_status_label",
+            None,
+        )
+        if label is None:
+            return
+
+        ready = bool(
+            getattr(self, "_commit_proportioning_ready_v1", False)
+        )
+        committed = bool(
+            getattr(self, "_commit_proportioning_committed_v1", False)
+        )
+        blocker = str(
+            getattr(self, "_commit_proportioning_blocker_v1", "") or ""
+        ).strip()
+
+        if not ready:
+            heading = (
+                "Recommit Proportioning is blocked."
+                if committed
+                else "Commit Proportioning is blocked."
+            )
+            label.setText(
+                f"{heading} Blocker: {blocker or 'Current readiness is incomplete.'}"
+            )
+            return
+
+        if committed:
+            label.setText(
+                "Proportioning hydraulic basis is committed and the current "
+                "evidence is ready to recommit. No final pump, valve setting, "
+                "pipe resizing or final balancing has been committed."
+            )
+        else:
+            label.setText("Current proportioning basis is ready to commit.")
+
     def set_commit_proportioning_committed(
             self,
             *,
@@ -13174,27 +13479,32 @@ QTableWidget::item:selected:!active {
             return
 
         committed = bool(committed)
+        self._commit_proportioning_committed_v1 = committed
         button.setText(
             "Recommit Proportioning"
             if committed
             else "Commit Proportioning"
         )
         if committed:
-            button.setToolTip(
-                "The current typed hydraulic input authority is committed. "
-                "Use this action again to recommit current evidence."
-            )
-            label = getattr(
-                self,
-                "_return_arrangement_acceptance_status_label",
-                None,
-            )
-            if label is not None:
-                label.setText(
-                    "Proportioning hydraulic basis is committed. "
-                    "No final pump, valve setting, pipe resizing or "
-                    "final balancing has been committed."
+            if bool(
+                    getattr(self, "_commit_proportioning_ready_v1", False)
+            ):
+                button.setToolTip(
+                    "The current typed hydraulic input authority is committed. "
+                    "Use this action again to recommit current evidence."
                 )
+            else:
+                blocker = str(
+                    getattr(
+                        self,
+                        "_commit_proportioning_blocker_v1",
+                        "",
+                    )
+                    or "Current readiness is incomplete."
+                )
+                button.setToolTip(blocker)
+
+        self._refresh_commit_proportioning_status_label_v1()
 
     def _on_commit_proportioning_button_clicked(self) -> None:
         """
@@ -13282,6 +13592,13 @@ QTableWidget::item:selected:!active {
         """Route an existing section by presentation meaning only."""
 
         clean = " ".join(str(title or "").lower().split())
+
+        # H-S70-B2D — keep the all-point readiness evidence beside the
+        # point editor that resolves it. Presentation routing only.
+        if clean == (
+                "main / leg / subleg balancing-point evidence — read-only"
+        ):
+            return "kvs_design"
         if "manufacturer" in clean:
             return "manufacturer_valves"
         if "kvs" in clean or "required kv" in clean:
