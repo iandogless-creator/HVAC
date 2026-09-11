@@ -287,6 +287,7 @@ class HydronicsSchematicPanel(QWidget):
         self._common_main_leg_subleg_row_by_subleg_id: dict[str, int] = {}
 
         self._build_ui()
+        self._apply_hydronics_action_button_colours_v1()
 
         self.setFocusPolicy(Qt.NoFocus)
         self.setContextMenuPolicy(Qt.NoContextMenu)
@@ -452,6 +453,71 @@ class HydronicsSchematicPanel(QWidget):
     # ------------------------------------------------------------------
     # UI construction
     # ------------------------------------------------------------------
+
+    # H-S71-B — whole-Hydronics-panel action-button colouring
+    def _apply_hydronics_action_button_colours_v1(self) -> None:
+        """Assign presentation-only application action roles to buttons."""
+        button_names_by_role = {
+            # Existing application green: affirmative engineering intent.
+            "calculate": (
+                "_proportioned_pipe_resizing_schedule_accept_button_v1",
+                "_proportioned_pipe_resizing_schedule_commit_button_v1",
+                "_committed_pipe_thermal_basis_apply_button_v1",
+                "_committed_pipe_thermal_basis_apply_all_missing_button_v1",
+                "_committed_pipe_pair_spacing_apply_button_v1",
+                "_committed_pipe_pair_project_vertical_order_apply_button_v1",
+                "_committed_pipe_pair_local_vertical_order_apply_button_v1",
+                "_committed_pipe_section_room_mapping_apply_button_v1",
+                "_committed_pipe_section_room_mapping_apply_all_button_v1",
+                "_balancing_completion_basis_accept_button",
+                "_point_kvs_acceptance_apply_button",
+                "_kvs_consequence_disposition_apply_button",
+                "_accept_manufacturer_valve_candidate_button_v1",
+                "_product_search_criteria_apply_button",
+                "_point_valve_candidate_consequence_disposition_apply_button",
+                "_point_valve_candidate_acceptance_apply_button",
+                "_commit_proportioning_button",
+                "_basic_ps_velocity_apply_button",
+            ),
+            # Existing application blue: open/export navigation actions.
+            "add": (
+                "_clean_proportioned_table_viewer_button",
+                "_committed_proportioned_csv_export_button",
+                "_open_local_manufacturer_catalogue_button_v1",
+            ),
+            # Existing application muted rust: clear/reversal actions.
+            "remove": (
+                "_proportioned_pipe_resizing_schedule_clear_button_v1",
+                "_committed_pipe_thermal_basis_clear_button_v1",
+                "_committed_pipe_thermal_basis_clear_all_button_v1",
+                "_committed_pipe_pair_spacing_clear_button_v1",
+                "_committed_pipe_pair_spacing_clear_all_button_v1",
+                "_committed_pipe_pair_local_vertical_order_clear_button_v1",
+                "_committed_pipe_pair_local_vertical_order_clear_all_button_v1",
+                "_committed_pipe_section_room_mapping_clear_button_v1",
+                "_committed_pipe_section_room_mapping_clear_all_button_v1",
+                "_balancing_completion_basis_clear_button",
+                "_point_kvs_acceptance_clear_button",
+                "_kvs_consequence_disposition_clear_button",
+                "_clear_local_manufacturer_catalogue_button_v1",
+                "_clear_manufacturer_valve_candidate_button_v1",
+                "_product_search_criteria_clear_button",
+                "_point_valve_candidate_consequence_disposition_clear_button",
+                "_point_valve_candidate_acceptance_clear_button",
+                "_basic_ps_velocity_clear_button",
+            ),
+        }
+
+        for role, names in button_names_by_role.items():
+            for name in names:
+                button = getattr(self, name, None)
+                if button is None:
+                    continue
+                button.setProperty("hvacAction", role)
+                style = button.style()
+                style.unpolish(button)
+                style.polish(button)
+                button.update()
 
     def _build_ui(self) -> None:
         outer_layout = QVBoxLayout(self)
@@ -5834,6 +5900,8 @@ class HydronicsSchematicPanel(QWidget):
         if table is None:
             return
 
+        table.clearSelection()
+
         for r in range(table.rowCount()):
             for c in range(table.columnCount()):
                 item = table.item(r, c)
@@ -6602,6 +6670,8 @@ class HydronicsSchematicPanel(QWidget):
 
         row_index = row_map.get(str(section_id or ""))
 
+        self._apply_clean_proportioned_table_focus_style_v1(table)
+        table.clearSelection()
         if row_index is None:
             return
 
@@ -6903,6 +6973,8 @@ class HydronicsSchematicPanel(QWidget):
         table = getattr(self, "_return_path_comparison_table", None)
         if table is None:
             return
+
+        table.clearSelection()
 
         for r in range(table.rowCount()):
             for c in range(table.columnCount()):
@@ -7611,6 +7683,155 @@ class HydronicsSchematicPanel(QWidget):
             return raw
         return raw.replace("_", " ").capitalize()
 
+    # H-S71-A — whole-Hydronics persistent linked focus
+    def _select_linked_table_identity_v1(
+            self,
+            table: QTableWidget | None,
+            identities,
+            *,
+            identity_column: int = 0,
+    ) -> int | None:
+        """Select one stable evidence row; GUI-session focus only."""
+        if table is None:
+            return None
+
+        self._apply_clean_proportioned_table_focus_style_v1(table)
+        table.clearSelection()
+        wanted = {
+            str(value or "").strip()
+            for value in tuple(identities or ())
+            if str(value or "").strip()
+        }
+        if not wanted:
+            return None
+
+        for row_index in range(table.rowCount()):
+            item = table.item(row_index, identity_column)
+            if item is None or item.text().strip() not in wanted:
+                continue
+            table.selectRow(row_index)
+            table.scrollToItem(
+                item,
+                QAbstractItemView.PositionAtCenter,
+            )
+            return row_index
+        return None
+
+    def _product_search_linked_focus_point_v1(
+            self,
+            balancing_point_id: str,
+    ) -> None:
+        """Keep both product editors and their envelope row on one point."""
+        point_id = str(balancing_point_id or "").strip()
+        self._product_search_linked_focus_point_id_v1 = point_id
+
+        for name in (
+            "_product_search_criteria_point_combo",
+            "_point_valve_candidate_acceptance_point_combo",
+        ):
+            combo = getattr(self, name, None)
+            if combo is None or not point_id:
+                continue
+            index = combo.findData(point_id)
+            if index >= 0 and combo.currentIndex() != index:
+                combo.setCurrentIndex(index)
+
+        self._select_linked_table_identity_v1(
+            getattr(self, "_product_search_duty_envelope_table", None),
+            (point_id,),
+        )
+
+    def _on_product_search_duty_envelope_table_clicked_v1(
+            self,
+            row_index: int,
+            _column_index: int,
+    ) -> None:
+        table = getattr(self, "_product_search_duty_envelope_table", None)
+        item = table.item(row_index, 0) if table is not None else None
+        self._product_search_linked_focus_point_v1(
+            "" if item is None else item.text()
+        )
+
+    def _committed_pipe_focus_identities_v1(
+            self,
+            section_id: str,
+    ) -> tuple[str, ...]:
+        """Resolve an editor section ID to its rendered table labels."""
+        section_id = str(section_id or "").strip()
+        identities = {section_id} if section_id else set()
+        for name in (
+            "_committed_pipe_thermal_basis_editor_rows_v1",
+            "_committed_pipe_pair_spacing_editor_rows_v1",
+            "_committed_pipe_pair_vertical_order_editor_rows_v1",
+            "_committed_pipe_section_room_mapping_editor_rows_v1",
+        ):
+            for row in tuple(getattr(self, name, ()) or ()):
+                if str(row.get("section_id") or "").strip() != section_id:
+                    continue
+                for key in ("label", "section"):
+                    value = str(row.get(key) or "").strip()
+                    if value:
+                        identities.add(value)
+        return tuple(identities)
+
+    def _committed_pipe_linked_focus_section_v1(
+            self,
+            section_id: str,
+    ) -> None:
+        """Keep all committed-pipe section editors on one evidence row."""
+        section_id = str(section_id or "").strip()
+        self._committed_pipe_linked_focus_section_id_v1 = section_id
+
+        for name in (
+            "_committed_pipe_thermal_basis_section_combo_v1",
+            "_committed_pipe_pair_spacing_section_combo_v1",
+            "_committed_pipe_pair_vertical_order_section_combo_v1",
+            "_committed_pipe_section_room_mapping_section_combo_v1",
+        ):
+            combo = getattr(self, name, None)
+            if combo is None or not section_id:
+                continue
+            index = combo.findData(section_id)
+            if index >= 0 and combo.currentIndex() != index:
+                combo.setCurrentIndex(index)
+
+        self._select_linked_table_identity_v1(
+            getattr(self, "_committed_pipe_bare_heat_loss_table_v1", None),
+            self._committed_pipe_focus_identities_v1(section_id),
+        )
+
+    def _on_committed_pipe_bare_heat_loss_table_clicked_v1(
+            self,
+            row_index: int,
+            _column_index: int,
+    ) -> None:
+        table = getattr(
+            self, "_committed_pipe_bare_heat_loss_table_v1", None
+        )
+        item = table.item(row_index, 0) if table is not None else None
+        rendered = "" if item is None else item.text().strip()
+        section_id = ""
+        for name in (
+            "_committed_pipe_thermal_basis_editor_rows_v1",
+            "_committed_pipe_pair_spacing_editor_rows_v1",
+            "_committed_pipe_pair_vertical_order_editor_rows_v1",
+            "_committed_pipe_section_room_mapping_editor_rows_v1",
+        ):
+            for row in tuple(getattr(self, name, ()) or ()):
+                candidates = {
+                    str(row.get("section_id") or "").strip(),
+                    str(row.get("label") or "").strip(),
+                    str(row.get("section") or "").strip(),
+                }
+                if rendered and rendered in candidates:
+                    section_id = str(row.get("section_id") or "").strip()
+                    break
+            if section_id:
+                break
+        self._committed_pipe_linked_focus_section_v1(
+            section_id or rendered
+        )
+
     def _focus_balancing_point_evidence_row_v1(
             self,
             balancing_point_id: str,
@@ -7619,6 +7840,8 @@ class HydronicsSchematicPanel(QWidget):
         table = getattr(self, "_balancing_point_evidence_table", None)
         if table is None:
             return
+
+        table.clearSelection()
 
         for row_index in range(table.rowCount()):
             for column_index in range(table.columnCount()):
@@ -7962,6 +8185,7 @@ class HydronicsSchematicPanel(QWidget):
             {},
         ).get(point_id)
         self._point_valve_candidate_acceptance_selected_point_id = point_id
+        self._product_search_linked_focus_point_v1(point_id)
 
         blocked = candidate_combo.blockSignals(True)
         try:
@@ -8320,6 +8544,7 @@ class HydronicsSchematicPanel(QWidget):
             point_id
         )
         self._product_search_criteria_selected_point_id = point_id
+        self._product_search_linked_focus_point_v1(point_id)
         catalog_combo = self._product_search_criteria_catalog_id_combo
         text_edits = (
             self._product_search_criteria_ref_edit,
@@ -8537,6 +8762,7 @@ class HydronicsSchematicPanel(QWidget):
         )
         if table is None:
             return
+        self._apply_clean_proportioned_table_focus_style_v1(table)
         rows = [dict(row) for row in list(rows or [])]
         if not rows:
             rows = [{
@@ -8599,6 +8825,7 @@ class HydronicsSchematicPanel(QWidget):
         if selected_row >= 0:
             table.selectRow(selected_row)
         else:
+            table.clearSelection()
             self._manufacturer_valve_candidate_selected_identity_v1 = None
             self._on_manufacturer_valve_candidate_selection_changed_v1()
 
@@ -8799,6 +9026,22 @@ class HydronicsSchematicPanel(QWidget):
         for row_index in range(table.rowCount()):
             table.setRowHeight(row_index, 24)
         self._fit_table_height(table, min_height=105, max_height=220)
+        if not getattr(
+                self, "_product_search_focus_connection_v1", False
+        ):
+            table.cellClicked.connect(
+                self._on_product_search_duty_envelope_table_clicked_v1
+            )
+            self._product_search_focus_connection_v1 = True
+        self._product_search_linked_focus_point_v1(
+            getattr(self, "_product_search_linked_focus_point_id_v1", "")
+            or getattr(self, "_product_search_criteria_selected_point_id", "")
+            or getattr(
+                self,
+                "_point_valve_candidate_acceptance_selected_point_id",
+                "",
+            )
+        )
 
     def set_valve_authority_input_rows(
             self,
@@ -12017,6 +12260,7 @@ QTableWidget::item:selected:!active {
             return
         section_id = str(combo.itemData(index) or "") if index >= 0 else ""
         self._committed_pipe_thermal_basis_selected_section_id_v1 = section_id
+        self._committed_pipe_linked_focus_section_v1(section_id)
         row = next(
             (
                 value
@@ -12389,6 +12633,7 @@ QTableWidget::item:selected:!active {
             return
         section_id = str(combo.itemData(index) or "") if index >= 0 else ""
         self._committed_pipe_pair_spacing_selected_section_id_v1 = section_id
+        self._committed_pipe_linked_focus_section_v1(section_id)
         row = next(
             (
                 value
@@ -12600,6 +12845,7 @@ QTableWidget::item:selected:!active {
         self._committed_pipe_pair_vertical_order_selected_section_id_v1 = (
             section_id
         )
+        self._committed_pipe_linked_focus_section_v1(section_id)
         row = next(
             (
                 value
@@ -12841,6 +13087,7 @@ QTableWidget::item:selected:!active {
         self._committed_pipe_section_room_mapping_selected_section_id_v1 = (
             section_id
         )
+        self._committed_pipe_linked_focus_section_v1(section_id)
         row = next(
             (
                 value
@@ -13110,6 +13357,19 @@ QTableWidget::item:selected:!active {
             ),
             min_height=180,
             max_height=440,
+        )
+        if not getattr(self, "_committed_pipe_focus_connection_v1", False):
+            table.cellClicked.connect(
+                self._on_committed_pipe_bare_heat_loss_table_clicked_v1
+            )
+            self._committed_pipe_focus_connection_v1 = True
+        self._committed_pipe_linked_focus_section_v1(
+            getattr(self, "_committed_pipe_linked_focus_section_id_v1", "")
+            or getattr(
+                self,
+                "_committed_pipe_thermal_basis_selected_section_id_v1",
+                "",
+            )
         )
 
     def set_resized_pipe_route_review_rows_v1(
@@ -14088,6 +14348,8 @@ QTableWidget::item:selected:!active {
         table = getattr(self, "_common_main_leg_subleg_table", None)
         if table is None:
             return
+
+        table.clearSelection()
 
         for r in range(table.rowCount()):
             for c in range(table.columnCount()):
