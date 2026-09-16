@@ -10,6 +10,18 @@ from copy import deepcopy
 from pathlib import Path
 import json
 
+from HVAC.gui_v3.context.workspace_view_definition_v2 import (
+    MAX_WORKSPACE_BOTTOM_PANELS_V2,
+    MAX_WORKSPACE_SIDE_PANELS_V2,
+    MAX_WORKSPACE_VIEWS_V2,
+    WORKSPACE_PANEL_PLACEMENTS_V2,
+    copied_workspace_views_v2,
+    default_workspace_views_v2,
+    migrate_workspace_views_v1_to_v2,
+    normalise_last_workspace_view_v2,
+    normalise_workspace_views_v2,
+)
+
 
 NAMED_WORKSPACE_LAYOUT_SCHEMA_V1 = 1
 WORKSPACE_VIEW_IDS_V1 = frozenset({
@@ -183,6 +195,13 @@ class GuiSettings:
         self._last_workspace_presentation_v1: dict[str, str] | None = None
         # H-S69-B3F — user panel membership for factory docked views.
         self.workspace_panel_sets_v1: dict[str, list[str]] = {}
+        # H-S72-A1 — one editable named-view authority. The legacy H-S69
+        # containers remain readable while the live interface is migrated.
+        self._workspace_views_v2: list[dict] = default_workspace_views_v2()
+        self._last_workspace_view_v2: dict[str, str] = {
+            "view_id": self._workspace_views_v2[0]["view_id"],
+            "mode": "main",
+        }
         # H-S69-B3C — application appearance only; never ProjectState.
         self._appearance_scheme_v1 = "light"
 
@@ -221,6 +240,35 @@ class GuiSettings:
                     data.get("workspace_panel_sets_v1")
                 )
             )
+            raw_workspace_views_v2 = data.get("workspace_views_v2")
+            if raw_workspace_views_v2 is None:
+                self._workspace_views_v2 = migrate_workspace_views_v1_to_v2(
+                    workspace_panel_sets_v1=self.workspace_panel_sets_v1,
+                    named_workspace_layouts_v1=self.named_workspace_layouts_v1,
+                )
+            else:
+                self._workspace_views_v2 = normalise_workspace_views_v2(
+                    raw_workspace_views_v2
+                )
+
+            raw_last_workspace_view_v2 = data.get("last_workspace_view_v2")
+            if (
+                raw_last_workspace_view_v2 is None
+                and self._last_workspace_presentation_v1 is not None
+            ):
+                legacy = self._last_workspace_presentation_v1
+                raw_last_workspace_view_v2 = {
+                    "view_id": legacy["view_id"],
+                    "mode": (
+                        "floating"
+                        if legacy["mode"] == "exploded"
+                        else "main"
+                    ),
+                }
+            self._last_workspace_view_v2 = normalise_last_workspace_view_v2(
+                raw_last_workspace_view_v2,
+                workspace_views=self._workspace_views_v2,
+            )
             self._appearance_scheme_v1 = (
                 _normalise_appearance_scheme_v1(
                     data.get("appearance_scheme_v1")
@@ -233,6 +281,11 @@ class GuiSettings:
             self.named_workspace_layouts_v1 = {}
             self._last_workspace_presentation_v1 = None
             self.workspace_panel_sets_v1 = {}
+            self._workspace_views_v2 = default_workspace_views_v2()
+            self._last_workspace_view_v2 = normalise_last_workspace_view_v2(
+                None,
+                workspace_views=self._workspace_views_v2,
+            )
             self._appearance_scheme_v1 = "light"
 
     def named_workspace_layout_v1(self, name: str) -> dict | None:
@@ -298,6 +351,196 @@ class GuiSettings:
         self._last_workspace_presentation_v1 = candidate
         return True
 
+    # ------------------------------------------------------------------
+    # H-S72-A1 — editable named views
+    # ------------------------------------------------------------------
+    def workspace_views_v2(self) -> tuple[dict, ...]:
+        return copied_workspace_views_v2(self._workspace_views_v2)
+
+    def workspace_view_v2(self, view_id: str) -> dict | None:
+        stable_id = str(view_id or "").strip()
+        for view in self._workspace_views_v2:
+            if view["view_id"] == stable_id:
+                return deepcopy(view)
+        return None
+
+    def create_workspace_view_v2(
+            self,
+            *,
+            name: str,
+            panels: dict[str, str],
+    ) -> str | None:
+        if len(self._workspace_views_v2) >= MAX_WORKSPACE_VIEWS_V2:
+            return None
+        folded_name = str(name or "").strip().casefold()
+        if not folded_name or any(
+            view["name"].casefold() == folded_name
+            for view in self._workspace_views_v2
+        ):
+            return None
+
+        existing_ids = {
+            view["view_id"] for view in self._workspace_views_v2
+        }
+        index = 1
+        while f"custom_{index:03d}" in existing_ids:
+            index += 1
+        view_id = f"custom_{index:03d}"
+        candidate = normalise_workspace_views_v2(
+            [{"view_id": view_id, "name": name, "panels": panels}],
+            fallback_to_defaults=False,
+        )
+        if not candidate:
+            return None
+        self._workspace_views_v2.append(candidate[0])
+        return view_id
+
+    def rename_workspace_view_v2(self, view_id: str, name: str) -> bool:
+        stable_id = str(view_id or "").strip()
+        stable_name = str(name or "").strip()
+        if not stable_name:
+            return False
+        folded_name = stable_name.casefold()
+        if any(
+            view["view_id"] != stable_id
+            and view["name"].casefold() == folded_name
+            for view in self._workspace_views_v2
+        ):
+            return False
+        for view in self._workspace_views_v2:
+            if view["view_id"] != stable_id:
+                continue
+            candidate = normalise_workspace_views_v2(
+                [{**view, "name": stable_name}],
+                fallback_to_defaults=False,
+            )
+            if not candidate:
+                return False
+            view["name"] = candidate[0]["name"]
+            return True
+        return False
+
+    def delete_workspace_view_v2(self, view_id: str) -> bool:
+        stable_id = str(view_id or "").strip()
+        if len(self._workspace_views_v2) <= 1:
+            return False
+        remaining = [
+            view for view in self._workspace_views_v2
+            if view["view_id"] != stable_id
+        ]
+        if len(remaining) == len(self._workspace_views_v2):
+            return False
+        self._workspace_views_v2 = remaining
+        if self._last_workspace_view_v2["view_id"] == stable_id:
+            self._last_workspace_view_v2 = {
+                "view_id": remaining[0]["view_id"],
+                "mode": "main",
+            }
+        return True
+
+    def set_workspace_view_panel_v2(
+            self,
+            *,
+            view_id: str,
+            panel_id: str,
+            included: bool,
+            placement: str = "side",
+    ) -> bool:
+        stable_view_id = str(view_id or "").strip()
+        stable_panel_id = str(panel_id or "").strip()
+        stable_placement = str(placement or "").strip().lower()
+        if (
+            not stable_panel_id
+            or len(stable_panel_id) > 128
+            or not all(
+                character.isalnum() or character in "_-"
+                for character in stable_panel_id
+            )
+            or stable_placement not in WORKSPACE_PANEL_PLACEMENTS_V2
+        ):
+            return False
+        for view in self._workspace_views_v2:
+            if view["view_id"] != stable_view_id:
+                continue
+            panels = dict(view["panels"])
+            if included:
+                if stable_placement == "main":
+                    old_main_id = next((
+                        existing_id
+                        for existing_id, existing_placement in panels.items()
+                        if existing_placement == "main"
+                    ), "")
+                    previous_placement = panels.get(stable_panel_id, "")
+                    if old_main_id and old_main_id != stable_panel_id:
+                        replacement = previous_placement
+                        if replacement not in {"side", "bottom"}:
+                            replacement = "side"
+                            side_ids = [
+                                existing_id
+                                for existing_id, value in panels.items()
+                                if value == "side"
+                            ]
+                            bottom_count = sum(
+                                value == "bottom" for value in panels.values()
+                            )
+                            if (
+                                len(side_ids) >= MAX_WORKSPACE_SIDE_PANELS_V2
+                                and bottom_count
+                                < MAX_WORKSPACE_BOTTOM_PANELS_V2
+                            ):
+                                panels[side_ids[-1]] = "bottom"
+                            elif len(side_ids) >= MAX_WORKSPACE_SIDE_PANELS_V2:
+                                replacement = ""
+                        if not replacement:
+                            return False
+                        panels[old_main_id] = replacement
+                elif sum(
+                    existing_id != stable_panel_id
+                    and existing_placement == stable_placement
+                    for existing_id, existing_placement in panels.items()
+                ) >= (
+                    MAX_WORKSPACE_SIDE_PANELS_V2
+                    if stable_placement == "side"
+                    else MAX_WORKSPACE_BOTTOM_PANELS_V2
+                ):
+                    return False
+                panels[stable_panel_id] = stable_placement
+            else:
+                if stable_panel_id not in panels or len(panels) <= 1:
+                    return False
+                panels.pop(stable_panel_id)
+
+            candidate = normalise_workspace_views_v2(
+                [{**view, "panels": panels}],
+                fallback_to_defaults=False,
+            )
+            if not candidate:
+                return False
+            view["panels"] = candidate[0]["panels"]
+            return True
+        return False
+
+    def last_workspace_view_v2(self) -> dict[str, str]:
+        return deepcopy(self._last_workspace_view_v2)
+
+    def set_last_workspace_view_v2(
+            self,
+            *,
+            view_id: str,
+            mode: str,
+    ) -> bool:
+        candidate = normalise_last_workspace_view_v2(
+            {"view_id": view_id, "mode": mode},
+            workspace_views=self._workspace_views_v2,
+        )
+        if candidate != {
+            "view_id": str(view_id or "").strip(),
+            "mode": str(mode or "").strip().lower(),
+        }:
+            return False
+        self._last_workspace_view_v2 = candidate
+        return True
+
     def appearance_scheme_v1(self) -> str:
         return _normalise_appearance_scheme_v1(
             self._appearance_scheme_v1
@@ -334,6 +577,13 @@ class GuiSettings:
                 _normalise_workspace_panel_sets_v1(
                     self.workspace_panel_sets_v1
                 )
+            ),
+            "workspace_views_v2": normalise_workspace_views_v2(
+                self._workspace_views_v2
+            ),
+            "last_workspace_view_v2": normalise_last_workspace_view_v2(
+                self._last_workspace_view_v2,
+                workspace_views=self._workspace_views_v2,
             ),
             "appearance_scheme_v1": (
                 _normalise_appearance_scheme_v1(

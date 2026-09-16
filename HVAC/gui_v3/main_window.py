@@ -40,6 +40,12 @@ from HVAC.gui_v3.context.workspace_view_geometry_v1 import (
     resolve_exploded_dock_geometry_v1,
     resolve_user_workspace_dock_geometry_v1,
 )
+from HVAC.gui_v3.context.workspace_dock_layout_reset_v2 import (
+    apply_named_workspace_docks_v2,
+)
+from HVAC.gui_v3.widgets.workspace_view_manager_dialog_v2 import (
+    WorkspaceViewManagerDialogV2,
+)
 from HVAC.education.workspace_guidance_v1 import (
     education_topic_for_dock_id_v1,
 )
@@ -225,6 +231,10 @@ class MainWindowV3(QMainWindow):
         QTimer.singleShot(0, self._restore_last_workspace_presentation_v1)
 
     def _restore_last_workspace_presentation_v1(self) -> None:
+        selected = self._gui_settings.last_workspace_view_v2()
+        if selected["mode"] == "main":
+            self._apply_named_workspace_main_view_v2(selected["view_id"])
+            return
         presentation = (
             self._gui_settings.last_workspace_presentation_v1()
         )
@@ -867,6 +877,96 @@ class MainWindowV3(QMainWindow):
             f"HVACgooee — {str(dock.windowTitle() or 'Panel')} — Main Window"
         )
 
+    def _show_workspace_view_manager_v2(self) -> None:
+        """Edit named GUI views and apply the selected main-window view."""
+        panel_rows = tuple(
+            (
+                str(dock.objectName() or ""),
+                str(dock.windowTitle() or dock.objectName() or "Panel"),
+            )
+            for dock in self._docks.values()
+            if str(dock.objectName() or "") not in {"", "dock_dev"}
+        )
+        dialog = WorkspaceViewManagerDialogV2(
+            settings=self._gui_settings,
+            panel_rows=panel_rows,
+            parent=self,
+        )
+        dialog.view_selected.connect(
+            self._apply_named_workspace_main_view_v2
+        )
+        dialog.views_changed.connect(
+            self._apply_named_workspace_main_view_v2
+        )
+        dialog.exec()
+
+    def _apply_named_workspace_main_view_v2(self, view_id: str) -> None:
+        """Apply one persisted Main/Side/Bottom definition deterministically."""
+        view = self._gui_settings.workspace_view_v2(view_id)
+        if view is None:
+            return
+        panels = dict(view.get("panels") or {})
+        docks_by_id = {
+            str(dock.objectName() or ""): dock
+            for dock in self._docks.values()
+            if str(dock.objectName() or "") != "dock_dev"
+        }
+        placed = {
+            placement: tuple(
+                docks_by_id[panel_id]
+                for panel_id, candidate in panels.items()
+                if candidate == placement and panel_id in docks_by_id
+            )
+            for placement in ("main", "side", "bottom")
+        }
+        if not placed["main"]:
+            return
+
+        self._finish_active_exploded_workspace_v1()
+        self._set_user_workspace_checked_v1(False)
+        self._active_single_panel_dock_v1 = None
+        self._active_docked_workspace_view_id_v1 = ""
+        self._active_docked_workspace_docks_v1 = ()
+        self._active_named_workspace_view_id_v2 = str(view_id)
+
+        central_widget = self.centralWidget()
+        if central_widget is not None:
+            central_widget.hide()
+        # Establish the real available screen geometry before Qt
+        # resolves the nested dock minimum-size graph.
+        self.showMaximized()
+        self.setDockNestingEnabled(True)
+        main_dock = placed["main"][0]
+        visible_docks = apply_named_workspace_docks_v2(
+            self,
+            all_docks=tuple(self.findChildren(QDockWidget)),
+            main_dock=main_dock,
+            side_docks=placed["side"],
+            bottom_docks=placed["bottom"],
+        )
+        main_dock.raise_()
+        main_dock.setFocus()
+        self.setWindowTitle(f"HVACgooee — {view['name']} — Main Window")
+        education = getattr(self, "_education_panel_adapter", None)
+        if education is not None:
+            education.set_topic(domain="workspace", topic=str(view_id))
+        if placed["side"]:
+            self.resizeDocks(
+                [placed["side"][0], main_dock],
+                [480, 1200],
+                Qt.Horizontal,
+            )
+        if placed["bottom"]:
+            self.resizeDocks(
+                [main_dock, placed["bottom"][0]],
+                [760, 260],
+                Qt.Vertical,
+            )
+        self._gui_settings.set_last_workspace_view_v2(
+            view_id=str(view_id), mode="main"
+        )
+        self._gui_settings.save()
+
     def _build_menu(self) -> None:
         menubar = self.menuBar()
         # H-S69-B3H — the duplicate top-level Project menu was removed.
@@ -905,6 +1005,15 @@ class MainWindowV3(QMainWindow):
         # View Menu — H-S69-B3B
         # ---------------------------
         view_menu = menubar.addMenu("View")
+
+        # H-S72-A2 — one compact persistent named-view editor. Applying the
+        # definitions to live docks remains isolated to the A3 controller.
+        manage_views_action = QAction("Manage Views…", self)
+        manage_views_action.triggered.connect(
+            self._show_workspace_view_manager_v2
+        )
+        view_menu.addAction(manage_views_action)
+        view_menu.addSeparator()
 
         appearance_menu = view_menu.addMenu("Appearance")
         self._appearance_action_group_v1 = QActionGroup(self)

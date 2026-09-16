@@ -67,7 +67,7 @@ class LocalKPanel(QWidget):
         self._section_combo = QComboBox()
         # H-S69-B2 — keep route identity readable without allowing the
         # selector to consume the full width of a large workspace dock.
-        self._section_combo.setMinimumWidth(420)
+        self._section_combo.setMinimumWidth(260)
         self._section_combo.setMaximumWidth(720)
         self._section_combo.setToolTip(
             "Choose the stable Basic PS section.\n"

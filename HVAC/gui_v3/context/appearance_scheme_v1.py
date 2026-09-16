@@ -154,6 +154,7 @@ def application_stylesheet_v1(scheme: str) -> str:
         border-bottom: 2px solid {tokens.category_helper_border};
     }}
     QDockWidget[hvacPanelFocus="active"] {{
+        color: {tokens.panel_focus_text};
         border: 3px solid {tokens.panel_focus_border};
     }}
     QDockWidget[hvacPanelFocus="active"]::title {{
