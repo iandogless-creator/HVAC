@@ -34,6 +34,7 @@ from PySide6.QtCore import (
     QRectF,
     QPoint,
     QPointF,
+    QTimer,
 )
 
 from PySide6.QtGui import (
@@ -320,6 +321,37 @@ class HydronicsSchematicPanel(QWidget):
             if self._tabs.tabText(index) == "Proportioned":
                 self._tabs.setCurrentIndex(index)
                 return
+
+    def focus_proportioning_schematic_v1(self) -> None:
+        """Select and reveal the presentation-only proportioning schematic."""
+        self.select_proportioning_tab()
+        QTimer.singleShot(
+            0,
+            lambda: self._ensure_proportioning_widget_visible_v1(
+                getattr(
+                    self,
+                    "_common_main_leg_subleg_schematic_scroll",
+                    None,
+                )
+            ),
+        )
+
+    def focus_return_schematic_v1(self) -> None:
+        """Select and reveal direct-versus-reverse return evidence."""
+        self.select_proportioning_tab()
+        QTimer.singleShot(
+            0,
+            lambda: self._ensure_proportioning_widget_visible_v1(
+                getattr(self, "_return_path_comparison_table", None)
+            ),
+        )
+
+    def _ensure_proportioning_widget_visible_v1(self, widget) -> None:
+        if widget is None or not hasattr(self, "_tabs"):
+            return
+        current = self._tabs.currentWidget()
+        if isinstance(current, QScrollArea):
+            current.ensureWidgetVisible(widget, 20, 20)
 
     # ------------------------------------------------------------------
     # Adapter ingress

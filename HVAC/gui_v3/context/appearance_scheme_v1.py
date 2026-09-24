@@ -211,6 +211,60 @@ def application_stylesheet_v1(scheme: str) -> str:
         color: {tokens.disabled_text};
         border-color: {tokens.border};
     }}
+    QToolButton[hvacNavigationRole="view"] {{
+        background: {tokens.category_main_title};
+        color: {tokens.text};
+        border: 2px solid {tokens.category_main_border};
+        border-radius: 4px;
+        min-height: 24px;
+        padding: 2px 5px;
+    }}
+    QToolButton[hvacNavigationRole="view"]:hover {{
+        background: {tokens.button_hover};
+    }}
+    QToolButton[hvacNavigationRole="view"]:checked {{
+        background: {tokens.panel_focus_fill};
+        color: {tokens.panel_focus_text};
+        border: 3px solid {tokens.panel_focus_border};
+        font-weight: 600;
+    }}
+    QToolButton[hvacNavigationRole="education"] {{
+        background: {tokens.category_helper_title};
+        color: {tokens.text};
+        border: 2px solid {tokens.category_helper_border};
+        border-radius: 4px;
+        min-height: 24px;
+        padding: 2px 5px;
+    }}
+    QToolButton[hvacNavigationRole="education"]:checked {{
+        background: {tokens.panel_focus_fill};
+        color: {tokens.panel_focus_text};
+        border: 3px solid {tokens.panel_focus_border};
+        font-weight: 600;
+    }}
+    QToolButton[hvacNavigationRole="presentation"] {{
+        background: {tokens.category_helper_title};
+        color: {tokens.text};
+        border: 2px solid {tokens.category_helper_border};
+        border-radius: 4px;
+        min-height: 24px;
+        padding: 2px 5px;
+    }}
+    QToolButton[hvacNavigationRole="presentation"]:checked {{
+        background: {tokens.panel_focus_fill};
+        color: {tokens.panel_focus_text};
+        border: 3px solid {tokens.panel_focus_border};
+        font-weight: 600;
+    }}
+    QToolButton[hvacNavigationRole="preferences"] {{
+        background: {tokens.button};
+        color: {tokens.text};
+        border: 1px solid {tokens.border};
+        border-radius: 4px;
+        min-height: 24px;
+        min-width: 28px;
+        padding: 2px 5px;
+    }}
     QTableWidget::item:selected,
     QListWidget::item:selected,
     QTreeWidget::item:selected,

@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from PySide6.QtCore import QEvent, Qt, QSettings, QTimer, Signal, QObject
@@ -45,6 +46,9 @@ from HVAC.gui_v3.context.workspace_dock_layout_reset_v2 import (
 )
 from HVAC.gui_v3.widgets.workspace_view_manager_dialog_v2 import (
     WorkspaceViewManagerDialogV2,
+)
+from HVAC.gui_v3.panels.workspace_navigation_panel_v1 import (
+    WorkspaceNavigationPanelV1,
 )
 from HVAC.education.workspace_guidance_v1 import (
     education_topic_for_dock_id_v1,
@@ -185,6 +189,21 @@ class MainWindowV3(QMainWindow):
                 )
             )
         )
+        self._workspace_navigation_panel_v1.view_requested.connect(
+            self._on_workspace_navigation_view_requested_v1
+        )
+        self._workspace_navigation_panel_v1.presentation_mode_requested.connect(
+            self._on_workspace_navigation_presentation_requested_v1
+        )
+        self._workspace_navigation_panel_v1.education_toggled.connect(
+            self._set_workspace_education_visible_v1
+        )
+        self._workspace_navigation_panel_v1.preferences_requested.connect(
+            self._show_workspace_view_manager_v2
+        )
+        self._dock_education.visibilityChanged.connect(
+            self._workspace_navigation_panel_v1.set_education_enabled_v1
+        )
 
         # --------------------------------------------------
         # Window setup
@@ -228,12 +247,109 @@ class MainWindowV3(QMainWindow):
         # owning view preset in H-S69-B3B.
         # Restore the selected named presentation only after Qt has entered
         # its event loop, so screen and floating-window geometry are ready.
-        QTimer.singleShot(0, self._restore_last_workspace_presentation_v1)
+        QTimer.singleShot(0, self._restore_workspace_and_navigation_v1)
+
+    def _restore_workspace_and_navigation_v1(self) -> None:
+        if getattr(self, "_navigation_shutdown_v1", False):
+            return
+        self._restore_last_workspace_presentation_v1()
+        # Navigation is independent of the chosen Main/Exploded view.
+        self._restore_navigation_placement_v1()
+
+    def _save_navigation_placement_v1(self) -> None:
+        dock = self._dock_navigation
+        state = {
+            "floating": dock.isFloating(),
+            "visible": not dock.isHidden(),
+            "area": self.dockWidgetArea(dock).value,
+        }
+        if dock.isFloating():
+            rect = dock.geometry()
+            screen = dock.screen()
+            geometry = {
+                "x": rect.x(), "y": rect.y(),
+                "width": rect.width(), "height": rect.height(),
+                "screen_name": screen.name() if screen else "",
+            }
+            fallback = getattr(self, "_navigation_restore_fallback_v1", None)
+            if fallback and rect.getRect() == fallback[1]:
+                # Retain the original display placement while that monitor
+                # is absent, unless the user moves/resizes Navigation.
+                geometry = fallback[0]
+            state["geometry"] = geometry
+        self._settings.setValue(
+            "workspace/navigation_placement_v1", json.dumps(state)
+        )
+        self._settings.sync()
+
+    def _restore_navigation_placement_v1(self) -> None:
+        raw = self._settings.value("workspace/navigation_placement_v1", "")
+        try:
+            state = json.loads(str(raw))
+        except (TypeError, ValueError):
+            return
+        if not isinstance(state, dict) or any(
+            type(state.get(key)) is not bool for key in ("floating", "visible")
+        ):
+            return
+        dock = self._dock_navigation
+        self._navigation_restore_fallback_v1 = None
+        if state["floating"]:
+            geometry = state.get("geometry")
+            if not isinstance(geometry, dict) or any(
+                type(geometry.get(key)) is not int
+                for key in ("x", "y", "width", "height")
+            ):
+                return
+            if geometry["width"] <= 0 or geometry["height"] <= 0:
+                return
+            resolved = resolve_exploded_dock_geometry_v1(
+                saved_geometry=geometry, screens=self._qt_workspace_screens_v1(),
+                dock_index=0, dock_count=1,
+            )
+            if resolved is None:
+                return
+            target = (resolved.x, resolved.y, resolved.width, resolved.height)
+            dock.setFloating(True)
+            dock.setVisible(state["visible"])
+            dock.setGeometry(*target)
+            if resolved.used_fallback_screen:
+                self._navigation_restore_fallback_v1 = (dict(geometry), target)
+
+            def finish_geometry() -> None:
+                # Linux window managers may adjust a newly shown tool window.
+                # Reapply after the startup layout callbacks have finished.
+                if not getattr(self, "_navigation_shutdown_v1", False) and dock.isFloating():
+                    dock.setGeometry(*target)
+
+            QTimer.singleShot(0, finish_geometry)
+            if not state["visible"]:
+                def restore_on_first_show(visible: bool) -> None:
+                    if visible:
+                        dock.visibilityChanged.disconnect(restore_on_first_show)
+                        finish_geometry()
+                        QTimer.singleShot(0, finish_geometry)
+
+                dock.visibilityChanged.connect(restore_on_first_show)
+        else:
+            area = (
+                Qt.BottomDockWidgetArea
+                if state.get("area") == Qt.BottomDockWidgetArea.value
+                else Qt.TopDockWidgetArea
+            )
+            dock.setFloating(False)
+            self.addDockWidget(area, dock)
+            dock.setVisible(state["visible"])
 
     def _restore_last_workspace_presentation_v1(self) -> None:
         selected = self._gui_settings.last_workspace_view_v2()
         if selected["mode"] == "main":
             self._apply_named_workspace_main_view_v2(selected["view_id"])
+            return
+        if selected["mode"] == "floating":
+            self._apply_named_workspace_exploded_view_v2(
+                selected["view_id"]
+            )
             return
         presentation = (
             self._gui_settings.last_workspace_presentation_v1()
@@ -265,6 +381,8 @@ class MainWindowV3(QMainWindow):
             handler()
 
     def closeEvent(self, event):
+        self._navigation_shutdown_v1 = True
+        self._save_navigation_placement_v1()
         self._save_active_exploded_workspace_layout_v1()
         self._gui_settings.window_geometry = bytes(self.saveGeometry())
         self._gui_settings.window_state = None
@@ -462,6 +580,11 @@ class MainWindowV3(QMainWindow):
             ACHMiniPanel(self),
         )
 
+        self._workspace_navigation_panel_v1 = self._register_panel(
+            "workspace_navigation",
+            WorkspaceNavigationPanelV1(self),
+        )
+
         # --------------------------------------------------
         # Overlay (NOT docked, still single-instance)
         # --------------------------------------------------
@@ -511,6 +634,20 @@ class MainWindowV3(QMainWindow):
         self._dock_dev = self._mk_dock("Dev", "dock_dev", self._dev_panel)
         self._dock_geometry = self._mk_dock("Geometry", "dock_geometry", self._geometry_mini_panel)
         self._dock_ach = self._mk_dock("ACH", "dock_ach", self._ach_mini_panel)
+        self._dock_navigation = self._mk_dock(
+            "Navigation",
+            "dock_navigation",
+            self._workspace_navigation_panel_v1,
+        )
+        self._dock_navigation.setAllowedAreas(
+            Qt.TopDockWidgetArea | Qt.BottomDockWidgetArea
+        )
+        self._dock_navigation.setFeatures(
+            QDockWidget.DockWidgetFeature.DockWidgetClosable
+            | QDockWidget.DockWidgetFeature.DockWidgetMovable
+            | QDockWidget.DockWidgetFeature.DockWidgetFloatable
+        )
+        self.addDockWidget(Qt.TopDockWidgetArea, self._dock_navigation)
 
         for d in (
                 self._dock_project,
@@ -845,9 +982,21 @@ class MainWindowV3(QMainWindow):
         menu.addAction(action)
         return action
 
+    def _content_workspace_docks_v1(self, docks) -> tuple[QDockWidget, ...]:
+        """Navigation owns its placement independently of working views."""
+        navigation = getattr(self, "_dock_navigation", None)
+        return tuple(
+            dock for dock in docks
+            if dock is not navigation and dock.objectName() != "dock_navigation"
+        )
+
     def _show_exclusive_panel_view_v1(self, dock: QDockWidget) -> None:
         """End any named workspace and show one panel in the main window."""
         if dock not in self.findChildren(QDockWidget):
+            return
+        if not self._content_workspace_docks_v1((dock,)):
+            dock.show()
+            dock.raise_()
             return
 
         # Save the active exploded/user geometry before closing it. The
@@ -859,7 +1008,9 @@ class MainWindowV3(QMainWindow):
         self._active_docked_workspace_docks_v1 = ()
         self._active_single_panel_dock_v1 = dock
 
-        for candidate in self.findChildren(QDockWidget):
+        for candidate in self._content_workspace_docks_v1(
+            self.findChildren(QDockWidget)
+        ):
             candidate.hide()
             if candidate.isFloating():
                 candidate.setFloating(False)
@@ -877,6 +1028,144 @@ class MainWindowV3(QMainWindow):
             f"HVACgooee — {str(dock.windowTitle() or 'Panel')} — Main Window"
         )
 
+    @staticmethod
+    def _navigation_route_for_view_id_v1(view_id: str) -> str:
+        return {
+            "building_edit": "heat_loss_edit",
+            "heat_loss": "heat_loss_presentation",
+            "basic_sizing": "pipe_estimate",
+            "proportioning": "proportioning_schematic",
+            "results": "results",
+        }.get(str(view_id or ""), "")
+
+    @staticmethod
+    def _navigation_view_id_for_route_v1(route_id: str) -> str:
+        return {
+            "heat_loss_edit": "building_edit",
+            "heat_loss_presentation": "heat_loss",
+            "pipe_estimate": "basic_sizing",
+            "proportioning_schematic": "proportioning",
+            "return_schematic": "proportioning",
+            "results": "results",
+        }.get(str(route_id or ""), "")
+
+    def _focus_workspace_navigation_route_v1(self, route_id: str) -> None:
+        stable_route = str(route_id or "")
+        if stable_route == "proportioning_schematic":
+            self._hydronics_panel.focus_proportioning_schematic_v1()
+        elif stable_route == "return_schematic":
+            self._hydronics_panel.focus_return_schematic_v1()
+        elif stable_route == "results":
+            self._hydronics_panel.select_proportioned_tab()
+        self._workspace_navigation_panel_v1.set_active_route_v1(
+            stable_route
+        )
+
+    def _on_workspace_navigation_view_requested_v1(
+            self,
+            route_id: str,
+    ) -> None:
+        """Route one colourful mini-panel button through MainWindowV3."""
+        stable_route = str(route_id or "")
+        view_id = self._navigation_view_id_for_route_v1(stable_route)
+        if not view_id:
+            return
+
+        if (
+            self._workspace_navigation_panel_v1.presentation_mode_v1()
+            == "floating"
+        ):
+            self._apply_named_workspace_exploded_view_v2(view_id)
+        else:
+            self._apply_named_workspace_main_view_v2(view_id)
+        self._focus_workspace_navigation_route_v1(stable_route)
+
+    def _on_workspace_navigation_presentation_requested_v1(
+            self,
+            mode: str,
+    ) -> None:
+        """Switch the selected view between Main and Exploded presentation."""
+        stable_mode = str(mode or "").strip().lower()
+        if stable_mode not in {"main", "floating"}:
+            return
+        route_id = self._workspace_navigation_panel_v1.active_route_v1()
+        selected = self._gui_settings.last_workspace_view_v2()
+        view_id = (
+            self._navigation_view_id_for_route_v1(route_id)
+            or selected["view_id"]
+        )
+        if stable_mode == "floating":
+            self._apply_named_workspace_exploded_view_v2(view_id)
+        else:
+            self._apply_named_workspace_main_view_v2(view_id)
+        self._focus_workspace_navigation_route_v1(route_id)
+
+    def _workspace_education_visible_v1(self) -> bool:
+        return bool(
+            self._settings.value(
+                "workspace/education_visible_v1",
+                False,
+                type=bool,
+            )
+        )
+
+    def _set_workspace_education_visible_v1(
+            self,
+            visible: bool,
+            *,
+            persist: bool = True,
+    ) -> None:
+        """Show Education as an optional GUI-only helper for this view."""
+        stable_visible = bool(visible)
+        dock = self._dock_education
+        if stable_visible:
+            selected = self._gui_settings.last_workspace_view_v2()
+            if selected["mode"] == "floating":
+                dock.setFloating(True)
+                dock.show()
+                dock.raise_()
+                self._workspace_navigation_panel_v1.set_education_enabled_v1(
+                    True
+                )
+                if persist:
+                    self._settings.setValue(
+                        "workspace/education_visible_v1", True
+                    )
+                    self._settings.sync()
+                return
+            view = self._gui_settings.workspace_view_v2(
+                selected["view_id"]
+            )
+            main_dock = None
+            if view is not None:
+                main_panel_id = next((
+                    panel_id
+                    for panel_id, placement in view["panels"].items()
+                    if placement == "main"
+                ), "")
+                main_dock = self._docks.get(main_panel_id)
+            self.addDockWidget(Qt.RightDockWidgetArea, dock)
+            if main_dock is not None and main_dock is not dock:
+                self.splitDockWidget(main_dock, dock, Qt.Vertical)
+                self.resizeDocks(
+                    [main_dock, dock],
+                    [760, 220],
+                    Qt.Vertical,
+                )
+            dock.show()
+            dock.raise_()
+        else:
+            dock.hide()
+        self._workspace_navigation_panel_v1.set_education_enabled_v1(
+            stable_visible
+        )
+        if persist:
+            self._settings.setValue(
+                "workspace/education_visible_v1",
+                stable_visible,
+            )
+            self._settings.sync()
+
     def _show_workspace_view_manager_v2(self) -> None:
         """Edit named GUI views and apply the selected main-window view."""
         panel_rows = tuple(
@@ -885,7 +1174,9 @@ class MainWindowV3(QMainWindow):
                 str(dock.windowTitle() or dock.objectName() or "Panel"),
             )
             for dock in self._docks.values()
-            if str(dock.objectName() or "") not in {"", "dock_dev"}
+            if str(dock.objectName() or "") not in {
+                "", "dock_dev", "dock_navigation"
+            }
         )
         dialog = WorkspaceViewManagerDialogV2(
             settings=self._gui_settings,
@@ -909,7 +1200,7 @@ class MainWindowV3(QMainWindow):
         docks_by_id = {
             str(dock.objectName() or ""): dock
             for dock in self._docks.values()
-            if str(dock.objectName() or "") != "dock_dev"
+            if str(dock.objectName() or "") not in {"dock_dev", "dock_navigation"}
         }
         placed = {
             placement: tuple(
@@ -939,7 +1230,11 @@ class MainWindowV3(QMainWindow):
         main_dock = placed["main"][0]
         visible_docks = apply_named_workspace_docks_v2(
             self,
-            all_docks=tuple(self.findChildren(QDockWidget)),
+            all_docks=tuple(
+                dock
+                for dock in self.findChildren(QDockWidget)
+                if dock is not self._dock_navigation
+            ),
             main_dock=main_dock,
             side_docks=placed["side"],
             bottom_docks=placed["bottom"],
@@ -966,6 +1261,63 @@ class MainWindowV3(QMainWindow):
             view_id=str(view_id), mode="main"
         )
         self._gui_settings.save()
+        self._workspace_navigation_panel_v1.set_presentation_mode_v1(
+            "main"
+        )
+        self._workspace_navigation_panel_v1.set_active_route_v1(
+            self._navigation_route_for_view_id_v1(view_id)
+        )
+        self._set_workspace_education_visible_v1(
+            self._workspace_education_visible_v1(),
+            persist=False,
+        )
+
+    def _apply_named_workspace_exploded_view_v2(
+            self,
+            view_id: str,
+    ) -> None:
+        """Explode the panels from one editable named view."""
+        view = self._gui_settings.workspace_view_v2(view_id)
+        if view is None:
+            return
+        docks_by_id = {
+            str(dock.objectName() or ""): dock
+            for dock in self._docks.values()
+            if str(dock.objectName() or "") not in {
+                "", "dock_dev", "dock_navigation"
+            }
+        }
+        docks = tuple(
+            docks_by_id[panel_id]
+            for panel_id in view["panels"]
+            if panel_id in docks_by_id
+        )
+        if not docks:
+            return
+
+        self._apply_exploded_workspace_view_v1(str(view_id), docks)
+        self.setWindowTitle(
+            f"HVACgooee — {view['name']} — Exploded"
+        )
+        education = getattr(self, "_education_panel_adapter", None)
+        if education is not None:
+            education.set_topic(domain="workspace", topic=str(view_id))
+        self._gui_settings.set_last_workspace_view_v2(
+            view_id=str(view_id), mode="floating"
+        )
+        self._gui_settings.save()
+        self._workspace_navigation_panel_v1.set_active_route_v1(
+            self._navigation_route_for_view_id_v1(view_id)
+        )
+        self._workspace_navigation_panel_v1.set_presentation_mode_v1(
+            "floating"
+        )
+        self._set_workspace_education_visible_v1(
+            self._workspace_education_visible_v1(),
+            persist=False,
+        )
+        self.resize(720, 160)
+        QTimer.singleShot(0, lambda: self.resize(720, 160))
 
     def _build_menu(self) -> None:
         menubar = self.menuBar()
@@ -1013,6 +1365,9 @@ class MainWindowV3(QMainWindow):
             self._show_workspace_view_manager_v2
         )
         view_menu.addAction(manage_views_action)
+        navigation_action = self._dock_navigation.toggleViewAction()
+        navigation_action.setText("Navigation Panel")
+        view_menu.addAction(navigation_action)
         view_menu.addSeparator()
 
         appearance_menu = view_menu.addMenu("Appearance")
@@ -1545,7 +1900,9 @@ class MainWindowV3(QMainWindow):
         docks = tuple(sorted(
             (
                 dock
-                for dock in self.findChildren(QDockWidget)
+                for dock in self._content_workspace_docks_v1(
+                    self.findChildren(QDockWidget)
+                )
                 if str(dock.objectName() or "")
             ),
             key=lambda dock: str(dock.windowTitle() or "").casefold(),
@@ -1841,7 +2198,9 @@ class MainWindowV3(QMainWindow):
         stored_docks = dict(stored.get("docks") or {})
         docks_by_id = {
             str(dock.objectName() or ""): dock
-            for dock in self.findChildren(QDockWidget)
+            for dock in self._content_workspace_docks_v1(
+                self.findChildren(QDockWidget)
+            )
             if str(dock.objectName() or "")
         }
         docks = tuple(
@@ -1870,7 +2229,7 @@ class MainWindowV3(QMainWindow):
             getattr(self, "_temporarily_clamped_workspace_docks_v1", set())
             or set()
         )
-        for dock in docks:
+        for dock in self._content_workspace_docks_v1(docks):
             dock_id = str(dock.objectName() or "")
             if not dock_id:
                 continue
@@ -1903,7 +2262,7 @@ class MainWindowV3(QMainWindow):
             getattr(self, "_active_exploded_workspace_docks_v1", ()) or ()
         )
         self._save_active_exploded_workspace_layout_v1()
-        for dock in docks:
+        for dock in self._content_workspace_docks_v1(docks):
             dock.hide()
             if dock.isFloating():
                 dock.setFloating(False)
@@ -1956,7 +2315,7 @@ class MainWindowV3(QMainWindow):
         previous_docks = tuple(
             getattr(self, "_active_docked_workspace_docks_v1", ()) or ()
         )
-        for dock in previous_docks:
+        for dock in self._content_workspace_docks_v1(previous_docks):
             dock.hide()
             if dock.isFloating():
                 dock.setFloating(False)
@@ -1976,9 +2335,11 @@ class MainWindowV3(QMainWindow):
             central_widget.hide()
 
         for dock in self.findChildren(QDockWidget):
+            if dock is getattr(self, "_dock_navigation", None):
+                continue
             dock.hide()
 
-        for dock in visible_docks:
+        for dock in self._content_workspace_docks_v1(visible_docks):
             dock.setFloating(False)
             self.removeDockWidget(dock)
 
@@ -1993,11 +2354,13 @@ class MainWindowV3(QMainWindow):
         stored_ids = self._gui_settings.workspace_panel_set_v1(
             f"{view_id}:docked"
         )
-        visible_docks = tuple(docks)
+        visible_docks = self._content_workspace_docks_v1(docks)
         if stored_ids:
             docks_by_id = {
                 str(dock.objectName() or ""): dock
-                for dock in self.findChildren(QDockWidget)
+                for dock in self._content_workspace_docks_v1(
+                    self.findChildren(QDockWidget)
+                )
                 if str(dock.objectName() or "")
             }
             override_docks = tuple(
@@ -2053,6 +2416,7 @@ class MainWindowV3(QMainWindow):
             view_id: str,
             docks: tuple[QDockWidget, ...],
     ) -> None:
+        docks = self._content_workspace_docks_v1(docks)
         self._finish_active_exploded_workspace_v1()
         self._active_single_panel_dock_v1 = None
         self._active_docked_workspace_view_id_v1 = ""
@@ -2064,6 +2428,8 @@ class MainWindowV3(QMainWindow):
         if central_widget is not None:
             central_widget.hide()
         for dock in self.findChildren(QDockWidget):
+            if dock is getattr(self, "_dock_navigation", None):
+                continue
             dock.hide()
 
         storage_id = f"{view_id}:exploded"
@@ -2073,7 +2439,9 @@ class MainWindowV3(QMainWindow):
         if view_id != "user" and panel_ids:
             docks_by_id = {
                 str(dock.objectName() or ""): dock
-                for dock in self.findChildren(QDockWidget)
+                for dock in self._content_workspace_docks_v1(
+                    self.findChildren(QDockWidget)
+                )
                 if str(dock.objectName() or "")
             }
             override_docks = tuple(
