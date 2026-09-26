@@ -216,6 +216,7 @@ class MainWindowV3(QMainWindow):
         # --------------------------------------------------
         self._settings = QSettings("HVACgooee", "GUIv3")
         self._gui_settings = GuiSettings(Path.home() / ".hvacgooee")
+        self._refresh_workspace_navigation_views_v1()
 
         self._context.edit_requested.connect(self._on_edit_requested)
         self._context.construction_focus_changed.connect(
@@ -1036,10 +1037,12 @@ class MainWindowV3(QMainWindow):
             "basic_sizing": "pipe_estimate",
             "proportioning": "proportioning_schematic",
             "results": "results",
-        }.get(str(view_id or ""), "")
+        }.get(str(view_id or ""), f"view:{view_id}" if view_id else "")
 
     @staticmethod
     def _navigation_view_id_for_route_v1(route_id: str) -> str:
+        if str(route_id or "").startswith("view:"):
+            return str(route_id)[5:]
         return {
             "heat_loss_edit": "building_edit",
             "heat_loss_presentation": "heat_loss",
@@ -1166,6 +1169,16 @@ class MainWindowV3(QMainWindow):
             )
             self._settings.sync()
 
+    def _refresh_workspace_navigation_views_v1(self) -> None:
+        self._workspace_navigation_panel_v1.set_workspace_views_v1(
+            self._gui_settings.workspace_views_v2()
+        )
+        if not self._workspace_navigation_panel_v1.active_route_v1():
+            selected = self._gui_settings.last_workspace_view_v2()
+            self._workspace_navigation_panel_v1.set_active_route_v1(
+                self._navigation_route_for_view_id_v1(selected["view_id"])
+            )
+
     def _show_workspace_view_manager_v2(self) -> None:
         """Edit named GUI views and apply the selected main-window view."""
         panel_rows = tuple(
@@ -1182,6 +1195,9 @@ class MainWindowV3(QMainWindow):
             settings=self._gui_settings,
             panel_rows=panel_rows,
             parent=self,
+        )
+        dialog.navigation_changed.connect(
+            self._refresh_workspace_navigation_views_v1
         )
         dialog.view_selected.connect(
             self._apply_named_workspace_main_view_v2

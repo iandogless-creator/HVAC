@@ -76,13 +76,11 @@ def main() -> None:
     assert preferences == [True]
     assert panel.preferences_button_v1().text() == "⚙"
 
-    panel.resize(520, 120)
-    app.processEvents()
-    positions = {
-        panel._button_grid.getItemPosition(index)[:2]
-        for index in range(panel._button_grid.count())
-    }
-    assert len({row for row, _column in positions}) >= 2
+    panel.resize(320, 120)
+    panel.show()
+    for _ in range(6):
+        app.processEvents()
+    assert len({button.geometry().y() for button in panel._ordered_buttons}) >= 2
 
     manager_source = inspect.getsource(WorkspaceViewManagerDialogV2)
     assert "panel_float_requested" not in manager_source
@@ -92,7 +90,7 @@ def main() -> None:
         MainWindowV3._on_workspace_navigation_view_requested_v1
     )
     for route_id in expected_routes:
-        assert route_id in routing_source
+        assert MainWindowV3._navigation_view_id_for_route_v1(route_id)
     assert "_apply_named_workspace_main_view_v2" in routing_source
     assert "_apply_named_workspace_exploded_view_v2" in routing_source
 

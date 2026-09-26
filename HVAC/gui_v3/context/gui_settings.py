@@ -364,6 +364,18 @@ class GuiSettings:
                 return deepcopy(view)
         return None
 
+    def set_workspace_view_in_navigation_v2(
+            self, view_id: str, included: bool,
+    ) -> bool:
+        """Set GUI shortcut membership without changing the active view."""
+        if not isinstance(included, bool):
+            return False
+        for view in self._workspace_views_v2:
+            if view["view_id"] == str(view_id or "").strip():
+                view["in_navigation"] = included
+                return True
+        return False
+
     def create_workspace_view_v2(
             self,
             *,

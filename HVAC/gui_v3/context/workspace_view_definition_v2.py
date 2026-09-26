@@ -5,6 +5,10 @@ from copy import deepcopy
 
 WORKSPACE_PANEL_PLACEMENTS_V2 = frozenset({"main", "side", "bottom"})
 WORKSPACE_PRESENTATION_MODES_V2 = frozenset({"main", "floating"})
+# Preserve the existing Navigation shortcuts when older settings are loaded.
+DEFAULT_NAVIGATION_VIEW_IDS_V2 = frozenset({
+    "heat_loss", "building_edit", "basic_sizing", "proportioning", "results",
+})
 MAX_WORKSPACE_VIEWS_V2 = 64
 MAX_WORKSPACE_PANELS_V2 = 64
 MAX_WORKSPACE_VIEW_NAME_LENGTH_V2 = 80
@@ -90,6 +94,7 @@ def default_workspace_views_v2() -> list[dict]:
             "view_id": view_id,
             "name": name,
             "panels": dict(panel_rows),
+            "in_navigation": view_id in DEFAULT_NAVIGATION_VIEW_IDS_V2,
         }
         for view_id, name, panel_rows in _DEFAULT_WORKSPACE_VIEW_ROWS_V2
     ]
@@ -176,7 +181,13 @@ def normalise_workspace_views_v2(
             continue
         seen_ids.add(view_id)
         seen_names.add(folded_name)
-        views.append({"view_id": view_id, "name": name, "panels": panels})
+        in_navigation = raw_view.get("in_navigation")
+        if not isinstance(in_navigation, bool):
+            in_navigation = view_id in DEFAULT_NAVIGATION_VIEW_IDS_V2
+        views.append({
+            "view_id": view_id, "name": name, "panels": panels,
+            "in_navigation": in_navigation,
+        })
 
     if views:
         return views

@@ -25,6 +25,7 @@ from HVAC.gui_v3.context.gui_settings import GuiSettings
 class WorkspaceViewManagerDialogV2(QDialog):
     """Compact editor for persistent named-view membership and placement."""
 
+    navigation_changed = Signal()
     views_changed = Signal(str)
     view_selected = Signal(str)
 
@@ -56,6 +57,15 @@ class WorkspaceViewManagerDialogV2(QDialog):
             self._on_selected_view_changed_v2
         )
         top.addWidget(self._view_combo, 1)
+
+        self._in_navigation_checkbox = QCheckBox("In Navigation", self)
+        self._in_navigation_checkbox.setToolTip(
+            "Show this saved view as a button in Navigation"
+        )
+        self._in_navigation_checkbox.toggled.connect(
+            self._set_in_navigation_v2
+        )
+        top.addWidget(self._in_navigation_checkbox)
 
         self._new_button = self._tool_button_v2(
             icon=QStyle.StandardPixmap.SP_FileDialogNewFolder,
@@ -148,6 +158,14 @@ class WorkspaceViewManagerDialogV2(QDialog):
         view = self._settings.workspace_view_v2(
             self._current_view_id_v2()
         )
+        self._in_navigation_checkbox.blockSignals(True)
+        try:
+            self._in_navigation_checkbox.setEnabled(view is not None)
+            self._in_navigation_checkbox.setChecked(
+                bool(view and view.get("in_navigation", False))
+            )
+        finally:
+            self._in_navigation_checkbox.blockSignals(False)
         panels = dict(view.get("panels") or {}) if view else {}
         self._table.setRowCount(len(self._panel_rows))
 
@@ -206,9 +224,20 @@ class WorkspaceViewManagerDialogV2(QDialog):
                 )
                 self._table.setCellWidget(row, column, button)
 
+    def _set_in_navigation_v2(self, included: bool) -> None:
+        if self._refreshing:
+            return
+        if self._settings.set_workspace_view_in_navigation_v2(
+            self._current_view_id_v2(), included
+        ):
+            self._settings.save()
+            # Membership must not reapply a layout or change Main/Exploded.
+            self.navigation_changed.emit()
+
     def _persist_and_refresh_v2(self, *, view_id: str) -> None:
         self._settings.save()
         self._refresh_views_v2(select_view_id=view_id)
+        self.navigation_changed.emit()
         self.views_changed.emit(view_id)
 
     def _on_selected_view_changed_v2(self, _index: int) -> None:

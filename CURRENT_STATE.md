@@ -1,5 +1,24 @@
 # HVACgooee — Current State
 
+## H-S72-A4F accepted — 26 September 2026
+
+Navigation GUI checkpoint, based on `6643ca0`.
+
+- Each saved view has a persistent **In Navigation** checkbox; selected views
+  appear as compact buttons, including custom and renamed views.
+- Buttons wrap to the available width. Overflow scrolls without enlarging the
+  floating Navigation window; the existing orange/dark-text focus is retained.
+- Membership changes update immediately without switching Main/Exploded mode.
+  Return Schematic remains available with the Proportioning view.
+- Navigation retains independent floating position, size, visibility and restart
+  restoration. Closing/reopening and deliberate docking remain supported.
+- GUI preferences only: no engineering, ProjectState or GPLv3 boundary changes.
+
+Accepted from Ian's runtime screenshot and terminal results on 26 September:
+compilation; H-S72-A4F membership and real MainWindow integration;
+H-S72-A4D floating isolation; H-S72-A4E fresh-process restart; clean diff check.
+Navigation is accepted for this stage. Engineering work continues separately.
+
 Status: ACTIVE DEVELOPMENT  
 Current branch: `phase-hydronics-h-a`  
 Current working area: Hydronics Phase H — Proportioning / return-arrangement evidence  

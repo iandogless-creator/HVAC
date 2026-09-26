@@ -1,14 +1,19 @@
 from __future__ import annotations
 
-from PySide6.QtCore import Signal, Qt
+from PySide6.QtCore import Signal, Qt, QSize
 from PySide6.QtWidgets import (
     QButtonGroup,
-    QGridLayout,
+    QVBoxLayout,
+    QScrollArea,
+    QFrame,
     QSizePolicy,
     QStyle,
     QToolButton,
     QWidget,
 )
+
+
+from HVAC.gui_v3.widgets.navigation_flow_layout_v1 import NavigationFlowLayoutV1
 
 
 class WorkspaceNavigationPanelV1(QWidget):
@@ -62,37 +67,22 @@ class WorkspaceNavigationPanelV1(QWidget):
         super().__init__(parent)
         self.setObjectName("workspaceNavigationPanelV1")
 
-        root = QGridLayout(self)
+        root = QVBoxLayout(self)
         root.setContentsMargins(6, 3, 6, 3)
-        root.setSpacing(5)
-        self._button_grid = root
+        self._scroll = QScrollArea(self)
+        self._scroll.setFrameShape(QFrame.Shape.NoFrame)
+        self._scroll.setWidgetResizable(True)
+        self._scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self._scroll.setMinimumSize(0, 0)
+        self._button_host = QWidget()
+        self._button_grid = NavigationFlowLayoutV1(self._button_host)
+        self._scroll.setWidget(self._button_host)
+        root.addWidget(self._scroll)
 
         self._view_group = QButtonGroup(self)
         self._view_group.setExclusive(True)
         self._view_buttons: dict[str, QToolButton] = {}
         self._ordered_buttons: list[QToolButton] = []
-
-        for route_id, label, full_label, icon in self._ROUTES:
-            button = QToolButton(self)
-            button.setText(label)
-            button.setIcon(self.style().standardIcon(icon))
-            button.setToolButtonStyle(
-                Qt.ToolButtonStyle.ToolButtonTextBesideIcon
-            )
-            button.setCheckable(True)
-            button.setAutoRaise(False)
-            button.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
-            button.setProperty("hvacNavigationRole", "view")
-            button.setToolTip(f"Open {full_label}")
-            button.setAccessibleName(f"Open {full_label}")
-            button.clicked.connect(
-                lambda _checked=False, selected=route_id: (
-                    self.view_requested.emit(selected)
-                )
-            )
-            self._view_group.addButton(button)
-            self._view_buttons[route_id] = button
-            self._ordered_buttons.append(button)
 
         self._presentation_button = QToolButton(self)
         self._presentation_button.setText("Explode")
@@ -149,6 +139,75 @@ class WorkspaceNavigationPanelV1(QWidget):
             self.preferences_requested.emit
         )
         self._ordered_buttons.append(self._preferences_button)
+        self._set_route_rows_v1(self._ROUTES)
+
+    def sizeHint(self) -> QSize:
+        return QSize(520, 82)
+
+    def minimumSizeHint(self) -> QSize:
+        return QSize(80, 36)
+
+    def set_workspace_views_v1(self, views) -> None:
+        """Rebuild shortcuts from persisted membership, using stable identities."""
+        aliases = {
+            "building_edit": ("heat_loss_edit", "Building Edit"),
+            "heat_loss": ("heat_loss_presentation", "Heat Loss"),
+            "basic_sizing": ("pipe_estimate", "Basic Sizing"),
+            "proportioning": ("proportioning_schematic", "Proportioning"),
+            "results": ("results", "Proportioned Results"),
+        }
+        defaults = {row[0]: row for row in self._ROUTES}
+        rows = []
+        for view in views:
+            if not view.get("in_navigation", False):
+                continue
+            view_id, name = view["view_id"], view["name"]
+            route_id, original_name = aliases.get(view_id, (f"view:{view_id}", ""))
+            original = defaults.get(route_id)
+            label = original[1] if original and name == original_name else name
+            icon = original[3] if original else QStyle.StandardPixmap.SP_FileDialogContentsView
+            rows.append((route_id, label, name, icon))
+            # Preserve the existing direct Return Schematic shortcut.
+            if view_id == "proportioning":
+                rows.append(defaults["return_schematic"])
+        self._set_route_rows_v1(rows)
+
+    def _set_route_rows_v1(self, rows) -> None:
+        active = self.active_route_v1()
+        for button in self._view_buttons.values():
+            self._button_grid.removeWidget(button)
+            self._view_group.removeButton(button)
+            button.hide()
+            button.deleteLater()
+        self._view_buttons.clear()
+        for route_id, label, full_label, icon in rows:
+            button = QToolButton(self._button_host)
+            button.setText(button.fontMetrics().elidedText(label, Qt.ElideRight, 115))
+            button.setMaximumWidth(150)
+            button.setIcon(self.style().standardIcon(icon))
+            button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+            button.setCheckable(True)
+            button.setAutoRaise(False)
+            button.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+            button.setProperty("hvacNavigationRole", "view")
+            button.setToolTip(f"Open {full_label}")
+            button.setAccessibleName(f"Open {full_label}")
+            button.clicked.connect(
+                lambda _checked=False, selected=route_id: self.view_requested.emit(selected)
+            )
+            self._view_group.addButton(button)
+            self._view_buttons[route_id] = button
+        # Keep recovery/preferences controls first, also with no selected views.
+        self._ordered_buttons = [
+            self._presentation_button, self._education_button,
+            self._preferences_button, *self._view_buttons.values(),
+        ]
+        while self._button_grid.count():
+            self._button_grid.takeAt(0)
+        for button in self._ordered_buttons:
+            self._button_grid.addWidget(button)
+            button.show()
+        self.set_active_route_v1(active)
         self._reflow_buttons_v1()
 
     def resizeEvent(self, event) -> None:
@@ -156,25 +215,9 @@ class WorkspaceNavigationPanelV1(QWidget):
         self._reflow_buttons_v1()
 
     def _reflow_buttons_v1(self) -> None:
-        """Wrap navigation controls into more rows as width reduces."""
-        buttons = tuple(getattr(self, "_ordered_buttons", ()))
-        if not buttons:
-            return
-        available = max(self.width() - 12, 1)
-        columns = max(2, min(len(buttons), available // 105))
-        for button in buttons:
-            self._button_grid.removeWidget(button)
-        for column in range(len(buttons) + 1):
-            self._button_grid.setColumnStretch(column, 0)
-        for index, button in enumerate(buttons):
-            row, column = divmod(index, columns)
-            self._button_grid.addWidget(
-                button,
-                row,
-                column,
-                Qt.AlignmentFlag.AlignLeft,
-            )
-        self._button_grid.setColumnStretch(columns, 1)
+        """Invalidate measured wrapping without moving or resizing the dock."""
+        self._button_grid.invalidate()
+        self._button_host.updateGeometry()
 
     def set_active_route_v1(self, route_id: str) -> None:
         """Highlight one direct route without emitting navigation intent."""
