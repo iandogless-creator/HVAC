@@ -19,6 +19,48 @@ compilation; H-S72-A4F membership and real MainWindow integration;
 H-S72-A4D floating isolation; H-S72-A4E fresh-process restart; clean diff check.
 Navigation is accepted for this stage. Engineering work continues separately.
 
+## H-S73-A validated preview — 26 September 2026
+
+Implementation based on `6643ca0` (Navigation floating/restart persistence).
+This checkpoint supersedes the historical next-stage notes below; the
+engineering boundaries remain in force. H-S73-A adds a **Pump** tab inside
+Hydronics, reachable from Results, for a preliminary committed-snapshot duty.
+
+- Controller owns readiness and writes explicit user preview intent only.
+- System mass flow comes from the first committed common-main section covering
+  all committed routes. Missing/ambiguous coverage blocks the preview.
+- Pressure uses the maximum chosen route total, already including shared mains
+  and Local K once. Route flows/pressures are never summed to obtain pump duty.
+- Density, additional loss common to every route, head margin and their source
+  note must be explicitly entered and applied. Zero allowances are allowed;
+  no default water density, safety factor, flow margin or efficiency is inserted.
+- Optional `ProjectState.hydronic_pump_preview_basis` persists intent only.
+  A changed committed snapshot invalidates that basis until reviewed/reapplied.
+  Unsaved live edits do not change this explicitly labelled committed-basis review.
+- A ready preview is not accepted final duty. Route-specific equipment losses,
+  complete balancing/control requirements (including generic Kv/Kvs and their
+  pressure-loss consequences) and final parameter acceptance remain
+  for the next stage. **A finished design can be parameter-based: manufacturer
+  or model selection is optional, never a completion prerequisite.**
+- No changes to Navigation ownership, pump product selection, upstream sizing,
+  physics/friction solvers, or GPLv3 core/add-on boundaries.
+
+Validation passed locally on 26 September 2026:
+- Pump modules and `ProjectState` compiled successfully.
+- `QT_QPA_PLATFORM=offscreen PYTHONPATH=. python HVAC/dev/test_hs73a_pump_duty_preview_v1.py`
+  passed numerical duty, explicit assumptions, no double counting, stale-snapshot
+  rejection, persistence and real-widget integration checks.
+- `git diff --check` was clean.
+- Two wider-panel topology diagnostics arose from the minimal test projects;
+  the pump-preview assertions passed.
+
+H-S73-A is validated as a preliminary committed-basis preview. Final pump-duty
+acceptance and route-specific equipment/Kv/Kvs consequences remain deferred.
+Next: complete per-route component-loss, generic Kv/Kvs and control basis, then explicit
+acceptance/display of the parameter-based pump duty. Do not require a catalogue.
+
+## Historical baseline (5 July 2026)
+
 Status: ACTIVE DEVELOPMENT  
 Current branch: `phase-hydronics-h-a`  
 Current working area: Hydronics Phase H — Proportioning / return-arrangement evidence  

@@ -4,6 +4,24 @@ This file identifies the current active code path.
 
 For current project status, see `CURRENT_STATE.md`.
 
+## H-S73-A pump preview path
+
+- `HVAC/gui_v3/widgets/pump_preview_widget_v1.py`: Pump tab observer and intent
+  editor, hosted by `HydronicsSchematicPanel`.
+- `HVAC/gui_v3/adapters/hydronics_schematic_panel_adapter.py`: routes explicit
+  Apply/Clear requests and formats controller results.
+- `HVAC/hydronics/pumps/pump_preview_controller_v1.py`: committed-snapshot
+  readiness, no-double-counted flow source, snapshot binding and intent writes.
+- `HVAC/hydronics/pumps/pump_preview_runner_v1.py`: pure flow/head arithmetic.
+- `HVAC/hydronics/pumps/pump_preview_basis_v1.py`: optional persisted intent
+  owned by ProjectState. Calculated duty is not saved as engineering authority.
+- `HVAC/dev/test_hs73a_pump_duty_preview_v1.py`: numerical, invalidation,
+  persistence and real-widget integration checks.
+
+Legacy pump sizing/selection engines remain unchanged. Their default allowances
+and efficiency are not used by H-S73-A. Manufacturer selection remains optional
+even for a later completed parameter-based design including Kv/Kvs.
+
 ---
 
 ## Current GUI entry point

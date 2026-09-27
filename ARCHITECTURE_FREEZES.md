@@ -522,6 +522,25 @@ net_external_wall_area = gross_external_wall_area - total_room_opening_area
 
 ---
 
+## H-S73-A scoped extension — 24 September 2026
+
+Pump duty **preview** is now permitted downstream of the committed hydraulic
+snapshot through GUI → Adapter → Controller → pure Runner → Result. The
+controller alone validates readiness and applies/clears the optional
+ProjectState pump-preview basis. Persistence stores designer assumptions and
+the reviewed snapshot identity, never a computed/final pump duty.
+
+The first common-main flow must cover all committed routes. Shared pipe losses
+already present in chosen route totals must not be added again. Density and
+allowances require explicit input; no default safety factors or efficiency.
+Head conversion does not recalculate upstream fluid/friction evidence.
+
+This extension does not authorise final duty acceptance, route-specific equipment
+loss inference or automatic product selection. A later finished system may be
+defined entirely by engineering parameters, including generic Kv/Kvs and their
+route pressure-loss consequences; manufacturer data is optional.
+All other authority freezes and the GPLv3 core boundary remain unchanged.
+
 ## FREEZE 10 — Hydronics Proportioning Preview & Return Arrangement Basis Contract (LOCKED)
 
 ### Scope

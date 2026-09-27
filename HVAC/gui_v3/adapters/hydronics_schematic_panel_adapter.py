@@ -404,6 +404,10 @@ class HydronicsSchematicPanelAdapter:
         self._panel = panel
         self._project_state = project_state
         self._context = context
+        pump_widget = getattr(panel, "_pump_preview_widget_v1", None)
+        if pump_widget is not None:
+            pump_widget.apply_requested.connect(self._apply_pump_preview_basis_v1)
+            pump_widget.clear_requested.connect(self._clear_pump_preview_basis_v1)
         # H-S50-C — bundled local catalogue evidence. This is adapter-memory
         # input only: no ProjectState persistence, ranking or valve selection.
         try:
@@ -2660,7 +2664,61 @@ class HydronicsSchematicPanelAdapter:
     # Public API
     # ------------------------------------------------------------------
 
+    def _apply_pump_preview_basis_v1(self, payload: dict) -> None:
+        from HVAC.hydronics.pumps.pump_preview_controller_v1 import (
+            apply_pump_preview_basis_v1,
+        )
+        blockers = apply_pump_preview_basis_v1(self._project_state, payload)
+        if not blockers:
+            self._emit_project_refresh_v1(self._context, self._project_state)
+        self._refresh_pump_preview_v1()
+        self._panel._pump_preview_widget_v1.message.setText(
+            "\n".join(blockers) if blockers else "Preview basis saved; final duty remains unaccepted."
+        )
+
+    def _clear_pump_preview_basis_v1(self) -> None:
+        from HVAC.hydronics.pumps.pump_preview_controller_v1 import (
+            clear_pump_preview_basis_v1,
+        )
+        clear_pump_preview_basis_v1(self._project_state)
+        self._emit_project_refresh_v1(self._context, self._project_state)
+        self._refresh_pump_preview_v1()
+
+    def _refresh_pump_preview_v1(self) -> None:
+        from HVAC.hydronics.pumps.pump_preview_controller_v1 import preview_pump_v1
+        widget = getattr(self._panel, "_pump_preview_widget_v1", None)
+        if widget is None:
+            return
+        result = preview_pump_v1(self._project_state)
+        basis = getattr(self._project_state, "hydronic_pump_preview_basis", None)
+        numbers = result.numbers
+
+        def number(value, unit):
+            return "—" if value is None else f"{value:.6g} {unit}"
+
+        widget.present(
+            status=("Ready for preliminary duty review — not accepted final duty."
+                    if result.ready else "Preview blocked:\n" + "\n".join(result.blockers)),
+            summary=[
+                ("System mass flow", number(result.mass_flow_kg_s, "kg/s")),
+                ("Flow source", result.flow_section_id or "—"),
+                ("Controlling pipework route(s)", ", ".join(result.controlling_route_ids) or "—"),
+                ("Pipework pressure", number(result.pipework_pressure_Pa, "Pa")),
+                ("Preview flow", number(numbers.flow_m3_h if numbers else None, "m³/h")),
+                ("Preview pressure", number(numbers.pressure_Pa if numbers else None, "Pa")),
+                ("Preview head", number(numbers.head_m if numbers else None, "m")),
+                ("Equation", "Δp = (pipework + common loss) × (1 + margin/100); H = Δp/(ρ × 9.81)"),
+                ("Flow conversion", "m³/h = kg/s × 3600/ρ; no flow allowance"),
+                ("Snapshot identity", result.fingerprint[:16] or "—"),
+            ],
+            routes=[(key, label, f"{pressure:.6g}")
+                    for key, label, pressure in result.route_pressures],
+            basis=basis.to_dict() if basis else None,
+            owner_token=id(self._project_state),
+        )
+
     def refresh(self) -> None:
+        self._refresh_pump_preview_v1()
         self._restore_return_arrangement_acceptance_basis_to_panel()
         self._restore_rr_length_basis_mode_to_panel()
         self._restore_rr_manual_extra_length_to_panel()

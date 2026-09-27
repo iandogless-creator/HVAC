@@ -27,6 +27,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 from pathlib import Path
+from HVAC.gui_v3.widgets.pump_preview_widget_v1 import PumpPreviewWidgetV1
 from typing import Optional
 
 from PySide6.QtCore import (
@@ -930,6 +931,10 @@ class HydronicsSchematicPanel(QWidget):
         self.set_clean_proportioned_route_output_rows([])
 
         self._clean_proportioned_tab.addStretch(1)
+
+        # H-S73-A: separate observer tab; controller owns pump readiness.
+        self._pump_preview_widget_v1 = PumpPreviewWidgetV1(self)
+        self._make_tab("Pump").addWidget(self._pump_preview_widget_v1)
 
         # --------------------------------------------------
         # H-S61-E — resized pipework engineering review

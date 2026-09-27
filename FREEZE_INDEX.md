@@ -9,6 +9,12 @@ Current active area: Hydronics Phase H — proportioning / return-arrangement ev
 
 This document defines the frozen subsystems, their authority, and their current lifecycle phase.
 
+H-S73-A extension (24 September 2026): preliminary pump duty review is permitted
+from committed hydraulic evidence through a controller and pure runner, with
+explicit persisted user assumptions. See the H-S73-A section in
+`ARCHITECTURE_FREEZES.md`. No final duty or product is accepted by this stage.
+A finished parameter-based design does not require a manufacturer or model.
+
 It is not a README.
 
 It is the architectural spine of the repository.
