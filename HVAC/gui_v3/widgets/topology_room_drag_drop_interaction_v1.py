@@ -222,8 +222,10 @@ class TopologyRoomStagingTrayV1(QFrame):
             "border: 1px dashed #74746c; border-radius: 5px; }"
         )
         self._title = QLabel("Neutral room staging — drag into topology")
+        self._title.setStyleSheet("color: #232323;")
         self._title.setObjectName("topologyRoomStagingTitle")
         self._status = QLabel("No unassigned rooms")
+        self._status.setStyleSheet("color: #232323;")
         self._status.setObjectName("topologyRoomStagingStatus")
         self._tokens = QHBoxLayout()
         self._tokens.setAlignment(Qt.AlignLeft)

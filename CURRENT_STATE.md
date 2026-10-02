@@ -1,5 +1,64 @@
 # HVACgooee — Current State
 
+## H-S74-A locally accepted — 2 October 2026
+
+Ian confirms the Topology Arranger Wizard works correctly. All five steps
+were visually reviewed; direct controls are visible with Wizard off.
+The Kitchen (DEV) screenshot was taken with no job loaded, as Ian clarified.
+Education text refinements are deferred. This acceptance supersedes earlier
+pending local H-S74-A acceptance notes below.
+
+Both H-S74-A tests and compilation of the eight scoped Python files pass
+in a temporary copy of committed fff7ae0 with only H-S74-A added, checked by
+the scoped commit helper before staging. The helper also checks staged
+whitespace and the exact ten-file scope before committing.
+
+H-S73-B-associated local work is preserved separately; complete local
+validation remains unconfirmed. Final pump duty remains unaccepted.
+Next: verify H-S73-B equipment losses and generic Kv/Kvs in the local
+repository, then review the Duty interface and explicit acceptance boundary.
+
+## H-S74-A implementation checkpoint — 29 September 2026
+
+Topology Arranger guidance and contextual Education, prepared from the supplied
+`fff7ae0` source. This GUI-only stage is independent of the H-S73-B pump patch;
+its delivery does not assert that H-S73-B was applied or accepted locally.
+
+- A persistent **Wizard** checkbox enables Start → Legs → Branches → Rooms →
+  Review. It reveals the same existing controls, preserving current inputs
+  when switching modes. Back/Next only changes presentation; there is no
+  automatic topology creation, engineering acceptance or completion flag.
+- Staging tray text remains readable against its existing pale background in
+  both Light and Dark schemes.
+- Eight topology Education topics have Beginner, Standard and Classical text.
+  Field focus and wizard steps select the topic; **?** opens the existing
+  Education panel without moving it or the Navigation panel. Education level
+  controls and reading/scrolling retain the current explanatory topic.
+- The guide explains existing leg/principal creation, recursive branches and
+  origins, staging, placement, order and index/terminal actions. It explicitly
+  describes the adapter's limited legacy order/index editing scope.
+- Existing creation, placement, index and validation paths remain authoritative.
+  Wizard controls do not generate topology or override blockers. The adapter's
+  existing DEV seed behaviour is not extended. Existing generated room-list
+  routes must still be reviewed against the intended installation.
+- Wizard on/off is a GUI QSettings preference (`topology/wizard_enabled_v1`),
+  default off. Step position is session-local and resets on project change;
+  a project swap clears creation-label drafts and previous creation messages.
+  No ProjectState schema, physics, pipe sizing or GPLv3 boundary changes.
+
+Validation in the supplied source copy: compilation; H-S74-A content, real
+panel/adapter and MainWindow tests; fresh-process on/off persistence; nearby
+Topology creation/branch/placement, Education and Navigation integration
+regressions; offscreen visual review and guarded installer checks.
+Ian accepted local Wizard operation on 2 October 2026; Education wording is deferred.
+
+Run locally:
+`QT_QPA_PLATFORM=offscreen PYTHONPATH=. python HVAC/dev/test_hs74a_topology_guidance_v1.py`
+`QT_QPA_PLATFORM=offscreen PYTHONPATH=. python HVAC/dev/test_hs74a_topology_help_integration_v1.py`
+
+Local Wizard acceptance is recorded above. Extension of the help pattern to
+return arrangement and pipe inputs remains deferred.
+
 ## H-S72-A4F accepted — 26 September 2026
 
 Navigation GUI checkpoint, based on `6643ca0`.

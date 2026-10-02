@@ -9,6 +9,7 @@ from typing import Any
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QAbstractItemView,
+    QCheckBox,
     QComboBox,
     QGridLayout,
     QHBoxLayout,
@@ -22,6 +23,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+from HVAC.education.topology_guidance_v1 import TOPOLOGY_STEPS_V1, TOPOLOGY_TOPICS_V1
 from HVAC.gui_v3.widgets.topology_arranger_schematic_widget_v1 import (
     TopologyArrangerSchematicWidgetV1,
 )
@@ -38,36 +40,18 @@ class TopologyArrangerPanel(QWidget):
     """
     GUI v3 — Topology Arranger Panel.
 
-    DEV v1 scope
-    ------------
-    Read-only route order display for HydronicTopologyV1.
-
-    Responsibilities
-    ----------------
-    • Display topology route rows
-    • Display index/terminal markers
-    • Remain a passive panel
-
-    Explicitly forbidden
-    --------------------
-    • No ProjectState mutation
-    • No pipe sizing
-    • No pressure-drop calculation
-    • No proportioning calculation
-    • No heat-loss calculation
-
-    Later buttons
-    -------------
-    • Move Up
-    • Move Down
-    • Make Terminal
-    • Set As Index
+    Presents topology and emits existing edit requests to its adapter.
+    The optional H-S74-A wizard only changes presentation and help topics.
+    It never creates topology, calculates or accepts engineering on Next.
     """
 
     COL_ORDER = 0
     COL_ROOM = 1
     COL_INDEX = 2
     COL_TERMINAL = 3
+    wizard_toggled = Signal(bool)
+    education_topic_requested = Signal(str)
+    help_requested = Signal(str)
     move_up_requested = Signal(str)
     move_down_requested = Signal(str)
     make_terminal_requested = Signal(str)
@@ -88,6 +72,7 @@ class TopologyArrangerPanel(QWidget):
 
         self._title_label = QLabel("Topology Arranger")
         self._title_label.setObjectName("topologyArrangerTitleLabel")
+        self._title_label.setWordWrap(True)
 
         self._status_label = QLabel("No topology loaded")
         self._status_label.setObjectName("topologyArrangerStatusLabel")
@@ -148,30 +133,37 @@ class TopologyArrangerPanel(QWidget):
         self._add_branch_button = QPushButton("Add Branch")
         self._add_branch_button.setObjectName("topologyArrangerAddBranchButton")
 
-        creation_layout = QGridLayout()
-        creation_layout.addWidget(QLabel("View leg"), 0, 0)
-        creation_layout.addWidget(self._leg_selector, 0, 1)
-        creation_layout.addWidget(QLabel("View subleg"), 0, 2)
-        creation_layout.addWidget(self._principal_selector, 0, 3)
-        creation_layout.addWidget(QLabel("Initial room (moves if allocated)"), 1, 0)
-        creation_layout.addWidget(self._initial_room_selector, 1, 1)
-        creation_layout.addWidget(QLabel("New leg label"), 2, 0)
-        creation_layout.addWidget(self._leg_label_edit, 2, 1)
-        creation_layout.addWidget(QLabel("New principal label"), 2, 2)
-        creation_layout.addWidget(self._principal_label_edit, 2, 3)
-        creation_layout.addWidget(self._add_leg_button, 3, 1)
-        creation_layout.addWidget(self._add_principal_button, 3, 3)
-        creation_layout.addWidget(QLabel("Branch parent"), 4, 0)
-        creation_layout.addWidget(self._branch_parent_selector, 4, 1)
-        creation_layout.addWidget(QLabel("Origin on parent"), 4, 2)
-        creation_layout.addWidget(self._branch_origin_selector, 4, 3)
-        creation_layout.addWidget(
-            QLabel("First branch room (moves if allocated)"), 5, 0
-        )
-        creation_layout.addWidget(self._branch_first_room_selector, 5, 1)
-        creation_layout.addWidget(QLabel("New branch label"), 5, 2)
-        creation_layout.addWidget(self._branch_label_edit, 5, 3)
-        creation_layout.addWidget(self._add_branch_button, 6, 3)
+        # Use the SAME controls in direct and guided modes. Visibility only.
+        self._selection_controls = QWidget(self)
+        selection_layout = QGridLayout(self._selection_controls)
+        selection_layout.setContentsMargins(0, 0, 0, 0)
+        selection_layout.addWidget(QLabel("View leg"), 0, 0)
+        selection_layout.addWidget(self._leg_selector, 0, 1)
+        selection_layout.addWidget(QLabel("View subleg"), 0, 2)
+        selection_layout.addWidget(self._principal_selector, 0, 3)
+        self._principal_controls = QWidget(self)
+        creation_layout = QGridLayout(self._principal_controls)
+        creation_layout.setContentsMargins(0, 0, 0, 0)
+        creation_layout.addWidget(QLabel("Initial room (moves if allocated)"), 0, 0)
+        creation_layout.addWidget(self._initial_room_selector, 0, 1, 1, 3)
+        creation_layout.addWidget(QLabel("New leg label"), 1, 0)
+        creation_layout.addWidget(self._leg_label_edit, 1, 1)
+        creation_layout.addWidget(QLabel("New principal label"), 1, 2)
+        creation_layout.addWidget(self._principal_label_edit, 1, 3)
+        creation_layout.addWidget(self._add_leg_button, 2, 1)
+        creation_layout.addWidget(self._add_principal_button, 2, 3)
+        self._branch_controls = QWidget(self)
+        branch_layout = QGridLayout(self._branch_controls)
+        branch_layout.setContentsMargins(0, 0, 0, 0)
+        branch_layout.addWidget(QLabel("Branch parent"), 0, 0)
+        branch_layout.addWidget(self._branch_parent_selector, 0, 1)
+        branch_layout.addWidget(QLabel("Origin on parent"), 0, 2)
+        branch_layout.addWidget(self._branch_origin_selector, 0, 3)
+        branch_layout.addWidget(QLabel("First branch room (moves if allocated)"), 1, 0)
+        branch_layout.addWidget(self._branch_first_room_selector, 1, 1)
+        branch_layout.addWidget(QLabel("New branch label"), 1, 2)
+        branch_layout.addWidget(self._branch_label_edit, 1, 3)
+        branch_layout.addWidget(self._add_branch_button, 2, 3)
 
         self._leg_selector.currentIndexChanged.connect(
             self._emit_leg_selection
@@ -228,7 +220,9 @@ class TopologyArrangerPanel(QWidget):
         self._make_terminal_button.clicked.connect(self._emit_make_terminal)
         self._set_index_button.clicked.connect(self._emit_set_index)
 
-        button_layout = QHBoxLayout()
+        self._route_actions = QWidget(self)
+        button_layout = QHBoxLayout(self._route_actions)
+        button_layout.setContentsMargins(0, 0, 0, 0)
         button_layout.addWidget(self._move_up_button)
         button_layout.addWidget(self._move_down_button)
         button_layout.addWidget(self._make_terminal_button)
@@ -263,14 +257,128 @@ class TopologyArrangerPanel(QWidget):
         )
 
         layout = QVBoxLayout(self)
-        layout.addWidget(self._title_label)
+        self._build_guidance_v1(layout)
         layout.addWidget(self._status_label)
         layout.addWidget(self._creation_result_label)
-        layout.addLayout(creation_layout)
+        layout.addWidget(self._selection_controls)
+        layout.addWidget(self._principal_controls)
+        layout.addWidget(self._branch_controls)
         layout.addWidget(self._staging_scroll)
-        layout.addWidget(self._topology_schematic_scroll)
-        layout.addWidget(self._table)
-        layout.addLayout(button_layout)
+        layout.addWidget(self._topology_schematic_scroll, 1)
+        layout.addWidget(self._table, 1)
+        layout.addWidget(self._route_actions)
+        self._install_topology_help_v1()
+        self._present_guidance_v1()
+
+    def _build_guidance_v1(self, layout) -> None:
+        self._education_topic_v1 = "start"
+        header = QHBoxLayout()
+        header.addWidget(self._title_label, 1)
+        self._wizard_checkbox_v1 = QCheckBox("Wizard", self)
+        self._wizard_checkbox_v1.setToolTip("Guide the existing controls step by step. Switching preserves current inputs; Back/Next never changes topology.")
+        self._help_button_v1 = QPushButton("?", self)
+        self._help_button_v1.setFixedWidth(28)
+        self._help_button_v1.setAccessibleName("Topology help")
+        self._help_button_v1.setToolTip("Open Education for the last selected topology field or wizard step")
+        self._help_button_v1.setProperty("hvacKeepEducationTopicV1", True)
+        header.addWidget(self._wizard_checkbox_v1)
+        header.addWidget(self._help_button_v1)
+        layout.addLayout(header)
+        self._guide_controls_v1 = QWidget(self)
+        guide = QVBoxLayout(self._guide_controls_v1)
+        guide.setContentsMargins(0, 0, 0, 0)
+        navigation = QHBoxLayout()
+        self._wizard_steps_v1 = QComboBox(self)
+        self._wizard_steps_v1.setAccessibleName("Topology wizard step")
+        for index, (key, label, _) in enumerate(TOPOLOGY_STEPS_V1):
+            self._wizard_steps_v1.addItem(f"{index + 1} / {len(TOPOLOGY_STEPS_V1)}  {label}", key)
+        self._wizard_back_v1 = QPushButton("Back", self)
+        self._wizard_next_v1 = QPushButton("Next", self)
+        for button in (self._wizard_back_v1, self._wizard_next_v1):
+            button.setToolTip("Change the guidance step only; does not save, create or accept topology")
+        navigation.addWidget(self._wizard_steps_v1, 1)
+        navigation.addWidget(self._wizard_back_v1)
+        navigation.addWidget(self._wizard_next_v1)
+        guide.addLayout(navigation)
+        self._wizard_instruction_v1 = QLabel(self)
+        self._wizard_instruction_v1.setWordWrap(True)
+        self._wizard_instruction_v1.setTextFormat(Qt.PlainText)
+        guide.addWidget(self._wizard_instruction_v1)
+        layout.addWidget(self._guide_controls_v1)
+        self._wizard_steps_v1.currentIndexChanged.connect(self._present_guidance_v1)
+        self._wizard_back_v1.clicked.connect(lambda: self._wizard_steps_v1.setCurrentIndex(max(0, self._wizard_steps_v1.currentIndex() - 1)))
+        self._wizard_next_v1.clicked.connect(lambda: self._wizard_steps_v1.setCurrentIndex(min(len(TOPOLOGY_STEPS_V1) - 1, self._wizard_steps_v1.currentIndex() + 1)))
+        self._wizard_checkbox_v1.toggled.connect(self._present_guidance_v1)
+        self._wizard_checkbox_v1.toggled.connect(self.wizard_toggled.emit)
+        self._help_button_v1.clicked.connect(lambda: self.help_requested.emit(self._education_topic_v1))
+
+    def _present_guidance_v1(self, *_) -> None:
+        guided = self._wizard_checkbox_v1.isChecked()
+        index = self._wizard_steps_v1.currentIndex()
+        key, _, instruction = TOPOLOGY_STEPS_V1[index]
+        self._topology_schematic_scroll.setMaximumHeight(16777215 if guided and key in ("start", "legs", "branches") else 340)
+        self._guide_controls_v1.setVisible(guided)
+        self._wizard_instruction_v1.setText(instruction)
+        self._wizard_back_v1.setEnabled(index > 0)
+        self._wizard_next_v1.setEnabled(index < len(TOPOLOGY_STEPS_V1) - 1)
+        self._principal_controls.setVisible(not guided or key == "legs")
+        self._branch_controls.setVisible(not guided or key == "branches")
+        self._staging_scroll.setVisible(not guided or key == "rooms")
+        self._table.setVisible(not guided or key in ("rooms", "review"))
+        self._route_actions.setVisible(not guided or key == "rooms")
+        topic = key if guided else "start"
+        self.setProperty("hvacTopologyHelpTopicV1", topic)
+        self.set_help_topic_v1(topic)
+        self.education_topic_requested.emit(topic)
+
+    def set_wizard_enabled_v1(self, enabled: bool) -> None:
+        self._wizard_checkbox_v1.setChecked(bool(enabled))
+
+    def reset_guidance_for_project_v1(self) -> None:
+        # A new project starts at Start; the user's Wizard preference survives.
+        self.clear_creation_labels()
+        self._selected_room_id = None
+        self._table.clearSelection()
+        self._table.setCurrentCell(-1, -1)
+        self._wizard_steps_v1.setCurrentIndex(0)
+        self._present_guidance_v1()
+
+    def set_help_topic_v1(self, topic: str) -> None:
+        if topic in TOPOLOGY_TOPICS_V1:
+            self._education_topic_v1 = topic
+
+    def _install_topology_help_v1(self) -> None:
+        groups = (
+            ("legs", (self._leg_selector, self._principal_selector, self._initial_room_selector,
+                      self._leg_label_edit, self._principal_label_edit, self._add_leg_button, self._add_principal_button)),
+            ("branches", (self._branch_parent_selector, self._branch_first_room_selector,
+                          self._branch_label_edit, self._add_branch_button)),
+            ("origin", (self._branch_origin_selector,)),
+            ("rooms", (self._staging_scroll, self._topology_schematic_scroll)),
+            ("order", (self._table, self._move_up_button, self._move_down_button)),
+            ("index", (self._make_terminal_button, self._set_index_button)),
+        )
+        for topic, controls in groups:
+            for control in controls:
+                control.setProperty("hvacTopologyHelpTopicV1", topic)
+        tips = {
+            self._leg_selector: "Select the leg to inspect; this does not move rooms.",
+            self._principal_selector: "Select a principal or branch subleg to inspect.",
+            self._initial_room_selector: "First room for the new principal; an allocated room is moved, not copied.",
+            self._add_leg_button: "Explicitly create a new leg and its first principal using the selected initial room.",
+            self._add_principal_button: "Explicitly add a principal to View leg using the selected initial room.",
+            self._branch_parent_selector: "Parent principal or branch from which the new branch takes off.",
+            self._branch_origin_selector: "Take-off room on the parent; it remains on that parent.",
+            self._branch_first_room_selector: "First child room, different from the origin; an allocated room is moved.",
+            self._add_branch_button: "Explicitly create the branch; the existing topology transaction validates the request.",
+            self._table: "Room order and index/terminal markers for View subleg. Select a row for available actions.",
+            self._move_up_button: "Move the selected room earlier where the legacy order action is enabled.",
+            self._move_down_button: "Move the selected room later where the legacy order action is enabled.",
+            self._make_terminal_button: "Set the selected room as index and move it to the terminal position where supported.",
+            self._set_index_button: "Set index intent without moving the room; review the terminal requirement before proportioning.",
+        }
+        for control, tip in tips.items():
+            control.setToolTip(tip)
 
     # ------------------------------------------------------------------
     # Adapter-facing API

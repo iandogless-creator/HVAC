@@ -4,6 +4,24 @@ This file identifies the current active code path.
 
 For current project status, see `CURRENT_STATE.md`.
 
+## H-S74-A Topology guidance and Education
+
+- `HVAC/education/topology_guidance_v1.py`: five guide steps and eight concise
+  topics at Beginner/Standard/Classical levels; text only, no ProjectState.
+- `HVAC/education/resolver.py`: routes the topology domain.
+- `HVAC/gui_v3/widgets/topology_room_drag_drop_interaction_v1.py`: explicit dark
+  text for the existing pale staging tray in either appearance scheme.
+- `HVAC/gui_v3/panels/topology_arranger_panel.py`: persistent-preference signal,
+  guided visibility of existing controls, Back/Next and field-help identifiers.
+- `HVAC/gui_v3/adapters/topology_arranger_panel_adapter.py`: resets presentation
+  drafts/selection on project swap; existing engineering action paths retained.
+- `HVAC/gui_v3/main_window.py`: owns Wizard QSettings persistence, field-level
+  topic routing, retained topic inside Education and explicit help display.
+- `HVAC/dev/test_hs74a_topology_guidance_v1.py`: topic coverage, presentation-only
+  navigation, direct-mode parity, explicit creation and project lifecycle.
+- `HVAC/dev/test_hs74a_topology_help_integration_v1.py`: actual MainWindow focus,
+  help/level controls, floating placement and fresh-process preferences.
+
 ## H-S73-A pump preview path
 
 - `HVAC/gui_v3/widgets/pump_preview_widget_v1.py`: Pump tab observer and intent

@@ -24,6 +24,7 @@ from __future__ import annotations
 from typing import Tuple
 
 from HVAC.education.hydronics.concepts import HYDRONICS_CONCEPTS
+from HVAC.education.topology_guidance_v1 import TOPOLOGY_GUIDANCE_V1
 from HVAC.education.heatloss.concepts import HEATLOSS_CONCEPTS
 from HVAC.education.fenestration.concepts import FENESTRATION_CONCEPTS
 from HVAC.education.workspace_guidance_v1 import (
@@ -60,6 +61,9 @@ def resolve(
     domain = domain.lower()
     topic = topic.lower()
     mode = mode.lower()
+
+    if domain == "topology":
+        return _resolve_from(TOPOLOGY_GUIDANCE_V1, domain, topic, mode)
 
     if domain == "hydronics":
         return _resolve_from(HYDRONICS_CONCEPTS, domain, topic, mode)

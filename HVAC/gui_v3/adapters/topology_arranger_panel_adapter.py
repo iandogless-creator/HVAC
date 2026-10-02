@@ -86,6 +86,7 @@ class TopologyArrangerPanelAdapter:
     ) -> None:
         self._panel = panel
         self._context = context
+        self._guidance_project_v1 = context.project_state
         self._leg_id = leg_id
         self._principal_subleg_id = ""
         self._branch_parent_subleg_id = ""
@@ -143,6 +144,18 @@ class TopologyArrangerPanelAdapter:
         """
 
         project = self._context.project_state
+        if project is not self._guidance_project_v1:
+            self._guidance_project_v1 = project
+            self._leg_id = ""
+            self._principal_subleg_id = ""
+            self._branch_parent_subleg_id = ""
+            self._branch_origin_room_id = ""
+            self._branch_first_room_id = ""
+            self._legacy_edit_subleg_id = ""
+            self._last_transaction_status = ""
+            self._last_creation_confirmation = ""
+            self._topology_focus_room_id = ""
+            self._panel.reset_guidance_for_project_v1()
 
         if project is None:
             self._panel.set_status("No project loaded")

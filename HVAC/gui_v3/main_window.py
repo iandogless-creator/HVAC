@@ -50,6 +50,7 @@ from HVAC.gui_v3.widgets.workspace_view_manager_dialog_v2 import (
 from HVAC.gui_v3.panels.workspace_navigation_panel_v1 import (
     WorkspaceNavigationPanelV1,
 )
+from HVAC.education.topology_guidance_v1 import TOPOLOGY_TOPICS_V1
 from HVAC.education.workspace_guidance_v1 import (
     education_topic_for_dock_id_v1,
 )
@@ -216,6 +217,12 @@ class MainWindowV3(QMainWindow):
         # --------------------------------------------------
         self._settings = QSettings("HVACgooee", "GUIv3")
         self._gui_settings = GuiSettings(Path.home() / ".hvacgooee")
+        self._topology_arranger_panel.set_wizard_enabled_v1(
+            self._settings.value("topology/wizard_enabled_v1", False, type=bool)
+        )
+        self._topology_arranger_panel.wizard_toggled.connect(self._save_topology_wizard_v1)
+        self._topology_arranger_panel.education_topic_requested.connect(self._set_topology_education_v1)
+        self._topology_arranger_panel.help_requested.connect(self._show_topology_help_v1)
         self._refresh_workspace_navigation_views_v1()
 
         self._context.edit_requested.connect(self._on_edit_requested)
@@ -429,12 +436,45 @@ class MainWindowV3(QMainWindow):
     # ------------------------------------------------------------------
     # ESC handling
     # ------------------------------------------------------------------
+    def _save_topology_wizard_v1(self, enabled: bool) -> None:
+        self._settings.setValue("topology/wizard_enabled_v1", bool(enabled))
+        self._settings.sync()
+
+    def _set_topology_education_v1(self, topic: str) -> None:
+        if topic in TOPOLOGY_TOPICS_V1:
+            self._topology_arranger_panel.set_help_topic_v1(topic)
+            self._education_panel_adapter.set_topic(domain="topology", topic=topic)
+
+    def _show_topology_help_v1(self, topic: str) -> None:
+        # Reuse the Education dock in its current location, including floating.
+        # Showing help must not apply a workspace or disturb Navigation geometry.
+        self._set_topology_education_v1(topic)
+        self._dock_education.show()
+        self._dock_education.raise_()
+        self._settings.setValue("workspace/education_visible_v1", True)
+        self._settings.sync()
+
     def _update_education_from_event_object_v1(self, obj) -> None:
         current = obj
         for _depth in range(32):
             if current is None:
                 return
+            # Controls take precedence over the containing panel. The help
+            # button and Education itself retain the last explanatory topic.
+            if current.property("hvacKeepEducationTopicV1"):
+                return
+            topology_topic = current.property("hvacTopologyHelpTopicV1")
+            if topology_topic in TOPOLOGY_TOPICS_V1:
+                self._set_topology_education_v1(topology_topic)
+                return
             if isinstance(current, QDockWidget):
+                if current.objectName() == "dock_education":
+                    return
+                if current.objectName() == "dock_topology_arranger":
+                    self._set_topology_education_v1(
+                        self._topology_arranger_panel._education_topic_v1
+                    )
+                    return
                 topic = education_topic_for_dock_id_v1(
                     str(current.objectName() or "")
                 )
