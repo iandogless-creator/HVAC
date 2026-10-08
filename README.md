@@ -1,218 +1,110 @@
-# HVACgooee
+# HVACgooee — Beta 1
 
-**HVACgooee** is an open-source, deterministic HVAC calculation project.
+HVACgooee is Ian Allison's open-source, deterministic HVAC calculation and
+education application. This release candidate is **0.6.0b1**, following the
+repository's earlier v0.5 development milestone. The core is GPLv3.
 
-It is being built to expose the engineering route behind HVAC decisions: inputs, assumptions, physics, intermediate values, and results. The aim is not to hide calculations behind opaque software behaviour, but to make the calculation path inspectable, repeatable, and teachable.
+## Install and start
 
-> Current development state: see `CURRENT_STATE.md`.
->
-> Current active code path: see `CODE_MAP.md`.
->
-> Architectural contracts: see `ARCHITECTURE_FREEZES.md` and `FREEZE_INDEX.md`.
->
-> Engineering caveats and design stance: see `CAVEATS.md`.
->
-> Older documents are retained for project history and may not describe the active code path.
+Beta 1 targets Linux Mint / Ubuntu with Python 3.12 and PySide6 6.10.1.
+Download and extract the curated Beta 1 source archive, then open a terminal
+in its folder:
 
----
-
-## Current Focus
-
-The current active development area is:
-
-```text
-Hydronics Phase H — proportioning / return-arrangement evidence
+```bash
+python3 --version
+python3 -m venv .venv
+.venv/bin/python -m pip install -r requirements-beta1.txt
+.venv/bin/python run_hvacgooee.py
 ```
 
-Current hydronics work includes:
+Use Python 3.12 for this beta. If your system lacks the venv module, install
+its Python venv package using your distribution's package manager. Initial
+installation needs access to PyPI; the application does not require an account
+or an AI service. This source release contains the active GUI, its imported modules and the selected
+release tests. Historical/parked code stays in the repository. It is not a
+standalone desktop installer.
+Windows and macOS have not been validated for Beta 1.
 
-- Basic PS first-pass sizing / handoff evidence
-- shared Haaland / Colebrook friction calculation core
-- Colebrook-backed route pressure evidence
-- Local K section pressure preview
-- F&R / F+RR return arrangement comparison
-- reverse-return added-length basis modes
-- accepted return-arrangement design basis
-- chosen-basis Proportioned tab evidence
+The startup chooser offers **New project**, **Open project** and **Sample
+project**. Open selects a folder containing `project.json`. The sample uses
+example dimensions and construction values; review them before calculation.
+New starts the existing single-room project workflow with visible defaults.
 
-This is still a preview and evidence phase.
+Projects default to `~/Documents/HVACgooee`; you can choose another folder.
+Existing project folders remain usable wherever they are stored. Save As selects
+the final project folder. Save explicitly before closing or switching projects:
+there is no autosave or comprehensive unsaved-change prompt in this beta.
+For beta evaluation, work with copies of important projects.
 
-It does **not** yet produce:
+## Included workflows
 
-- pump selection
-- valve selection
-- final balancing
-- final pipe resizing
-- final installation-ready hydraulic output
+- Rooms, constructions, U-values, openings and committed heat-loss display.
+- Topology Arranger with optional Wizard and contextual Education.
+- Hydronic pipe, Local K and flow/return or reverse-return evidence.
+- Explicit hydraulic-basis and pipe-schedule commits where their gates pass.
+- Generic Kv/Kvs evidence, explicit point acceptance and consequence review.
+- Preliminary pump duty and parameter-based required duty with route equipment
+  losses, operating Kv, explicit allowances and separate duty acceptance.
+- Temperature-dependent pure-water density and viscosity, using the mean
+  Environment design flow/return temperature.
+- Named workspace views, Navigation, Light/Dark appearance and per-point Kvs
+  editor drafts that survive unchanged refreshes within the current session.
 
----
+A manufacturer product is optional for parameter-based required-duty work.
+Accepting required duty does not select or verify a physical pump, valve,
+manufacturer curve, NPSH performance or installation suitability.
 
-## Core Model
+## Engineering and beta limits
 
-Heat loss is expressed explicitly:
+Previews remain evidence. Accept/Commit actions retain their existing exact-basis
+checks. Changing source inputs can invalidate previous acceptance; displayed
+values or stored acceptance fields alone do not establish current readiness.
+No beta startup action automatically accepts a hydraulic design or pump duty.
 
-```text
-Qf = A × U × ΔT
+Water-property support is pure water, design flow and return each 5–95°C, with
+flow above return, at a 0.1 MPa reference. Ambient air temperature is not used
+as the water temperature. Glycol and pressure-dependent corrections are outside
+this stage. Existing heat-capacity/mass-flow conventions remain unchanged.
+
+Legacy room-list topology seeding remains in the existing adapter path; always
+review generated routing against the intended installation. Some optional
+catalogue content is demonstration evidence, not a manufacturer endorsement.
+The developer panel and some engineering wording remain visible in this beta.
+Unsubmitted editor drafts are session-only and are not saved in projects.
+
+See [RELEASE_NOTES_BETA1.md](RELEASE_NOTES_BETA1.md), [CAVEATS.md](CAVEATS.md)
+and [CURRENT_STATE.md](CURRENT_STATE.md) for the verified checkpoint and limits.
+
+## Verify and report a problem
+
+From the extracted source folder, with the same environment:
+
+```bash
+QT_QPA_PLATFORM=offscreen .venv/bin/python tools/verify_beta1.py
 ```
 
-Where:
+This runs the selected release checks in isolated temporary user settings and
+project folders. It does not modify your saved projects. Native-window testing
+on the target desktop is still part of release acceptance.
 
-- `A` = area
-- `U` = thermal transmittance
-- `ΔT` = temperature difference
+Report the version (`.venv/bin/python run_hvacgooee.py --version`), operating
+system, steps taken, expected result, actual result and relevant terminal output.
+A screenshot and a small anonymised example help. Do not attach private projects
+or credentials. Issue tracker: https://github.com/iandogless-creator/HVAC/issues
 
-Hydronic pressure evidence is likewise intended to be explicit:
+## Architecture and licence
 
-```text
-flow → velocity → Reynolds number → friction factor → Δp/m → section Δp → route Δp
-```
+ProjectState owns engineering intent and committed state. Controllers own
+execution/acceptance policy; deterministic engines calculate; adapters project;
+GUI panels display evidence and emit user intent. No proprietary AI is required
+by the core.
 
-Where appropriate, HVACgooee uses recognised hydraulic methods such as Haaland approximation, Colebrook-White friction calculation, and Darcy-Weisbach pressure loss.
+The core is licensed under the GNU General Public License version 3. See
+[LICENSE](LICENSE). PySide6/Qt is installed separately and retains its own
+licensing and notices. Historical notes and unrelated project data are not part
+of the curated release archive.
 
----
+Authority documents: `CURRENT_STATE.md` → `CODE_MAP.md` →
+`ARCHITECTURE_FREEZES.md` → `FREEZE_INDEX.md`.
 
-## System Structure
-
-HVACgooee separates authority, intent, calculation, and display.
-
-High-level authority boundaries:
-
-- **ProjectState** owns project intent and committed state.
-- **Topology** defines relationships such as rooms, surfaces, adjacency, legs, sublegs, and sections.
-- **Constructions** define fabric performance such as U-values.
-- **Engines / runners** perform deterministic calculation.
-- **Controllers** own execution policy and result commits.
-- **Adapters** project state into display rows and forward user intent.
-- **GUI panels** observe and emit intent only.
-
-The project avoids:
-
-- hidden calculations
-- implicit state repair
-- GUI-owned engineering authority
-- silent recalculation
-- black-box result paths
-
----
-
-## What This Is
-
-HVACgooee is:
-
-- a deterministic engineering calculation system
-- a topology-driven HVAC modelling project
-- an educational and audit-friendly calculation route
-- an open-source foundation for future HVAC tools
-- a project that keeps physics, assumptions, and design basis visible
-
-## What This Is Not
-
-HVACgooee is not:
-
-- a quick calculator
-- a GUI-first spreadsheet clone
-- a black-box simulation package
-- a substitute for competent engineering judgement
-- a final design authority before the relevant phase is complete
-
----
-
-## Project Status
-
-Current broad status:
-
-| Area | Status |
-|---|---|
-| Project model | Authoritative active model |
-| Heat-loss engine | Operational / stable enough to pause |
-| Heat-loss GUI v3 | Active-stable / observer-first |
-| Construction assignment | Active-stable |
-| Wall Wizard / opening schedule | Active-stable runtime path, not yet heat-loss physics authority |
-| Hydronics | Active development — Phase H preview/evidence |
-| Hydronic final design | Not yet active |
-| Pump / valve / final balancing | Not yet implemented |
-
----
-
-## Design Principles
-
-Locked project principles include:
-
-- engines are pure and deterministic
-- ProjectState is the single engineering state authority
-- GUI never decides engineering truth
-- previews are evidence, not final output
-- user design basis remains authoritative
-- physics should be traceable
-- assumptions should be visible
-- published tables are respected as guidance, not treated as natural law
-
-In short:
-
-```text
-Intent is explicit.
-Physics is traceable.
-Preview is not final.
-The designer remains authoritative.
-```
-
----
-
-## Repository Structure
-
-High-level structure:
-
-```text
-HVAC/
-├── core/
-├── topology/
-├── heatloss/
-├── heatloss_v3/
-├── hydronics/
-├── hydronics_v3/
-├── gui_v3/
-├── project/
-├── dev/
-└── examples/
-```
-
-Important root documents:
-
-```text
-README.md
-CURRENT_STATE.md
-CODE_MAP.md
-ARCHITECTURE_FREEZES.md
-FREEZE_INDEX.md
-CAVEATS.md
-```
-
----
-
-## Development Notes
-
-This repository contains active development work, historical notes, and parked subsystems.
-
-When unsure, prefer the current authority chain:
-
-```text
-CURRENT_STATE.md → CODE_MAP.md → ARCHITECTURE_FREEZES.md → FREEZE_INDEX.md
-```
-
-Historical documents may still be useful, but they should not override the current state or architecture freezes.
-
----
-
-## Licensing
-
-HVACgooee core is released under **GPLv3**.
-
----
-
-## Author
-
-Ian Allison
-
----
-
-*Correctness over convenience. Architecture over shortcuts.*
+Author: Ian Allison.

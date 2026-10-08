@@ -4,6 +4,8 @@
 
 from __future__ import annotations
 
+from HVAC.fluid.water_properties_v1 import resolve_project_water_basis_v1
+
 from dataclasses import dataclass
 from typing import Any
 
@@ -87,7 +89,7 @@ def build_local_k_pressure_preview_v1(
     local_dp = _local_pressure_drop_from_k_v1(
         k_total=k_total,
         velocity_m_s=float(velocity_m_s or 0.0),
-        density_kg_m3=WATER_DENSITY_KG_M3,
+        density_kg_m3=resolve_project_water_basis_v1(project_state).density_kg_m3,
     )
 
     raw_length = getattr(section, "length_m", None)

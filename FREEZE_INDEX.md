@@ -1,5 +1,11 @@
 # HVACgooee — Repository FREEZE INDEX
 
+H-S73-C extension (4 October 2026): shared pure-water density and viscosity
+from mean Environment design flow/return now govern active Phase H hydraulics.
+Frozen water provenance, explicit recommit and stale-duty/schedule gates apply.
+Pump density inherits committed authority. See H-S73-C in
+`ARCHITECTURE_FREEZES.md`; no heat-capacity, glycol or product-selection change.
+
 Status: CANONICAL  
 Owner: Ian Allison  
 Repository: HVACgooee  
@@ -8,6 +14,12 @@ Last updated: 2026-07-05
 Current active area: Hydronics Phase H — proportioning / return-arrangement evidence
 
 This document defines the frozen subsystems, their authority, and their current lifecycle phase.
+
+H-S73-B extension (27 September 2026): explicit route equipment and generic
+operating-Kv loss review, followed by controller-owned required design-duty
+acceptance, is permitted. Exact-basis resolution governs saved acceptance.
+See H-S73-B in `ARCHITECTURE_FREEZES.md`; this does not accept a pump product,
+manufacturer curve or the complete installed system.
 
 H-S73-A extension (24 September 2026): preliminary pump duty review is permitted
 from committed hydraulic evidence through a controller and pure runner, with

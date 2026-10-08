@@ -1,8 +1,10 @@
 """H-S73-A readiness and explicit preview-intent ownership boundary.
 
-Only frozen committed hydraulic evidence is consumed. A ready preview is
+Hydraulic numbers come from frozen committed evidence; current Environment
+temperatures only validate its water basis. A ready preview is
 not final pump duty, balancing acceptance, or permission to select a product.
 """
+from HVAC.fluid.water_properties_v1 import committed_water_basis_v1
 from dataclasses import asdict, dataclass
 import hashlib
 import json
@@ -49,7 +51,7 @@ def _basis_blockers(basis) -> list[str]:
         if not _number(getattr(basis, field), positive=positive):
             reasons.append(label + " required.")
     if not isinstance(basis.source_note, str) or not basis.source_note.strip():
-        reasons.append("Record the density source, operating temperature and allowance basis.")
+        reasons.append("Record the reviewed allowance basis.")
     return reasons
 
 
@@ -79,12 +81,59 @@ def _snapshot_evidence(snapshot):
     return authority, hashlib.sha256(encoded).hexdigest(), []
 
 
+def pump_preview_draft_defaults_v1(project) -> dict:
+    """Read-only committed-fluid suggestion; zero allowances do not accept duty."""
+    draft = {"additional_common_loss_Pa": 0, "head_margin_percent": 0}
+    authority, _, blockers = _snapshot_evidence(
+        getattr(project, "hydronic_proportioned_basis_snapshot", None))
+    if authority is None:
+        draft["fluid_status"] = "; ".join(blockers)
+        return draft
+    try:
+        fluid = committed_water_basis_v1(project)
+    except ValueError as exc:
+        draft["fluid_status"] = str(exc)
+        return draft
+    draft.update(density_kg_m3=fluid.density_kg_m3,
+                 source_note="Shared water basis; allowances as entered.",
+                 fluid_status=fluid.description)
+    return draft
+
+
+def _section_covers_committed_routes_v1(section_route_ids, committed_route_ids) -> bool:
+    """Bridge frozen leg:subleg membership to committed subleg IDs, read-only.
+
+    Exact identities remain valid. The legacy route-pressure producer uses
+    leg_id:subleg_id while chosen-route authority uses subleg_id. Resolve only
+    against the explicit committed ID set; reject unknown, duplicate or
+    ambiguous matches. Never infer coverage from labels or add route flows.
+    """
+    matched = []
+    for member in section_route_ids:
+        if not isinstance(member, str) or not member:
+            return False
+        candidates = {member} & committed_route_ids
+        if member.count(":") == 1:
+            prefix, suffix = member.split(":", 1)
+            if prefix and suffix in committed_route_ids:
+                candidates.add(suffix)
+        if len(candidates) != 1:
+            return False
+        matched.append(next(iter(candidates)))
+    return (len(matched) == len(set(matched))
+            and set(matched) == committed_route_ids)
+
+
 def preview_pump_v1(project) -> PumpPreviewResultV1:
     authority, fingerprint, blockers = _snapshot_evidence(
         getattr(project, "hydronic_proportioned_basis_snapshot", None)
     )
     if authority is None:
         return PumpPreviewResultV1(blockers=tuple(blockers))
+    try:
+        fluid = committed_water_basis_v1(project)
+    except ValueError as exc:
+        return PumpPreviewResultV1(blockers=(str(exc),))
     routes = tuple(authority.routes)
     route_ids = {r.route_id for r in routes}
     if (not routes or "" in route_ids or len(route_ids) != len(routes)
@@ -97,7 +146,7 @@ def preview_pump_v1(project) -> PumpPreviewResultV1:
     # route flows: both repeat downstream loads. Require full route coverage.
     candidates = [s for s in authority.sections
                   if s.section_scope == "common_main" and s.order == 1
-                  and set(s.route_ids) == route_ids]
+                  and _section_covers_committed_routes_v1(s.route_ids, route_ids)]
     source = candidates[0] if len(candidates) == 1 else None
     mass = None
     if source is None or not _number(source.carried_flow_kg_s, positive=True):
@@ -109,6 +158,9 @@ def preview_pump_v1(project) -> PumpPreviewResultV1:
                               if abs(r.chosen_pressure_drop_Pa - base) <= 0.05))
     basis = getattr(project, "hydronic_pump_preview_basis", None)
     blockers.extend(_basis_blockers(basis))
+    if (isinstance(basis, PumpPreviewBasisV1)
+            and basis.density_kg_m3 != fluid.density_kg_m3):
+        blockers.append("Review and Apply the density inherited from the committed water basis.")
     if isinstance(basis, PumpPreviewBasisV1) and basis.snapshot_fingerprint != fingerprint:
         blockers.append("The committed snapshot changed; review and reapply the preview basis.")
     numbers = None
@@ -147,6 +199,9 @@ def apply_pump_preview_basis_v1(project, payload: dict) -> tuple[str, ...]:
     basis = PumpPreviewBasisV1(**values, source_note=payload.get("source_note", ""),
                               snapshot_fingerprint=current.fingerprint)
     blockers = _basis_blockers(basis)
+    fluid = committed_water_basis_v1(project)
+    if basis.density_kg_m3 != fluid.density_kg_m3:
+        blockers.append("Pump density must match the committed water basis.")
     if blockers:
         return tuple(blockers)
     # Validate range before mutating ProjectState.

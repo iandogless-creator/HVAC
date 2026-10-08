@@ -108,7 +108,7 @@ def main():
 
     expected_flow = (0.18 / DEFAULT_KV_WATER_DENSITY_KG_M3) * 3600.0
     expected_dp_bar = 100.0 / 100_000.0
-    expected_kv = expected_flow / math.sqrt(expected_dp_bar)
+    expected_kv = expected_flow * math.sqrt((DEFAULT_KV_WATER_DENSITY_KG_M3 / 1000) / expected_dp_bar)
     assert kv_row.required_kv_state_id == REQUIRED_KV_PREVIEW_AVAILABLE
     assert kv_row.required_kv_available is True
     assert math.isclose(kv_row.flow_m3_h or 0.0, expected_flow)

@@ -173,6 +173,8 @@ def build_proportioned_pipe_schedule_commit_rebuild_v1(
 
     old_hydraulic = committed_snapshot.hydraulic_input_authority
     old_allocation = committed_snapshot.point_allocation_authority
+    if getattr(old_hydraulic, "fluid_basis", None) != resized_hydraulics.fluid_basis:
+        return _blocked_v1("Resize projection water basis differs from the committed hydraulic basis.")
     if not isinstance(
             old_hydraulic,
             CommittedProportioningHydraulicInputAuthorityV1,
@@ -528,6 +530,7 @@ def _build_hydraulic_authority_v1(
         ready=True,
         sections=section_tuple,
         routes=tuple(routes),
+        fluid_basis=old_authority.fluid_basis,
         status=(
             "Ready — accepted material/size schedule and recalculated "
             "hydraulic-input authority rebuilt"

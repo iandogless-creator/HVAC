@@ -27,7 +27,7 @@ def main() -> None:
 
     assert "QInputDialog" not in source
     assert '"Choose or create project folder"' in method
-    assert 'default_dir = hvac_root / "HVACprojects"' in method
+    assert "default_dir = self._context.workspace_root" in method
     assert "str(default_dir)" in method
     assert "project_dir = Path(directory).resolve()" in method
     assert "project.project_dir = project_dir" in method

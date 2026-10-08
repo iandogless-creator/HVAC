@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import math
+from HVAC.core.environment_state import EnvironmentStateV1
+from HVAC.fluid.water_properties_v1 import resolve_project_water_basis_v1
 from types import SimpleNamespace
 
 from HVAC.hydronics.pipes.dp.mass_flow_pressure_drop_v1 import (
@@ -21,8 +23,10 @@ def main() -> None:
         material_key="steel",
         pipe_size_key=32,
     )
+    project = SimpleNamespace(environment=EnvironmentStateV1())
+    fluid = resolve_project_water_basis_v1(project)
     actual = _rr_added_length_pressure_drop_Pa(
-        project_state=SimpleNamespace(),
+        project_state=project,
         section_pressure_basis_by_id={"section-1": basis},
         candidate_section_ids=("section-1",),
         length_m=7.5,
@@ -32,6 +36,8 @@ def main() -> None:
         material="steel",
         dn=32,
         length_m=7.5,
+        density_kg_m3=fluid.density_kg_m3,
+        dynamic_viscosity_pa_s=fluid.dynamic_viscosity_Pa_s,
         friction_method="colebrook",
     )
     assert actual > 0.0

@@ -5,6 +5,8 @@
 
 from __future__ import annotations
 
+from HVAC.fluid.water_properties_v1 import resolve_project_water_basis_v1
+
 from dataclasses import dataclass
 from typing import Any
 
@@ -125,8 +127,11 @@ def build_common_main_leg_entry_pipe_sizing_v1(
     )
     # H-S63-B2A — use the exact persisted current family only.
     current_material_key = current_basic_ps_pipe_material_key_v1(project_state)
+    fluid = resolve_project_water_basis_v1(project_state)
     basic_projection = build_basic_ps_pipe_sizing_v1(
         basic_sections,
+        water_density_kg_m3=fluid.density_kg_m3,
+        water_dynamic_viscosity_Pa_s=fluid.dynamic_viscosity_Pa_s,
         pipe_candidates=build_basic_ps_pipe_candidates_for_material_v1(
             current_material_key
         ),

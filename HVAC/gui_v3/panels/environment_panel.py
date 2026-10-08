@@ -368,8 +368,16 @@ class EnvironmentPanel(QWidget):
             "Basic PS maximum pipe velocity (m/s)",
             self._basic_ps_max_velocity_input,
         )
+        self._water_basis_label_v1 = QLabel()
+        self._water_basis_label_v1.setWordWrap(True)
+        self._water_basis_label_v1.setToolTip(
+            "Pure water only, using mean design flow/return temperature (both 5–95°C). "
+            "IAPWS density and dynamic viscosity at a 0.1 MPa reference, not system fill pressure. "
+            "Changing these inputs requires hydraulic recalculation, review and explicit recommit. "
+            "Existing heat-capacity and mass-flow conventions remain unchanged.")
         _compact_environment_form_v1(form_hydronic)
         root.addLayout(form_hydronic)
+        root.addWidget(self._water_basis_label_v1)
 
         sep_pipe_heat_loss = QFrame(self)
         sep_pipe_heat_loss.setFrameShape(QFrame.HLine)
@@ -618,3 +626,6 @@ class EnvironmentPanel(QWidget):
         self.bare_pipe_pair_spacing_default_changed.emit(
             int(size), str(support_type), float(spacing)
         )
+
+    def set_water_basis_description_v1(self, text: str) -> None:
+        self._water_basis_label_v1.setText(text)

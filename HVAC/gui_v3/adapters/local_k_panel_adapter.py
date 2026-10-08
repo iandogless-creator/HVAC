@@ -49,6 +49,7 @@ class LocalKPanelAdapter:
         self._panel.section_changed.connect(self._on_section_changed)
         self._panel.local_k_changed.connect(self._on_local_k_changed)
 
+        self._subscribe_if_present("environment_changed", self.refresh)
         self._subscribe_if_present("room_state_changed", self.refresh)
         self._subscribe_if_present("project_changed", self.refresh)
 

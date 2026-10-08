@@ -1,5 +1,33 @@
 # HVACgooee — Architecture Freezes
 
+## H-S73-C — shared hydraulic water basis extension (4 October 2026)
+
+Ian authorised shared temperature-dependent density and dynamic viscosity.
+Active Phase H project hydraulics use pure water at mean Environment design
+flow/return, evaluated by IAPWS SR6-08(2011) at a stated 0.1 MPa reference.
+Both design inputs must lie within 5–95°C, with flow above return. No ambient
+substitution, missing-input fallback, extrapolation or glycol inference.
+
+Density and viscosity travel together through Basic, Colebrook, Local K and
+resize calculations. Liquid Kv/Kvs relations include rho/1000. Existing heat
+capacity and mass-flow authority are unchanged. Properties are calculated by
+pure code, never by a panel. Environment stores existing temperature intent;
+only explicit engineering commit freezes the derived water basis with the
+hydraulic evidence that used it. Old snapshots are not silently upgraded.
+
+Pump density is inherited from that frozen basis; manual Pump-only overrides
+are disallowed. This supersedes H-S73-A/B2's editable-density assumption.
+Temperature/model changes invalidate current use without mutating stored
+snapshots or acceptance. Recalculation, affected approval review and explicit
+recommit are required. Resize schedule fingerprints include fluid provenance;
+no replacement commit against stale live temperatures. Explicit duty acceptance
+and all no-double-counting/product-selection boundaries remain unchanged.
+
+Source: International Association for the Properties of Water and Steam,
+Revised Supplementary Release on Properties of Liquid Water at 0.1 MPa,
+September 2011, equations (2), (4), (7); Tables 1, 4 and 8:
+https://iapws.org/technical-guidance/release/LiquidWater.download
+
 Status: CANONICAL  
 Owner: Ian Allison  
 Repository: HVACgooee  
@@ -521,6 +549,35 @@ net_external_wall_area = gross_external_wall_area - total_room_opening_area
 - `OpeningScheduleItemV1` never stores U-value.
 
 ---
+
+## H-S73-B scoped extension — 27 September 2026
+
+The previously deferred route-equipment/Kv consequence and explicit required
+pump-duty acceptance paths are now permitted through a controller. This extends
+H-S73-A only for the following bounded purpose; other freezes remain in force.
+
+ProjectState owns optional detailed input intent and separate duty acceptance.
+GUI/adapter collect requests and observe results. Controllers alone apply,
+accept, withdraw and clear. Pure runners calculate liquid Kv loss and pump duty.
+Readiness requires authoritative committed route/point identities, frozen Kvs,
+explicit additional losses, operating Kv and a reviewed control/fluid basis.
+
+Chosen pipe/Local K loss + additional equipment + operating-Kv loss determines
+each route total. Frozen old balancing allocations are comparison evidence,
+never extra pressure added on top of actual Kv loss. Shared valves use total
+point flow once per governed route. Route residuals must be within 0.05 Pa before
+acceptance; common loss and explicit head reserve are added once afterwards.
+
+Accepted required flow/head is valid only while the controller recomputes an
+exact basis fingerprint and matching numbers. Field presence alone is never
+accepted authority. Applying changed detailed intent withdraws prior acceptance;
+changed frozen evidence or preliminary fluid/allowance basis makes it stale.
+
+No live hydraulic mutation, automatic balancing/Kv choice, physical setting,
+manufacturer product, pump curve, efficiency or NPSH acceptance is introduced.
+Parameter-based required-duty acceptance does not assert whole-system completion
+or verify a physical pump. Non-cavitating liquid Kv modelling does not recalculate
+upstream pipe friction. GPLv3 and Navigation ownership remain unchanged.
 
 ## H-S73-A scoped extension — 24 September 2026
 

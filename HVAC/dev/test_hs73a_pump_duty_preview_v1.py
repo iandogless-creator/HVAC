@@ -1,5 +1,10 @@
 """Numerical, authority, persistence and real-widget tests for H-S73-A."""
 from dataclasses import replace
+from HVAC.core.environment_state import EnvironmentStateV1
+from HVAC.fluid.water_properties_v1 import build_water_hydraulic_basis_v1
+
+FLUID = build_water_hydraulic_basis_v1(75, 65)
+RHO = FLUID.density_kg_m3
 import json
 import math
 import os
@@ -35,17 +40,18 @@ def fixture():
             physical_main_entry_pressure_drop_Pa=2600,
         )
     authority = CommittedProportioningHydraulicInputAuthorityV1(
-        ready=True, sections=(common,), routes=(route("route-a", 20000), route("route-b", 15000)),
+        fluid_basis=FLUID, ready=True, sections=(common,), routes=(route("route-a", 20000), route("route-b", 15000)),
     )
     project = ProjectState(project_id="hs73a", name="H-S73-A pump review")
+    project.environment = EnvironmentStateV1()
     project.hydronic_proportioned_basis_snapshot = ProportionedBasisSnapshotV1(
         return_arrangement_basis="F&R", hydraulic_input_authority=authority,
     )
     return project
 
 
-PAYLOAD = dict(density_kg_m3="1000", additional_common_loss_Pa="5000",
-               head_margin_percent="10", source_note="Test fluid: 1000 kg/m³; common plant 5 kPa; explicit 10% margin")
+PAYLOAD = dict(density_kg_m3=str(RHO), additional_common_loss_Pa="5000",
+               head_margin_percent="10", source_note="Water at 70°C; common plant 5 kPa; explicit 10% margin")
 
 
 def engineering_tests():
@@ -59,9 +65,9 @@ def engineering_tests():
     assert apply_pump_preview_basis_v1(project, PAYLOAD) == ()
     result = preview_pump_v1(project)
     assert result.ready, result.blockers
-    assert math.isclose(result.numbers.flow_m3_h, 2.16)
+    assert math.isclose(result.numbers.flow_m3_h, 2160 / RHO)
     assert math.isclose(result.numbers.pressure_Pa, 27500)
-    assert math.isclose(result.numbers.head_m, 2.803261977573904)
+    assert math.isclose(result.numbers.head_m, 27500 / (RHO * 9.81))
     saved = project.to_dict()
     changed_keys = {key for key in saved if saved[key] != json.loads(before).get(key)}
     assert changed_keys == {"hydronic_pump_preview_basis"}, changed_keys
@@ -125,6 +131,11 @@ def widget_tests():
     project = fixture()
     adapter = HydronicsSchematicPanelAdapter(panel=panel, project_state=project)
     widget = panel._pump_preview_widget_v1
+    from HVAC.hydronics.pipes.dp.mass_flow_pressure_drop_v1 import WATER_DENSITY_KG_M3
+    assert float(widget.inputs["density_kg_m3"].text()) == round(RHO, 3)
+    assert widget.inputs["additional_common_loss_Pa"].text() == "0"
+    assert widget.inputs["head_margin_percent"].text() == "0"
+    assert project.hydronic_pump_preview_basis is None
     for key, value in PAYLOAD.items():
         widget.inputs[key].setText(value)
     adapter._refresh_pump_preview_v1()
@@ -133,7 +144,7 @@ def widget_tests():
     app.processEvents()
     assert preview_pump_v1(project).ready
     assert "Ready for preliminary" in widget.status.text()
-    assert "2.16" in widget.summary.item(4, 1).text()
+    assert widget.summary.item(4, 1).text() != "—"
     assert widget.routes.rowCount() == 2
     assert widget.summary.alternatingRowColors()
     # New project must clear both saved assumptions and visible old duty.
@@ -145,7 +156,11 @@ def widget_tests():
     widget.clear_button.click()
     assert project.hydronic_pump_preview_basis is None
     assert widget.summary.item(4, 1).text() == "—"
-    assert not widget.inputs["density_kg_m3"].text()
+    # H-S73-B2: Clear removes saved intent; the editor offers the inherited
+    # density again without making the preview ready or accepting any duty.
+    from HVAC.hydronics.pipes.dp.mass_flow_pressure_drop_v1 import WATER_DENSITY_KG_M3
+    assert float(widget.inputs["density_kg_m3"].text()) == round(RHO, 3)
+    assert not preview_pump_v1(project).ready
     panel.close()
     app.processEvents()
 

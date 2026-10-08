@@ -102,6 +102,8 @@ from HVAC.heatloss.controller_v4_orchestrator import HeatLossControllerV4
 from HVAC.project_v3.persistence.loader import load as load_project
 from HVAC.project_v3.persistence.saver import save as save_project
 from HVAC.project_v3.project_factory_v3 import ProjectFactoryV3
+from HVAC.gui_v3.context.startup_projects_v1 import create_new_project_v1, open_project_v1
+from HVAC.version import DISPLAY_VERSION
 from HVAC.project.project_state import ProjectState
 from HVAC.core.value_resolution import resolve_effective_internal_temp_C
 from HVAC.gui_v3.adapters.uvp_panel_adapter import UVPPanelAdapter
@@ -209,7 +211,7 @@ class MainWindowV3(QMainWindow):
         # --------------------------------------------------
         # Window setup
         # --------------------------------------------------
-        self.setWindowTitle("HVACgooee")
+        self.setWindowTitle(f"HVACgooee — {DISPLAY_VERSION}")
         self.setMinimumWidth(260)
 
         # --------------------------------------------------
@@ -1584,27 +1586,8 @@ class MainWindowV3(QMainWindow):
     # Project lifecycle
     # ------------------------------------------------------------------
     def new_project(self) -> None:
-        project_state = ProjectFactoryV3.create_default()
-
-        # --------------------------------------------------
-        # Create default room
-        # --------------------------------------------------
-        room_id = self._create_default_room(project_state)
-
-        # --------------------------------------------------
-        # Build topology (canonical)
-        # --------------------------------------------------
-        from HVAC.topology.topology_resolver_v1 import TopologyResolverV1
-        from HVAC.topology.topology_symmetry_enforcer_v1 import TopologySymmetryEnforcerV1
-
-        TopologyResolverV1.resolve_project(project_state)
-        TopologySymmetryEnforcerV1.enforce(project_state)
-
-        # 🔒 Safety check
-        if not project_state.boundary_segments:
-            raise RuntimeError("Topology creation failed")
-
-        print(f"[TOPOLOGY] created: {len(project_state.boundary_segments)} segments")
+        project_state = create_new_project_v1()
+        room_id = next(iter(project_state.rooms))
 
         # --------------------------------------------------
         # Bind project (AFTER complete state)
@@ -1627,8 +1610,7 @@ class MainWindowV3(QMainWindow):
 
     def _open_project(self) -> None:
 
-        hvac_root = Path(__file__).resolve().parents[1]
-        default_dir = hvac_root / "HVACprojects"
+        default_dir = self._context.workspace_root
 
         directory = QFileDialog.getExistingDirectory(
             self,
@@ -1640,53 +1622,11 @@ class MainWindowV3(QMainWindow):
             return
 
         project_dir = Path(directory)
-        ps = load_project(project_dir)
-
-        # --------------------------------------------------
-        # 🔥 DROP LEGACY TOPOLOGY
-        # --------------------------------------------------
-        ps.boundary_segments = {}
-
-        # --------------------------------------------------
-        # Ensure constructions (Phase V-A)
-        # --------------------------------------------------
-        from HVAC.core.construction_v1 import ConstructionV1
-
-        def _ensure_construction(ps, cid, name, u):
-            if cid not in ps.constructions:
-                ps.constructions[cid] = ConstructionV1(cid, name, u)
-
-        _ensure_construction(ps, "DEV-EXT-WALL", "External Wall", 0.26)
-        _ensure_construction(ps, "DEV-ROOF", "Roof / Ceiling", 0.16)
-        _ensure_construction(ps, "DEV-WINDOW", "Window / Door", 1.60)
-        _ensure_construction(ps, "DEV-INT-WALL", "Internal Wall", 1.50)
-        _ensure_construction(ps, "DEV-FLOOR", "Floor", 0.18)
-
-
-        # --------------------------------------------------
-        # Normalise environment
-        # --------------------------------------------------
-        env = ps.environment
-
-        if env.default_internal_temp_C is None:
-            env.default_internal_temp_C = 21.0
-
-        if env.default_room_height_m is None:
-            env.default_room_height_m = 2.4
-
-        if env.default_ach is None:
-            env.default_ach = 0.5
-
-        # --------------------------------------------------
-        # Rebuild topology (canonical)
-        # --------------------------------------------------
-        from HVAC.topology.topology_resolver_v1 import TopologyResolverV1
-        from HVAC.topology.topology_symmetry_enforcer_v1 import TopologySymmetryEnforcerV1
-
-        TopologyResolverV1.resolve_project(ps)
-        TopologySymmetryEnforcerV1.enforce(ps)
-
-        print(f"[TOPOLOGY] rebuilt: {len(ps.boundary_segments)} segments")
+        try:
+            ps = open_project_v1(project_dir)
+        except (OSError, ValueError, RuntimeError) as exc:
+            QMessageBox.warning(self, "Open project", str(exc))
+            return
 
         # --------------------------------------------------
         # Bind project (AFTER rebuild)
@@ -1728,8 +1668,7 @@ class MainWindowV3(QMainWindow):
     def _save_project_as(self) -> None:
         """Save into the final project folder selected by the user."""
 
-        hvac_root = Path(__file__).resolve().parents[1]
-        default_dir = hvac_root / "HVACprojects"
+        default_dir = self._context.workspace_root
 
         directory = QFileDialog.getExistingDirectory(
             self,
@@ -1760,7 +1699,7 @@ class MainWindowV3(QMainWindow):
             "About HVACgooee",
             "HVACgooee\n"
             "© 1989–2026 ian allison\n\n"
-            "Phase III Persistence Architecture\n"
+            f"{DISPLAY_VERSION}\n"
             "ProjectState — Sole Authority Model"
         )
 

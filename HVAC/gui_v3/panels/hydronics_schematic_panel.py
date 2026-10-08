@@ -28,6 +28,7 @@ from __future__ import annotations
 from dataclasses import replace
 from pathlib import Path
 from HVAC.gui_v3.widgets.pump_preview_widget_v1 import PumpPreviewWidgetV1
+from HVAC.gui_v3.widgets.pump_duty_widget_v1 import PumpDutyWidgetV1
 from typing import Optional
 
 from PySide6.QtCore import (
@@ -934,7 +935,11 @@ class HydronicsSchematicPanel(QWidget):
 
         # H-S73-A: separate observer tab; controller owns pump readiness.
         self._pump_preview_widget_v1 = PumpPreviewWidgetV1(self)
-        self._make_tab("Pump").addWidget(self._pump_preview_widget_v1)
+        self._pump_duty_widget_v1 = PumpDutyWidgetV1(self)
+        self._pump_tabs_v1 = QTabWidget(self)
+        self._pump_tabs_v1.addTab(self._pump_preview_widget_v1, "Preliminary")
+        self._pump_tabs_v1.addTab(self._pump_duty_widget_v1, "Duty")
+        self._make_tab("Pump").addWidget(self._pump_tabs_v1)
 
         # --------------------------------------------------
         # H-S61-E — resized pipework engineering review
@@ -2550,6 +2555,10 @@ class HydronicsSchematicPanel(QWidget):
 
         kvs_layout.addWidget(QLabel("Candidate Kvs:", kvs_editor), 3, 0)
         self._point_kvs_acceptance_candidate_combo = QComboBox(kvs_editor)
+        self._point_kvs_acceptance_candidate_combo.setToolTip(
+            "Unsubmitted choices stay with each point for this project session. "
+            "Changed evidence resets affected choices. Use Accept or Apply to save."
+        )
         self._point_kvs_acceptance_candidate_combo.setMinimumWidth(180)
         self._point_kvs_acceptance_candidate_combo.currentIndexChanged.connect(
             self._on_point_kvs_acceptance_candidate_changed_v1
@@ -2594,6 +2603,10 @@ class HydronicsSchematicPanel(QWidget):
 
         kvs_layout.addWidget(QLabel("Consequence disposition:", kvs_editor), 6, 0)
         self._kvs_consequence_disposition_combo = QComboBox(kvs_editor)
+        self._kvs_consequence_disposition_combo.setToolTip(
+            "Unsubmitted choices stay with each point for this project session. "
+            "Changed evidence resets affected choices. Use Accept or Apply to save."
+        )
         self._kvs_consequence_disposition_combo.currentIndexChanged.connect(
             self._on_kvs_consequence_disposition_changed_v1
         )
@@ -7658,6 +7671,52 @@ class HydronicsSchematicPanel(QWidget):
         """Register the adapter-owned H-S48-B intent callback."""
         self._point_kvs_acceptance_callback = callback
 
+    def set_kvs_editor_project_v1(self, project: object) -> None:
+        """Session drafts belong to one project object, never to ProjectState."""
+        if getattr(self, "_kvs_editor_project_v1", None) is project:
+            return
+        self._kvs_editor_project_v1 = project
+        self._point_kvs_editor_drafts_v1 = {}
+        self.set_balancing_point_kvs_acceptance_editor_rows([])
+
+    @staticmethod
+    def _kvs_editor_draft_basis_v1(row: dict, field: str) -> tuple | None:
+        """Exact evidence plus saved intent; formatted numbers are insufficient."""
+        duty = row.get("draft_duty_fingerprint")
+        if not duty:
+            return None
+        candidate_basis = (
+            duty, tuple(row.get("kvs_candidates", ())),
+            row.get("accepted_kvs"), bool(row.get("accepted")),
+            row.get("status"), tuple(row.get("blockers", ())),
+        )
+        if field == "candidate":
+            return candidate_basis
+        consequence = row.get("draft_consequence_fingerprint")
+        if not consequence or not row.get("consequence_available"):
+            return None
+        return (
+            candidate_basis, consequence, row.get("consequence_disposition"),
+            row.get("consequence_disposition_status"),
+            tuple(row.get("consequence_disposition_blockers", ())),
+        )
+
+    def _remember_kvs_editor_draft_v1(self, field: str, value: object) -> None:
+        if getattr(self, "_rendering_kvs_editor_v1", False):
+            return
+        point_id = getattr(self, "_point_kvs_acceptance_selected_point_id", "")
+        row = getattr(self, "_point_kvs_acceptance_rows_by_id", {}).get(point_id, {})
+        basis = self._kvs_editor_draft_basis_v1(row, field)
+        if basis is None:
+            return
+        drafts = getattr(self, "_point_kvs_editor_drafts_v1", {})
+        drafts.setdefault(point_id, {})[field] = (basis, value)
+        self._point_kvs_editor_drafts_v1 = drafts
+
+    def _kvs_editor_draft_value_v1(self, point_id: str, field: str, saved):
+        draft = getattr(self, "_point_kvs_editor_drafts_v1", {}).get(point_id, {}).get(field)
+        return saved if draft is None else draft[1]
+
     def set_balancing_point_kvs_acceptance_editor_rows(
             self,
             rows: list[dict],
@@ -7677,6 +7736,19 @@ class HydronicsSchematicPanel(QWidget):
             for row in row_copies
             if str(row.get("balancing_point_id") or "")
         }
+
+        # Invalidate hidden points too: switching back must not revive old evidence.
+        drafts = getattr(self, "_point_kvs_editor_drafts_v1", {})
+        retained = {}
+        for point_id, fields in drafts.items():
+            row = self._point_kvs_acceptance_rows_by_id.get(point_id, {})
+            valid = {
+                field: draft for field, draft in fields.items()
+                if draft[0] == self._kvs_editor_draft_basis_v1(row, field)
+            }
+            if valid:
+                retained[point_id] = valid
+        self._point_kvs_editor_drafts_v1 = retained
 
         blocked = combo.blockSignals(True)
         try:
@@ -7885,6 +7957,7 @@ class HydronicsSchematicPanel(QWidget):
                 item = table.item(row_index, column_index)
                 if item is not None:
                     item.setBackground(QBrush())
+                    item.setForeground(QBrush())
 
         wanted = str(balancing_point_id or "")
         if not wanted:
@@ -7896,10 +7969,12 @@ class HydronicsSchematicPanel(QWidget):
                 continue
 
             focus_brush = QBrush(QColor(255, 238, 210))
+            text_brush = QBrush(QColor(20, 20, 20))
             for column_index in range(table.columnCount()):
                 item = table.item(row_index, column_index)
                 if item is not None:
                     item.setBackground(focus_brush)
+                    item.setForeground(text_brush)
             table.scrollToItem(
                 point_item,
                 QAbstractItemView.PositionAtCenter,
@@ -7910,6 +7985,13 @@ class HydronicsSchematicPanel(QWidget):
             self,
             _index: int = -1,
     ) -> None:
+        self._rendering_kvs_editor_v1 = True
+        try:
+            self._render_point_kvs_acceptance_v1()
+        finally:
+            self._rendering_kvs_editor_v1 = False
+
+    def _render_point_kvs_acceptance_v1(self) -> None:
         point_combo = self._point_kvs_acceptance_point_combo
         candidate_combo = self._point_kvs_acceptance_candidate_combo
         point_id = str(point_combo.currentData() or "")
@@ -7936,7 +8018,9 @@ class HydronicsSchematicPanel(QWidget):
                 "Require Kvs revision",
                 "kvs_revision_required",
             )
-            disposition_index = disposition_combo.findData(disposition_value)
+            disposition_index = disposition_combo.findData(
+                self._kvs_editor_draft_value_v1(point_id, "disposition", disposition_value)
+            )
             disposition_combo.setCurrentIndex(
                 disposition_index if disposition_index >= 0 else 0
             )
@@ -7950,7 +8034,9 @@ class HydronicsSchematicPanel(QWidget):
             for candidate in candidates:
                 value = float(candidate)
                 candidate_combo.addItem(f"Kvs {value:g}", value)
-            accepted_index = candidate_combo.findData(accepted_kvs)
+            accepted_index = candidate_combo.findData(
+                self._kvs_editor_draft_value_v1(point_id, "candidate", accepted_kvs)
+            )
             candidate_combo.setCurrentIndex(
                 accepted_index if accepted_index >= 0 else 0
             )
@@ -8032,9 +8118,21 @@ class HydronicsSchematicPanel(QWidget):
             getattr(self, "_point_kvs_acceptance_selected_point_id", "") or ""
         )
         candidate = self._point_kvs_acceptance_candidate_combo.currentData()
+        self._remember_kvs_editor_draft_v1("candidate", candidate)
         self._point_kvs_acceptance_apply_button.setEnabled(
             bool(point_id) and candidate is not None
         )
+        row = getattr(self, "_point_kvs_acceptance_rows_by_id", {}).get(point_id, {})
+        if row:
+            status = str(row.get("status") or "Manual acceptance pending")
+            blockers = "; ".join(str(v) for v in row.get("blockers", ()) if v)
+            if blockers:
+                status = f"{status} — {blockers}"
+            saved = row.get("accepted_kvs")
+            if candidate != saved:
+                saved_text = "none" if saved is None else f"{saved:g}"
+                status = f"Unsubmitted choice; saved Kvs {saved_text}. {status}"
+            self._point_kvs_acceptance_status_label.setText(status)
 
     def _on_apply_point_kvs_acceptance_v1(self) -> None:
         point_id = str(
@@ -8059,6 +8157,7 @@ class HydronicsSchematicPanel(QWidget):
         callback = getattr(self, "_point_kvs_acceptance_callback", None)
         if not point_id or not callable(callback):
             return
+        getattr(self, "_point_kvs_editor_drafts_v1", {}).get(point_id, {}).pop("candidate", None)
         callback(
             {
                 "action": "clear",
@@ -8074,11 +8173,21 @@ class HydronicsSchematicPanel(QWidget):
             getattr(self, "_point_kvs_acceptance_selected_point_id", "") or ""
         )
         disposition = self._kvs_consequence_disposition_combo.currentData()
+        self._remember_kvs_editor_draft_v1("disposition", disposition)
         self._kvs_consequence_disposition_apply_button.setEnabled(
             bool(point_id)
             and disposition is not None
             and self._kvs_consequence_disposition_combo.isEnabled()
         )
+        row = getattr(self, "_point_kvs_acceptance_rows_by_id", {}).get(point_id, {})
+        if row:
+            status = str(row.get("consequence_disposition_status") or "Manual consequence disposition pending")
+            blockers = "; ".join(str(v) for v in row.get("consequence_disposition_blockers", ()) if v)
+            if blockers:
+                status = f"{status} — {blockers}"
+            if (disposition or "") != (row.get("consequence_disposition") or ""):
+                status = f"Unsubmitted choice. Saved review: {status}"
+            self._kvs_consequence_disposition_status_label.setText(status)
 
     def _on_apply_kvs_consequence_disposition_v1(self) -> None:
         point_id = str(
@@ -8111,6 +8220,7 @@ class HydronicsSchematicPanel(QWidget):
         )
         if not point_id or not callable(callback):
             return
+        getattr(self, "_point_kvs_editor_drafts_v1", {}).get(point_id, {}).pop("disposition", None)
         callback(
             {
                 "action": "clear",

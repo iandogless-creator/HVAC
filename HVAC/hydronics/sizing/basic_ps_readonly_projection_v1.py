@@ -4,6 +4,8 @@
 
 from __future__ import annotations
 
+from HVAC.fluid.water_properties_v1 import resolve_project_water_basis_v1
+
 from dataclasses import dataclass
 from typing import Any
 
@@ -101,8 +103,11 @@ def build_basic_ps_readonly_projection_v1(
     # H-S63-B2A — the persisted current family, never the proposed
     # preview family, supplies one unmixed Basic PS candidate ladder.
     current_material_key = current_basic_ps_pipe_material_key_v1(project_state)
+    fluid = resolve_project_water_basis_v1(project_state)
     pipe_sizing_projection = build_basic_ps_pipe_sizing_v1(
         sections_projection.sections,
+        water_density_kg_m3=fluid.density_kg_m3,
+        water_dynamic_viscosity_Pa_s=fluid.dynamic_viscosity_Pa_s,
         pipe_candidates=build_basic_ps_pipe_candidates_for_material_v1(
             current_material_key
         ),

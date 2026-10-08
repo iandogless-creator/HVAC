@@ -346,6 +346,8 @@ def build_proportioned_pipe_resizing_schedule_fingerprint_v1(
             )
         ],
     }
+    if resized_hydraulics.fluid_basis is not None:
+        payload["fluid_basis"] = resized_hydraulics.fluid_basis.to_dict()
     encoded = json.dumps(
         payload,
         ensure_ascii=True,

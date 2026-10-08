@@ -5,6 +5,8 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from HVAC.fluid.water_properties_v1 import build_water_hydraulic_basis_v1
+from HVAC.core.environment_state import EnvironmentStateV1
 import os
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -41,6 +43,7 @@ class _Project:
             acceptance_intent,
             valve_intent,
     ) -> None:
+        self.environment = EnvironmentStateV1()
         self.hydronic_proportioned_basis_snapshot = snapshot
         self.hydronic_proportioned_pipe_material_family_intent = material
         self.hydronic_proportioned_pipe_resizing_schedule_acceptance_intent = (
@@ -74,6 +77,9 @@ def _adapter(project, projection, reconciliation):
 
 def main() -> None:
     snapshot, material, resolved, projection, reconciliation = _fixtures()
+    fluid = build_water_hydraulic_basis_v1(75,65)
+    snapshot = replace(snapshot, hydraulic_input_authority=replace(snapshot.hydraulic_input_authority,fluid_basis=fluid))
+    projection = replace(projection,fluid_basis=fluid)
     stored_acceptance = object()
     valve_intent = object()
     project = _Project(

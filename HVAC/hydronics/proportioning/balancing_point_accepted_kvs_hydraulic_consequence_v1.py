@@ -25,7 +25,7 @@ ACCEPTED_KVS_CONSEQUENCE_PENDING = "accepted_kvs_consequence_pending"
 ACCEPTED_KVS_CONSEQUENCE_AVAILABLE = "accepted_kvs_consequence_available"
 ACCEPTED_KVS_CONSEQUENCE_UNAVAILABLE = "accepted_kvs_consequence_unavailable"
 ACCEPTED_KVS_DP_FORMULA_V1 = (
-    "implied_valve_dp_bar = (flow_m3_h / accepted_kvs)^2"
+    "implied_valve_dp_bar = (density_kg_m3 / 1000) * (flow_m3_h / accepted_kvs)^2"
 )
 
 
@@ -85,6 +85,7 @@ def calculate_accepted_kvs_hydraulic_consequence_v1(
     flow_m3_h: float,
     accepted_kvs: float,
     controlled_circuit_dp_pa: float,
+    fluid_density_kg_m3: float = 1000.0,
 ) -> tuple[float, float, float]:
     """Return implied valve Δp bar, Δp Pa and point authority."""
 
@@ -100,7 +101,10 @@ def calculate_accepted_kvs_hydraulic_consequence_v1(
             "controlled_circuit_dp_pa must be positive and finite"
         )
 
-    implied_dp_bar = (flow / kvs) ** 2
+    density = _positive_finite_v1(fluid_density_kg_m3)
+    if density is None:
+        raise ValueError("Positive finite liquid density required")
+    implied_dp_bar = (density / 1000.0) * (flow / kvs) ** 2
     implied_dp_pa = implied_dp_bar * 100_000.0
     authority = calculate_valve_authority_v1(
         design_valve_dp_pa=implied_dp_pa,
@@ -245,6 +249,7 @@ def _resolve_row_v1(evidence_row, resolved_row):
                 flow_m3_h=flow_m3_h,
                 accepted_kvs=accepted_kvs,
                 controlled_circuit_dp_pa=controlled_dp,
+                fluid_density_kg_m3=getattr(evidence_row, "fluid_density_kg_m3", None),
             )
         )
     except ValueError as exc:

@@ -4,6 +4,8 @@
 
 from __future__ import annotations
 
+from HVAC.fluid.water_properties_v1 import resolve_project_water_basis_v1, water_hydraulic_basis_from_dict_v1
+
 from dataclasses import dataclass
 import math
 from typing import Any
@@ -178,6 +180,15 @@ def build_proportioned_basis_snapshot_v1(
         "No committed hydraulic-input authority"
     )
     if hydraulic_input_authority is not None:
+        try:
+            fluid = getattr(hydraulic_input_authority, "fluid_basis", None)
+            if fluid is None:
+                raise ValueError("Recalculate hydraulic evidence with the shared water basis before committing.")
+            water_hydraulic_basis_from_dict_v1(fluid.to_dict())
+            if fluid != resolve_project_water_basis_v1(project_state):
+                raise ValueError("Hydraulic water basis changed; refresh and review before committing.")
+        except (ValueError, TypeError, AttributeError) as exc:
+            blockers.append(str(exc))
         if not isinstance(
             hydraulic_input_authority,
             CommittedProportioningHydraulicInputAuthorityV1,

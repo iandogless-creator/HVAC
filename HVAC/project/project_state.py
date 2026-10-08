@@ -19,6 +19,7 @@ from HVAC.hydronics.models.basic_hydronic_sizing_intent_v1 import (
 )
 from HVAC.hydronics.local_losses.local_k_intent_v1 import LocalKIntentV1
 from HVAC.hydronics.pumps.pump_preview_basis_v1 import PumpPreviewBasisV1
+from HVAC.hydronics.pumps.pump_duty_basis_v1 import PumpDutyBasisV1, PumpDutyAcceptanceV1
 from HVAC.hydronics.proportioning.return_arrangement_acceptance_intent_v1 import (
     ReturnArrangementIntentV1,
     return_arrangement_intent_from_dict_v1,
@@ -223,6 +224,8 @@ class ProjectState:
     hydronic_local_k_intent: Optional[LocalKIntentV1] = None
     # H-S73-A: user preview assumptions only; no computed/final pump duty.
     hydronic_pump_preview_basis: Optional[PumpPreviewBasisV1] = None
+    hydronic_pump_duty_basis: Optional[PumpDutyBasisV1] = None
+    hydronic_pump_duty_acceptance: Optional[PumpDutyAcceptanceV1] = None
     hydronic_return_arrangement_intent: Optional[ReturnArrangementIntentV1] = None
     hydronic_point_kvs_candidate_acceptance_intent: Optional[
         BalancingPointKvsCandidateAcceptanceIntentV1
@@ -492,6 +495,12 @@ class ProjectState:
                 if self.hydronic_local_k_intent
                 else None
             ),
+            "hydronic_pump_duty_basis": (
+                self.hydronic_pump_duty_basis.to_dict() if self.hydronic_pump_duty_basis else None
+            ),
+            "hydronic_pump_duty_acceptance": (
+                self.hydronic_pump_duty_acceptance.to_dict() if self.hydronic_pump_duty_acceptance else None
+            ),
             "hydronic_pump_preview_basis": (
                 self.hydronic_pump_preview_basis.to_dict()
                 if self.hydronic_pump_preview_basis else None
@@ -714,6 +723,8 @@ class ProjectState:
         raw_balancing_completion_acceptance_intent = data.get(
             "hydronic_balancing_completion_basis_acceptance_intent"
         )
+        instance.hydronic_pump_duty_basis = PumpDutyBasisV1.from_dict(data.get("hydronic_pump_duty_basis"))
+        instance.hydronic_pump_duty_acceptance = PumpDutyAcceptanceV1.from_dict(data.get("hydronic_pump_duty_acceptance"))
         instance.hydronic_pump_preview_basis = PumpPreviewBasisV1.from_dict(
             data.get("hydronic_pump_preview_basis")
         )

@@ -67,11 +67,11 @@ def main() -> None:
     main_build = runner_source.index("win = MainWindowV3(context=context)")
     reveal_call = runner_source.index("splash.finish_v1(win)")
     event_loop = runner_source.index("sys.exit(app.exec())")
-    assert splash_show < callback < project_build < main_build < reveal_call
+    assert project_build < splash_show < callback < main_build < reveal_call
     assert reveal_call < event_loop
     assert "app.processEvents()" not in runner_source
     assert "splash.remaining_minimum_ms_v1()" in runner_source
-    assert "build_main_window_v1," in runner_source
+    assert "splash.remaining_minimum_ms_v1(), build_main_window_v1" in runner_source
 
     print(
         "OK — H-S69-B3K1 shows a genuine code-painted startup splash "

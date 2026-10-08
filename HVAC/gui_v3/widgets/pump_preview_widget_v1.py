@@ -21,10 +21,7 @@ class PumpPreviewWidgetV1(QWidget):
         self.status.setTextFormat(Qt.PlainText)
         layout.addWidget(self.status)
         note = QLabel(
-            "Uses the committed snapshot, not live edits. Pipework and Local K losses "
-            "include the shared mains once. This preview does not yet verify route-specific "
-            "equipment losses or final Kv/Kvs pressure-loss consequences. A finished "
-            "parameter-based design, including Kv/Kvs, does not require a manufacturer or model.", self)
+            "Preview from committed pipework. Review equipment and valve losses in Duty.", self)
         note.setWordWrap(True)
         layout.addWidget(note)
         self.summary = self._table(("Quantity / basis", "Value"))
@@ -34,16 +31,27 @@ class PumpPreviewWidgetV1(QWidget):
         form = QFormLayout()
         self.inputs = {}
         for key, label, help_text in (
-            ("density_kg_m3", "Density (kg/m³)", "Density for flow/head conversion at the operating temperature. Must match the reviewed hydraulic fluid basis; existing pipe friction is not recalculated. No water default."),
-            ("additional_common_loss_Pa", "Common loss (Pa)", "Additional loss common to every circuit, e.g. a heat source. Exclude losses already in the committed routes. Enter 0 explicitly if none."),
-            ("head_margin_percent", "Head margin (%)", "Applied to pipework pressure plus common loss. Enter 0 explicitly for no margin. Flow is not increased."),
-            ("source_note", "Basis note", "Record fluid, temperature, density source and what the common loss and margin include."),
+            ("density_kg_m3", "Density (kg/m³)", "Inherited from the committed shared water basis; review temperatures in Environment."),
+            ("additional_common_loss_Pa", "Additional common loss (Pa)", "Extra loss shared by every route. Exclude losses already counted. 0 means no additional loss."),
+            ("head_margin_percent", "Head margin (%)", "Allowance applied to pipework pressure plus additional common loss. 0 means no added margin. Flow is unchanged."),
+            ("source_note", "Basis note", "The water source is shown below. Record any additional common loss or head margin here."),
         ):
             editor = QLineEdit(self)
             editor.setToolTip(help_text)
-            editor.setPlaceholderText(help_text if key == "source_note" else "Required — no default")
+            editor.setPlaceholderText({
+                "density_kg_m3": "Hydraulic fluid density",
+                "additional_common_loss_Pa": "0 — no additional loss",
+                "head_margin_percent": "0 — no added margin",
+                "source_note": "Explain any added allowance",
+            }[key])
+            if key in {"additional_common_loss_Pa", "head_margin_percent"}:
+                editor.setText("0")
             form.addRow(label, editor)
             self.inputs[key] = editor
+        self.density_source = QLabel(self)
+        self.density_source.setWordWrap(True)
+        self.density_source.setTextFormat(Qt.PlainText)
+        form.addRow("", self.density_source)
         layout.addLayout(form)
         actions = QHBoxLayout()
         self.apply_button = QPushButton("Apply basis", self)
@@ -62,9 +70,11 @@ class PumpPreviewWidgetV1(QWidget):
                 "Unapplied edits — displayed duty still uses the saved basis."
             ))
         self.apply_button.clicked.connect(lambda: self.apply_requested.emit(
-            {key: editor.text() for key, editor in self.inputs.items()}
+            {**{key: editor.text() for key, editor in self.inputs.items()},
+             "density_kg_m3": self._rendered_defaults.get("density_kg_m3")}
         ))
         self.clear_button.clicked.connect(self.clear_requested.emit)
+        self._rendered_defaults = {}
         self._rendered_owner = None
         self._rendered_basis = object()
         layout.addStretch()
@@ -94,15 +104,38 @@ class PumpPreviewWidgetV1(QWidget):
         visible_rows = len(rows) if table.columnCount() == 2 else min(5, max(2, len(rows)))
         table.setFixedHeight(table.horizontalHeader().height() + visible_rows * row_height + 4)
 
-    def present(self, *, status, summary, routes, basis, owner_token):
+    @staticmethod
+    def _input_text_v1(value):
+        return "" if value is None else str(value)
+
+    def present(self, *, status, summary, routes, basis, owner_token, default_basis=None):
         self.status.setText(status)
         self._rows(self.summary, summary)
         self._rows(self.routes, routes)
-        # Ordinary refreshes must not overwrite the user's unfinished typing.
+        defaults = dict(default_basis or {})
+        defaults.setdefault("additional_common_loss_Pa", 0)
+        defaults.setdefault("head_margin_percent", 0)
+        # Ordinary refreshes preserve unfinished typing. A project swap or an
+        # explicit Apply/Clear restores that project's saved basis or defaults.
         if owner_token != self._rendered_owner or basis != self._rendered_basis:
+            values = basis if basis is not None else defaults
             for key, editor in self.inputs.items():
-                value = basis.get(key) if basis else None
-                editor.setText("" if value is None else str(value))
+                editor.setText(self._input_text_v1(values.get(key)))
             self._rendered_owner = owner_token
-            self._rendered_basis = basis
+            self._rendered_basis = dict(basis) if basis is not None else None
             self.message.clear()
+        elif basis is None and defaults != self._rendered_defaults:
+            # E.g. a first commit makes density available. Only update fields
+            # still displaying the previous suggestion; preserve edited fields.
+            for key, editor in self.inputs.items():
+                previous = self._input_text_v1(self._rendered_defaults.get(key))
+                if editor.text() == previous:
+                    editor.setText(self._input_text_v1(defaults.get(key)))
+        self._rendered_defaults = defaults
+        self.inputs["density_kg_m3"].setReadOnly(True)
+        density = defaults.get("density_kg_m3")
+        self.inputs["density_kg_m3"].setText("" if density is None else f"{density:.3f}")
+        self.inputs["density_kg_m3"].setToolTip(
+            "From the committed shared water basis. Change design flow/return in Environment, "
+            "then recalculate, review and Recommit Proportioning.")
+        self.density_source.setText(defaults.get("fluid_status", "Commit the shared water basis first."))

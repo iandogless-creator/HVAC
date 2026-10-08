@@ -18,6 +18,8 @@ read-only schematic DTO.
 
 from __future__ import annotations
 
+from HVAC.fluid.water_properties_v1 import resolve_project_water_basis_v1, committed_water_basis_v1
+
 from HVAC.hydronics.proportioning.valve_authority_preview_v1 import (
     build_valve_authority_preview_v1,
 )
@@ -408,6 +410,12 @@ class HydronicsSchematicPanelAdapter:
         if pump_widget is not None:
             pump_widget.apply_requested.connect(self._apply_pump_preview_basis_v1)
             pump_widget.clear_requested.connect(self._clear_pump_preview_basis_v1)
+        duty_widget = getattr(panel, "_pump_duty_widget_v1", None)
+        if duty_widget is not None:
+            duty_widget.apply_requested.connect(self._apply_pump_duty_basis_v1)
+            duty_widget.accept_requested.connect(self._accept_pump_duty_v1)
+            duty_widget.clear_requested.connect(self._clear_pump_duty_basis_v1)
+            duty_widget.withdraw_requested.connect(self._withdraw_pump_duty_v1)
         # H-S50-C — bundled local catalogue evidence. This is adapter-memory
         # input only: no ProjectState persistence, ranking or valve selection.
         try:
@@ -426,6 +434,7 @@ class HydronicsSchematicPanelAdapter:
             )
         )
 
+        self._subscribe_if_present("environment_changed", self.refresh)
         self._subscribe_if_present("room_state_changed", self.refresh)
         self._subscribe_if_present("project_state_changed", self.refresh)
         self._subscribe_arg_signal_if_present(
@@ -1444,6 +1453,14 @@ class HydronicsSchematicPanelAdapter:
                 "H-S61-H2A pipe schedule commit blocked: "
                 "no ProjectState is available"
             )
+            return False
+
+        try:
+            committed_water_basis_v1(project)
+        except ValueError as exc:
+            if hasattr(getattr(self, "_panel", None), "set_proportioned_pipe_resizing_schedule_commit_state_v1"):
+                self._panel.set_proportioned_pipe_resizing_schedule_commit_state_v1(ready=False, status=str(exc))
+            print("Pipe schedule commit blocked:", exc)
             return False
 
         resized_hydraulics = getattr(
@@ -2673,7 +2690,7 @@ class HydronicsSchematicPanelAdapter:
             self._emit_project_refresh_v1(self._context, self._project_state)
         self._refresh_pump_preview_v1()
         self._panel._pump_preview_widget_v1.message.setText(
-            "\n".join(blockers) if blockers else "Preview basis saved; final duty remains unaccepted."
+            "\n".join(blockers) if blockers else "Preview basis saved. Review detailed acceptance in Pump → Duty."
         )
 
     def _clear_pump_preview_basis_v1(self) -> None:
@@ -2684,21 +2701,68 @@ class HydronicsSchematicPanelAdapter:
         self._emit_project_refresh_v1(self._context, self._project_state)
         self._refresh_pump_preview_v1()
 
+    def _pump_duty_action_v1(self, action, *args) -> None:
+        blockers = action(self._project_state, *args) or ()
+        widget = self._panel._pump_duty_widget_v1
+        if not blockers:
+            widget.reload_basis_v1()
+            self._emit_project_refresh_v1(self._context, self._project_state)
+        self._refresh_pump_duty_v1()
+        widget.message.setText("\n".join(blockers))
+
+    def _apply_pump_duty_basis_v1(self, payload: dict) -> None:
+        from HVAC.hydronics.pumps.pump_duty_controller_v1 import apply_pump_duty_basis_v1
+        self._pump_duty_action_v1(apply_pump_duty_basis_v1, payload)
+
+    def _accept_pump_duty_v1(self, fingerprint: str) -> None:
+        from HVAC.hydronics.pumps.pump_duty_controller_v1 import accept_pump_duty_v1
+        self._pump_duty_action_v1(accept_pump_duty_v1, fingerprint)
+
+    def _clear_pump_duty_basis_v1(self) -> None:
+        from HVAC.hydronics.pumps.pump_duty_controller_v1 import clear_pump_duty_basis_v1
+        self._pump_duty_action_v1(clear_pump_duty_basis_v1)
+
+    def _withdraw_pump_duty_v1(self) -> None:
+        from HVAC.hydronics.pumps.pump_duty_controller_v1 import clear_pump_duty_acceptance_v1
+        self._pump_duty_action_v1(clear_pump_duty_acceptance_v1)
+
+    def _refresh_pump_duty_v1(self) -> None:
+        from HVAC.hydronics.pumps.pump_duty_controller_v1 import preview_pump_duty_v1
+        widget = getattr(self._panel, "_pump_duty_widget_v1", None)
+        if widget is not None:
+            basis = self._project_state.hydronic_pump_duty_basis
+            widget.present(
+                result=preview_pump_duty_v1(self._project_state),
+                basis=basis.to_dict() if basis else None,
+                owner_token=id(self._project_state),
+                has_acceptance=self._project_state.hydronic_pump_duty_acceptance is not None,
+            )
+
     def _refresh_pump_preview_v1(self) -> None:
-        from HVAC.hydronics.pumps.pump_preview_controller_v1 import preview_pump_v1
+        self._refresh_pump_duty_v1()
+        from HVAC.hydronics.pumps.pump_preview_controller_v1 import (
+            preview_pump_v1, pump_preview_draft_defaults_v1,
+        )
         widget = getattr(self._panel, "_pump_preview_widget_v1", None)
         if widget is None:
             return
         result = preview_pump_v1(self._project_state)
         basis = getattr(self._project_state, "hydronic_pump_preview_basis", None)
         numbers = result.numbers
+        draft_defaults = pump_preview_draft_defaults_v1(self._project_state)
+        missing_basis = "Enter and apply an explicit preview basis; no density or allowances are assumed."
+        display_blockers = [
+            "Review density and allowances below, then Apply basis."
+            if message == missing_basis else message
+            for message in result.blockers
+        ]
 
         def number(value, unit):
             return "—" if value is None else f"{value:.6g} {unit}"
 
         widget.present(
             status=("Ready for preliminary duty review — not accepted final duty."
-                    if result.ready else "Preview blocked:\n" + "\n".join(result.blockers)),
+                    if result.ready else "Preview blocked:\n" + "\n".join(display_blockers)),
             summary=[
                 ("System mass flow", number(result.mass_flow_kg_s, "kg/s")),
                 ("Flow source", result.flow_section_id or "—"),
@@ -2715,9 +2779,13 @@ class HydronicsSchematicPanelAdapter:
                     for key, label, pressure in result.route_pressures],
             basis=basis.to_dict() if basis else None,
             owner_token=id(self._project_state),
+            default_basis=draft_defaults,
         )
 
     def refresh(self) -> None:
+        bind_kvs_project = getattr(self._panel, "set_kvs_editor_project_v1", None)
+        if callable(bind_kvs_project):
+            bind_kvs_project(self._project_state)
         self._refresh_pump_preview_v1()
         self._restore_return_arrangement_acceptance_basis_to_panel()
         self._restore_rr_length_basis_mode_to_panel()
@@ -3099,9 +3167,21 @@ class HydronicsSchematicPanelAdapter:
         # This is display wiring only; no calculation or ProjectState change.
         self._push_clean_proportioned_focused_section_source_rows_v1()
 
-    # --------------------------------------------------
-    # H-S27-B — Proportioned resolved return-arrangement basis rows
-    # --------------------------------------------------
+        # H-S73-C — fluid input and stale schedule presentation gates.
+        self._refresh_fluid_gates_v1()
+
+    def _refresh_fluid_gates_v1(self) -> None:
+        try:
+            resolve_project_water_basis_v1(self._project_state)
+        except ValueError as exc:
+            if hasattr(self._panel, "set_commit_proportioning_ready"):
+                self._panel.set_commit_proportioning_ready(ready=False, reason=str(exc))
+        try:
+            committed_water_basis_v1(self._project_state)
+        except ValueError as exc:
+            if hasattr(getattr(self, "_panel", None), "set_proportioned_pipe_resizing_schedule_commit_state_v1"):
+                self._panel.set_proportioned_pipe_resizing_schedule_commit_state_v1(ready=False, status=str(exc))
+
     @staticmethod
     def _return_arrangement_basis_display_label(basis: object) -> str:
         basis = str(basis or "").strip().upper()
@@ -4594,6 +4674,12 @@ class HydronicsSchematicPanelAdapter:
             rows.append(
                 {
                     "balancing_point_id": point_id,
+                    "draft_duty_fingerprint": (
+                        build_balancing_point_kvs_acceptance_duty_fingerprint_v1(evidence_row)
+                    ),
+                    "draft_consequence_fingerprint": (
+                        build_accepted_kvs_consequence_fingerprint_v1(consequence)
+                    ),
                     "point_scope": display.get("point_scope", "—"),
                     "point_role": display.get("point_role", "—"),
                     "required_kv": display.get("required_kv", "—"),
@@ -8478,7 +8564,11 @@ class HydronicsSchematicPanelAdapter:
                         material_intent.proposed_material_label
                     ),
                 )
+            frozen_fluid = getattr(committed_authority, "fluid_basis", None)
             pipe_sizing_criteria = ProportionedPipeSizingCriteriaV1(
+                require_fluid_basis=True,
+                density_kg_m3=frozen_fluid.density_kg_m3 if frozen_fluid else 998.0,
+                dynamic_viscosity_Pa_s=frozen_fluid.dynamic_viscosity_Pa_s if frozen_fluid else 0.001,
                 current_material_key=current_material_key,
                 current_material_source=(
                     "H-S61-B2A persisted current family"
@@ -8806,8 +8896,11 @@ class HydronicsSchematicPanelAdapter:
             self._balancing_point_valve_duty_design_basis_preview = (
                 point_valve_duty_basis
             )
+            live_fluid = resolve_project_water_basis_v1(self._project_state)
             point_required_kv = build_balancing_point_required_kv_preview_v1(
-                point_valve_duty_basis
+                point_valve_duty_basis,
+                fluid_density_kg_m3=live_fluid.density_kg_m3,
+                fluid_density_basis_id=live_fluid.basis_id,
             )
             self._balancing_point_required_kv_preview = point_required_kv
             point_kvs_candidates = (

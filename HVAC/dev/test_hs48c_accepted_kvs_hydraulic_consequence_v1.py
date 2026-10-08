@@ -55,6 +55,7 @@ def main() -> None:
                 candidate_resistance_pa_per_kg_s2=13_010.0,
                 ready=True,
                 flow_m3_h=1.0,
+                fluid_density_kg_m3=1000.0,
                 controlled_circuit_dp_pa=99_000.0,
                 kvs_candidates=(6.3, 10.0, 16.0),
             ),

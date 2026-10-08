@@ -4,7 +4,7 @@
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 import math
 
 from HVAC.core.flow_units import flow_from_kg_s
@@ -21,7 +21,7 @@ KV_WATER_DENSITY_BASIS_V1 = "hydronic_water_density_998_kg_m3"
 NO_REQUIRED_KV = "no_required_kv"
 REQUIRED_KV_PREVIEW_AVAILABLE = "required_kv_preview_available"
 REQUIRED_KV_EVIDENCE_UNAVAILABLE = "required_kv_evidence_unavailable"
-KV_FORMULA_V1 = "Kv = flow_m3_h / sqrt(design_valve_dp_bar)"
+KV_FORMULA_V1 = "Kv = flow_m3_h * sqrt((density_kg_m3 / 1000) / design_valve_dp_bar)"
 
 
 @dataclass(frozen=True, slots=True)
@@ -102,7 +102,7 @@ def calculate_required_kv_v1(
         density_kg_m3=density_value,
     ).m3_h
     design_valve_dp_bar = dp_value / 100_000.0
-    required_kv = flow_m3_h / math.sqrt(design_valve_dp_bar)
+    required_kv = flow_m3_h * math.sqrt((density_value / 1000.0) / design_valve_dp_bar)
     return flow_m3_h, design_valve_dp_bar, required_kv
 
 
@@ -110,6 +110,7 @@ def build_balancing_point_required_kv_preview_v1(
     duty_basis: BalancingPointValveDutyDesignBasisV1 | None,
     *,
     fluid_density_kg_m3: float = DEFAULT_KV_WATER_DENSITY_KG_M3,
+    fluid_density_basis_id: str = KV_WATER_DENSITY_BASIS_V1,
 ) -> BalancingPointRequiredKvPreviewV1:
     """Calculate required Kv only for H-S46-A valve-duty points."""
 
@@ -139,7 +140,8 @@ def build_balancing_point_required_kv_preview_v1(
         )
 
     rows = tuple(
-        _resolve_row_v1(row, fluid_density_kg_m3=density)
+        replace(_resolve_row_v1(row, fluid_density_kg_m3=density),
+                fluid_density_basis_id=fluid_density_basis_id)
         for row in input_rows
     )
     upstream_blockers = tuple(
@@ -171,6 +173,7 @@ def build_balancing_point_required_kv_preview_v1(
         ),
         blockers=blockers,
         rows=rows,
+        fluid_density_basis_id=fluid_density_basis_id,
         fluid_density_kg_m3=density,
     )
 

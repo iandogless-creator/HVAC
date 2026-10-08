@@ -1,5 +1,286 @@
 # HVACgooee — Current State
 
+## B1-A locally verified — scoped commit preparation — 8 October 2026
+
+Ian applied the 20-file B1-A patch with guarded backups. His terminal confirms
+18/18 selected Beta 1 checks passed and git diff --check produced no output.
+The native startup chooser shows Beta 1 (0.6.0b1), with New/Open/Sample/Quit.
+Ian identified the Hydronics screenshot as the Sample project: Undecided return
+arrangement and its explicit commit blocker do not establish a loading defect.
+Ian confirmed the new-project location under Documents; the configured default
+is ~/Documents/HVACgooee. Manual save/close/reopen confirmation is still pending.
+Automated save/reopen and entry-point checks passed; these are distinct evidence.
+
+Git output on 8 October confirms branch phase-hydronics-h-a, HEAD and origin at
+53f424d, with an empty staging area before this preparation. The scoped staging
+helper includes the reviewed H-S73-B/B1/B2/C/C1/C2 work and B1-A preparation,
+including explicitly named release tools/dependency files even if ignored.
+It preserves unrelated projects, notes, H-S29 tests, numeric files and backups.
+No tag, push, publication or project-specific engineering acceptance is implied.
+
+The local 18-test result now also verifies the previously pending H-S73-C shared
+water and H-S73-C2 draft regression suites. Earlier sections below describe their
+historical delivery checkpoints; this section supersedes their pending test steps.
+
+Next: confirm manual save/close/reopen, review the scoped staged diff and commit.
+Then build the curated archive from that commit, record its checksum and prepare
+the v0.6.0b1 prerelease. Final pump duty remains an explicit project design action.
+
+
+
+## B1-A prepared — Beta 1 release candidate — 8 October 2026
+
+Ian requested HVACgooee Beta 1 after accepting H-S73-C2. The collected working
+source is verified by SHA-256 against its manifest: all 47 compared files match
+prior deliveries. Actual repository HEAD/origin remains 53f424d on
+phase-hydronics-h-a, with no staged changes in the supplied terminal output.
+The later pump/shared-water/Kvs changes remain local pending a scoped commit.
+
+Beta identity: 0.6.0b1, following the earlier v0.5 development milestone.
+This is preparation, not a published release or a Git tag.
+
+- Startup explicitly offers New/Open/Sample/Quit before constructing the workspace.
+  The developer sample is used only after Sample. Existing New/Open project
+  preparation is shared; existing engineering calculations and acceptance paths
+  are retained. Invalid opens report an error; cancelling does not start a sample.
+- User project folder defaults move from source/current-working-directory paths
+  to ~/Documents/HVACgooee. Open/Save As can still use existing folders elsewhere.
+  Existing project data and workspace preference files are not migrated or removed.
+- Added source launcher, pinned PySide6 6.10.1 dependency, GPLv3 licence text,
+  updated README and Beta 1 release notes. Python 3.12/Linux Mint/Ubuntu is the
+  initial target; standalone installers and other OSes remain outside this beta.
+- Added explicit release-file manifest, source builder with per-file hashes and
+  SHA-256 output, and selected regression runner with isolated settings. A final
+  source archive requires all listed release files committed; unrelated files may
+  remain modified/untracked. Candidate mode labels an uncommitted review archive.
+- The archive follows the active GUI/test static import closure. Pre-existing
+  syntax errors in unused serializers and an older ventilation module remain
+  preserved in the repository, outside this supported release path. Existing H-S29 untracked
+  tests, saved projects, notes, numeric files and backups remain outside scope.
+
+Validation in the supplied source copy: fresh Python 3.12 environment with only
+PySide6 6.10.1; selected startup, independently checked starter heat-loss arithmetic and save/reopen,
+heat-loss wizard lifecycle, Navigation,
+Topology, pump, shared-water and Kvs draft checks; actual New/Open/Sample/Cancel
+entry-point processes; source-archive compilation and extracted-archive checks.
+Offscreen verification supplements, but does not replace, Ian's native GUI review.
+No user project or engineering acceptance was written by release preparation.
+
+Next: apply the guarded B1-A patch, run tools/verify_beta1.py in Ian's environment,
+inspect the native startup chooser and save/reopen workflow, then record the local
+results and prepare the exact scoped commit. Build from that commit before tagging
+and publishing a prerelease. Final duty acceptance remains project-specific.
+
+
+## H-S73-C2 runtime accepted — 8 October 2026
+
+Ian requested preservation of unfinished Kvs and consequence choices while
+switching balancing points or refreshing unchanged evidence. C1 row contrast
+is visually accepted. C2 is prepared against the delivered C1 source copy;
+Ian confirmed application and working behaviour on 8 October 2026.
+Separate local test output was not supplied; source hashes match the delivered patch.
+
+- The panel retains candidate and consequence dropdown choices per stable point
+  for this project session, including an intentionally unselected placeholder.
+  Point switching, reordered rows and unchanged refreshes do not submit them.
+  Status text distinguishes an unsubmitted choice from the saved acceptance.
+- Adapter-provided exact duty/consequence fingerprints protect draft reuse;
+  rounded display values are not used as proof of unchanged evidence.
+  Changed/missing evidence, removed points or a different project object discard
+  affected drafts. Returning to old evidence does not revive a discarded draft.
+- A changed saved Kvs acceptance invalidates its draft and dependent consequence
+  draft. A consequence-only change preserves the independent candidate draft.
+  Explicit Clear discards that field's draft. Accept/Apply still use the existing
+  adapter/controller paths; an unsuccessful action with unchanged evidence keeps
+  its unfinished selection. No automatic Kvs selection or engineering acceptance.
+- Drafts are GUI memory only, not saved project values or restart preferences.
+  No schema, fluid calculation, engineering authority or GPLv3 boundary change.
+
+Validation in the prepared source copy: real Qt draft lifecycle suite, exact
+precision changes, explicit action payloads, project rebinding, nearby Kvs
+acceptance/disposition and focus regressions, compilation and guarded installer
+checks. These checks do not assert that Ian's repository tests have run.
+Last verified push remains 53f424d; final pump duty remains unaccepted.
+
+Next: apply C2, run test_hs73c2_kvs_editor_drafts_v1.py, and inspect switching
+between two Kvs points with unfinished selections. No commit or push is included.
+Preserve unrelated projects, notes, backups and repository work.
+
+
+## H-S73-C1 visually accepted — 6 October 2026
+
+Ian's screenshot shows pale text on the pale-orange balancing-point focus row
+in Dark mode. Values remain present; this is a display contrast defect.
+The focused evidence row now uses dark text, and both foreground/background
+return to theme defaults when focus moves or clears. No calculations, Kvs
+choices, acceptance, ProjectState, saved projects or Git state are changed.
+
+H-S73-C is visible in Ian's Environment screenshot (75/65°C, mean 70°C,
+977.764 kg/m3, 0.4035 mPa.s). Local C terminal test results and a newer Git
+checkpoint have not been supplied. Last verified push remains 53f424d;
+final duty remains unaccepted. Stale approvals still require explicit review.
+
+Validation in the supplied source copy: focused Light/Dark widget checks for
+row switching, refresh and clearing; existing linked-Kvs-focus regression;
+compilation, visual review and guarded installer checks. Ian confirmed the real workspace is visually OK on 6 October 2026. The separately reproduced unfinished-dropdown
+reset remains open and is not part of this contrast patch.
+
+Next: apply C1 and inspect Kvs Design while changing the balancing point.
+Highlighted text should remain legible, with the former row returning to its
+normal theme colours. Preserve unrelated work, notes, projects and backups.
+
+## H-S73-C prepared — shared hydraulic water properties — 4 October 2026
+
+Prepared against Ian's full fluid-source archive. It contains H-S73-B2, so B2
+application is now confirmed from source; Ian's B2 runtime acceptance was not
+reported. H-S74-A remains accepted/pushed as 53f424d. H-S73-B/B1/B2 remain
+local at the last verified Git checkpoint; final duty remains unaccepted.
+This patch makes no Git changes and asserts no newer local branch/status.
+
+- Pure-water density and dynamic viscosity now share IAPWS SR6-08(2011)
+  equations (2)/(7), evaluated at mean Environment design flow/return.
+  The pressure reference is 0.1 MPa, not a fill-pressure assessment. The
+  project requires both inputs within 5–95°C and flow above return. Missing,
+  invalid, non-finite and unsupported recorded property bases fail closed.
+  Ambient air temperature is not a water-property input. At 75/65°C the
+  mean is 70°C: 977.764008 kg/m3 and 0.0004035454265 Pa.s.
+- Live Basic PS, common-main/leg-entry, route friction, Local K and RR
+  added-length evidence use the same density/viscosity pair. Environment
+  changes refresh Hydronics, Basic and Local K observers.
+- Required Kv and accepted-Kvs pressure consequences now include liquid
+  specific gravity (rho/1000), consistent with H-S73-B operating-Kv losses.
+  The existing point-duty fingerprint includes property provenance, so
+  changed evidence requires fresh explicit Kvs/consequence review.
+- Route evidence carries an immutable water basis into typed committed
+  hydraulic authority. Optional nested persistence stores both temperatures,
+  mean, model, reference pressure, density and viscosity. Old snapshots load
+  without being rewritten or silently assigned modern fluid authority.
+- Pump needs a current committed water basis. Legacy snapshots require review
+  and explicit Recommit Proportioning. Temperature changes (including a
+  changed difference at the same mean) block preview/duty acceptance without
+  deleting saved snapshots, inputs or acceptance records. Returning to the
+  exact accepted basis may resolve existing exact-basis acceptance again.
+- Resizing uses frozen properties, carries them through the accepted schedule
+  fingerprint and rebuilt snapshot, and blocks a commit against changed live
+  temperatures. Existing low-level legacy resize APIs remain compatible;
+  the live GUI explicitly requires the new fluid basis.
+- Environment displays the derived basis. Pump density is inherited/read-only,
+  rounded only for display; Apply sends the full-precision value. Zero extra
+  common loss/head margin drafts and unfinished allowance edits are preserved.
+  Apply and final Accept duty remain separate explicit actions.
+
+This supersedes B2's fixed-water/manual-density proposal for active project
+hydraulics. Existing heat capacity and mass-flow input conventions are retained.
+No glycol, pressure-dependent property correction, pump product/curve selection,
+NPSH assessment, automatic pipe-schedule commit or automatic duty acceptance.
+The older standalone fluid library is outside this active Phase H path.
+
+Validation in the supplied source copy: seven H-S73-C engineering checks,
+real Environment/Pump signal and stale-state GUI checks; H-S73-A/B/B GUI,
+B1 and updated B2; required-Kv/inverse-Kvs, main/route material identity,
+commit handoff and resize regressions; H-S74-A contextual-help regression.
+Changed Python files compile. Guarded installer and whitespace checks are
+verified before delivery. Offscreen 16:9 visual review found and corrected
+Environment label clipping. The archive omits an optional valve-catalogue JSON;
+its unavailable message and deliberately incomplete fixture topology warnings
+do not fail these tests. No manufacturer data was invented. Repository-wide
+compilation also exposes pre-existing syntax errors in unrelated legacy files;
+those are preserved. Ian's real-project validation remains pending.
+
+Next: apply the guarded H-S73-C patch, run both H-S73-C suites, inspect
+Environment and recalculated hydraulic/Kv evidence, explicitly review affected
+approvals and Recommit Proportioning, then Apply the inherited Pump basis.
+Final Accept duty remains the designer's separate action. Keep all projects,
+notes, backups and unrelated work. Do not commit/push this stage until accepted.
+
+## H-S73-B2 prepared — Pump density and wording — 4 October 2026
+
+H-S73-B1 is locally verified: all four requested suites passed (the four-test
+B1 suite plus H-S73-A, H-S73-B and B GUI); git diff --check was clean. Ian's
+real-project screenshot shows 0.349282 kg/s from the first common main, all
+four routes and the expected 68089 Pa chosen-route maximum. The false route
+coverage blocker is resolved. This supersedes earlier B1 pending notes below.
+
+Ian authorised inherited density, shorter explanations and zero defaults for
+additional common loss/head margin. Source inspection confirms that the current
+basis-only pipe, Basic PS and Local K paths use fixed water density 998 kg/m3;
+Environment's flow/return temperatures do not resolve temperature-dependent
+density in these paths. This stage does not introduce new fluid physics.
+
+- New supported basis-only Pump drafts read WATER_DENSITY_KG_M3 from the pipe
+  pressure module and display a fixed-water source note, not temperature-
+  corrected density. Missing/invalid and resized snapshot density is not guessed.
+- Extra common loss and head margin start at 0 in the editor. No project intent
+  is written until Apply basis. Existing saved density, allowances and notes
+  remain intact; ordinary refreshes preserve unfinished edits.
+- Density remains editable for explicit reviewed alternatives. Editing the
+  inherited density clears its automatic note so an override needs its own basis.
+- Short field guidance replaces 'Required — no default'. Detailed boundaries
+  remain in hover help. Equipment/Kv review and final Accept duty are unchanged.
+- Clear removes the saved preview basis and offers a fresh draft; offering it
+  does not make the preview ready or accept duty. No schema or upstream change.
+
+Validation here: isolated production controller/pipe-constant checks, real
+presentation-method checks, H-S73-B1 regressions, compilation, whitespace and
+installer guards. Full Qt/application dependencies are unavailable in the
+supplied subset. New H-S73-B2 and existing H-S73-A/B local suites and real-GUI
+review remain pending. H-S74-A remains accepted/pushed as 53f424d. H-S73-B,
+B1 and this B2 work are uncommitted; final required duty remains unaccepted.
+
+Next: apply the guarded B2 patch; run B2, B1 and H-S73-A/B tests; inspect Pump,
+review the inherited basis and Apply explicitly, then review equipment/Kv in
+Duty. No Git action, manufacturer selection or automatic engineering acceptance.
+Preserve all projects, notes, unrelated edits, backups and GPLv3 core boundaries.
+
+## H-S73-B1 prepared — Pump route identity repair — 4 October 2026
+
+Verified runtime trace and saved project establish that Recommit succeeds:
+a new typed snapshot remains on the same project and both Pump views refresh.
+The first common-main section is present with 0.34928229665071775 kg/s.
+Its membership uses leg_id:subleg_id, while committed chosen-route IDs use
+subleg_id. H-S73-A's literal comparison therefore falsely blocks full coverage.
+
+The focused repair bridges qualified frozen membership to the explicit
+committed route-ID set. Exact IDs remain supported; unknown, duplicate,
+ambiguous or incomplete membership is rejected. A unique order-1 common-main
+section with positive finite flow is still required. No flow summation,
+snapshot rewriting, live topology fallback or automatic duty acceptance.
+
+Scope: pump_preview_controller_v1.py, one H-S73-B1 regression test, this
+checkpoint and CODE_MAP.md. Isolated controller tests and matching against the
+supplied saved snapshot pass. Full repository/GUI validation remains pending;
+the supplied source subset lacks HVAC.core dependencies for a full local run.
+H-S73-B local tests passed before this repair. H-S74-A remains accepted and
+committed/pushed as 53f424d; H-S73-B remains local and final duty unaccepted.
+
+Next: run H-S73-B1 plus existing H-S73-A/B tests; inspect Pump / Preliminary.
+The false common-main blocker should disappear; the designer must still enter
+and apply the explicit density/common-loss/head-margin basis. Then review Duty.
+Preserve all projects, notes, backups and unrelated work. No Git action here.
+
+## H-S73-B local verification and Pump refresh investigation — 4 October 2026
+
+Verified from Ian's terminal output and supplied source:
+- H-S74-A is committed/pushed as 53f424d on phase-hydronics-h-a.
+  Wizard operation is accepted; Education wording refinement is deferred.
+- On 3 October both local H-S73-B dev tests passed and git diff --check
+  was clean. H-S73-B remains uncommitted; final pump duty is unaccepted.
+- The real application printed a successful REVERSE_RETURN proportioning
+  commit. This proves the commit handler reached its success message, but
+  does not by itself prove the snapshot remained available downstream.
+- Pump / Preliminary subsequently displayed 'Commit a proportioning hydraulic
+  basis first.' Runtime acceptance of the Pump interface remains blocked.
+- Source review confirms button wiring and a missing visible success
+  acknowledgement. The supplied context and Basic refresh code do not show
+  the snapshot being cleared. The live cause is not yet established.
+- A temporary diagnostic launcher records project/snapshot identity, Pump
+  controller results, rendered status and changes during an explicit commit.
+  It changes no source code or engineering rules and performs no Git actions.
+
+Next: capture one actual Recommit and both Pump views, identify the cause,
+then implement and validate a focused repair. Preserve unrelated work,
+projects, notes and backups. No automatic duty acceptance or readiness bypass.
+
 ## H-S74-A locally accepted — 2 October 2026
 
 Ian confirms the Topology Arranger Wizard works correctly. All five steps
@@ -17,6 +298,22 @@ H-S73-B-associated local work is preserved separately; complete local
 validation remains unconfirmed. Final pump duty remains unaccepted.
 Next: verify H-S73-B equipment losses and generic Kv/Kvs in the local
 repository, then review the Duty interface and explicit acceptance boundary.
+
+## Local verification checkpoint — 1 October 2026
+
+- HEAD and origin/phase-hydronics-h-a reported at fff7ae0.
+  H-S73-A pump preview is committed/pushed; final duty remains unaccepted.
+- H-S74-A is applied and uncommitted. Ian reports both topology tests
+  passed and git diff --check was clean.
+- Real-workspace screenshot reviewed: Wizard Start and matching Standard
+  Education are visible and readable. Some schematic labels are truncated;
+  access to rooms beyond the visible canvas still needs checking.
+- Remaining Wizard steps and Ian's overall runtime acceptance are pending.
+- H-S73-B-associated source files, documentation and backups are present.
+  Complete local application and local test results remain unverified.
+- Nothing was staged in the supplied status. Shared documentation contains
+  both stages and needs selective staging for an H-S74-A-only commit.
+- Preserve unrelated changes, projects, notes and backups.
 
 ## H-S74-A implementation checkpoint — 29 September 2026
 
@@ -58,6 +355,56 @@ Run locally:
 
 Local Wizard acceptance is recorded above. Extension of the help pattern to
 return arrangement and pipe inputs remains deferred.
+
+## H-S73-B implementation checkpoint — 27 September 2026
+
+Based on committed H-S73-A `fff7ae0`. This checkpoint supersedes the H-S73-A
+next-stage deferrals below. Local runtime acceptance by Ian is still pending.
+
+- Pump now has **Preliminary** and **Duty** views. Preliminary retains H-S73-A.
+- Duty takes explicit additional equipment loss and a source note for every
+  committed route (including explicit zero), plus operating Kv for each frozen
+  positive-duty valve point. It reuses committed Kvs, point flow and membership.
+- Liquid valve loss: `dp_Pa = 100000 * (rho/1000) * (Q_m3_h/Kv)^2`.
+  Kvs gives rated-loss evidence; blank operating Kv permits preview only.
+  Operating Kv must be positive and no greater than the committed Kvs.
+  Non-cavitating liquid basis must be reviewed; viscosity corrections and
+  upstream fluid/friction recalculation are outside this stage.
+- Route total is committed chosen pipework (including shared pipes and Local K)
+  plus additional equipment plus actual generic valve loss. Old balancing
+  allocations are comparison evidence only, never added again. Shared valve
+  loss uses total point flow and enters each governed route once.
+- The controlling route is recalculated after these additions. Flow still comes
+  from the committed first common main. Explicit common loss and head reserve
+  are applied after the maximum route total, once.
+- Explicit **Accept duty** requires complete inputs, reviewed equipment/control
+  assumptions, explicit operating Kv and route residuals no greater than 0.05 Pa.
+  Residuals are against the highest route total, before the common allowance and
+  head reserve. No automatic Kv selection or balancing setting is introduced.
+- ProjectState optionally persists `hydronic_pump_duty_basis` and a separate
+  `hydronic_pump_duty_acceptance`. Only the controller writes them. Acceptance
+  resolves only against its exact current reviewed basis and recomputed duty;
+  changed snapshot, density, common loss, margin or detailed inputs invalidate it.
+  Consumers must use `preview_pump_duty_v1(...).accepted`, not field presence.
+- This accepts a **required parameter-based design duty**, not a selected pump,
+  whole-system completion or manufacturer curve verification. No product,
+  efficiency, NPSH or installation suitability is inferred. Manufacturers remain
+  optional. Navigation, upstream sizing and GPLv3 boundaries are unchanged.
+
+Validation in the supplied source copy on 27 September 2026: changed Python
+files compile; H-S73-B arithmetic/persistence and real panel/adapter tests pass;
+H-S73-A, H-S56-C, H-S70-B1 and H-S72-A4F integration regressions pass.
+Offscreen dark-theme Pump tabs visually inspected. Minimal-fixture topology
+messages and Qt offscreen platform messages do not fail the assertions.
+The guarded installer and whitespace checks are verified before delivery.
+
+Run locally:
+`QT_QPA_PLATFORM=offscreen PYTHONPATH=. python HVAC/dev/test_hs73b_pump_duty_v1.py`
+`QT_QPA_PLATFORM=offscreen PYTHONPATH=. python HVAC/dev/test_hs73b_pump_duty_gui_v1.py`
+Then inspect Hydronics → Pump → Duty with a real committed project. Final
+acceptance is the designer's explicit action; no stored project is auto-accepted.
+Next: Ian's runtime acceptance and scoped checkpoint; optional pump-curve
+assessment is a separate stage, not a condition of parameter-based completion.
 
 ## H-S72-A4F accepted — 26 September 2026
 

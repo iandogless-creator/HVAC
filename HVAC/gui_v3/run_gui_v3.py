@@ -1,5 +1,5 @@
 # ======================================================================
-# HVACgooee — GUI v3 Runner (DEV Bootstrap)
+# HVACgooee — GUI v3 Runner — Beta 1
 # ======================================================================
 
 from __future__ import annotations
@@ -7,7 +7,7 @@ from __future__ import annotations
 import sys
 
 from PySide6.QtCore import QTimer
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QDialog, QMessageBox
 
 from HVAC.gui_v3.context.gui_project_context import GuiProjectContext
 from HVAC.gui_v3.main_window import MainWindowV3
@@ -143,33 +143,53 @@ def _select_first_room(context: GuiProjectContext) -> None:
 # ----------------------------------------------------------------------
 
 def main() -> None:
-    app = QApplication(sys.argv)
+    from HVAC.version import __version__, DISPLAY_VERSION
+    from HVAC.gui_v3.widgets.startup_project_dialog_v1 import StartupProjectDialogV1
+    from HVAC.gui_v3.context.startup_projects_v1 import create_new_project_v1, open_project_v1
 
-    # H-S69-B3K1A — enter the real event loop with only the splash visible.
-    # Project and panel construction starts after its complete drop-and-splash
-    # cycle, so synchronous GUI construction cannot hide or freeze that cycle.
+    if "--version" in sys.argv[1:]:
+        print(f"HVACgooee {DISPLAY_VERSION}")
+        return
+    app = QApplication(sys.argv)
+    app.setApplicationName("HVACgooee")
+    app.setApplicationVersion(__version__)
+    # Keep the event loop alive while the chooser hands over to the splash.
+    app.setQuitOnLastWindowClosed(False)
+    while True:
+        chooser = StartupProjectDialogV1()
+        if chooser.exec() != QDialog.Accepted:
+            return
+        try:
+            if chooser.action == "open":
+                project_state = open_project_v1(chooser.project_dir)
+            elif chooser.action == "sample":
+                project_state = make_dev_bootstrap_project_state()
+                project_state.name = "HVACgooee sample — review example inputs"
+            else:
+                project_state = create_new_project_v1()
+            break
+        except (OSError, ValueError, RuntimeError) as exc:
+            QMessageBox.warning(None, "Project could not be opened", str(exc))
+
     splash = StartupSplashWidgetV1()
     splash.show()
-    runtime_v1: dict[str, object] = {"splash": splash}
+    runtime_v1 = {"splash": splash, "project": project_state}
 
     def build_main_window_v1() -> None:
-        project_state = make_dev_bootstrap_project_state()
-        _ensure_default_constructions(project_state)
+        try:
+            context = GuiProjectContext(project_state=project_state)
+            context.project_dir = getattr(project_state, "project_dir", None)
+            win = MainWindowV3(context=context)
+            runtime_v1.update(context=context, window=win)
+            splash.finish_v1(win)
+            app.setQuitOnLastWindowClosed(True)
+            QTimer.singleShot(0, lambda: _select_first_room(context))
+        except Exception as exc:
+            splash.close()
+            QMessageBox.critical(None, "HVACgooee could not start", str(exc))
+            app.exit(1)
 
-        context = GuiProjectContext(project_state=project_state)
-        win = MainWindowV3(context=context)
-        runtime_v1["context"] = context
-        runtime_v1["window"] = win
-
-        splash.finish_v1(win)
-        # Auto-select first room AFTER the existing UI is visible.
-        QTimer.singleShot(0, lambda: _select_first_room(context))
-
-    QTimer.singleShot(
-        splash.remaining_minimum_ms_v1(),
-        build_main_window_v1,
-    )
-
+    QTimer.singleShot(splash.remaining_minimum_ms_v1(), build_main_window_v1)
     sys.exit(app.exec())
 
 

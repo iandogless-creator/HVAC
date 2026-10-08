@@ -68,6 +68,7 @@ class BasicHydronicsPanelAdapter:
         self._has_primed_project: bool = False
 
         # Best-effort subscriptions.
+        self._subscribe_if_present("environment_changed", self.refresh)
         self._subscribe_if_present("room_state_changed", self.refresh)
         self._subscribe_if_present("current_room_changed", self.refresh)
 

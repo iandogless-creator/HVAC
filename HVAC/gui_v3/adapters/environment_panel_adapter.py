@@ -4,6 +4,8 @@
 
 from __future__ import annotations
 
+from HVAC.fluid.water_properties_v1 import resolve_project_water_basis_v1
+
 from HVAC.hydronics.topology.hydronic_topology_v1 import (
     REMOTE_HEAT_SOURCE_LOCATION_MODE_V1,
     SERVED_ROOM_HEAT_SOURCE_LOCATION_MODE_V1,
@@ -74,6 +76,12 @@ class EnvironmentPanelAdapter:
             ps.environment = EnvironmentStateV1()
 
         env = ps.environment
+        if hasattr(self._panel, "set_water_basis_description_v1"):
+            try:
+                description = resolve_project_water_basis_v1(ps).description
+            except ValueError as exc:
+                description = str(exc)
+            self._panel.set_water_basis_description_v1(description)
 
         self._panel.set_external_temp(
             getattr(env, "external_design_temp_C", None)
@@ -314,6 +322,11 @@ class EnvironmentPanelAdapter:
     def _on_design_flow_temp_changed(self, value: float) -> None:
         env = self._ensure_env()
         env.design_flow_temp_c = value
+        project = self._context.project_state
+        project.hydronics_valid = False
+        if hasattr(project, "mark_dirty"):
+            project.mark_dirty()
+        self.refresh()
 
         # Hydronic design temperatures do not affect fabric heat-loss.
         self._context.environment_changed.emit()
@@ -321,6 +334,11 @@ class EnvironmentPanelAdapter:
     def _on_design_return_temp_changed(self, value: float) -> None:
         env = self._ensure_env()
         env.design_return_temp_c = value
+        project = self._context.project_state
+        project.hydronics_valid = False
+        if hasattr(project, "mark_dirty"):
+            project.mark_dirty()
+        self.refresh()
 
         # Hydronic design temperatures do not affect fabric heat-loss.
         self._context.environment_changed.emit()

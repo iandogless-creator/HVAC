@@ -1,0 +1,2 @@
+# Matches Ian's verified beta development environment.
+PySide6==6.10.1

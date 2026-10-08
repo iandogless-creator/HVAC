@@ -10,6 +10,8 @@
 
 from __future__ import annotations
 
+from HVAC.fluid.water_properties_v1 import resolve_project_water_basis_v1
+
 from dataclasses import dataclass, replace
 from typing import Any
 from HVAC.hydronics.sizing.basic_ps_topology_sections_v1 import (
@@ -997,12 +999,15 @@ def _rr_added_length_pressure_drop_Pa(
     if basis is None or basis.mass_flow_kg_s <= 0.0:
         return 0.0
 
+    fluid = resolve_project_water_basis_v1(project_state)
     try:
         result = calculate_hydronic_pipe_pressure_drop_from_mass_flow_v1(
             mass_flow_kg_s=float(basis.mass_flow_kg_s),
             material=basis.material_key,
             dn=basis.pipe_size_key,
             length_m=float(length_m),
+            density_kg_m3=fluid.density_kg_m3,
+            dynamic_viscosity_pa_s=fluid.dynamic_viscosity_Pa_s,
             friction_method="colebrook",
         )
     except Exception:

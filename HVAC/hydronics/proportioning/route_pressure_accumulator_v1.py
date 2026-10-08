@@ -4,6 +4,8 @@
 
 from __future__ import annotations
 
+from HVAC.fluid.water_properties_v1 import resolve_project_water_basis_v1, WaterHydraulicBasisV1
+
 from dataclasses import dataclass
 from typing import Any
 
@@ -84,6 +86,7 @@ class RoutePressureAccumulatorRowV1:
 class RoutePressureAccumulatorProjectionV1:
     rows: tuple[RoutePressureAccumulatorRowV1, ...]
     status: str = "Route Δp preview only"
+    fluid_basis: WaterHydraulicBasisV1 | None = None
 
 
 def build_route_pressure_accumulator_v1(
@@ -207,6 +210,7 @@ def build_route_pressure_accumulator_v1(
 
     return RoutePressureAccumulatorProjectionV1(
         rows=tuple(final_rows),
+        fluid_basis=resolve_project_water_basis_v1(project_state),
         status=(
             "Route Δp preview incomplete — one or more routes missing lengths"
             if any(not row.complete for row in final_rows)
@@ -290,6 +294,7 @@ def _build_single_route_pressure_row_v1(
         # H-S63-B2B — consume exact H-S63-B2A identity; display
         # wording is never parsed back into hydraulic authority.
         material_key, pipe_size_key = _basic_ps_result_pipe_identity_v1(result)
+        fluid = resolve_project_water_basis_v1(project_state)
         pressure_basis = calculate_hydronic_pipe_pressure_drop_from_mass_flow_v1(
             mass_flow_kg_s=float(result.carried_flow_kg_s),
             material=material_key,
@@ -299,6 +304,8 @@ def _build_single_route_pressure_row_v1(
                 if section_length_m is not None
                 else 0.0
             ),
+            density_kg_m3=fluid.density_kg_m3,
+            dynamic_viscosity_pa_s=fluid.dynamic_viscosity_Pa_s,
             friction_method="colebrook",
         )
 

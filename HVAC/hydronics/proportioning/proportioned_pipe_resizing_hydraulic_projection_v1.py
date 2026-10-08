@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from HVAC.fluid.water_properties_v1 import WaterHydraulicBasisV1
+
 from dataclasses import dataclass
 from math import isfinite
 from typing import Optional
@@ -121,6 +123,7 @@ class ProportionedPipeResizingHydraulicProjectionV1:
         "Read-only resized hydraulic projection — straight-pipe and local-K "
         "losses are recalculated before later point-level reconciliation."
     )
+    fluid_basis: WaterHydraulicBasisV1 | None = None
 
 
 def _blocked_v1(
@@ -517,6 +520,7 @@ def build_proportioned_pipe_resizing_hydraulic_projection_v1(
 
     controlling = next(row for row in routes if row.is_controlling)
     return ProportionedPipeResizingHydraulicProjectionV1(
+        fluid_basis=authority.fluid_basis,
         ready=True,
         sections=projected_sections,
         routes=routes,

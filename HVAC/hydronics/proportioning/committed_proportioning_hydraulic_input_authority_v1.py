@@ -4,6 +4,8 @@
 
 from __future__ import annotations
 
+from HVAC.fluid.water_properties_v1 import WaterHydraulicBasisV1, water_hydraulic_basis_from_dict_v1
+
 from dataclasses import dataclass
 import math
 import re
@@ -78,6 +80,7 @@ class CommittedProportioningHydraulicInputAuthorityV1:
         "physical-length, Local-K, Colebrook and chosen-route evidence only — "
         "no recalculation or final design."
     )
+    fluid_basis: WaterHydraulicBasisV1 | None = None
 
 
 def build_committed_proportioning_hydraulic_input_authority_v1(
@@ -160,6 +163,7 @@ def build_committed_proportioning_hydraulic_input_authority_v1(
     ready = bool(sections) and bool(routes) and not clean
     return CommittedProportioningHydraulicInputAuthorityV1(
         ready=ready,
+        fluid_basis=getattr(route_pressure_projection, "fluid_basis", None),
         sections=tuple(sections),
         routes=tuple(routes),
         status=(
@@ -178,6 +182,7 @@ def committed_proportioning_hydraulic_input_authority_to_dict_v1(
     if authority is None:
         return None
     return {
+        **({"fluid_basis": authority.fluid_basis.to_dict()} if authority.fluid_basis is not None else {}),
         "schema": authority.schema,
         "ready": bool(authority.ready),
         "sections": [
@@ -249,6 +254,7 @@ def committed_proportioning_hydraulic_input_authority_from_dict_v1(
     sections: list[CommittedProportioningHydraulicSectionV1] = []
     routes: list[CommittedProportioningHydraulicRouteV1] = []
     try:
+        fluid_basis = water_hydraulic_basis_from_dict_v1(data.get("fluid_basis"))
         for raw in list(data.get("sections", ()) or ()):
             pipe_identity = _pipe_identity_v1(
                 material_key=raw.get("material_key", "copper"),
@@ -336,6 +342,7 @@ def committed_proportioning_hydraulic_input_authority_from_dict_v1(
             data.get("schema")
             or "committed_proportioning_hydraulic_input_authority_v1"
         ),
+        fluid_basis=fluid_basis,
         ready=bool(data.get("ready")),
         sections=tuple(sections),
         routes=tuple(routes),

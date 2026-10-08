@@ -4,6 +4,8 @@
 
 from __future__ import annotations
 
+from HVAC.fluid.water_properties_v1 import water_hydraulic_basis_from_dict_v1, WaterHydraulicBasisV1
+
 from dataclasses import dataclass
 import math
 from typing import Mapping
@@ -55,6 +57,7 @@ class ProportionedPipeSizingCriteriaV1:
     friction_method: str = "colebrook"
     colebrook_tolerance: float = 1.0e-6
     colebrook_max_iterations: int = 100
+    require_fluid_basis: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -128,6 +131,7 @@ class ProportionedPipeSizingAuthorityV1:
         "Frozen criteria and committed section input authority only; "
         "H-S61-B remains responsible for candidate evaluation."
     )
+    fluid_basis: WaterHydraulicBasisV1 | None = None
 
 
 def build_proportioned_pipe_sizing_authority_v1(
@@ -163,6 +167,17 @@ def build_proportioned_pipe_sizing_authority_v1(
             "H-S54-A committed hydraulic-input authority required",
             criteria=criteria,
         )
+    fluid = authority.fluid_basis
+    if criteria.require_fluid_basis and fluid is None:
+        return _blocked_v1("Recommit Proportioning with the shared water basis before resizing.", criteria=criteria)
+    if fluid is not None:
+        try:
+            water_hydraulic_basis_from_dict_v1(fluid.to_dict())
+            if (criteria.density_kg_m3 != fluid.density_kg_m3
+                    or criteria.dynamic_viscosity_Pa_s != fluid.dynamic_viscosity_Pa_s):
+                raise ValueError("Resize criteria must use the frozen hydraulic water properties.")
+        except (ValueError, AttributeError) as exc:
+            return _blocked_v1(str(exc), criteria=criteria)
     if not authority.ready:
         return _blocked_v1(
             "H-S54-A committed hydraulic-input authority is not ready",
@@ -386,6 +401,7 @@ def build_proportioned_pipe_sizing_authority_v1(
         )
     )
     return ProportionedPipeSizingAuthorityV1(
+        fluid_basis=fluid,
         ready=True,
         criteria=criteria,
         candidates=candidates,

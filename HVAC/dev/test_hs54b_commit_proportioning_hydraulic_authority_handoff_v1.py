@@ -6,6 +6,8 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from HVAC.core.environment_state import EnvironmentStateV1
+from HVAC.fluid.water_properties_v1 import build_water_hydraulic_basis_v1
 from types import SimpleNamespace
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
@@ -42,6 +44,7 @@ class _Label:
 def main() -> None:
     authority = CommittedProportioningHydraulicInputAuthorityV1(
         ready=True,
+        fluid_basis=build_water_hydraulic_basis_v1(75,65),
         status="Ready — committed hydraulic authority",
     )
     readiness = SimpleNamespace(
@@ -61,7 +64,7 @@ def main() -> None:
     snapshot_module.build_proportioning_readiness_v1 = lambda project: readiness
     try:
         result = snapshot_module.build_proportioned_basis_snapshot_v1(
-            object(),
+            SimpleNamespace(environment=EnvironmentStateV1()),
             hydraulic_input_authority=authority,
         )
     finally:
@@ -80,7 +83,7 @@ def main() -> None:
     snapshot_module.build_proportioning_readiness_v1 = lambda project: readiness
     try:
         blocked = snapshot_module.build_proportioned_basis_snapshot_v1(
-            object(),
+            SimpleNamespace(environment=EnvironmentStateV1()),
             hydraulic_input_authority=blocked_authority,
         )
     finally:
@@ -92,6 +95,8 @@ def main() -> None:
         _commit_proportioning_button=_Button(),
         _return_arrangement_acceptance_status_label=_Label(),
     )
+    panel_stub._commit_proportioning_ready_v1 = True
+    panel_stub._refresh_commit_proportioning_status_label_v1 = lambda: HydronicsSchematicPanel._refresh_commit_proportioning_status_label_v1(panel_stub)
     HydronicsSchematicPanel.set_commit_proportioning_committed(
         panel_stub,
         committed=True,

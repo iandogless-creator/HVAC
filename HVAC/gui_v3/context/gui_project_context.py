@@ -109,8 +109,8 @@ class GuiProjectContext(QObject):
         self.project_dir: Path | None = None
 
         # Workspace root (default open/save location)
-        self.workspace_root: Path = Path.cwd() / "HVACProjects"
-        self.workspace_root.mkdir(exist_ok=True)
+        self.workspace_root: Path = Path.home() / "Documents" / "HVACgooee"
+        self.workspace_root.mkdir(parents=True, exist_ok=True)
 
         # ---------------- GUI-only focus ----------------
         self._current_room_id: Optional[str] = None

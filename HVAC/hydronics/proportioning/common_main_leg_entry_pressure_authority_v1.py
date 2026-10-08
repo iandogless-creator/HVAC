@@ -5,6 +5,8 @@
 
 from __future__ import annotations
 
+from HVAC.fluid.water_properties_v1 import resolve_project_water_basis_v1
+
 from dataclasses import dataclass
 from typing import Any
 
@@ -138,11 +140,14 @@ def _build_row_v1(
     )
     length_m = _positive_length_or_none_v1(raw_length)
 
+    fluid = resolve_project_water_basis_v1(project_state)
     pressure = calculate_hydronic_pipe_pressure_drop_from_mass_flow_v1(
         mass_flow_kg_s=float(source.carried_flow_kg_s),
         material=material,
         dn=dn,
         length_m=float(length_m or 0.0),
+        density_kg_m3=fluid.density_kg_m3,
+        dynamic_viscosity_pa_s=fluid.dynamic_viscosity_Pa_s,
         friction_method="colebrook",
     )
     local_k = build_local_k_pressure_preview_v1(
