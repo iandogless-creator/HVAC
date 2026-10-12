@@ -62,9 +62,9 @@ def main() -> None:
     splash_show = runner_source.index("splash.show()")
     callback = runner_source.index("def build_main_window_v1()")
     project_build = runner_source.index(
-        "project_state = make_dev_bootstrap_project_state()"
+        "project_state = make_sample_project_state_v1()"
     )
-    main_build = runner_source.index("win = MainWindowV3(context=context)")
+    main_build = runner_source.index("win = MainWindowV3(")
     reveal_call = runner_source.index("splash.finish_v1(win)")
     event_loop = runner_source.index("sys.exit(app.exec())")
     assert project_build < splash_show < callback < main_build < reveal_call

@@ -6,10 +6,14 @@ shared-water and Kvs editor work collected on 8 October 2026.
 
 ## Changes for beta users
 
-- Explicit New/Open/Sample startup; developer sample is no longer automatic.
+- Explicit New/Open/Sample startup. Sample uses a fresh unsaved copy of the
+  existing 20-room multi-leg example with a clear name and protected bundled source.
+  Room adjacency is not yet defined; stored design records retain normal stale checks.
 - Pinned Python GUI dependency and a simple source launcher.
-- Project folder defaults under Documents/HVACgooee, independent of the source
-  installation. Existing project locations and saved engineering values persist.
+- Project folder defaults at HVAC/HVACprojects inside the installation, matching
+  Ian's established job root. New asks for a fresh job folder and saves its initial
+  project.json using existing checksum persistence. Cancel preserves the current
+  project; non-empty folders are refused. Existing jobs are not relocated.
 - GPLv3 licence text, current feature documentation and a curated source archive
   builder with exact file hashes and a selected regression runner.
 

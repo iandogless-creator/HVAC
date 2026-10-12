@@ -11,6 +11,7 @@ from PySide6.QtWidgets import QApplication, QDialog, QMessageBox
 
 from HVAC.gui_v3.context.gui_project_context import GuiProjectContext
 from HVAC.gui_v3.main_window import MainWindowV3
+from HVAC.gui_v3.context.sample_project_v1 import make_sample_project_state_v1
 from HVAC.gui_v3.widgets.startup_splash_widget_v1 import (
     StartupSplashWidgetV1,
 )
@@ -163,10 +164,9 @@ def main() -> None:
             if chooser.action == "open":
                 project_state = open_project_v1(chooser.project_dir)
             elif chooser.action == "sample":
-                project_state = make_dev_bootstrap_project_state()
-                project_state.name = "HVACgooee sample — review example inputs"
+                project_state = make_sample_project_state_v1()
             else:
-                project_state = create_new_project_v1()
+                project_state = chooser.project_state
             break
         except (OSError, ValueError, RuntimeError) as exc:
             QMessageBox.warning(None, "Project could not be opened", str(exc))
@@ -179,7 +179,9 @@ def main() -> None:
         try:
             context = GuiProjectContext(project_state=project_state)
             context.project_dir = getattr(project_state, "project_dir", None)
-            win = MainWindowV3(context=context)
+            win = MainWindowV3(
+                context=context, startup_sample_view_v1=(chooser.action == "sample")
+            )
             runtime_v1.update(context=context, window=win)
             splash.finish_v1(win)
             app.setQuitOnLastWindowClosed(True)

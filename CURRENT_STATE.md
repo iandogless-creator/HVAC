@@ -1,5 +1,124 @@
 # HVACgooee — Current State
 
+## B1-B/C/D locally verified — release checkpoint — 12 October 2026
+
+Ian's terminal confirms 21/21 selected Beta 1 checks passed, including job folders,
+the 20-room sample, its opening view, startup, save/reopen, navigation, topology,
+pump duty, shared water properties and Kvs drafts. git diff --check is clean.
+Ian accepted the native opening layout ("all seems tidy"); screenshots show Rooms,
+Heat Loss, Geometry, ACH, Environment, Education and Navigation populated.
+Automated save/reopen passed; a manual close/reopen is not inferred from screenshots.
+
+Git evidence: branch phase-hydronics-h-a, local HEAD 6dcbfb4 (Prepare HVACgooee
+Beta 1 with reviewed hydronics and startup); origin/phase-hydronics-h-a remains
+53f424d in the supplied output. The staging area was empty. B1-B/C/D are applied
+but still uncommitted at this checkpoint. This refreshed scope contains 20 files,
+including the bundled sample under HVAC/examples, and supersedes the old B1-A
+staging helper. No push, tag, final archive build or publication is yet verified.
+
+New/Open use the shared installation-relative HVAC/HVACprojects root. New creates
+and saves a job in an explicitly selected empty folder through existing project
+routines. Sample loads an independent copy of the supplied 20-room design, named
+HVACgooee — 20-room example, and opens the existing floating Heat Loss view.
+Save As previously confirmed a separate Sample/project.json. Adjacency remains
+undefined in the supplied sample; pipe topology does not establish room geometry.
+
+The two reported deletions under HVAC/HVACprojects (clean_4_room_identity_test and
+example) are outside this checkpoint. Their cause is unverified; the staging
+helper neither stages nor restores them. Existing jobs, old/ folders, notes,
+numeric files, H-S29 tests, backups and other unrelated work remain untouched.
+Engineering acceptance remains explicit and project-specific; GPLv3 is unchanged.
+
+Next: review and commit this scoped checkpoint, build the curated source archive
+from the committed release files, and record its checksum before Beta 1 release.
+Earlier prepared sections below are historical; this entry supersedes their
+pending local-test, native-layout and Git-head statements.
+
+
+## B1-D prepared — Sample opens in Heat Loss view — 11 October 2026
+
+Ian's screenshot requests a useful initial sample workspace with Rooms, Heat-Loss,
+Environment and Navigation. The startup Sample action now selects the existing
+floating Heat Loss view once, after window construction and before normal use.
+It reuses the saved named view and its panel positions (or existing default
+placement when absent). Navigation is shown at its independently restored
+placement. The existing Geometry/ACH companion panels follow that same view.
+No new layout schema, fixed screen coordinates or copied desktop preferences.
+
+New/Open keep ordinary last-view restoration. Later Navigation/view choices remain
+available and persist normally; the startup override is consumed once. No automatic
+heat-loss run, project write or engineering acceptance is added.
+
+Verified locally by Ian on 10 October: B1-B applied with 19/19 checks, then B1-C
+applied with 20/20 checks. His Open screenshot shows HVAC/HVACprojects with the
+existing jobs intact. The 11 October screenshot confirms Save As wrote the sample
+copy to HVAC/HVACprojects/Sample/project.json. Manual reopen confirmation and latest
+Git commit/staging state remain pending; no release publication is asserted.
+
+B1-D validation in the prepared source: actual startup Sample route, existing
+New/Open restoration, saved view/Navigation placement, visible default panels,
+one-shot presentation and unchanged project data; selected Beta 1 regressions,
+compilation, archive membership and guarded patch checks. Native appearance remains
+for Ian to review. Next: inspect Sample startup, confirm reopen and Git status,
+then prepare the refreshed scoped Beta 1 commit and archive.
+
+
+## B1-C prepared — bundled 20-room sample — 10 October 2026
+
+Ian confirmed New/Open should start at HVAC/HVACprojects and requested the
+existing 20-room example for Sample. B1-B supplies the shared job-folder default.
+B1-C replaces only the startup sample action with a bundled copy of the supplied
+4 October project.json, named "HVACgooee — 20-room example". Room IDs, branch
+labels, dimensions, construction inputs, topology and stored engineering records
+are preserved. Only the bundled project name/identity and checksum are changed.
+Every Sample invocation loads through the existing checksum validator, gives the
+copy a new project ID and clears its filesystem binding. Save therefore invokes
+Save As; no existing user job or bundled file is written on sample opening.
+
+The supplied example has 20 rooms on Ground Floor and 80 external wall segments,
+with no recorded room-to-room adjacency. Pipe branch membership does not imply
+shared walls. Adjacency refinement requires an explicit sample room layout and
+subsequent recalculation/review; this patch does not invent one or grant new
+engineering acceptance. Existing stale-authority checks remain in force.
+
+Validation in the prepared source: sample count/name/identity, preserved design
+records, fresh copies, original-file preservation, checksum rejection, Save As
+and reopen, real startup processes, plus the selected Beta 1 suite. The sample
+JSON is included explicitly in the release manifest. Native B1-B/B1-C acceptance,
+latest local commit/build state and refreshed scoped staging remain unconfirmed.
+Next: inspect the 20-room sample and save/reopen a separate copy; obtain current
+Git status before committing or rebuilding the Beta 1 release archive.
+
+
+## B1-B prepared — established job root and explicit New folder — 9 October 2026
+
+Ian requested the existing HVAC/HVACprojects location shown in his screenshot
+instead of B1-A's Documents default. The shared default is now resolved relative
+to the installed HVAC package, independent of the shell's working directory.
+Startup Open and main-window Open/Save As use that same root.
+
+New at startup and File > New reuse the Qt folder chooser and existing project_v3
+checksummed saver. Create a job folder with New Folder, then select that empty
+folder. Its name becomes the job name; the initial project.json is saved before
+binding the workspace. Cancel keeps the current project or startup chooser.
+Selecting the job-root itself or a non-empty folder is refused, preserving old
+jobs and notes. Sample remains an unsaved example. Existing Save As semantics
+and all engineering calculations/acceptance boundaries remain unchanged.
+
+The 8 October 63-file stage was verified in Ian's output; whether the subsequent
+commit/build commands ran is unconfirmed. This patch changes working files only:
+its updated files must be included in a refreshed scoped commit before a release
+archive is built. The previous staging helper expects B1-A bytes and is superseded.
+Prior native save/close/reopen confirmation remains pending for this new flow.
+
+Validation in the prepared source: focused folder/save/reopen, cancellation,
+existing-job preservation, write-failure handling and real startup/menu wiring;
+selected Beta 1 regression suite, compilation and guarded installer checks.
+No user project files, Git staging, tags or engineering acceptances are changed
+by applying the patch. Next: native New Folder/save/reopen, then verify Git status
+and prepare the updated commit/release checkpoint.
+
+
 ## B1-A locally verified — scoped commit preparation — 8 October 2026
 
 Ian applied the 20-file B1-A patch with guarded backups. His terminal confirms

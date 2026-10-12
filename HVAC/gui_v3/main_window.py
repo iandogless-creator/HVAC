@@ -103,6 +103,7 @@ from HVAC.project_v3.persistence.loader import load as load_project
 from HVAC.project_v3.persistence.saver import save as save_project
 from HVAC.project_v3.project_factory_v3 import ProjectFactoryV3
 from HVAC.gui_v3.context.startup_projects_v1 import create_new_project_v1, open_project_v1
+from HVAC.gui_v3.widgets.new_project_folder_v1 import choose_new_project_v1
 from HVAC.version import DISPLAY_VERSION
 from HVAC.project.project_state import ProjectState
 from HVAC.core.value_resolution import resolve_effective_internal_temp_C
@@ -134,8 +135,9 @@ class MainWindowV3(QMainWindow):
     # ------------------------------------------------------------------
     # Construction
     # ------------------------------------------------------------------
-    def __init__(self, *, context: GuiProjectContext) -> None:
+    def __init__(self, *, context: GuiProjectContext, startup_sample_view_v1: bool = False) -> None:
         super().__init__()
+        self._startup_sample_view_v1 = bool(startup_sample_view_v1)
 
         # --------------------------------------------------
         # Core
@@ -262,9 +264,19 @@ class MainWindowV3(QMainWindow):
     def _restore_workspace_and_navigation_v1(self) -> None:
         if getattr(self, "_navigation_shutdown_v1", False):
             return
-        self._restore_last_workspace_presentation_v1()
-        # Navigation is independent of the chosen Main/Exploded view.
+        sample_start = self._startup_sample_view_v1
+        self._startup_sample_view_v1 = False
+        if sample_start:
+            if self._gui_settings.workspace_view_v2("heat_loss") is not None:
+                self._apply_named_workspace_exploded_view_v2("heat_loss")
+            else:
+                self._apply_heat_loss_exploded_view_v1()
+        else:
+            self._restore_last_workspace_presentation_v1()
+        # Navigation keeps its independently saved placement.
         self._restore_navigation_placement_v1()
+        if sample_start:
+            self._dock_navigation.show()
 
     def _save_navigation_placement_v1(self) -> None:
         dock = self._dock_navigation
@@ -1586,7 +1598,9 @@ class MainWindowV3(QMainWindow):
     # Project lifecycle
     # ------------------------------------------------------------------
     def new_project(self) -> None:
-        project_state = create_new_project_v1()
+        project_state = choose_new_project_v1(self)
+        if project_state is None:
+            return
         room_id = next(iter(project_state.rooms))
 
         # --------------------------------------------------
@@ -1594,7 +1608,7 @@ class MainWindowV3(QMainWindow):
         # --------------------------------------------------
         self._context.set_project_state(
             project_state,
-            project_dir=None,
+            project_dir=project_state.project_dir,
         )
         self._uvp_panel.set_constructions(project_state.constructions)
 

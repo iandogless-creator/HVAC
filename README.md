@@ -26,11 +26,24 @@ standalone desktop installer.
 Windows and macOS have not been validated for Beta 1.
 
 The startup chooser offers **New project**, **Open project** and **Sample
-project**. Open selects a folder containing `project.json`. The sample uses
-example dimensions and construction values; review them before calculation.
-New starts the existing single-room project workflow with visible defaults.
+project**. Open selects a folder containing `project.json`. Sample opens a fresh unsaved copy of **HVACgooee — 20-room example**, based
+on the existing 20-room multi-leg job. It retains the example design inputs and
+saved engineering records; normal stale-basis checks still apply. Save asks for
+your own copy folder. The bundled example and existing user jobs are untouched.
+Sample opens in the existing floating **Heat Loss** view, with Navigation visible.
+Saved Heat Loss panel positions and Navigation placement are reused; New/Open
+continue to restore the usual last-selected view. No calculation runs automatically.
+All 80 wall segments in this example are currently external; room-to-room
+adjacency is not defined. Review the layout and inputs before treating its
+heat-loss or hydraulic results as a design.
+New first opens the existing folder chooser at `HVAC/HVACprojects` inside the
+installation. Use **New Folder**, name the job, then select that empty folder.
+The job name comes from the folder, and the existing checksummed saver writes
+its initial `project.json` before opening the single-room workspace. Cancel
+leaves the current project/startup chooser in place; non-empty folders are refused.
 
-Projects default to `~/Documents/HVACgooee`; you can choose another folder.
+New/Open/Save As default to that same `HVAC/HVACprojects` root; you can browse
+to another location. The installation must be writable for its default job folder.
 Existing project folders remain usable wherever they are stored. Save As selects
 the final project folder. Save explicitly before closing or switching projects:
 there is no autosave or comprehensive unsaved-change prompt in this beta.

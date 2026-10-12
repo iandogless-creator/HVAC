@@ -16,28 +16,38 @@ def case(action,home):
     from HVAC.gui_v3 import run_gui_v3 as runner
     target=home/'saved'
     if action=='open':save(create_new_project_v1(),target)
+    if action=='new':target.mkdir()
     class Chooser(StartupProjectDialogV1):
         def exec(self):
             QTimer.singleShot(0,self.reject if action=='cancel' else lambda:self.choose(action))
             return super().exec()
-    original_window=runner.MainWindowV3;opened=[]
+    original_window=runner.MainWindowV3;opened=[];windows=[];presentations=[]
     class Window(original_window):
         def __init__(self,**kwargs):
             super().__init__(**kwargs)
             opened.append(kwargs['context'].project_state)
-            QTimer.singleShot(100,QApplication.instance().quit)
-    original_sample=runner.make_dev_bootstrap_project_state;sample_calls=[]
+            windows.append(self)
+            def finish():
+                presentations.append((self._active_exploded_workspace_view_id_v1,self._dock_navigation.isVisible()))
+                QApplication.instance().quit()
+            QTimer.singleShot(100,finish)
+    original_sample=runner.make_sample_project_state_v1;sample_calls=[]
     def sample():
         sample_calls.append(True);return original_sample()
     QSettings.setPath(QSettings.NativeFormat,QSettings.UserScope,str(home/'qt'))
-    with patch.object(Path,'home',return_value=home),patch('HVAC.gui_v3.widgets.startup_project_dialog_v1.StartupProjectDialogV1',Chooser),patch.object(runner,'MainWindowV3',Window),patch.object(runner,'make_dev_bootstrap_project_state',sample),patch('HVAC.gui_v3.widgets.startup_project_dialog_v1.QFileDialog.getExistingDirectory',return_value=str(target)):
+    with patch('HVAC.gui_v3.context.project_workspace_v1.default_project_root_v1',return_value=home/'HVACprojects'),patch.object(Path,'home',return_value=home),patch('HVAC.gui_v3.widgets.startup_project_dialog_v1.StartupProjectDialogV1',Chooser),patch.object(runner,'MainWindowV3',Window),patch.object(runner,'make_sample_project_state_v1',sample),patch('HVAC.gui_v3.widgets.startup_project_dialog_v1.QFileDialog.getExistingDirectory',return_value=str(target)):
         sys.argv=['run_hvacgooee.py']
         try:runner.main()
         except SystemExit as exc:assert exc.code==0
     assert bool(opened)==(action!='cancel')
     assert bool(sample_calls)==(action=='sample')
+    if action=='sample':
+        assert len(opened[0].rooms)==20
+        assert windows[0]._active_exploded_workspace_view_id_v1=='heat_loss:exploded'
+        assert presentations==[('heat_loss:exploded',True)]
+        assert opened[0].name=='HVACgooee — 20-room example'
     if opened:
-        assert (opened[0].project_dir is not None)==(action=='open')
+        assert (opened[0].project_dir is not None)==(action in ('new','open'))
         assert getattr(opened[0],'hydronic_pump_duty_acceptance',None) is None
 
 

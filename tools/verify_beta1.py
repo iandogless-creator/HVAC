@@ -10,6 +10,9 @@ import tempfile
 ROOT = Path(__file__).resolve().parents[1]
 TESTS = (
     'test_beta1_startup_v1.py',
+    'test_beta1b_project_folders_v1.py',
+    'test_beta1c_twenty_room_sample_v1.py',
+    'test_beta1d_sample_opening_view_v1.py',
     'test_beta1_entrypoint_v1.py',
     'test_hls2c3a_single_project_folder_save_as_v1.py',
     'test_hls2c3b_compact_live_project_panel_v1.py',
@@ -39,7 +42,10 @@ def worker(test, temporary):
     QSettings.setPath(QSettings.NativeFormat, QSettings.UserScope, str(temporary/'qt'))
     QSettings.setPath(QSettings.IniFormat, QSettings.UserScope, str(temporary/'qt'))
     # Settings code asks Path.home(); do not alter the user's real settings.
-    with patch.object(Path, 'home', return_value=temporary):
+    with patch.object(Path, 'home', return_value=temporary), patch(
+        'HVAC.gui_v3.context.project_workspace_v1.default_project_root_v1',
+        return_value=temporary/'HVACprojects',
+    ):
         sys.argv = [str(ROOT/'HVAC/dev'/test)]
         runpy.run_path(sys.argv[0], run_name='__main__')
 

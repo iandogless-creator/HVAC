@@ -9,18 +9,20 @@ from HVAC.gui_v3.widgets.startup_project_dialog_v1 import StartupProjectDialogV1
 from HVAC.gui_v3.context.startup_projects_v1 import create_new_project_v1,open_project_v1
 from HVAC.gui_v3.context.gui_project_context import GuiProjectContext
 from HVAC.gui_v3.main_window import MainWindowV3
-from HVAC.gui_v3.run_gui_v3 import make_dev_bootstrap_project_state
+from HVAC.gui_v3.run_gui_v3 import make_sample_project_state_v1
 from HVAC.project_v3.persistence.saver import save
 
 
 def main():
     app=QApplication.instance() or QApplication([])
-    with tempfile.TemporaryDirectory() as directory, patch.object(Path,'home',return_value=Path(directory)):
+    with tempfile.TemporaryDirectory() as directory, patch.object(Path,'home',return_value=Path(directory)), patch('HVAC.gui_v3.context.project_workspace_v1.default_project_root_v1',return_value=Path(directory)/'HVACprojects'):
         home=Path(directory)
         QSettings.setPath(QSettings.NativeFormat,QSettings.UserScope,str(home/'settings'))
         for action in ('new','sample'):
             d=StartupProjectDialogV1()
-            d.findChild(QPushButton,f'startup_{action}').click()
+            target_new=home/('startup-'+action);target_new.mkdir()
+            with patch('HVAC.gui_v3.widgets.new_project_folder_v1.QFileDialog.getExistingDirectory',return_value=str(target_new)):
+                d.findChild(QPushButton,f'startup_{action}').click()
             assert d.action==action and d.result()==QDialog.Accepted
             d.close()
         d=StartupProjectDialogV1()
@@ -41,10 +43,14 @@ def main():
         assert (target/'project.json').read_bytes()==before
         assert restored.project_id==p.project_id and len(restored.rooms)==1
         context=GuiProjectContext(project_state=restored)
-        assert context.workspace_root==home/'Documents'/'HVACgooee'
+        assert context.workspace_root==home/'HVACprojects'
         window=MainWindowV3(context=context);window.show();app.processEvents()
-        window.new_project();assert context.project_state.project_dir is None
-        assert context.project_state.name=='Untitled Project'
+        job=home/'Menu new job';job.mkdir()
+        with patch('HVAC.gui_v3.widgets.new_project_folder_v1.QFileDialog.getExistingDirectory',return_value=str(job)):
+            window.new_project()
+        assert context.project_state.project_dir==job
+        assert context.project_dir==job and context.project_state.name=='Menu new job'
+        assert (job/'project.json').is_file()
         window._run_heatloss_for_current_project()
         computed=context.project_state
         assert computed.heatloss_valid
@@ -63,8 +69,9 @@ def main():
         except ValueError:pass
         else:raise AssertionError('Invalid project accepted')
         assert (target/'project.json').read_bytes()==before
-        demo=make_dev_bootstrap_project_state()
-        assert len(demo.rooms)>0 and demo.project_dir is None
+        demo=make_sample_project_state_v1()
+        assert len(demo.rooms)==20 and demo.project_dir is None
+        assert demo.name=="HVACgooee — 20-room example"
         assert getattr(demo,'hydronic_pump_duty_acceptance',None) is None
     print('OK — Beta 1 explicit startup choices, cancel, shared New/Open, saved-file preservation, invalid-file rejection, sample and real workspace.')
 

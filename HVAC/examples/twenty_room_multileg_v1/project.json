@@ -1,0 +1,4379 @@
+{
+  "checksum": "e3fa780ea0ac7f69766fd8c04ff068479baf25501f2b72ee98dc378c0dd67319",
+  "payload": {
+    "basic_hydronic_sizing_intent": {
+      "allowance_percent": null,
+      "basis_mode": "INDEX_LENGTH",
+      "flow_length_m": null,
+      "index_emitter_id": null,
+      "index_room_id": null,
+      "length_source": "user",
+      "nominal_pressure_gradient_Pa_per_m": 50.0,
+      "notes": "basic using index length",
+      "pressure_gradient_source": "user",
+      "return_length_m": null,
+      "section_max_velocity_overrides_m_s": {},
+      "total_index_length_m": 30.0
+    },
+    "boundary_segments": {
+      "room-l1a-001-seg-1": {
+        "adjacent_room_id": null,
+        "boundary_kind": "EXTERNAL",
+        "geometry_ref": "room-l1a-001-edge-1",
+        "length_m": 4.0,
+        "owner_room_id": "room-l1a-001",
+        "segment_id": "room-l1a-001-seg-1"
+      },
+      "room-l1a-001-seg-2": {
+        "adjacent_room_id": null,
+        "boundary_kind": "EXTERNAL",
+        "geometry_ref": "room-l1a-001-edge-2",
+        "length_m": 3.0,
+        "owner_room_id": "room-l1a-001",
+        "segment_id": "room-l1a-001-seg-2"
+      },
+      "room-l1a-001-seg-3": {
+        "adjacent_room_id": null,
+        "boundary_kind": "EXTERNAL",
+        "geometry_ref": "room-l1a-001-edge-3",
+        "length_m": 4.0,
+        "owner_room_id": "room-l1a-001",
+        "segment_id": "room-l1a-001-seg-3"
+      },
+      "room-l1a-001-seg-4": {
+        "adjacent_room_id": null,
+        "boundary_kind": "EXTERNAL",
+        "geometry_ref": "room-l1a-001-edge-4",
+        "length_m": 3.0,
+        "owner_room_id": "room-l1a-001",
+        "segment_id": "room-l1a-001-seg-4"
+      },
+      "room-l1a-002-seg-1": {
+        "adjacent_room_id": null,
+        "boundary_kind": "EXTERNAL",
+        "geometry_ref": "room-l1a-002-edge-1",
+        "length_m": 4.0,
+        "owner_room_id": "room-l1a-002",
+        "segment_id": "room-l1a-002-seg-1"
+      },
+      "room-l1a-002-seg-2": {
+        "adjacent_room_id": null,
+        "boundary_kind": "EXTERNAL",
+        "geometry_ref": "room-l1a-002-edge-2",
+        "length_m": 3.0,
+        "owner_room_id": "room-l1a-002",
+        "segment_id": "room-l1a-002-seg-2"
+      },
+      "room-l1a-002-seg-3": {
+        "adjacent_room_id": null,
+        "boundary_kind": "EXTERNAL",
+        "geometry_ref": "room-l1a-002-edge-3",
+        "length_m": 4.0,
+        "owner_room_id": "room-l1a-002",
+        "segment_id": "room-l1a-002-seg-3"
+      },
+      "room-l1a-002-seg-4": {
+        "adjacent_room_id": null,
+        "boundary_kind": "EXTERNAL",
+        "geometry_ref": "room-l1a-002-edge-4",
+        "length_m": 3.0,
+        "owner_room_id": "room-l1a-002",
+        "segment_id": "room-l1a-002-seg-4"
+      },
+      "room-l1a-003-seg-1": {
+        "adjacent_room_id": null,
+        "boundary_kind": "EXTERNAL",
+        "geometry_ref": "room-l1a-003-edge-1",
+        "length_m": 4.0,
+        "owner_room_id": "room-l1a-003",
+        "segment_id": "room-l1a-003-seg-1"
+      },
+      "room-l1a-003-seg-2": {
+        "adjacent_room_id": null,
+        "boundary_kind": "EXTERNAL",
+        "geometry_ref": "room-l1a-003-edge-2",
+        "length_m": 3.0,
+        "owner_room_id": "room-l1a-003",
+        "segment_id": "room-l1a-003-seg-2"
+      },
+      "room-l1a-003-seg-3": {
+        "adjacent_room_id": null,
+        "boundary_kind": "EXTERNAL",
+        "geometry_ref": "room-l1a-003-edge-3",
+        "length_m": 4.0,
+        "owner_room_id": "room-l1a-003",
+        "segment_id": "room-l1a-003-seg-3"
+      },
+      "room-l1a-003-seg-4": {
+        "adjacent_room_id": null,
+        "boundary_kind": "EXTERNAL",
+        "geometry_ref": "room-l1a-003-edge-4",
+        "length_m": 3.0,
+        "owner_room_id": "room-l1a-003",
+        "segment_id": "room-l1a-003-seg-4"
+      },
+      "room-l1a-004-seg-1": {
+        "adjacent_room_id": null,
+        "boundary_kind": "EXTERNAL",
+        "geometry_ref": "room-l1a-004-edge-1",
+        "length_m": 4.0,
+        "owner_room_id": "room-l1a-004",
+        "segment_id": "room-l1a-004-seg-1"
+      },
+      "room-l1a-004-seg-2": {
+        "adjacent_room_id": null,
+        "boundary_kind": "EXTERNAL",
+        "geometry_ref": "room-l1a-004-edge-2",
+        "length_m": 3.0,
+        "owner_room_id": "room-l1a-004",
+        "segment_id": "room-l1a-004-seg-2"
+      },
+      "room-l1a-004-seg-3": {
+        "adjacent_room_id": null,
+        "boundary_kind": "EXTERNAL",
+        "geometry_ref": "room-l1a-004-edge-3",
+        "length_m": 4.0,
+        "owner_room_id": "room-l1a-004",
+        "segment_id": "room-l1a-004-seg-3"
+      },
+      "room-l1a-004-seg-4": {
+        "adjacent_room_id": null,
+        "boundary_kind": "EXTERNAL",
+        "geometry_ref": "room-l1a-004-edge-4",
+        "length_m": 3.0,
+        "owner_room_id": "room-l1a-004",
+        "segment_id": "room-l1a-004-seg-4"
+      },
+      "room-l1a-005-seg-1": {
+        "adjacent_room_id": null,
+        "boundary_kind": "EXTERNAL",
+        "geometry_ref": "room-l1a-005-edge-1",
+        "length_m": 4.0,
+        "owner_room_id": "room-l1a-005",
+        "segment_id": "room-l1a-005-seg-1"
+      },
+      "room-l1a-005-seg-2": {
+        "adjacent_room_id": null,
+        "boundary_kind": "EXTERNAL",
+        "geometry_ref": "room-l1a-005-edge-2",
+        "length_m": 3.0,
+        "owner_room_id": "room-l1a-005",
+        "segment_id": "room-l1a-005-seg-2"
+      },
+      "room-l1a-005-seg-3": {
+        "adjacent_room_id": null,
+        "boundary_kind": "EXTERNAL",
+        "geometry_ref": "room-l1a-005-edge-3",
+        "length_m": 4.0,
+        "owner_room_id": "room-l1a-005",
+        "segment_id": "room-l1a-005-seg-3"
+      },
+      "room-l1a-005-seg-4": {
+        "adjacent_room_id": null,
+        "boundary_kind": "EXTERNAL",
+        "geometry_ref": "room-l1a-005-edge-4",
+        "length_m": 3.0,
+        "owner_room_id": "room-l1a-005",
+        "segment_id": "room-l1a-005-seg-4"
+      },
+      "room-l1a-006-seg-1": {
+        "adjacent_room_id": null,
+        "boundary_kind": "EXTERNAL",
+        "geometry_ref": "room-l1a-006-edge-1",
+        "length_m": 4.0,
+        "owner_room_id": "room-l1a-006",
+        "segment_id": "room-l1a-006-seg-1"
+      },
+      "room-l1a-006-seg-2": {
+        "adjacent_room_id": null,
+        "boundary_kind": "EXTERNAL",
+        "geometry_ref": "room-l1a-006-edge-2",
+        "length_m": 3.0,
+        "owner_room_id": "room-l1a-006",
+        "segment_id": "room-l1a-006-seg-2"
+      },
+      "room-l1a-006-seg-3": {
+        "adjacent_room_id": null,
+        "boundary_kind": "EXTERNAL",
+        "geometry_ref": "room-l1a-006-edge-3",
+        "length_m": 4.0,
+        "owner_room_id": "room-l1a-006",
+        "segment_id": "room-l1a-006-seg-3"
+      },
+      "room-l1a-006-seg-4": {
+        "adjacent_room_id": null,
+        "boundary_kind": "EXTERNAL",
+        "geometry_ref": "room-l1a-006-edge-4",
+        "length_m": 3.0,
+        "owner_room_id": "room-l1a-006",
+        "segment_id": "room-l1a-006-seg-4"
+      },
+      "room-l1b-001-seg-1": {
+        "adjacent_room_id": null,
+        "boundary_kind": "EXTERNAL",
+        "geometry_ref": "room-l1b-001-edge-1",
+        "length_m": 4.0,
+        "owner_room_id": "room-l1b-001",
+        "segment_id": "room-l1b-001-seg-1"
+      },
+      "room-l1b-001-seg-2": {
+        "adjacent_room_id": null,
+        "boundary_kind": "EXTERNAL",
+        "geometry_ref": "room-l1b-001-edge-2",
+        "length_m": 3.0,
+        "owner_room_id": "room-l1b-001",
+        "segment_id": "room-l1b-001-seg-2"
+      },
+      "room-l1b-001-seg-3": {
+        "adjacent_room_id": null,
+        "boundary_kind": "EXTERNAL",
+        "geometry_ref": "room-l1b-001-edge-3",
+        "length_m": 4.0,
+        "owner_room_id": "room-l1b-001",
+        "segment_id": "room-l1b-001-seg-3"
+      },
+      "room-l1b-001-seg-4": {
+        "adjacent_room_id": null,
+        "boundary_kind": "EXTERNAL",
+        "geometry_ref": "room-l1b-001-edge-4",
+        "length_m": 3.0,
+        "owner_room_id": "room-l1b-001",
+        "segment_id": "room-l1b-001-seg-4"
+      },
+      "room-l1b-002-seg-1": {
+        "adjacent_room_id": null,
+        "boundary_kind": "EXTERNAL",
+        "geometry_ref": "room-l1b-002-edge-1",
+        "length_m": 4.0,
+        "owner_room_id": "room-l1b-002",
+        "segment_id": "room-l1b-002-seg-1"
+      },
+      "room-l1b-002-seg-2": {
+        "adjacent_room_id": null,
+        "boundary_kind": "EXTERNAL",
+        "geometry_ref": "room-l1b-002-edge-2",
+        "length_m": 3.0,
+        "owner_room_id": "room-l1b-002",
+        "segment_id": "room-l1b-002-seg-2"
+      },
+      "room-l1b-002-seg-3": {
+        "adjacent_room_id": null,
+        "boundary_kind": "EXTERNAL",
+        "geometry_ref": "room-l1b-002-edge-3",
+        "length_m": 4.0,
+        "owner_room_id": "room-l1b-002",
+        "segment_id": "room-l1b-002-seg-3"
+      },
+      "room-l1b-002-seg-4": {
+        "adjacent_room_id": null,
+        "boundary_kind": "EXTERNAL",
+        "geometry_ref": "room-l1b-002-edge-4",
+        "length_m": 3.0,
+        "owner_room_id": "room-l1b-002",
+        "segment_id": "room-l1b-002-seg-4"
+      },
+      "room-l1b-003-seg-1": {
+        "adjacent_room_id": null,
+        "boundary_kind": "EXTERNAL",
+        "geometry_ref": "room-l1b-003-edge-1",
+        "length_m": 4.0,
+        "owner_room_id": "room-l1b-003",
+        "segment_id": "room-l1b-003-seg-1"
+      },
+      "room-l1b-003-seg-2": {
+        "adjacent_room_id": null,
+        "boundary_kind": "EXTERNAL",
+        "geometry_ref": "room-l1b-003-edge-2",
+        "length_m": 3.0,
+        "owner_room_id": "room-l1b-003",
+        "segment_id": "room-l1b-003-seg-2"
+      },
+      "room-l1b-003-seg-3": {
+        "adjacent_room_id": null,
+        "boundary_kind": "EXTERNAL",
+        "geometry_ref": "room-l1b-003-edge-3",
+        "length_m": 4.0,
+        "owner_room_id": "room-l1b-003",
+        "segment_id": "room-l1b-003-seg-3"
+      },
+      "room-l1b-003-seg-4": {
+        "adjacent_room_id": null,
+        "boundary_kind": "EXTERNAL",
+        "geometry_ref": "room-l1b-003-edge-4",
+        "length_m": 3.0,
+        "owner_room_id": "room-l1b-003",
+        "segment_id": "room-l1b-003-seg-4"
+      },
+      "room-l1b-004-seg-1": {
+        "adjacent_room_id": null,
+        "boundary_kind": "EXTERNAL",
+        "geometry_ref": "room-l1b-004-edge-1",
+        "length_m": 4.0,
+        "owner_room_id": "room-l1b-004",
+        "segment_id": "room-l1b-004-seg-1"
+      },
+      "room-l1b-004-seg-2": {
+        "adjacent_room_id": null,
+        "boundary_kind": "EXTERNAL",
+        "geometry_ref": "room-l1b-004-edge-2",
+        "length_m": 3.0,
+        "owner_room_id": "room-l1b-004",
+        "segment_id": "room-l1b-004-seg-2"
+      },
+      "room-l1b-004-seg-3": {
+        "adjacent_room_id": null,
+        "boundary_kind": "EXTERNAL",
+        "geometry_ref": "room-l1b-004-edge-3",
+        "length_m": 4.0,
+        "owner_room_id": "room-l1b-004",
+        "segment_id": "room-l1b-004-seg-3"
+      },
+      "room-l1b-004-seg-4": {
+        "adjacent_room_id": null,
+        "boundary_kind": "EXTERNAL",
+        "geometry_ref": "room-l1b-004-edge-4",
+        "length_m": 3.0,
+        "owner_room_id": "room-l1b-004",
+        "segment_id": "room-l1b-004-seg-4"
+      },
+      "room-l2a-001-seg-1": {
+        "adjacent_room_id": null,
+        "boundary_kind": "EXTERNAL",
+        "geometry_ref": "room-l2a-001-edge-1",
+        "length_m": 4.0,
+        "owner_room_id": "room-l2a-001",
+        "segment_id": "room-l2a-001-seg-1"
+      },
+      "room-l2a-001-seg-2": {
+        "adjacent_room_id": null,
+        "boundary_kind": "EXTERNAL",
+        "geometry_ref": "room-l2a-001-edge-2",
+        "length_m": 3.0,
+        "owner_room_id": "room-l2a-001",
+        "segment_id": "room-l2a-001-seg-2"
+      },
+      "room-l2a-001-seg-3": {
+        "adjacent_room_id": null,
+        "boundary_kind": "EXTERNAL",
+        "geometry_ref": "room-l2a-001-edge-3",
+        "length_m": 4.0,
+        "owner_room_id": "room-l2a-001",
+        "segment_id": "room-l2a-001-seg-3"
+      },
+      "room-l2a-001-seg-4": {
+        "adjacent_room_id": null,
+        "boundary_kind": "EXTERNAL",
+        "geometry_ref": "room-l2a-001-edge-4",
+        "length_m": 3.0,
+        "owner_room_id": "room-l2a-001",
+        "segment_id": "room-l2a-001-seg-4"
+      },
+      "room-l2a-002-seg-1": {
+        "adjacent_room_id": null,
+        "boundary_kind": "EXTERNAL",
+        "geometry_ref": "room-l2a-002-edge-1",
+        "length_m": 4.0,
+        "owner_room_id": "room-l2a-002",
+        "segment_id": "room-l2a-002-seg-1"
+      },
+      "room-l2a-002-seg-2": {
+        "adjacent_room_id": null,
+        "boundary_kind": "EXTERNAL",
+        "geometry_ref": "room-l2a-002-edge-2",
+        "length_m": 3.0,
+        "owner_room_id": "room-l2a-002",
+        "segment_id": "room-l2a-002-seg-2"
+      },
+      "room-l2a-002-seg-3": {
+        "adjacent_room_id": null,
+        "boundary_kind": "EXTERNAL",
+        "geometry_ref": "room-l2a-002-edge-3",
+        "length_m": 4.0,
+        "owner_room_id": "room-l2a-002",
+        "segment_id": "room-l2a-002-seg-3"
+      },
+      "room-l2a-002-seg-4": {
+        "adjacent_room_id": null,
+        "boundary_kind": "EXTERNAL",
+        "geometry_ref": "room-l2a-002-edge-4",
+        "length_m": 3.0,
+        "owner_room_id": "room-l2a-002",
+        "segment_id": "room-l2a-002-seg-4"
+      },
+      "room-l2a-003-seg-1": {
+        "adjacent_room_id": null,
+        "boundary_kind": "EXTERNAL",
+        "geometry_ref": "room-l2a-003-edge-1",
+        "length_m": 4.0,
+        "owner_room_id": "room-l2a-003",
+        "segment_id": "room-l2a-003-seg-1"
+      },
+      "room-l2a-003-seg-2": {
+        "adjacent_room_id": null,
+        "boundary_kind": "EXTERNAL",
+        "geometry_ref": "room-l2a-003-edge-2",
+        "length_m": 3.0,
+        "owner_room_id": "room-l2a-003",
+        "segment_id": "room-l2a-003-seg-2"
+      },
+      "room-l2a-003-seg-3": {
+        "adjacent_room_id": null,
+        "boundary_kind": "EXTERNAL",
+        "geometry_ref": "room-l2a-003-edge-3",
+        "length_m": 4.0,
+        "owner_room_id": "room-l2a-003",
+        "segment_id": "room-l2a-003-seg-3"
+      },
+      "room-l2a-003-seg-4": {
+        "adjacent_room_id": null,
+        "boundary_kind": "EXTERNAL",
+        "geometry_ref": "room-l2a-003-edge-4",
+        "length_m": 3.0,
+        "owner_room_id": "room-l2a-003",
+        "segment_id": "room-l2a-003-seg-4"
+      },
+      "room-l2a-004-seg-1": {
+        "adjacent_room_id": null,
+        "boundary_kind": "EXTERNAL",
+        "geometry_ref": "room-l2a-004-edge-1",
+        "length_m": 4.0,
+        "owner_room_id": "room-l2a-004",
+        "segment_id": "room-l2a-004-seg-1"
+      },
+      "room-l2a-004-seg-2": {
+        "adjacent_room_id": null,
+        "boundary_kind": "EXTERNAL",
+        "geometry_ref": "room-l2a-004-edge-2",
+        "length_m": 3.0,
+        "owner_room_id": "room-l2a-004",
+        "segment_id": "room-l2a-004-seg-2"
+      },
+      "room-l2a-004-seg-3": {
+        "adjacent_room_id": null,
+        "boundary_kind": "EXTERNAL",
+        "geometry_ref": "room-l2a-004-edge-3",
+        "length_m": 4.0,
+        "owner_room_id": "room-l2a-004",
+        "segment_id": "room-l2a-004-seg-3"
+      },
+      "room-l2a-004-seg-4": {
+        "adjacent_room_id": null,
+        "boundary_kind": "EXTERNAL",
+        "geometry_ref": "room-l2a-004-edge-4",
+        "length_m": 3.0,
+        "owner_room_id": "room-l2a-004",
+        "segment_id": "room-l2a-004-seg-4"
+      },
+      "room-l2a-005-seg-1": {
+        "adjacent_room_id": null,
+        "boundary_kind": "EXTERNAL",
+        "geometry_ref": "room-l2a-005-edge-1",
+        "length_m": 4.0,
+        "owner_room_id": "room-l2a-005",
+        "segment_id": "room-l2a-005-seg-1"
+      },
+      "room-l2a-005-seg-2": {
+        "adjacent_room_id": null,
+        "boundary_kind": "EXTERNAL",
+        "geometry_ref": "room-l2a-005-edge-2",
+        "length_m": 3.0,
+        "owner_room_id": "room-l2a-005",
+        "segment_id": "room-l2a-005-seg-2"
+      },
+      "room-l2a-005-seg-3": {
+        "adjacent_room_id": null,
+        "boundary_kind": "EXTERNAL",
+        "geometry_ref": "room-l2a-005-edge-3",
+        "length_m": 4.0,
+        "owner_room_id": "room-l2a-005",
+        "segment_id": "room-l2a-005-seg-3"
+      },
+      "room-l2a-005-seg-4": {
+        "adjacent_room_id": null,
+        "boundary_kind": "EXTERNAL",
+        "geometry_ref": "room-l2a-005-edge-4",
+        "length_m": 3.0,
+        "owner_room_id": "room-l2a-005",
+        "segment_id": "room-l2a-005-seg-4"
+      },
+      "room-l2b-001-seg-1": {
+        "adjacent_room_id": null,
+        "boundary_kind": "EXTERNAL",
+        "geometry_ref": "room-l2b-001-edge-1",
+        "length_m": 4.0,
+        "owner_room_id": "room-l2b-001",
+        "segment_id": "room-l2b-001-seg-1"
+      },
+      "room-l2b-001-seg-2": {
+        "adjacent_room_id": null,
+        "boundary_kind": "EXTERNAL",
+        "geometry_ref": "room-l2b-001-edge-2",
+        "length_m": 3.0,
+        "owner_room_id": "room-l2b-001",
+        "segment_id": "room-l2b-001-seg-2"
+      },
+      "room-l2b-001-seg-3": {
+        "adjacent_room_id": null,
+        "boundary_kind": "EXTERNAL",
+        "geometry_ref": "room-l2b-001-edge-3",
+        "length_m": 4.0,
+        "owner_room_id": "room-l2b-001",
+        "segment_id": "room-l2b-001-seg-3"
+      },
+      "room-l2b-001-seg-4": {
+        "adjacent_room_id": null,
+        "boundary_kind": "EXTERNAL",
+        "geometry_ref": "room-l2b-001-edge-4",
+        "length_m": 3.0,
+        "owner_room_id": "room-l2b-001",
+        "segment_id": "room-l2b-001-seg-4"
+      },
+      "room-l2b-002-seg-1": {
+        "adjacent_room_id": null,
+        "boundary_kind": "EXTERNAL",
+        "geometry_ref": "room-l2b-002-edge-1",
+        "length_m": 4.0,
+        "owner_room_id": "room-l2b-002",
+        "segment_id": "room-l2b-002-seg-1"
+      },
+      "room-l2b-002-seg-2": {
+        "adjacent_room_id": null,
+        "boundary_kind": "EXTERNAL",
+        "geometry_ref": "room-l2b-002-edge-2",
+        "length_m": 3.0,
+        "owner_room_id": "room-l2b-002",
+        "segment_id": "room-l2b-002-seg-2"
+      },
+      "room-l2b-002-seg-3": {
+        "adjacent_room_id": null,
+        "boundary_kind": "EXTERNAL",
+        "geometry_ref": "room-l2b-002-edge-3",
+        "length_m": 4.0,
+        "owner_room_id": "room-l2b-002",
+        "segment_id": "room-l2b-002-seg-3"
+      },
+      "room-l2b-002-seg-4": {
+        "adjacent_room_id": null,
+        "boundary_kind": "EXTERNAL",
+        "geometry_ref": "room-l2b-002-edge-4",
+        "length_m": 3.0,
+        "owner_room_id": "room-l2b-002",
+        "segment_id": "room-l2b-002-seg-4"
+      },
+      "room-l2b-003-seg-1": {
+        "adjacent_room_id": null,
+        "boundary_kind": "EXTERNAL",
+        "geometry_ref": "room-l2b-003-edge-1",
+        "length_m": 4.0,
+        "owner_room_id": "room-l2b-003",
+        "segment_id": "room-l2b-003-seg-1"
+      },
+      "room-l2b-003-seg-2": {
+        "adjacent_room_id": null,
+        "boundary_kind": "EXTERNAL",
+        "geometry_ref": "room-l2b-003-edge-2",
+        "length_m": 3.0,
+        "owner_room_id": "room-l2b-003",
+        "segment_id": "room-l2b-003-seg-2"
+      },
+      "room-l2b-003-seg-3": {
+        "adjacent_room_id": null,
+        "boundary_kind": "EXTERNAL",
+        "geometry_ref": "room-l2b-003-edge-3",
+        "length_m": 4.0,
+        "owner_room_id": "room-l2b-003",
+        "segment_id": "room-l2b-003-seg-3"
+      },
+      "room-l2b-003-seg-4": {
+        "adjacent_room_id": null,
+        "boundary_kind": "EXTERNAL",
+        "geometry_ref": "room-l2b-003-edge-4",
+        "length_m": 3.0,
+        "owner_room_id": "room-l2b-003",
+        "segment_id": "room-l2b-003-seg-4"
+      },
+      "room-l2b-004-seg-1": {
+        "adjacent_room_id": null,
+        "boundary_kind": "EXTERNAL",
+        "geometry_ref": "room-l2b-004-edge-1",
+        "length_m": 4.0,
+        "owner_room_id": "room-l2b-004",
+        "segment_id": "room-l2b-004-seg-1"
+      },
+      "room-l2b-004-seg-2": {
+        "adjacent_room_id": null,
+        "boundary_kind": "EXTERNAL",
+        "geometry_ref": "room-l2b-004-edge-2",
+        "length_m": 3.0,
+        "owner_room_id": "room-l2b-004",
+        "segment_id": "room-l2b-004-seg-2"
+      },
+      "room-l2b-004-seg-3": {
+        "adjacent_room_id": null,
+        "boundary_kind": "EXTERNAL",
+        "geometry_ref": "room-l2b-004-edge-3",
+        "length_m": 4.0,
+        "owner_room_id": "room-l2b-004",
+        "segment_id": "room-l2b-004-seg-3"
+      },
+      "room-l2b-004-seg-4": {
+        "adjacent_room_id": null,
+        "boundary_kind": "EXTERNAL",
+        "geometry_ref": "room-l2b-004-edge-4",
+        "length_m": 3.0,
+        "owner_room_id": "room-l2b-004",
+        "segment_id": "room-l2b-004-seg-4"
+      },
+      "room-l2b-005-seg-1": {
+        "adjacent_room_id": null,
+        "boundary_kind": "EXTERNAL",
+        "geometry_ref": "room-l2b-005-edge-1",
+        "length_m": 4.0,
+        "owner_room_id": "room-l2b-005",
+        "segment_id": "room-l2b-005-seg-1"
+      },
+      "room-l2b-005-seg-2": {
+        "adjacent_room_id": null,
+        "boundary_kind": "EXTERNAL",
+        "geometry_ref": "room-l2b-005-edge-2",
+        "length_m": 3.0,
+        "owner_room_id": "room-l2b-005",
+        "segment_id": "room-l2b-005-seg-2"
+      },
+      "room-l2b-005-seg-3": {
+        "adjacent_room_id": null,
+        "boundary_kind": "EXTERNAL",
+        "geometry_ref": "room-l2b-005-edge-3",
+        "length_m": 4.0,
+        "owner_room_id": "room-l2b-005",
+        "segment_id": "room-l2b-005-seg-3"
+      },
+      "room-l2b-005-seg-4": {
+        "adjacent_room_id": null,
+        "boundary_kind": "EXTERNAL",
+        "geometry_ref": "room-l2b-005-edge-4",
+        "length_m": 3.0,
+        "owner_room_id": "room-l2b-005",
+        "segment_id": "room-l2b-005-seg-4"
+      }
+    },
+    "constructions": {
+      "DEV-EXT-WALL": {
+        "construction_id": "DEV-EXT-WALL",
+        "name": "External Wall",
+        "u_value_W_m2K": 0.26
+      },
+      "DEV-FLOOR": {
+        "construction_id": "DEV-FLOOR",
+        "name": "Floor",
+        "u_value_W_m2K": 0.18
+      },
+      "DEV-INT-WALL": {
+        "construction_id": "DEV-INT-WALL",
+        "name": "Internal Wall",
+        "u_value_W_m2K": 1.5
+      },
+      "DEV-ROOF": {
+        "construction_id": "DEV-ROOF",
+        "name": "Roof / Ceiling",
+        "u_value_W_m2K": 0.16
+      },
+      "DEV-WINDOW": {
+        "construction_id": "DEV-WINDOW",
+        "name": "Window / Door",
+        "u_value_W_m2K": 1.6
+      }
+    },
+    "emitters": {
+      "emitter-l1a-001": {
+        "design_output_W": 900.0,
+        "emitter_id": "emitter-l1a-001",
+        "emitter_type": "radiator",
+        "flow_temp_C": 75.0,
+        "name": "Emitter L1A-01",
+        "notes": "DEV 20-room multi-leg fixture",
+        "return_temp_C": 55.0,
+        "room_id": "room-l1a-001",
+        "room_temp_C": 21.0
+      },
+      "emitter-l1a-002": {
+        "design_output_W": 800.0,
+        "emitter_id": "emitter-l1a-002",
+        "emitter_type": "radiator",
+        "flow_temp_C": 75.0,
+        "name": "Emitter L1A-02",
+        "notes": "DEV 20-room multi-leg fixture",
+        "return_temp_C": 55.0,
+        "room_id": "room-l1a-002",
+        "room_temp_C": 21.0
+      },
+      "emitter-l1a-003": {
+        "design_output_W": 700.0,
+        "emitter_id": "emitter-l1a-003",
+        "emitter_type": "radiator",
+        "flow_temp_C": 75.0,
+        "name": "Emitter L1A-03",
+        "notes": "DEV 20-room multi-leg fixture",
+        "return_temp_C": 55.0,
+        "room_id": "room-l1a-003",
+        "room_temp_C": 21.0
+      },
+      "emitter-l1a-004": {
+        "design_output_W": 600.0,
+        "emitter_id": "emitter-l1a-004",
+        "emitter_type": "radiator",
+        "flow_temp_C": 75.0,
+        "name": "Emitter L1A-04",
+        "notes": "DEV 20-room multi-leg fixture",
+        "return_temp_C": 55.0,
+        "room_id": "room-l1a-004",
+        "room_temp_C": 21.0
+      },
+      "emitter-l1a-005": {
+        "design_output_W": 500.0,
+        "emitter_id": "emitter-l1a-005",
+        "emitter_type": "radiator",
+        "flow_temp_C": 75.0,
+        "name": "Emitter L1A-05",
+        "notes": "DEV 20-room multi-leg fixture",
+        "return_temp_C": 55.0,
+        "room_id": "room-l1a-005",
+        "room_temp_C": 21.0
+      },
+      "emitter-l1a-006": {
+        "design_output_W": 400.0,
+        "emitter_id": "emitter-l1a-006",
+        "emitter_type": "radiator",
+        "flow_temp_C": 75.0,
+        "name": "Emitter L1A-06",
+        "notes": "DEV 20-room multi-leg fixture",
+        "return_temp_C": 55.0,
+        "room_id": "room-l1a-006",
+        "room_temp_C": 21.0
+      },
+      "emitter-l1b-001": {
+        "design_output_W": 1100.0,
+        "emitter_id": "emitter-l1b-001",
+        "emitter_type": "radiator",
+        "flow_temp_C": 75.0,
+        "name": "Emitter L1B-01",
+        "notes": "DEV 20-room multi-leg fixture",
+        "return_temp_C": 55.0,
+        "room_id": "room-l1b-001",
+        "room_temp_C": 21.0
+      },
+      "emitter-l1b-002": {
+        "design_output_W": 900.0,
+        "emitter_id": "emitter-l1b-002",
+        "emitter_type": "radiator",
+        "flow_temp_C": 75.0,
+        "name": "Emitter L1B-02",
+        "notes": "DEV 20-room multi-leg fixture",
+        "return_temp_C": 55.0,
+        "room_id": "room-l1b-002",
+        "room_temp_C": 21.0
+      },
+      "emitter-l1b-003": {
+        "design_output_W": 700.0,
+        "emitter_id": "emitter-l1b-003",
+        "emitter_type": "radiator",
+        "flow_temp_C": 75.0,
+        "name": "Emitter L1B-03",
+        "notes": "DEV 20-room multi-leg fixture",
+        "return_temp_C": 55.0,
+        "room_id": "room-l1b-003",
+        "room_temp_C": 21.0
+      },
+      "emitter-l1b-004": {
+        "design_output_W": 500.0,
+        "emitter_id": "emitter-l1b-004",
+        "emitter_type": "radiator",
+        "flow_temp_C": 75.0,
+        "name": "Emitter L1B-04",
+        "notes": "DEV 20-room multi-leg fixture",
+        "return_temp_C": 55.0,
+        "room_id": "room-l1b-004",
+        "room_temp_C": 21.0
+      },
+      "emitter-l2a-001": {
+        "design_output_W": 1200.0,
+        "emitter_id": "emitter-l2a-001",
+        "emitter_type": "radiator",
+        "flow_temp_C": 75.0,
+        "name": "Emitter L2A-01",
+        "notes": "DEV 20-room multi-leg fixture",
+        "return_temp_C": 55.0,
+        "room_id": "room-l2a-001",
+        "room_temp_C": 21.0
+      },
+      "emitter-l2a-002": {
+        "design_output_W": 1000.0,
+        "emitter_id": "emitter-l2a-002",
+        "emitter_type": "radiator",
+        "flow_temp_C": 75.0,
+        "name": "Emitter L2A-02",
+        "notes": "DEV 20-room multi-leg fixture",
+        "return_temp_C": 55.0,
+        "room_id": "room-l2a-002",
+        "room_temp_C": 21.0
+      },
+      "emitter-l2a-003": {
+        "design_output_W": 800.0,
+        "emitter_id": "emitter-l2a-003",
+        "emitter_type": "radiator",
+        "flow_temp_C": 75.0,
+        "name": "Emitter L2A-03",
+        "notes": "DEV 20-room multi-leg fixture",
+        "return_temp_C": 55.0,
+        "room_id": "room-l2a-003",
+        "room_temp_C": 21.0
+      },
+      "emitter-l2a-004": {
+        "design_output_W": 600.0,
+        "emitter_id": "emitter-l2a-004",
+        "emitter_type": "radiator",
+        "flow_temp_C": 75.0,
+        "name": "Emitter L2A-04",
+        "notes": "DEV 20-room multi-leg fixture",
+        "return_temp_C": 55.0,
+        "room_id": "room-l2a-004",
+        "room_temp_C": 21.0
+      },
+      "emitter-l2a-005": {
+        "design_output_W": 400.0,
+        "emitter_id": "emitter-l2a-005",
+        "emitter_type": "radiator",
+        "flow_temp_C": 75.0,
+        "name": "Emitter L2A-05",
+        "notes": "DEV 20-room multi-leg fixture",
+        "return_temp_C": 55.0,
+        "room_id": "room-l2a-005",
+        "room_temp_C": 21.0
+      },
+      "emitter-l2b-001": {
+        "design_output_W": 1000.0,
+        "emitter_id": "emitter-l2b-001",
+        "emitter_type": "radiator",
+        "flow_temp_C": 75.0,
+        "name": "Emitter L2B-01",
+        "notes": "DEV 20-room multi-leg fixture",
+        "return_temp_C": 55.0,
+        "room_id": "room-l2b-001",
+        "room_temp_C": 21.0
+      },
+      "emitter-l2b-002": {
+        "design_output_W": 850.0,
+        "emitter_id": "emitter-l2b-002",
+        "emitter_type": "radiator",
+        "flow_temp_C": 75.0,
+        "name": "Emitter L2B-02",
+        "notes": "DEV 20-room multi-leg fixture",
+        "return_temp_C": 55.0,
+        "room_id": "room-l2b-002",
+        "room_temp_C": 21.0
+      },
+      "emitter-l2b-003": {
+        "design_output_W": 700.0,
+        "emitter_id": "emitter-l2b-003",
+        "emitter_type": "radiator",
+        "flow_temp_C": 75.0,
+        "name": "Emitter L2B-03",
+        "notes": "DEV 20-room multi-leg fixture",
+        "return_temp_C": 55.0,
+        "room_id": "room-l2b-003",
+        "room_temp_C": 21.0
+      },
+      "emitter-l2b-004": {
+        "design_output_W": 550.0,
+        "emitter_id": "emitter-l2b-004",
+        "emitter_type": "radiator",
+        "flow_temp_C": 75.0,
+        "name": "Emitter L2B-04",
+        "notes": "DEV 20-room multi-leg fixture",
+        "return_temp_C": 55.0,
+        "room_id": "room-l2b-004",
+        "room_temp_C": 21.0
+      },
+      "emitter-l2b-005": {
+        "design_output_W": 400.0,
+        "emitter_id": "emitter-l2b-005",
+        "emitter_type": "radiator",
+        "flow_temp_C": 75.0,
+        "name": "Emitter L2B-05",
+        "notes": "DEV 20-room multi-leg fixture",
+        "return_temp_C": 55.0,
+        "room_id": "room-l2b-005",
+        "room_temp_C": 21.0
+      }
+    },
+    "environment": {
+      "bare_pipe_emissivity": 0.2,
+      "bare_pipe_pair_spacing_defaults_by_nominal_od_mm": {
+        "10": {
+          "centre_spacing_mm": 25.0,
+          "support_type": "moulded_plastic_double_clip"
+        },
+        "15": {
+          "centre_spacing_mm": 30.0,
+          "support_type": "moulded_plastic_double_clip"
+        },
+        "22": {
+          "centre_spacing_mm": 40.0,
+          "support_type": "moulded_plastic_double_clip"
+        },
+        "28": {
+          "centre_spacing_mm": 50.0,
+          "support_type": "paired_individual_plastic_clips"
+        },
+        "35": {
+          "centre_spacing_mm": 60.0,
+          "support_type": "paired_individual_plastic_clips"
+        },
+        "42": {
+          "centre_spacing_mm": 70.0,
+          "support_type": "paired_individual_plastic_clips"
+        },
+        "54": {
+          "centre_spacing_mm": 90.0,
+          "support_type": "paired_individual_plastic_clips"
+        }
+      },
+      "basic_ps_max_velocity_m_s": 1.05,
+      "default_ach": 0.5,
+      "default_internal_temp_C": 21.0,
+      "default_room_height_m": 2.4,
+      "design_flow_temp_c": 75.0,
+      "design_return_temp_c": 65.0,
+      "external_design_temp_C": -3.0,
+      "use_internal_environmental_temperature": true
+    },
+    "heatloss": {
+      "results": {
+        "fabric": [
+          {
+            "area_m2": 9.445714285714287,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 58.94125714285715,
+            "room_id": "room-l1a-001",
+            "surface_class": "external_wall",
+            "surface_id": "room-l1a-001-seg-1",
+            "u_value_W_m2K": 0.26
+          },
+          {
+            "area_m2": 7.084285714285714,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 44.20594285714286,
+            "room_id": "room-l1a-001",
+            "surface_class": "external_wall",
+            "surface_id": "room-l1a-001-seg-2",
+            "u_value_W_m2K": 0.26
+          },
+          {
+            "area_m2": 9.445714285714287,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 58.94125714285715,
+            "room_id": "room-l1a-001",
+            "surface_class": "external_wall",
+            "surface_id": "room-l1a-001-seg-3",
+            "u_value_W_m2K": 0.26
+          },
+          {
+            "area_m2": 7.084285714285714,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 44.20594285714286,
+            "room_id": "room-l1a-001",
+            "surface_class": "external_wall",
+            "surface_id": "room-l1a-001-seg-4",
+            "u_value_W_m2K": 0.26
+          },
+          {
+            "area_m2": 0.54,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 20.736000000000004,
+            "room_id": "room-l1a-001",
+            "surface_class": "window",
+            "surface_id": "room-l1a-001-room-opening-window-1-DEV-WINDOW",
+            "u_value_W_m2K": 1.6
+          },
+          {
+            "area_m2": 12.0,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 51.84,
+            "room_id": "room-l1a-001",
+            "surface_class": "floor",
+            "surface_id": "room-l1a-001-floor",
+            "u_value_W_m2K": 0.18
+          },
+          {
+            "area_m2": 12.0,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 46.08,
+            "room_id": "room-l1a-001",
+            "surface_class": "roof",
+            "surface_id": "room-l1a-001-roof",
+            "u_value_W_m2K": 0.16
+          },
+          {
+            "area_m2": 9.6,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 59.903999999999996,
+            "room_id": "room-l1a-002",
+            "surface_class": "external_wall",
+            "surface_id": "room-l1a-002-seg-1",
+            "u_value_W_m2K": 0.26
+          },
+          {
+            "area_m2": 7.199999999999999,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 44.928,
+            "room_id": "room-l1a-002",
+            "surface_class": "external_wall",
+            "surface_id": "room-l1a-002-seg-2",
+            "u_value_W_m2K": 0.26
+          },
+          {
+            "area_m2": 9.6,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 59.903999999999996,
+            "room_id": "room-l1a-002",
+            "surface_class": "external_wall",
+            "surface_id": "room-l1a-002-seg-3",
+            "u_value_W_m2K": 0.26
+          },
+          {
+            "area_m2": 7.199999999999999,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 44.928,
+            "room_id": "room-l1a-002",
+            "surface_class": "external_wall",
+            "surface_id": "room-l1a-002-seg-4",
+            "u_value_W_m2K": 0.26
+          },
+          {
+            "area_m2": 12.0,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 51.84,
+            "room_id": "room-l1a-002",
+            "surface_class": "floor",
+            "surface_id": "room-l1a-002-floor",
+            "u_value_W_m2K": 0.18
+          },
+          {
+            "area_m2": 12.0,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 46.08,
+            "room_id": "room-l1a-002",
+            "surface_class": "roof",
+            "surface_id": "room-l1a-002-roof",
+            "u_value_W_m2K": 0.16
+          },
+          {
+            "area_m2": 9.6,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 59.903999999999996,
+            "room_id": "room-l1a-003",
+            "surface_class": "external_wall",
+            "surface_id": "room-l1a-003-seg-1",
+            "u_value_W_m2K": 0.26
+          },
+          {
+            "area_m2": 7.199999999999999,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 44.928,
+            "room_id": "room-l1a-003",
+            "surface_class": "external_wall",
+            "surface_id": "room-l1a-003-seg-2",
+            "u_value_W_m2K": 0.26
+          },
+          {
+            "area_m2": 9.6,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 59.903999999999996,
+            "room_id": "room-l1a-003",
+            "surface_class": "external_wall",
+            "surface_id": "room-l1a-003-seg-3",
+            "u_value_W_m2K": 0.26
+          },
+          {
+            "area_m2": 7.199999999999999,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 44.928,
+            "room_id": "room-l1a-003",
+            "surface_class": "external_wall",
+            "surface_id": "room-l1a-003-seg-4",
+            "u_value_W_m2K": 0.26
+          },
+          {
+            "area_m2": 12.0,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 51.84,
+            "room_id": "room-l1a-003",
+            "surface_class": "floor",
+            "surface_id": "room-l1a-003-floor",
+            "u_value_W_m2K": 0.18
+          },
+          {
+            "area_m2": 12.0,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 46.08,
+            "room_id": "room-l1a-003",
+            "surface_class": "roof",
+            "surface_id": "room-l1a-003-roof",
+            "u_value_W_m2K": 0.16
+          },
+          {
+            "area_m2": 9.6,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 59.903999999999996,
+            "room_id": "room-l1a-004",
+            "surface_class": "external_wall",
+            "surface_id": "room-l1a-004-seg-1",
+            "u_value_W_m2K": 0.26
+          },
+          {
+            "area_m2": 7.199999999999999,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 44.928,
+            "room_id": "room-l1a-004",
+            "surface_class": "external_wall",
+            "surface_id": "room-l1a-004-seg-2",
+            "u_value_W_m2K": 0.26
+          },
+          {
+            "area_m2": 9.6,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 59.903999999999996,
+            "room_id": "room-l1a-004",
+            "surface_class": "external_wall",
+            "surface_id": "room-l1a-004-seg-3",
+            "u_value_W_m2K": 0.26
+          },
+          {
+            "area_m2": 7.199999999999999,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 44.928,
+            "room_id": "room-l1a-004",
+            "surface_class": "external_wall",
+            "surface_id": "room-l1a-004-seg-4",
+            "u_value_W_m2K": 0.26
+          },
+          {
+            "area_m2": 12.0,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 51.84,
+            "room_id": "room-l1a-004",
+            "surface_class": "floor",
+            "surface_id": "room-l1a-004-floor",
+            "u_value_W_m2K": 0.18
+          },
+          {
+            "area_m2": 12.0,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 46.08,
+            "room_id": "room-l1a-004",
+            "surface_class": "roof",
+            "surface_id": "room-l1a-004-roof",
+            "u_value_W_m2K": 0.16
+          },
+          {
+            "area_m2": 9.6,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 59.903999999999996,
+            "room_id": "room-l1a-005",
+            "surface_class": "external_wall",
+            "surface_id": "room-l1a-005-seg-1",
+            "u_value_W_m2K": 0.26
+          },
+          {
+            "area_m2": 7.199999999999999,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 44.928,
+            "room_id": "room-l1a-005",
+            "surface_class": "external_wall",
+            "surface_id": "room-l1a-005-seg-2",
+            "u_value_W_m2K": 0.26
+          },
+          {
+            "area_m2": 9.6,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 59.903999999999996,
+            "room_id": "room-l1a-005",
+            "surface_class": "external_wall",
+            "surface_id": "room-l1a-005-seg-3",
+            "u_value_W_m2K": 0.26
+          },
+          {
+            "area_m2": 7.199999999999999,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 44.928,
+            "room_id": "room-l1a-005",
+            "surface_class": "external_wall",
+            "surface_id": "room-l1a-005-seg-4",
+            "u_value_W_m2K": 0.26
+          },
+          {
+            "area_m2": 12.0,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 51.84,
+            "room_id": "room-l1a-005",
+            "surface_class": "floor",
+            "surface_id": "room-l1a-005-floor",
+            "u_value_W_m2K": 0.18
+          },
+          {
+            "area_m2": 12.0,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 46.08,
+            "room_id": "room-l1a-005",
+            "surface_class": "roof",
+            "surface_id": "room-l1a-005-roof",
+            "u_value_W_m2K": 0.16
+          },
+          {
+            "area_m2": 9.6,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 59.903999999999996,
+            "room_id": "room-l1a-006",
+            "surface_class": "external_wall",
+            "surface_id": "room-l1a-006-seg-1",
+            "u_value_W_m2K": 0.26
+          },
+          {
+            "area_m2": 7.199999999999999,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 44.928,
+            "room_id": "room-l1a-006",
+            "surface_class": "external_wall",
+            "surface_id": "room-l1a-006-seg-2",
+            "u_value_W_m2K": 0.26
+          },
+          {
+            "area_m2": 9.6,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 59.903999999999996,
+            "room_id": "room-l1a-006",
+            "surface_class": "external_wall",
+            "surface_id": "room-l1a-006-seg-3",
+            "u_value_W_m2K": 0.26
+          },
+          {
+            "area_m2": 7.199999999999999,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 44.928,
+            "room_id": "room-l1a-006",
+            "surface_class": "external_wall",
+            "surface_id": "room-l1a-006-seg-4",
+            "u_value_W_m2K": 0.26
+          },
+          {
+            "area_m2": 12.0,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 51.84,
+            "room_id": "room-l1a-006",
+            "surface_class": "floor",
+            "surface_id": "room-l1a-006-floor",
+            "u_value_W_m2K": 0.18
+          },
+          {
+            "area_m2": 12.0,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 46.08,
+            "room_id": "room-l1a-006",
+            "surface_class": "roof",
+            "surface_id": "room-l1a-006-roof",
+            "u_value_W_m2K": 0.16
+          },
+          {
+            "area_m2": 9.6,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 59.903999999999996,
+            "room_id": "room-l1b-001",
+            "surface_class": "external_wall",
+            "surface_id": "room-l1b-001-seg-1",
+            "u_value_W_m2K": 0.26
+          },
+          {
+            "area_m2": 7.199999999999999,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 44.928,
+            "room_id": "room-l1b-001",
+            "surface_class": "external_wall",
+            "surface_id": "room-l1b-001-seg-2",
+            "u_value_W_m2K": 0.26
+          },
+          {
+            "area_m2": 9.6,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 59.903999999999996,
+            "room_id": "room-l1b-001",
+            "surface_class": "external_wall",
+            "surface_id": "room-l1b-001-seg-3",
+            "u_value_W_m2K": 0.26
+          },
+          {
+            "area_m2": 7.199999999999999,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 44.928,
+            "room_id": "room-l1b-001",
+            "surface_class": "external_wall",
+            "surface_id": "room-l1b-001-seg-4",
+            "u_value_W_m2K": 0.26
+          },
+          {
+            "area_m2": 12.0,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 51.84,
+            "room_id": "room-l1b-001",
+            "surface_class": "floor",
+            "surface_id": "room-l1b-001-floor",
+            "u_value_W_m2K": 0.18
+          },
+          {
+            "area_m2": 12.0,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 46.08,
+            "room_id": "room-l1b-001",
+            "surface_class": "roof",
+            "surface_id": "room-l1b-001-roof",
+            "u_value_W_m2K": 0.16
+          },
+          {
+            "area_m2": 9.6,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 59.903999999999996,
+            "room_id": "room-l1b-002",
+            "surface_class": "external_wall",
+            "surface_id": "room-l1b-002-seg-1",
+            "u_value_W_m2K": 0.26
+          },
+          {
+            "area_m2": 7.199999999999999,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 44.928,
+            "room_id": "room-l1b-002",
+            "surface_class": "external_wall",
+            "surface_id": "room-l1b-002-seg-2",
+            "u_value_W_m2K": 0.26
+          },
+          {
+            "area_m2": 9.6,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 59.903999999999996,
+            "room_id": "room-l1b-002",
+            "surface_class": "external_wall",
+            "surface_id": "room-l1b-002-seg-3",
+            "u_value_W_m2K": 0.26
+          },
+          {
+            "area_m2": 7.199999999999999,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 44.928,
+            "room_id": "room-l1b-002",
+            "surface_class": "external_wall",
+            "surface_id": "room-l1b-002-seg-4",
+            "u_value_W_m2K": 0.26
+          },
+          {
+            "area_m2": 12.0,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 51.84,
+            "room_id": "room-l1b-002",
+            "surface_class": "floor",
+            "surface_id": "room-l1b-002-floor",
+            "u_value_W_m2K": 0.18
+          },
+          {
+            "area_m2": 12.0,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 46.08,
+            "room_id": "room-l1b-002",
+            "surface_class": "roof",
+            "surface_id": "room-l1b-002-roof",
+            "u_value_W_m2K": 0.16
+          },
+          {
+            "area_m2": 9.6,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 59.903999999999996,
+            "room_id": "room-l1b-003",
+            "surface_class": "external_wall",
+            "surface_id": "room-l1b-003-seg-1",
+            "u_value_W_m2K": 0.26
+          },
+          {
+            "area_m2": 7.199999999999999,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 44.928,
+            "room_id": "room-l1b-003",
+            "surface_class": "external_wall",
+            "surface_id": "room-l1b-003-seg-2",
+            "u_value_W_m2K": 0.26
+          },
+          {
+            "area_m2": 9.6,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 59.903999999999996,
+            "room_id": "room-l1b-003",
+            "surface_class": "external_wall",
+            "surface_id": "room-l1b-003-seg-3",
+            "u_value_W_m2K": 0.26
+          },
+          {
+            "area_m2": 7.199999999999999,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 44.928,
+            "room_id": "room-l1b-003",
+            "surface_class": "external_wall",
+            "surface_id": "room-l1b-003-seg-4",
+            "u_value_W_m2K": 0.26
+          },
+          {
+            "area_m2": 12.0,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 51.84,
+            "room_id": "room-l1b-003",
+            "surface_class": "floor",
+            "surface_id": "room-l1b-003-floor",
+            "u_value_W_m2K": 0.18
+          },
+          {
+            "area_m2": 12.0,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 46.08,
+            "room_id": "room-l1b-003",
+            "surface_class": "roof",
+            "surface_id": "room-l1b-003-roof",
+            "u_value_W_m2K": 0.16
+          },
+          {
+            "area_m2": 9.6,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 59.903999999999996,
+            "room_id": "room-l1b-004",
+            "surface_class": "external_wall",
+            "surface_id": "room-l1b-004-seg-1",
+            "u_value_W_m2K": 0.26
+          },
+          {
+            "area_m2": 7.199999999999999,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 44.928,
+            "room_id": "room-l1b-004",
+            "surface_class": "external_wall",
+            "surface_id": "room-l1b-004-seg-2",
+            "u_value_W_m2K": 0.26
+          },
+          {
+            "area_m2": 9.6,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 59.903999999999996,
+            "room_id": "room-l1b-004",
+            "surface_class": "external_wall",
+            "surface_id": "room-l1b-004-seg-3",
+            "u_value_W_m2K": 0.26
+          },
+          {
+            "area_m2": 7.199999999999999,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 44.928,
+            "room_id": "room-l1b-004",
+            "surface_class": "external_wall",
+            "surface_id": "room-l1b-004-seg-4",
+            "u_value_W_m2K": 0.26
+          },
+          {
+            "area_m2": 12.0,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 51.84,
+            "room_id": "room-l1b-004",
+            "surface_class": "floor",
+            "surface_id": "room-l1b-004-floor",
+            "u_value_W_m2K": 0.18
+          },
+          {
+            "area_m2": 12.0,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 46.08,
+            "room_id": "room-l1b-004",
+            "surface_class": "roof",
+            "surface_id": "room-l1b-004-roof",
+            "u_value_W_m2K": 0.16
+          },
+          {
+            "area_m2": 9.6,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 59.903999999999996,
+            "room_id": "room-l2a-001",
+            "surface_class": "external_wall",
+            "surface_id": "room-l2a-001-seg-1",
+            "u_value_W_m2K": 0.26
+          },
+          {
+            "area_m2": 7.199999999999999,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 44.928,
+            "room_id": "room-l2a-001",
+            "surface_class": "external_wall",
+            "surface_id": "room-l2a-001-seg-2",
+            "u_value_W_m2K": 0.26
+          },
+          {
+            "area_m2": 9.6,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 59.903999999999996,
+            "room_id": "room-l2a-001",
+            "surface_class": "external_wall",
+            "surface_id": "room-l2a-001-seg-3",
+            "u_value_W_m2K": 0.26
+          },
+          {
+            "area_m2": 7.199999999999999,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 44.928,
+            "room_id": "room-l2a-001",
+            "surface_class": "external_wall",
+            "surface_id": "room-l2a-001-seg-4",
+            "u_value_W_m2K": 0.26
+          },
+          {
+            "area_m2": 12.0,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 51.84,
+            "room_id": "room-l2a-001",
+            "surface_class": "floor",
+            "surface_id": "room-l2a-001-floor",
+            "u_value_W_m2K": 0.18
+          },
+          {
+            "area_m2": 12.0,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 46.08,
+            "room_id": "room-l2a-001",
+            "surface_class": "roof",
+            "surface_id": "room-l2a-001-roof",
+            "u_value_W_m2K": 0.16
+          },
+          {
+            "area_m2": 9.6,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 59.903999999999996,
+            "room_id": "room-l2a-002",
+            "surface_class": "external_wall",
+            "surface_id": "room-l2a-002-seg-1",
+            "u_value_W_m2K": 0.26
+          },
+          {
+            "area_m2": 7.199999999999999,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 44.928,
+            "room_id": "room-l2a-002",
+            "surface_class": "external_wall",
+            "surface_id": "room-l2a-002-seg-2",
+            "u_value_W_m2K": 0.26
+          },
+          {
+            "area_m2": 9.6,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 59.903999999999996,
+            "room_id": "room-l2a-002",
+            "surface_class": "external_wall",
+            "surface_id": "room-l2a-002-seg-3",
+            "u_value_W_m2K": 0.26
+          },
+          {
+            "area_m2": 7.199999999999999,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 44.928,
+            "room_id": "room-l2a-002",
+            "surface_class": "external_wall",
+            "surface_id": "room-l2a-002-seg-4",
+            "u_value_W_m2K": 0.26
+          },
+          {
+            "area_m2": 12.0,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 51.84,
+            "room_id": "room-l2a-002",
+            "surface_class": "floor",
+            "surface_id": "room-l2a-002-floor",
+            "u_value_W_m2K": 0.18
+          },
+          {
+            "area_m2": 12.0,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 46.08,
+            "room_id": "room-l2a-002",
+            "surface_class": "roof",
+            "surface_id": "room-l2a-002-roof",
+            "u_value_W_m2K": 0.16
+          },
+          {
+            "area_m2": 9.6,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 59.903999999999996,
+            "room_id": "room-l2a-003",
+            "surface_class": "external_wall",
+            "surface_id": "room-l2a-003-seg-1",
+            "u_value_W_m2K": 0.26
+          },
+          {
+            "area_m2": 7.199999999999999,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 44.928,
+            "room_id": "room-l2a-003",
+            "surface_class": "external_wall",
+            "surface_id": "room-l2a-003-seg-2",
+            "u_value_W_m2K": 0.26
+          },
+          {
+            "area_m2": 9.6,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 59.903999999999996,
+            "room_id": "room-l2a-003",
+            "surface_class": "external_wall",
+            "surface_id": "room-l2a-003-seg-3",
+            "u_value_W_m2K": 0.26
+          },
+          {
+            "area_m2": 7.199999999999999,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 44.928,
+            "room_id": "room-l2a-003",
+            "surface_class": "external_wall",
+            "surface_id": "room-l2a-003-seg-4",
+            "u_value_W_m2K": 0.26
+          },
+          {
+            "area_m2": 12.0,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 51.84,
+            "room_id": "room-l2a-003",
+            "surface_class": "floor",
+            "surface_id": "room-l2a-003-floor",
+            "u_value_W_m2K": 0.18
+          },
+          {
+            "area_m2": 12.0,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 46.08,
+            "room_id": "room-l2a-003",
+            "surface_class": "roof",
+            "surface_id": "room-l2a-003-roof",
+            "u_value_W_m2K": 0.16
+          },
+          {
+            "area_m2": 9.6,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 59.903999999999996,
+            "room_id": "room-l2a-004",
+            "surface_class": "external_wall",
+            "surface_id": "room-l2a-004-seg-1",
+            "u_value_W_m2K": 0.26
+          },
+          {
+            "area_m2": 7.199999999999999,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 44.928,
+            "room_id": "room-l2a-004",
+            "surface_class": "external_wall",
+            "surface_id": "room-l2a-004-seg-2",
+            "u_value_W_m2K": 0.26
+          },
+          {
+            "area_m2": 9.6,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 59.903999999999996,
+            "room_id": "room-l2a-004",
+            "surface_class": "external_wall",
+            "surface_id": "room-l2a-004-seg-3",
+            "u_value_W_m2K": 0.26
+          },
+          {
+            "area_m2": 7.199999999999999,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 44.928,
+            "room_id": "room-l2a-004",
+            "surface_class": "external_wall",
+            "surface_id": "room-l2a-004-seg-4",
+            "u_value_W_m2K": 0.26
+          },
+          {
+            "area_m2": 12.0,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 51.84,
+            "room_id": "room-l2a-004",
+            "surface_class": "floor",
+            "surface_id": "room-l2a-004-floor",
+            "u_value_W_m2K": 0.18
+          },
+          {
+            "area_m2": 12.0,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 46.08,
+            "room_id": "room-l2a-004",
+            "surface_class": "roof",
+            "surface_id": "room-l2a-004-roof",
+            "u_value_W_m2K": 0.16
+          },
+          {
+            "area_m2": 9.6,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 59.903999999999996,
+            "room_id": "room-l2a-005",
+            "surface_class": "external_wall",
+            "surface_id": "room-l2a-005-seg-1",
+            "u_value_W_m2K": 0.26
+          },
+          {
+            "area_m2": 7.199999999999999,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 44.928,
+            "room_id": "room-l2a-005",
+            "surface_class": "external_wall",
+            "surface_id": "room-l2a-005-seg-2",
+            "u_value_W_m2K": 0.26
+          },
+          {
+            "area_m2": 9.6,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 59.903999999999996,
+            "room_id": "room-l2a-005",
+            "surface_class": "external_wall",
+            "surface_id": "room-l2a-005-seg-3",
+            "u_value_W_m2K": 0.26
+          },
+          {
+            "area_m2": 7.199999999999999,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 44.928,
+            "room_id": "room-l2a-005",
+            "surface_class": "external_wall",
+            "surface_id": "room-l2a-005-seg-4",
+            "u_value_W_m2K": 0.26
+          },
+          {
+            "area_m2": 12.0,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 51.84,
+            "room_id": "room-l2a-005",
+            "surface_class": "floor",
+            "surface_id": "room-l2a-005-floor",
+            "u_value_W_m2K": 0.18
+          },
+          {
+            "area_m2": 12.0,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 46.08,
+            "room_id": "room-l2a-005",
+            "surface_class": "roof",
+            "surface_id": "room-l2a-005-roof",
+            "u_value_W_m2K": 0.16
+          },
+          {
+            "area_m2": 9.6,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 59.903999999999996,
+            "room_id": "room-l2b-001",
+            "surface_class": "external_wall",
+            "surface_id": "room-l2b-001-seg-1",
+            "u_value_W_m2K": 0.26
+          },
+          {
+            "area_m2": 7.199999999999999,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 44.928,
+            "room_id": "room-l2b-001",
+            "surface_class": "external_wall",
+            "surface_id": "room-l2b-001-seg-2",
+            "u_value_W_m2K": 0.26
+          },
+          {
+            "area_m2": 9.6,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 59.903999999999996,
+            "room_id": "room-l2b-001",
+            "surface_class": "external_wall",
+            "surface_id": "room-l2b-001-seg-3",
+            "u_value_W_m2K": 0.26
+          },
+          {
+            "area_m2": 7.199999999999999,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 44.928,
+            "room_id": "room-l2b-001",
+            "surface_class": "external_wall",
+            "surface_id": "room-l2b-001-seg-4",
+            "u_value_W_m2K": 0.26
+          },
+          {
+            "area_m2": 12.0,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 51.84,
+            "room_id": "room-l2b-001",
+            "surface_class": "floor",
+            "surface_id": "room-l2b-001-floor",
+            "u_value_W_m2K": 0.18
+          },
+          {
+            "area_m2": 12.0,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 46.08,
+            "room_id": "room-l2b-001",
+            "surface_class": "roof",
+            "surface_id": "room-l2b-001-roof",
+            "u_value_W_m2K": 0.16
+          },
+          {
+            "area_m2": 9.6,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 59.903999999999996,
+            "room_id": "room-l2b-002",
+            "surface_class": "external_wall",
+            "surface_id": "room-l2b-002-seg-1",
+            "u_value_W_m2K": 0.26
+          },
+          {
+            "area_m2": 7.199999999999999,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 44.928,
+            "room_id": "room-l2b-002",
+            "surface_class": "external_wall",
+            "surface_id": "room-l2b-002-seg-2",
+            "u_value_W_m2K": 0.26
+          },
+          {
+            "area_m2": 9.6,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 59.903999999999996,
+            "room_id": "room-l2b-002",
+            "surface_class": "external_wall",
+            "surface_id": "room-l2b-002-seg-3",
+            "u_value_W_m2K": 0.26
+          },
+          {
+            "area_m2": 7.199999999999999,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 44.928,
+            "room_id": "room-l2b-002",
+            "surface_class": "external_wall",
+            "surface_id": "room-l2b-002-seg-4",
+            "u_value_W_m2K": 0.26
+          },
+          {
+            "area_m2": 12.0,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 51.84,
+            "room_id": "room-l2b-002",
+            "surface_class": "floor",
+            "surface_id": "room-l2b-002-floor",
+            "u_value_W_m2K": 0.18
+          },
+          {
+            "area_m2": 12.0,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 46.08,
+            "room_id": "room-l2b-002",
+            "surface_class": "roof",
+            "surface_id": "room-l2b-002-roof",
+            "u_value_W_m2K": 0.16
+          },
+          {
+            "area_m2": 9.6,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 59.903999999999996,
+            "room_id": "room-l2b-003",
+            "surface_class": "external_wall",
+            "surface_id": "room-l2b-003-seg-1",
+            "u_value_W_m2K": 0.26
+          },
+          {
+            "area_m2": 7.199999999999999,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 44.928,
+            "room_id": "room-l2b-003",
+            "surface_class": "external_wall",
+            "surface_id": "room-l2b-003-seg-2",
+            "u_value_W_m2K": 0.26
+          },
+          {
+            "area_m2": 9.6,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 59.903999999999996,
+            "room_id": "room-l2b-003",
+            "surface_class": "external_wall",
+            "surface_id": "room-l2b-003-seg-3",
+            "u_value_W_m2K": 0.26
+          },
+          {
+            "area_m2": 7.199999999999999,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 44.928,
+            "room_id": "room-l2b-003",
+            "surface_class": "external_wall",
+            "surface_id": "room-l2b-003-seg-4",
+            "u_value_W_m2K": 0.26
+          },
+          {
+            "area_m2": 12.0,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 51.84,
+            "room_id": "room-l2b-003",
+            "surface_class": "floor",
+            "surface_id": "room-l2b-003-floor",
+            "u_value_W_m2K": 0.18
+          },
+          {
+            "area_m2": 12.0,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 46.08,
+            "room_id": "room-l2b-003",
+            "surface_class": "roof",
+            "surface_id": "room-l2b-003-roof",
+            "u_value_W_m2K": 0.16
+          },
+          {
+            "area_m2": 9.6,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 59.903999999999996,
+            "room_id": "room-l2b-004",
+            "surface_class": "external_wall",
+            "surface_id": "room-l2b-004-seg-1",
+            "u_value_W_m2K": 0.26
+          },
+          {
+            "area_m2": 7.199999999999999,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 44.928,
+            "room_id": "room-l2b-004",
+            "surface_class": "external_wall",
+            "surface_id": "room-l2b-004-seg-2",
+            "u_value_W_m2K": 0.26
+          },
+          {
+            "area_m2": 9.6,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 59.903999999999996,
+            "room_id": "room-l2b-004",
+            "surface_class": "external_wall",
+            "surface_id": "room-l2b-004-seg-3",
+            "u_value_W_m2K": 0.26
+          },
+          {
+            "area_m2": 7.199999999999999,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 44.928,
+            "room_id": "room-l2b-004",
+            "surface_class": "external_wall",
+            "surface_id": "room-l2b-004-seg-4",
+            "u_value_W_m2K": 0.26
+          },
+          {
+            "area_m2": 12.0,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 51.84,
+            "room_id": "room-l2b-004",
+            "surface_class": "floor",
+            "surface_id": "room-l2b-004-floor",
+            "u_value_W_m2K": 0.18
+          },
+          {
+            "area_m2": 12.0,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 46.08,
+            "room_id": "room-l2b-004",
+            "surface_class": "roof",
+            "surface_id": "room-l2b-004-roof",
+            "u_value_W_m2K": 0.16
+          },
+          {
+            "area_m2": 9.6,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 59.903999999999996,
+            "room_id": "room-l2b-005",
+            "surface_class": "external_wall",
+            "surface_id": "room-l2b-005-seg-1",
+            "u_value_W_m2K": 0.26
+          },
+          {
+            "area_m2": 7.199999999999999,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 44.928,
+            "room_id": "room-l2b-005",
+            "surface_class": "external_wall",
+            "surface_id": "room-l2b-005-seg-2",
+            "u_value_W_m2K": 0.26
+          },
+          {
+            "area_m2": 9.6,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 59.903999999999996,
+            "room_id": "room-l2b-005",
+            "surface_class": "external_wall",
+            "surface_id": "room-l2b-005-seg-3",
+            "u_value_W_m2K": 0.26
+          },
+          {
+            "area_m2": 7.199999999999999,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 44.928,
+            "room_id": "room-l2b-005",
+            "surface_class": "external_wall",
+            "surface_id": "room-l2b-005-seg-4",
+            "u_value_W_m2K": 0.26
+          },
+          {
+            "area_m2": 12.0,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 51.84,
+            "room_id": "room-l2b-005",
+            "surface_class": "floor",
+            "surface_id": "room-l2b-005-floor",
+            "u_value_W_m2K": 0.18
+          },
+          {
+            "area_m2": 12.0,
+            "delta_t_K": 24.0,
+            "q_fabric_W": 46.08,
+            "room_id": "room-l2b-005",
+            "surface_class": "roof",
+            "surface_id": "room-l2b-005-roof",
+            "u_value_W_m2K": 0.16
+          }
+        ],
+        "internal_environmental_temperature_mode": true,
+        "result": {
+          "project_id": "DEV-HYDRONIC-20-ROOM-MULTILEG",
+          "project_total_W": 8556.036885,
+          "rooms": [
+            {
+              "q_fabric_W": 324.9504,
+              "q_total_W": 444.583485,
+              "q_ventilation_W": 119.633085,
+              "room_id": "room-l1a-001"
+            },
+            {
+              "q_fabric_W": 307.584,
+              "q_total_W": 426.91859999999997,
+              "q_ventilation_W": 119.3346,
+              "room_id": "room-l1a-002"
+            },
+            {
+              "q_fabric_W": 307.584,
+              "q_total_W": 426.91859999999997,
+              "q_ventilation_W": 119.3346,
+              "room_id": "room-l1a-003"
+            },
+            {
+              "q_fabric_W": 307.584,
+              "q_total_W": 426.91859999999997,
+              "q_ventilation_W": 119.3346,
+              "room_id": "room-l1a-004"
+            },
+            {
+              "q_fabric_W": 307.584,
+              "q_total_W": 426.91859999999997,
+              "q_ventilation_W": 119.3346,
+              "room_id": "room-l1a-005"
+            },
+            {
+              "q_fabric_W": 307.584,
+              "q_total_W": 426.91859999999997,
+              "q_ventilation_W": 119.3346,
+              "room_id": "room-l1a-006"
+            },
+            {
+              "q_fabric_W": 307.584,
+              "q_total_W": 426.91859999999997,
+              "q_ventilation_W": 119.3346,
+              "room_id": "room-l1b-001"
+            },
+            {
+              "q_fabric_W": 307.584,
+              "q_total_W": 426.91859999999997,
+              "q_ventilation_W": 119.3346,
+              "room_id": "room-l1b-002"
+            },
+            {
+              "q_fabric_W": 307.584,
+              "q_total_W": 426.91859999999997,
+              "q_ventilation_W": 119.3346,
+              "room_id": "room-l1b-003"
+            },
+            {
+              "q_fabric_W": 307.584,
+              "q_total_W": 426.91859999999997,
+              "q_ventilation_W": 119.3346,
+              "room_id": "room-l1b-004"
+            },
+            {
+              "q_fabric_W": 307.584,
+              "q_total_W": 426.91859999999997,
+              "q_ventilation_W": 119.3346,
+              "room_id": "room-l2a-001"
+            },
+            {
+              "q_fabric_W": 307.584,
+              "q_total_W": 426.91859999999997,
+              "q_ventilation_W": 119.3346,
+              "room_id": "room-l2a-002"
+            },
+            {
+              "q_fabric_W": 307.584,
+              "q_total_W": 426.91859999999997,
+              "q_ventilation_W": 119.3346,
+              "room_id": "room-l2a-003"
+            },
+            {
+              "q_fabric_W": 307.584,
+              "q_total_W": 426.91859999999997,
+              "q_ventilation_W": 119.3346,
+              "room_id": "room-l2a-004"
+            },
+            {
+              "q_fabric_W": 307.584,
+              "q_total_W": 426.91859999999997,
+              "q_ventilation_W": 119.3346,
+              "room_id": "room-l2a-005"
+            },
+            {
+              "q_fabric_W": 307.584,
+              "q_total_W": 426.91859999999997,
+              "q_ventilation_W": 119.3346,
+              "room_id": "room-l2b-001"
+            },
+            {
+              "q_fabric_W": 307.584,
+              "q_total_W": 426.91859999999997,
+              "q_ventilation_W": 119.3346,
+              "room_id": "room-l2b-002"
+            },
+            {
+              "q_fabric_W": 307.584,
+              "q_total_W": 426.91859999999997,
+              "q_ventilation_W": 119.3346,
+              "room_id": "room-l2b-003"
+            },
+            {
+              "q_fabric_W": 307.584,
+              "q_total_W": 426.91859999999997,
+              "q_ventilation_W": 119.3346,
+              "room_id": "room-l2b-004"
+            },
+            {
+              "q_fabric_W": 307.584,
+              "q_total_W": 426.91859999999997,
+              "q_ventilation_W": 119.3346,
+              "room_id": "room-l2b-005"
+            }
+          ]
+        },
+        "room_totals": {
+          "room-l1a-001": {
+            "q_fabric_W": 324.9504,
+            "q_total_W": 444.583485,
+            "q_ventilation_W": 119.633085,
+            "tai_C": 22.1753125
+          },
+          "room-l1a-002": {
+            "q_fabric_W": 307.584,
+            "q_total_W": 426.91859999999997,
+            "q_ventilation_W": 119.3346,
+            "tai_C": 22.1125
+          },
+          "room-l1a-003": {
+            "q_fabric_W": 307.584,
+            "q_total_W": 426.91859999999997,
+            "q_ventilation_W": 119.3346,
+            "tai_C": 22.1125
+          },
+          "room-l1a-004": {
+            "q_fabric_W": 307.584,
+            "q_total_W": 426.91859999999997,
+            "q_ventilation_W": 119.3346,
+            "tai_C": 22.1125
+          },
+          "room-l1a-005": {
+            "q_fabric_W": 307.584,
+            "q_total_W": 426.91859999999997,
+            "q_ventilation_W": 119.3346,
+            "tai_C": 22.1125
+          },
+          "room-l1a-006": {
+            "q_fabric_W": 307.584,
+            "q_total_W": 426.91859999999997,
+            "q_ventilation_W": 119.3346,
+            "tai_C": 22.1125
+          },
+          "room-l1b-001": {
+            "q_fabric_W": 307.584,
+            "q_total_W": 426.91859999999997,
+            "q_ventilation_W": 119.3346,
+            "tai_C": 22.1125
+          },
+          "room-l1b-002": {
+            "q_fabric_W": 307.584,
+            "q_total_W": 426.91859999999997,
+            "q_ventilation_W": 119.3346,
+            "tai_C": 22.1125
+          },
+          "room-l1b-003": {
+            "q_fabric_W": 307.584,
+            "q_total_W": 426.91859999999997,
+            "q_ventilation_W": 119.3346,
+            "tai_C": 22.1125
+          },
+          "room-l1b-004": {
+            "q_fabric_W": 307.584,
+            "q_total_W": 426.91859999999997,
+            "q_ventilation_W": 119.3346,
+            "tai_C": 22.1125
+          },
+          "room-l2a-001": {
+            "q_fabric_W": 307.584,
+            "q_total_W": 426.91859999999997,
+            "q_ventilation_W": 119.3346,
+            "tai_C": 22.1125
+          },
+          "room-l2a-002": {
+            "q_fabric_W": 307.584,
+            "q_total_W": 426.91859999999997,
+            "q_ventilation_W": 119.3346,
+            "tai_C": 22.1125
+          },
+          "room-l2a-003": {
+            "q_fabric_W": 307.584,
+            "q_total_W": 426.91859999999997,
+            "q_ventilation_W": 119.3346,
+            "tai_C": 22.1125
+          },
+          "room-l2a-004": {
+            "q_fabric_W": 307.584,
+            "q_total_W": 426.91859999999997,
+            "q_ventilation_W": 119.3346,
+            "tai_C": 22.1125
+          },
+          "room-l2a-005": {
+            "q_fabric_W": 307.584,
+            "q_total_W": 426.91859999999997,
+            "q_ventilation_W": 119.3346,
+            "tai_C": 22.1125
+          },
+          "room-l2b-001": {
+            "q_fabric_W": 307.584,
+            "q_total_W": 426.91859999999997,
+            "q_ventilation_W": 119.3346,
+            "tai_C": 22.1125
+          },
+          "room-l2b-002": {
+            "q_fabric_W": 307.584,
+            "q_total_W": 426.91859999999997,
+            "q_ventilation_W": 119.3346,
+            "tai_C": 22.1125
+          },
+          "room-l2b-003": {
+            "q_fabric_W": 307.584,
+            "q_total_W": 426.91859999999997,
+            "q_ventilation_W": 119.3346,
+            "tai_C": 22.1125
+          },
+          "room-l2b-004": {
+            "q_fabric_W": 307.584,
+            "q_total_W": 426.91859999999997,
+            "q_ventilation_W": 119.3346,
+            "tai_C": 22.1125
+          },
+          "room-l2b-005": {
+            "q_fabric_W": 307.584,
+            "q_total_W": 426.91859999999997,
+            "q_ventilation_W": 119.3346,
+            "tai_C": 22.1125
+          }
+        },
+        "tai_C_by_room_id": {
+          "room-l1a-001": 22.1753125,
+          "room-l1a-002": 22.1125,
+          "room-l1a-003": 22.1125,
+          "room-l1a-004": 22.1125,
+          "room-l1a-005": 22.1125,
+          "room-l1a-006": 22.1125,
+          "room-l1b-001": 22.1125,
+          "room-l1b-002": 22.1125,
+          "room-l1b-003": 22.1125,
+          "room-l1b-004": 22.1125,
+          "room-l2a-001": 22.1125,
+          "room-l2a-002": 22.1125,
+          "room-l2a-003": 22.1125,
+          "room-l2a-004": 22.1125,
+          "room-l2a-005": 22.1125,
+          "room-l2b-001": 22.1125,
+          "room-l2b-002": 22.1125,
+          "room-l2b-003": 22.1125,
+          "room-l2b-004": 22.1125,
+          "room-l2b-005": 22.1125
+        },
+        "ventilation": {
+          "external_design_temp_C": -3.0,
+          "project_id": "",
+          "qv_by_room_W": {
+            "room-l1a-001": 119.633085,
+            "room-l1a-002": 119.3346,
+            "room-l1a-003": 119.3346,
+            "room-l1a-004": 119.3346,
+            "room-l1a-005": 119.3346,
+            "room-l1a-006": 119.3346,
+            "room-l1b-001": 119.3346,
+            "room-l1b-002": 119.3346,
+            "room-l1b-003": 119.3346,
+            "room-l1b-004": 119.3346,
+            "room-l2a-001": 119.3346,
+            "room-l2a-002": 119.3346,
+            "room-l2a-003": 119.3346,
+            "room-l2a-004": 119.3346,
+            "room-l2a-005": 119.3346,
+            "room-l2b-001": 119.3346,
+            "room-l2b-002": 119.3346,
+            "room-l2b-003": 119.3346,
+            "room-l2b-004": 119.3346,
+            "room-l2b-005": 119.3346
+          },
+          "total_qv_W": 2386.990485
+        }
+      },
+      "valid": true
+    },
+    "hydronic_balancing_completion_basis_acceptance_intent": null,
+    "hydronic_committed_pipe_pair_spacing_override_intent": null,
+    "hydronic_committed_pipe_pair_vertical_order_intent": {
+      "committed_schedule_fingerprint": "",
+      "override_by_section_id": {},
+      "project_upper_pipe_role": "flow",
+      "schema": "committed_pipe_pair_vertical_order_intent_v1"
+    },
+    "hydronic_committed_pipe_section_room_mapping_intent": null,
+    "hydronic_committed_pipe_section_thermal_condition_basis_intent": {
+      "basis_by_section_id": {
+        "leg-001-primary-subleg-section-003": {
+          "ambient_air_temperature_C": 21.0,
+          "emissivity": 0.2,
+          "external_convection_coefficient_W_m2K": 9.47928,
+          "mean_radiant_temperature_C": 21.0,
+          "section_id": "leg-001-primary-subleg-section-003",
+          "surface_temperature_C": 70.0
+        }
+      },
+      "committed_schedule_fingerprint": "9c5cb8cd85c2af6d32305cad61dde8078546c68851a08456f7f5376a1a7ee883",
+      "emissivity_override_by_section_id": {
+        "leg-001-primary-subleg-section-003": 0.2
+      },
+      "schema": "committed_pipe_section_thermal_condition_basis_intent_v1"
+    },
+    "hydronic_local_k_intent": {
+      "sections": {
+        "common-main-to-leg-001-section-001": {
+          "bend_45_count": 0,
+          "bend_90_count": 0,
+          "isolation_valve_count": 0,
+          "length_m": 8.0,
+          "lockshield_count": 0,
+          "misc_k": 0.0,
+          "section_id": "common-main-to-leg-001-section-001",
+          "tee_branch_count": 0,
+          "tee_through_count": 0,
+          "trv_count": 0
+        },
+        "common-main-to-leg-002-section-001": {
+          "bend_45_count": 0,
+          "bend_90_count": 0,
+          "isolation_valve_count": 0,
+          "length_m": 12.0,
+          "lockshield_count": 0,
+          "misc_k": 0.0,
+          "section_id": "common-main-to-leg-002-section-001",
+          "tee_branch_count": 0,
+          "tee_through_count": 0,
+          "trv_count": 0
+        },
+        "leg-001-entry-section-001": {
+          "bend_45_count": 0,
+          "bend_90_count": 0,
+          "isolation_valve_count": 0,
+          "length_m": 9.0,
+          "lockshield_count": 0,
+          "misc_k": 0.0,
+          "section_id": "leg-001-entry-section-001",
+          "tee_branch_count": 0,
+          "tee_through_count": 0,
+          "trv_count": 0
+        },
+        "leg-001-primary-subleg-section-001": {
+          "bend_45_count": 0,
+          "bend_90_count": 2,
+          "isolation_valve_count": 0,
+          "length_m": 5.0,
+          "lockshield_count": 0,
+          "misc_k": 0.0,
+          "section_id": "leg-001-primary-subleg-section-001",
+          "tee_branch_count": 1,
+          "tee_through_count": 1,
+          "trv_count": 0
+        },
+        "leg-001-primary-subleg-section-002": {
+          "bend_45_count": 1,
+          "bend_90_count": 1,
+          "isolation_valve_count": 0,
+          "length_m": 4.0,
+          "lockshield_count": 0,
+          "misc_k": 0.0,
+          "section_id": "leg-001-primary-subleg-section-002",
+          "tee_branch_count": 1,
+          "tee_through_count": 1,
+          "trv_count": 0
+        },
+        "leg-001-primary-subleg-section-003": {
+          "bend_45_count": 0,
+          "bend_90_count": 2,
+          "isolation_valve_count": 0,
+          "length_m": 4.5,
+          "lockshield_count": 0,
+          "misc_k": 0.0,
+          "section_id": "leg-001-primary-subleg-section-003",
+          "tee_branch_count": 0,
+          "tee_through_count": 1,
+          "trv_count": 0
+        },
+        "leg-001-primary-subleg-section-004": {
+          "bend_45_count": 1,
+          "bend_90_count": 1,
+          "isolation_valve_count": 0,
+          "length_m": 3.5,
+          "lockshield_count": 0,
+          "misc_k": 0.0,
+          "section_id": "leg-001-primary-subleg-section-004",
+          "tee_branch_count": 0,
+          "tee_through_count": 1,
+          "trv_count": 0
+        },
+        "leg-001-primary-subleg-section-005": {
+          "bend_45_count": 0,
+          "bend_90_count": 1,
+          "isolation_valve_count": 0,
+          "length_m": 3.0,
+          "lockshield_count": 0,
+          "misc_k": 0.0,
+          "section_id": "leg-001-primary-subleg-section-005",
+          "tee_branch_count": 0,
+          "tee_through_count": 1,
+          "trv_count": 0
+        },
+        "leg-001-primary-subleg-section-006": {
+          "bend_45_count": 0,
+          "bend_90_count": 1,
+          "isolation_valve_count": 0,
+          "length_m": 2.5,
+          "lockshield_count": 0,
+          "misc_k": 0.0,
+          "section_id": "leg-001-primary-subleg-section-006",
+          "tee_branch_count": 0,
+          "tee_through_count": 0,
+          "trv_count": 0
+        },
+        "leg-001-subleg-b-section-001": {
+          "bend_45_count": 1,
+          "bend_90_count": 3,
+          "isolation_valve_count": 0,
+          "length_m": 6.0,
+          "lockshield_count": 0,
+          "misc_k": 0.0,
+          "section_id": "leg-001-subleg-b-section-001",
+          "tee_branch_count": 1,
+          "tee_through_count": 1,
+          "trv_count": 0
+        },
+        "leg-001-subleg-b-section-002": {
+          "bend_45_count": 1,
+          "bend_90_count": 2,
+          "isolation_valve_count": 0,
+          "length_m": 5.5,
+          "lockshield_count": 0,
+          "misc_k": 0.0,
+          "section_id": "leg-001-subleg-b-section-002",
+          "tee_branch_count": 0,
+          "tee_through_count": 1,
+          "trv_count": 0
+        },
+        "leg-001-subleg-b-section-003": {
+          "bend_45_count": 0,
+          "bend_90_count": 2,
+          "isolation_valve_count": 0,
+          "length_m": 5.0,
+          "lockshield_count": 0,
+          "misc_k": 0.0,
+          "section_id": "leg-001-subleg-b-section-003",
+          "tee_branch_count": 0,
+          "tee_through_count": 1,
+          "trv_count": 0
+        },
+        "leg-001-subleg-b-section-004": {
+          "bend_45_count": 1,
+          "bend_90_count": 1,
+          "isolation_valve_count": 0,
+          "length_m": 4.5,
+          "lockshield_count": 0,
+          "misc_k": 0.0,
+          "section_id": "leg-001-subleg-b-section-004",
+          "tee_branch_count": 0,
+          "tee_through_count": 0,
+          "trv_count": 0
+        },
+        "leg-002-entry-section-001": {
+          "bend_45_count": 0,
+          "bend_90_count": 0,
+          "isolation_valve_count": 0,
+          "length_m": 6.0,
+          "lockshield_count": 0,
+          "misc_k": 0.0,
+          "section_id": "leg-002-entry-section-001",
+          "tee_branch_count": 0,
+          "tee_through_count": 0,
+          "trv_count": 0
+        },
+        "leg-002-primary-subleg-section-001": {
+          "bend_45_count": 0,
+          "bend_90_count": 2,
+          "isolation_valve_count": 0,
+          "length_m": 5.0,
+          "lockshield_count": 0,
+          "misc_k": 0.0,
+          "section_id": "leg-002-primary-subleg-section-001",
+          "tee_branch_count": 1,
+          "tee_through_count": 1,
+          "trv_count": 0
+        },
+        "leg-002-primary-subleg-section-002": {
+          "bend_45_count": 1,
+          "bend_90_count": 2,
+          "isolation_valve_count": 0,
+          "length_m": 4.5,
+          "lockshield_count": 0,
+          "misc_k": 0.0,
+          "section_id": "leg-002-primary-subleg-section-002",
+          "tee_branch_count": 1,
+          "tee_through_count": 1,
+          "trv_count": 0
+        },
+        "leg-002-primary-subleg-section-003": {
+          "bend_45_count": 1,
+          "bend_90_count": 1,
+          "isolation_valve_count": 0,
+          "length_m": 4.0,
+          "lockshield_count": 0,
+          "misc_k": 0.0,
+          "section_id": "leg-002-primary-subleg-section-003",
+          "tee_branch_count": 0,
+          "tee_through_count": 1,
+          "trv_count": 0
+        },
+        "leg-002-primary-subleg-section-004": {
+          "bend_45_count": 0,
+          "bend_90_count": 1,
+          "isolation_valve_count": 0,
+          "length_m": 3.5,
+          "lockshield_count": 0,
+          "misc_k": 0.0,
+          "section_id": "leg-002-primary-subleg-section-004",
+          "tee_branch_count": 0,
+          "tee_through_count": 1,
+          "trv_count": 0
+        },
+        "leg-002-primary-subleg-section-005": {
+          "bend_45_count": 0,
+          "bend_90_count": 1,
+          "isolation_valve_count": 0,
+          "length_m": 3.0,
+          "lockshield_count": 0,
+          "misc_k": 0.0,
+          "section_id": "leg-002-primary-subleg-section-005",
+          "tee_branch_count": 0,
+          "tee_through_count": 0,
+          "trv_count": 0
+        },
+        "leg-002-subleg-b-section-001": {
+          "bend_45_count": 1,
+          "bend_90_count": 3,
+          "isolation_valve_count": 0,
+          "length_m": 7.0,
+          "lockshield_count": 0,
+          "misc_k": 0.0,
+          "section_id": "leg-002-subleg-b-section-001",
+          "tee_branch_count": 1,
+          "tee_through_count": 1,
+          "trv_count": 0
+        },
+        "leg-002-subleg-b-section-002": {
+          "bend_45_count": 1,
+          "bend_90_count": 3,
+          "isolation_valve_count": 0,
+          "length_m": 6.0,
+          "lockshield_count": 0,
+          "misc_k": 0.0,
+          "section_id": "leg-002-subleg-b-section-002",
+          "tee_branch_count": 0,
+          "tee_through_count": 1,
+          "trv_count": 0
+        },
+        "leg-002-subleg-b-section-003": {
+          "bend_45_count": 1,
+          "bend_90_count": 2,
+          "isolation_valve_count": 0,
+          "length_m": 5.5,
+          "lockshield_count": 0,
+          "misc_k": 0.0,
+          "section_id": "leg-002-subleg-b-section-003",
+          "tee_branch_count": 0,
+          "tee_through_count": 1,
+          "trv_count": 0
+        },
+        "leg-002-subleg-b-section-004": {
+          "bend_45_count": 0,
+          "bend_90_count": 2,
+          "isolation_valve_count": 0,
+          "length_m": 5.0,
+          "lockshield_count": 0,
+          "misc_k": 0.0,
+          "section_id": "leg-002-subleg-b-section-004",
+          "tee_branch_count": 0,
+          "tee_through_count": 1,
+          "trv_count": 0
+        },
+        "leg-002-subleg-b-section-005": {
+          "bend_45_count": 1,
+          "bend_90_count": 1,
+          "isolation_valve_count": 0,
+          "length_m": 4.5,
+          "lockshield_count": 0,
+          "misc_k": 0.0,
+          "section_id": "leg-002-subleg-b-section-005",
+          "tee_branch_count": 0,
+          "tee_through_count": 0,
+          "trv_count": 0
+        }
+      }
+    },
+    "hydronic_point_accepted_kvs_consequence_disposition_intent": {
+      "disposition_by_point_id": {
+        "balancing-point:leg:leg-001": {
+          "accepted_kvs_basis": 2.5,
+          "balancing_point_id": "balancing-point:leg:leg-001",
+          "consequence_fingerprint": "10ea2f718f4ffb0def3ed8f273398fa968ceeac2fe97556ea2c68563f016e985",
+          "disposition": "approved_for_product_search"
+        },
+        "balancing-point:subleg:leg-001-subleg-b": {
+          "accepted_kvs_basis": 2.5,
+          "balancing_point_id": "balancing-point:subleg:leg-001-subleg-b",
+          "consequence_fingerprint": "3f46a0888fffaa873c7adfb9893010c80cd187b7f5d2b660d39621abf6b2be39",
+          "disposition": "approved_for_product_search"
+        },
+        "balancing-point:subleg:leg-002-primary-subleg:downstream-exclusive": {
+          "accepted_kvs_basis": 2.5,
+          "balancing_point_id": "balancing-point:subleg:leg-002-primary-subleg:downstream-exclusive",
+          "consequence_fingerprint": "1d4c4b60dbac078129b691d0a103404801a3cb42744373fed0276ade3f821719",
+          "disposition": "approved_for_product_search"
+        }
+      },
+      "schema": "balancing_point_accepted_kvs_consequence_disposition_intent_v1"
+    },
+    "hydronic_point_accepted_valve_candidate_consequence_disposition_intent": {
+      "disposition_by_point_id": {
+        "balancing-point:subleg:leg-002-primary-subleg:downstream-exclusive": {
+          "balancing_point_id": "balancing-point:subleg:leg-002-primary-subleg:downstream-exclusive",
+          "catalog_id_basis": "local-generic-valves-v1",
+          "consequence_fingerprint": "",
+          "current_kv_m3_h_basis": 10.0,
+          "disposition": "approved_for_later_valve_design",
+          "valve_ref_basis": "LOCAL-GENERIC-KV-10"
+        }
+      },
+      "schema": "balancing_point_accepted_valve_candidate_consequence_disposition_intent_v1"
+    },
+    "hydronic_point_kvs_candidate_acceptance_intent": {
+      "accepted_by_point_id": {
+        "balancing-point:leg:leg-001": {
+          "accepted_kvs": 2.5,
+          "balancing_point_id": "balancing-point:leg:leg-001",
+          "duty_fingerprint": "5a1e8b98c2b84c53558643ae4afabc6642a070d83383c0fabc40dee24b818300",
+          "kvs_series_id": "generic_preferred_kvs_series_v1"
+        },
+        "balancing-point:subleg:leg-001-subleg-b": {
+          "accepted_kvs": 2.5,
+          "balancing_point_id": "balancing-point:subleg:leg-001-subleg-b",
+          "duty_fingerprint": "61b78819484928b2d14e9e3b5b31448ee2d1156b027964988fc7a24611a4e786",
+          "kvs_series_id": "generic_preferred_kvs_series_v1"
+        },
+        "balancing-point:subleg:leg-002-primary-subleg:downstream-exclusive": {
+          "accepted_kvs": 2.5,
+          "balancing_point_id": "balancing-point:subleg:leg-002-primary-subleg:downstream-exclusive",
+          "duty_fingerprint": "d895d1951e37ad610fd9e6d5c2c1e4d31034774b9717ce7985f0f00c87ba806e",
+          "kvs_series_id": "generic_preferred_kvs_series_v1"
+        }
+      },
+      "schema": "balancing_point_kvs_candidate_acceptance_intent_v1"
+    },
+    "hydronic_point_manufacturer_valve_candidate_acceptance_intent": null,
+    "hydronic_point_valve_candidate_acceptance_intent": {
+      "accepted_by_point_id": {
+        "balancing-point:main:leg-002": {
+          "balancing_point_id": "balancing-point:main:leg-002",
+          "catalog_id": "local-generic-valves-v1",
+          "match_fingerprint": "",
+          "valve_ref": "LOCAL-GENERIC-KV-6.3"
+        },
+        "balancing-point:subleg:leg-001-primary-subleg:downstream-exclusive": {
+          "balancing_point_id": "balancing-point:subleg:leg-001-primary-subleg:downstream-exclusive",
+          "catalog_id": "local-generic-valves-v1",
+          "match_fingerprint": "",
+          "valve_ref": "LOCAL-GENERIC-KV-6.3"
+        },
+        "balancing-point:subleg:leg-002-primary-subleg:downstream-exclusive": {
+          "balancing_point_id": "balancing-point:subleg:leg-002-primary-subleg:downstream-exclusive",
+          "catalog_id": "local-generic-valves-v1",
+          "match_fingerprint": "",
+          "valve_ref": "LOCAL-GENERIC-KV-10"
+        }
+      },
+      "schema": "balancing_point_valve_candidate_acceptance_intent_v1"
+    },
+    "hydronic_point_valve_product_search_criteria_intent": {
+      "criteria_by_point_id": {
+        "balancing-point:main:leg-002": {
+          "accepted_kvs_basis": 6.3,
+          "balancing_point_id": "balancing-point:main:leg-002",
+          "catalog_id": "local-generic-valves-v1",
+          "duty_envelope_fingerprint": "",
+          "kv_tolerance_percent": 0.0,
+          "note_contains": "",
+          "valve_ref_contains": ""
+        },
+        "balancing-point:subleg:leg-001-primary-subleg:downstream-exclusive": {
+          "accepted_kvs_basis": 6.3,
+          "balancing_point_id": "balancing-point:subleg:leg-001-primary-subleg:downstream-exclusive",
+          "catalog_id": "local-generic-valves-v1",
+          "duty_envelope_fingerprint": "",
+          "kv_tolerance_percent": 0.0,
+          "note_contains": "",
+          "valve_ref_contains": ""
+        },
+        "balancing-point:subleg:leg-002-primary-subleg:downstream-exclusive": {
+          "accepted_kvs_basis": 10.0,
+          "balancing_point_id": "balancing-point:subleg:leg-002-primary-subleg:downstream-exclusive",
+          "catalog_id": "local-generic-valves-v1",
+          "duty_envelope_fingerprint": "",
+          "kv_tolerance_percent": 0.0,
+          "note_contains": "",
+          "valve_ref_contains": ""
+        }
+      },
+      "schema": "balancing_point_valve_product_search_criteria_intent_v1"
+    },
+    "hydronic_proportioned_basis_snapshot": {
+      "basis_mode": "INDEX_LENGTH",
+      "basis_only_output_ready": true,
+      "basis_only_output_status": "Ready for basis-only Proportioned output export \u2014 final hydraulics not included",
+      "committed_point_valve_bases": [
+        {
+          "accepted_kvs_basis": 2.5,
+          "balancing_point_id": "balancing-point:leg:leg-001",
+          "disposition": "approved_for_product_search"
+        },
+        {
+          "accepted_kvs_basis": 2.5,
+          "balancing_point_id": "balancing-point:subleg:leg-001-subleg-b",
+          "disposition": "approved_for_product_search"
+        },
+        {
+          "accepted_kvs_basis": 2.5,
+          "balancing_point_id": "balancing-point:subleg:leg-002-primary-subleg:downstream-exclusive",
+          "disposition": "approved_for_product_search"
+        }
+      ],
+      "hydraulic_input_authority": {
+        "blockers": [],
+        "note": "Frozen current material, pipe size, actual bore, roughness, flow, physical-length, Local-K, Colebrook and chosen-route evidence only \u2014 no recalculation or final design.",
+        "ready": true,
+        "routes": [
+          {
+            "basis": "F+RR",
+            "chosen_pressure_drop_Pa": 43702.0,
+            "common_main_pressure_drop_Pa": null,
+            "controlling": false,
+            "leg_entry_pressure_drop_Pa": null,
+            "physical_main_entry_pressure_drop_Pa": null,
+            "preliminary_resistance_Pa_per_kg_s2": 844834.5,
+            "required_added_pressure_drop_Pa": 24387.0,
+            "route_id": "leg-001-primary-subleg",
+            "route_label": "Leg 1A Common subleg"
+          },
+          {
+            "basis": "F+RR",
+            "chosen_pressure_drop_Pa": 38160.9,
+            "common_main_pressure_drop_Pa": null,
+            "controlling": false,
+            "leg_entry_pressure_drop_Pa": null,
+            "physical_main_entry_pressure_drop_Pa": null,
+            "preliminary_resistance_Pa_per_kg_s2": 5100604.0,
+            "required_added_pressure_drop_Pa": 29928.1,
+            "route_id": "leg-001-subleg-b",
+            "route_label": "Leg 1B Branch subleg"
+          },
+          {
+            "basis": "F+RR",
+            "chosen_pressure_drop_Pa": 40282.4,
+            "common_main_pressure_drop_Pa": null,
+            "controlling": false,
+            "leg_entry_pressure_drop_Pa": null,
+            "physical_main_entry_pressure_drop_Pa": null,
+            "preliminary_resistance_Pa_per_kg_s2": 863978.7,
+            "required_added_pressure_drop_Pa": 27806.6,
+            "route_id": "leg-002-primary-subleg",
+            "route_label": "Leg 2A Common subleg"
+          },
+          {
+            "basis": "F+RR",
+            "chosen_pressure_drop_Pa": 68089.0,
+            "common_main_pressure_drop_Pa": null,
+            "controlling": true,
+            "leg_entry_pressure_drop_Pa": null,
+            "physical_main_entry_pressure_drop_Pa": null,
+            "preliminary_resistance_Pa_per_kg_s2": 0.0,
+            "required_added_pressure_drop_Pa": 0.0,
+            "route_id": "leg-002-subleg-b",
+            "route_label": "Leg 2B Branch subleg"
+          }
+        ],
+        "schema": "committed_proportioning_hydraulic_input_authority_v1",
+        "sections": [
+          {
+            "carried_flow_kg_s": 0.34928229665071775,
+            "colebrook_converged": true,
+            "colebrook_iteration_count": 6,
+            "dn": 28,
+            "friction_factor": 0.02707037094146969,
+            "friction_method": "colebrook",
+            "from_label": "L1A-R01",
+            "internal_diameter_m": 0.026199999999999998,
+            "k_total": 0.0,
+            "length_m": 8.0,
+            "local_pressure_drop_Pa": 0.0,
+            "material_key": "copper",
+            "material_label": "Copper EN1057",
+            "material_roughness_m": 1.5e-06,
+            "order": 1,
+            "pipe_size_label": "28 mm",
+            "pressure_gradient_Pa_per_m": 217.27041736775683,
+            "reynolds_number": 16974.047037084427,
+            "route_ids": [
+              "leg-001:leg-001-primary-subleg",
+              "leg-001:leg-001-subleg-b",
+              "leg-002:leg-002-primary-subleg",
+              "leg-002:leg-002-subleg-b"
+            ],
+            "section_id": "common-main-to-leg-001-section-001",
+            "section_scope": "common_main",
+            "section_total_pressure_drop_Pa": 1738.1633389420547,
+            "straight_pressure_drop_Pa": 1738.1633389420547,
+            "to_label": "Heating Leg 1 take-off",
+            "velocity_m_s": 0.6491627161607348
+          },
+          {
+            "carried_flow_kg_s": 0.16985645933014357,
+            "colebrook_converged": true,
+            "colebrook_iteration_count": 5,
+            "dn": 22,
+            "friction_factor": 0.03045037671001155,
+            "friction_method": "colebrook",
+            "from_label": "Heating Leg 1 take-off",
+            "internal_diameter_m": 0.0202,
+            "k_total": 0.0,
+            "length_m": 9.0,
+            "local_pressure_drop_Pa": 0.0,
+            "material_key": "copper",
+            "material_label": "Copper EN1057",
+            "material_roughness_m": 1.5e-06,
+            "order": 1,
+            "pipe_size_label": "22 mm",
+            "pressure_gradient_Pa_per_m": 212.15811923248413,
+            "reynolds_number": 10706.334700388054,
+            "route_ids": [
+              "leg-001:leg-001-primary-subleg",
+              "leg-001:leg-001-subleg-b"
+            ],
+            "section_id": "leg-001-entry-section-001",
+            "section_scope": "leg_entry",
+            "section_total_pressure_drop_Pa": 1909.423073092357,
+            "straight_pressure_drop_Pa": 1909.423073092357,
+            "to_label": "Heating Leg 1 entry",
+            "velocity_m_s": 0.5310787267797007
+          },
+          {
+            "carried_flow_kg_s": 0.16985645933014357,
+            "colebrook_converged": true,
+            "colebrook_iteration_count": 5,
+            "dn": 22,
+            "friction_factor": 0.03045037671001155,
+            "friction_method": "colebrook",
+            "from_label": "Common main / leg entry",
+            "internal_diameter_m": 0.0202,
+            "k_total": 3.8,
+            "length_m": 5.0,
+            "local_pressure_drop_Pa": 534.8129971387569,
+            "material_key": "copper",
+            "material_label": "Copper EN1057",
+            "material_roughness_m": 1.5e-06,
+            "order": 1,
+            "pipe_size_label": "22 mm",
+            "pressure_gradient_Pa_per_m": 212.15811923248413,
+            "reynolds_number": 10706.334700388054,
+            "route_ids": [
+              "leg-001:leg-001-primary-subleg"
+            ],
+            "section_id": "leg-001-primary-subleg-section-001",
+            "section_scope": "route_section",
+            "section_total_pressure_drop_Pa": 1595.6035933011776,
+            "straight_pressure_drop_Pa": 1060.7905961624206,
+            "to_label": "L1A-R01",
+            "velocity_m_s": 0.5310787267797007
+          },
+          {
+            "carried_flow_kg_s": 0.14832535885167464,
+            "colebrook_converged": true,
+            "colebrook_iteration_count": 5,
+            "dn": 15,
+            "friction_factor": 0.0285562585446601,
+            "friction_method": "colebrook",
+            "from_label": "L1A-R01",
+            "internal_diameter_m": 0.0136,
+            "k_total": 3.5,
+            "length_m": 4.0,
+            "local_pressure_drop_Pa": 1828.112535421739,
+            "material_key": "copper",
+            "material_label": "Copper EN1057",
+            "material_roughness_m": 1.5e-06,
+            "order": 2,
+            "pipe_size_label": "15 mm",
+            "pressure_gradient_Pa_per_m": 1096.7238279461612,
+            "reynolds_number": 13886.302380660727,
+            "route_ids": [
+              "leg-001:leg-001-primary-subleg"
+            ],
+            "section_id": "leg-001-primary-subleg-section-002",
+            "section_scope": "route_section",
+            "section_total_pressure_drop_Pa": 6215.007847206384,
+            "straight_pressure_drop_Pa": 4386.895311784645,
+            "to_label": "L1A-R02",
+            "velocity_m_s": 1.0230978413194571
+          },
+          {
+            "carried_flow_kg_s": 0.052631578947368425,
+            "colebrook_converged": true,
+            "colebrook_iteration_count": 5,
+            "dn": 10,
+            "friction_factor": 0.03346264499693,
+            "friction_method": "colebrook",
+            "from_label": "L1A-R02",
+            "internal_diameter_m": 0.0088,
+            "k_total": 2.0,
+            "length_m": 4.5,
+            "local_pressure_drop_Pa": 750.3291267137809,
+            "material_key": "copper",
+            "material_label": "Copper EN1057",
+            "material_roughness_m": 1.5e-06,
+            "order": 3,
+            "pipe_size_label": "10 mm",
+            "pressure_gradient_Pa_per_m": 1426.5907498908948,
+            "reynolds_number": 7615.069047459107,
+            "route_ids": [
+              "leg-001:leg-001-primary-subleg"
+            ],
+            "section_id": "leg-001-primary-subleg-section-003",
+            "section_scope": "route_section",
+            "section_total_pressure_drop_Pa": 7169.987501222808,
+            "straight_pressure_drop_Pa": 6419.6583745090265,
+            "to_label": "L1A-R03",
+            "velocity_m_s": 0.8670829212355515
+          },
+          {
+            "carried_flow_kg_s": 0.03588516746411483,
+            "colebrook_converged": true,
+            "colebrook_iteration_count": 6,
+            "dn": 10,
+            "friction_factor": 0.03718396462330653,
+            "friction_method": "colebrook",
+            "from_label": "L1A-R03",
+            "internal_diameter_m": 0.0088,
+            "k_total": 1.7000000000000002,
+            "length_m": 3.5,
+            "local_pressure_drop_Pa": 296.48852372729465,
+            "material_key": "copper",
+            "material_label": "Copper EN1057",
+            "material_roughness_m": 1.5e-06,
+            "order": 4,
+            "pipe_size_label": "10 mm",
+            "pressure_gradient_Pa_per_m": 736.93975785375,
+            "reynolds_number": 5192.092532358483,
+            "route_ids": [
+              "leg-001:leg-001-primary-subleg"
+            ],
+            "section_id": "leg-001-primary-subleg-section-004",
+            "section_scope": "route_section",
+            "section_total_pressure_drop_Pa": 2875.77767621542,
+            "straight_pressure_drop_Pa": 2579.289152488125,
+            "to_label": "L1A-R04",
+            "velocity_m_s": 0.5911929008424215
+          },
+          {
+            "carried_flow_kg_s": 0.0215311004784689,
+            "colebrook_converged": true,
+            "colebrook_iteration_count": 7,
+            "dn": 10,
+            "friction_factor": 0.04317547383971894,
+            "friction_method": "colebrook",
+            "from_label": "L1A-R04",
+            "internal_diameter_m": 0.0088,
+            "k_total": 1.2999999999999998,
+            "length_m": 3.0,
+            "local_pressure_drop_Pa": 81.62154653198463,
+            "material_key": "copper",
+            "material_label": "Copper EN1057",
+            "material_roughness_m": 1.5e-06,
+            "order": 5,
+            "pipe_size_label": "10 mm",
+            "pressure_gradient_Pa_per_m": 308.0462366301665,
+            "reynolds_number": 3115.2555194150896,
+            "route_ids": [
+              "leg-001:leg-001-primary-subleg"
+            ],
+            "section_id": "leg-001-primary-subleg-section-005",
+            "section_scope": "route_section",
+            "section_total_pressure_drop_Pa": 1005.7602564224842,
+            "straight_pressure_drop_Pa": 924.1387098904995,
+            "to_label": "L1A-R05",
+            "velocity_m_s": 0.3547157405054529
+          },
+          {
+            "carried_flow_kg_s": 0.009569377990430622,
+            "colebrook_converged": true,
+            "colebrook_iteration_count": 0,
+            "dn": 10,
+            "friction_factor": 0.04622413766785878,
+            "friction_method": "colebrook",
+            "from_label": "L1A-R05",
+            "internal_diameter_m": 0.0088,
+            "k_total": 0.7,
+            "length_m": 2.5,
+            "local_pressure_drop_Pa": 8.681494028093331,
+            "material_key": "copper",
+            "material_label": "Copper EN1057",
+            "material_roughness_m": 1.5e-06,
+            "order": 6,
+            "pipe_size_label": "10 mm",
+            "pressure_gradient_Pa_per_m": 65.14522323332467,
+            "reynolds_number": 1384.5580086289285,
+            "route_ids": [
+              "leg-001:leg-001-primary-subleg"
+            ],
+            "section_id": "leg-001-primary-subleg-section-006",
+            "section_scope": "route_section",
+            "section_total_pressure_drop_Pa": 171.544552111405,
+            "straight_pressure_drop_Pa": 162.86305808331167,
+            "to_label": "L1A-R06",
+            "velocity_m_s": 0.15765144022464572
+          },
+          {
+            "carried_flow_kg_s": 0.07655502392344499,
+            "colebrook_converged": true,
+            "colebrook_iteration_count": 5,
+            "dn": 15,
+            "friction_factor": 0.0339347379068348,
+            "friction_method": "colebrook",
+            "from_label": "Common main / leg entry",
+            "internal_diameter_m": 0.0136,
+            "k_total": 4.8999999999999995,
+            "length_m": 6.0,
+            "local_pressure_drop_Pa": 681.7851536890231,
+            "material_key": "copper",
+            "material_label": "Copper EN1057",
+            "material_roughness_m": 1.5e-06,
+            "order": 1,
+            "pipe_size_label": "15 mm",
+            "pressure_gradient_Pa_per_m": 347.1818802402173,
+            "reynolds_number": 7167.123809373278,
+            "route_ids": [
+              "leg-001:leg-001-subleg-b"
+            ],
+            "section_id": "leg-001-subleg-b-section-001",
+            "section_scope": "route_section",
+            "section_total_pressure_drop_Pa": 2764.876435130327,
+            "straight_pressure_drop_Pa": 2083.091281441304,
+            "to_label": "L1B-R01",
+            "velocity_m_s": 0.5280504987455262
+          },
+          {
+            "carried_flow_kg_s": 0.05023923444976077,
+            "colebrook_converged": true,
+            "colebrook_iteration_count": 5,
+            "dn": 10,
+            "friction_factor": 0.03388423195248963,
+            "friction_method": "colebrook",
+            "from_label": "L1B-R01",
+            "internal_diameter_m": 0.0088,
+            "k_total": 2.4,
+            "length_m": 5.5,
+            "local_pressure_drop_Pa": 820.40118565482,
+            "material_key": "copper",
+            "material_label": "Copper EN1057",
+            "material_roughness_m": 1.5e-06,
+            "order": 2,
+            "pipe_size_label": "10 mm",
+            "pressure_gradient_Pa_per_m": 1316.224624470901,
+            "reynolds_number": 7268.929545301877,
+            "route_ids": [
+              "leg-001:leg-001-subleg-b"
+            ],
+            "section_id": "leg-001-subleg-b-section-002",
+            "section_scope": "route_section",
+            "section_total_pressure_drop_Pa": 8059.636620244775,
+            "straight_pressure_drop_Pa": 7239.235434589956,
+            "to_label": "L1B-R02",
+            "velocity_m_s": 0.8276700611793901
+          },
+          {
+            "carried_flow_kg_s": 0.028708133971291867,
+            "colebrook_converged": true,
+            "colebrook_iteration_count": 6,
+            "dn": 10,
+            "friction_factor": 0.039641182662414697,
+            "friction_method": "colebrook",
+            "from_label": "L1B-R02",
+            "internal_diameter_m": 0.0088,
+            "k_total": 2.0,
+            "length_m": 5.0,
+            "local_pressure_drop_Pa": 223.2384178652571,
+            "material_key": "copper",
+            "material_label": "Copper EN1057",
+            "material_roughness_m": 1.5e-06,
+            "order": 3,
+            "pipe_size_label": "10 mm",
+            "pressure_gradient_Pa_per_m": 502.8088011286999,
+            "reynolds_number": 4153.674025886787,
+            "route_ids": [
+              "leg-001:leg-001-subleg-b"
+            ],
+            "section_id": "leg-001-subleg-b-section-003",
+            "section_scope": "route_section",
+            "section_total_pressure_drop_Pa": 2737.2824235087564,
+            "straight_pressure_drop_Pa": 2514.0440056434995,
+            "to_label": "L1B-R03",
+            "velocity_m_s": 0.47295432067393717
+          },
+          {
+            "carried_flow_kg_s": 0.011961722488038277,
+            "colebrook_converged": true,
+            "colebrook_iteration_count": 0,
+            "dn": 10,
+            "friction_factor": 0.03697931013428702,
+            "friction_method": "colebrook",
+            "from_label": "L1B-R03",
+            "internal_diameter_m": 0.0088,
+            "k_total": 1.1,
+            "length_m": 4.5,
+            "local_pressure_drop_Pa": 21.316168372550596,
+            "material_key": "copper",
+            "material_label": "Copper EN1057",
+            "material_roughness_m": 1.5e-06,
+            "order": 4,
+            "pipe_size_label": "10 mm",
+            "pressure_gradient_Pa_per_m": 81.43152904165585,
+            "reynolds_number": 1730.6975107861608,
+            "route_ids": [
+              "leg-001:leg-001-subleg-b"
+            ],
+            "section_id": "leg-001-subleg-b-section-004",
+            "section_scope": "route_section",
+            "section_total_pressure_drop_Pa": 387.7580490600019,
+            "straight_pressure_drop_Pa": 366.4418806874513,
+            "to_label": "L1B-R04",
+            "velocity_m_s": 0.19706430028080715
+          },
+          {
+            "carried_flow_kg_s": 0.17942583732057416,
+            "colebrook_converged": true,
+            "colebrook_iteration_count": 5,
+            "dn": 22,
+            "friction_factor": 0.03002120105332698,
+            "friction_method": "colebrook",
+            "from_label": "Heating Leg 1 take-off",
+            "internal_diameter_m": 0.0202,
+            "k_total": 0.0,
+            "length_m": 12.0,
+            "local_pressure_drop_Pa": 0.0,
+            "material_key": "copper",
+            "material_label": "Copper EN1057",
+            "material_roughness_m": 1.5e-06,
+            "order": 2,
+            "pipe_size_label": "22 mm",
+            "pressure_gradient_Pa_per_m": 233.40001483877512,
+            "reynolds_number": 11309.508486325407,
+            "route_ids": [
+              "leg-002:leg-002-primary-subleg",
+              "leg-002:leg-002-subleg-b"
+            ],
+            "section_id": "common-main-to-leg-002-section-001",
+            "section_scope": "common_main",
+            "section_total_pressure_drop_Pa": 2800.800178065301,
+            "straight_pressure_drop_Pa": 2800.800178065301,
+            "to_label": "Heating Leg 2 take-off",
+            "velocity_m_s": 0.5609986550489795
+          },
+          {
+            "carried_flow_kg_s": 0.17942583732057416,
+            "colebrook_converged": true,
+            "colebrook_iteration_count": 5,
+            "dn": 22,
+            "friction_factor": 0.03002120105332698,
+            "friction_method": "colebrook",
+            "from_label": "Heating Leg 2 take-off",
+            "internal_diameter_m": 0.0202,
+            "k_total": 0.0,
+            "length_m": 6.0,
+            "local_pressure_drop_Pa": 0.0,
+            "material_key": "copper",
+            "material_label": "Copper EN1057",
+            "material_roughness_m": 1.5e-06,
+            "order": 2,
+            "pipe_size_label": "22 mm",
+            "pressure_gradient_Pa_per_m": 233.40001483877512,
+            "reynolds_number": 11309.508486325407,
+            "route_ids": [
+              "leg-002:leg-002-primary-subleg",
+              "leg-002:leg-002-subleg-b"
+            ],
+            "section_id": "leg-002-entry-section-001",
+            "section_scope": "leg_entry",
+            "section_total_pressure_drop_Pa": 1400.4000890326506,
+            "straight_pressure_drop_Pa": 1400.4000890326506,
+            "to_label": "Heating Leg 2 entry",
+            "velocity_m_s": 0.5609986550489795
+          },
+          {
+            "carried_flow_kg_s": 0.17942583732057416,
+            "colebrook_converged": true,
+            "colebrook_iteration_count": 5,
+            "dn": 22,
+            "friction_factor": 0.03002120105332698,
+            "friction_method": "colebrook",
+            "from_label": "Common main / leg entry",
+            "internal_diameter_m": 0.0202,
+            "k_total": 3.8,
+            "length_m": 5.0,
+            "local_pressure_drop_Pa": 596.7710987711777,
+            "material_key": "copper",
+            "material_label": "Copper EN1057",
+            "material_roughness_m": 1.5e-06,
+            "order": 1,
+            "pipe_size_label": "22 mm",
+            "pressure_gradient_Pa_per_m": 233.40001483877512,
+            "reynolds_number": 11309.508486325407,
+            "route_ids": [
+              "leg-002:leg-002-primary-subleg"
+            ],
+            "section_id": "leg-002-primary-subleg-section-001",
+            "section_scope": "route_section",
+            "section_total_pressure_drop_Pa": 1763.7711729650532,
+            "straight_pressure_drop_Pa": 1167.0000741938757,
+            "to_label": "L2A-R01",
+            "velocity_m_s": 0.5609986550489795
+          },
+          {
+            "carried_flow_kg_s": 0.1507177033492823,
+            "colebrook_converged": true,
+            "colebrook_iteration_count": 5,
+            "dn": 15,
+            "friction_factor": 0.028442417713634812,
+            "friction_method": "colebrook",
+            "from_label": "L2A-R01",
+            "internal_diameter_m": 0.0136,
+            "k_total": 4.2,
+            "length_m": 4.5,
+            "local_pressure_drop_Pa": 2265.0713797363833,
+            "material_key": "copper",
+            "material_label": "Copper EN1057",
+            "material_roughness_m": 1.5e-06,
+            "order": 2,
+            "pipe_size_label": "15 mm",
+            "pressure_gradient_Pa_per_m": 1127.8730100430907,
+            "reynolds_number": 14110.274999703639,
+            "route_ids": [
+              "leg-002:leg-002-primary-subleg"
+            ],
+            "section_id": "leg-002-primary-subleg-section-002",
+            "section_scope": "route_section",
+            "section_total_pressure_drop_Pa": 7340.499924930292,
+            "straight_pressure_drop_Pa": 5075.428545193909,
+            "to_label": "L2A-R02",
+            "velocity_m_s": 1.0395994194052547
+          },
+          {
+            "carried_flow_kg_s": 0.0430622009569378,
+            "colebrook_converged": true,
+            "colebrook_iteration_count": 6,
+            "dn": 10,
+            "friction_factor": 0.03533952358883886,
+            "friction_method": "colebrook",
+            "from_label": "L2A-R02",
+            "internal_diameter_m": 0.0088,
+            "k_total": 1.7000000000000002,
+            "length_m": 4.0,
+            "local_pressure_drop_Pa": 426.9434741673044,
+            "material_key": "copper",
+            "material_label": "Copper EN1057",
+            "material_roughness_m": 1.5e-06,
+            "order": 3,
+            "pipe_size_label": "10 mm",
+            "pressure_gradient_Pa_per_m": 1008.5547444141887,
+            "reynolds_number": 6230.511038830179,
+            "route_ids": [
+              "leg-002:leg-002-primary-subleg"
+            ],
+            "section_id": "leg-002-primary-subleg-section-003",
+            "section_scope": "route_section",
+            "section_total_pressure_drop_Pa": 4461.162451824059,
+            "straight_pressure_drop_Pa": 4034.2189776567548,
+            "to_label": "L2A-R03",
+            "velocity_m_s": 0.7094314810109058
+          },
+          {
+            "carried_flow_kg_s": 0.023923444976076555,
+            "colebrook_converged": true,
+            "colebrook_iteration_count": 7,
+            "dn": 10,
+            "friction_factor": 0.041829651129646164,
+            "friction_method": "colebrook",
+            "from_label": "L2A-R03",
+            "internal_diameter_m": 0.0088,
+            "k_total": 1.2999999999999998,
+            "length_m": 3.5,
+            "local_pressure_drop_Pa": 100.76734139751187,
+            "material_key": "copper",
+            "material_label": "Copper EN1057",
+            "material_roughness_m": 1.5e-06,
+            "order": 4,
+            "pipe_size_label": "10 mm",
+            "pressure_gradient_Pa_per_m": 368.4495398531358,
+            "reynolds_number": 3461.3950215723216,
+            "route_ids": [
+              "leg-002:leg-002-primary-subleg"
+            ],
+            "section_id": "leg-002-primary-subleg-section-004",
+            "section_scope": "route_section",
+            "section_total_pressure_drop_Pa": 1390.3407308834871,
+            "straight_pressure_drop_Pa": 1289.5733894859752,
+            "to_label": "L2A-R04",
+            "velocity_m_s": 0.3941286005616143
+          },
+          {
+            "carried_flow_kg_s": 0.009569377990430622,
+            "colebrook_converged": true,
+            "colebrook_iteration_count": 0,
+            "dn": 10,
+            "friction_factor": 0.04622413766785878,
+            "friction_method": "colebrook",
+            "from_label": "L2A-R04",
+            "internal_diameter_m": 0.0088,
+            "k_total": 0.7,
+            "length_m": 3.0,
+            "local_pressure_drop_Pa": 8.681494028093331,
+            "material_key": "copper",
+            "material_label": "Copper EN1057",
+            "material_roughness_m": 1.5e-06,
+            "order": 5,
+            "pipe_size_label": "10 mm",
+            "pressure_gradient_Pa_per_m": 65.14522323332467,
+            "reynolds_number": 1384.5580086289285,
+            "route_ids": [
+              "leg-002:leg-002-primary-subleg"
+            ],
+            "section_id": "leg-002-primary-subleg-section-005",
+            "section_scope": "route_section",
+            "section_total_pressure_drop_Pa": 204.11716372806737,
+            "straight_pressure_drop_Pa": 195.43566969997403,
+            "to_label": "L2A-R05",
+            "velocity_m_s": 0.15765144022464572
+          },
+          {
+            "carried_flow_kg_s": 0.08373205741626794,
+            "colebrook_converged": true,
+            "colebrook_iteration_count": 5,
+            "dn": 15,
+            "friction_factor": 0.03312168133192241,
+            "friction_method": "colebrook",
+            "from_label": "Common main / leg entry",
+            "internal_diameter_m": 0.0136,
+            "k_total": 4.8999999999999995,
+            "length_m": 7.0,
+            "local_pressure_drop_Pa": 815.6121223330596,
+            "material_key": "copper",
+            "material_label": "Copper EN1057",
+            "material_roughness_m": 1.5e-06,
+            "order": 1,
+            "pipe_size_label": "15 mm",
+            "pressure_gradient_Pa_per_m": 405.3788236249778,
+            "reynolds_number": 7839.041666502021,
+            "route_ids": [
+              "leg-002:leg-002-subleg-b"
+            ],
+            "section_id": "leg-002-subleg-b-section-001",
+            "section_scope": "route_section",
+            "section_total_pressure_drop_Pa": 3653.2638877079044,
+            "straight_pressure_drop_Pa": 2837.6517653748447,
+            "to_label": "L2B-R01",
+            "velocity_m_s": 0.5775552330029192
+          },
+          {
+            "carried_flow_kg_s": 0.05980861244019139,
+            "colebrook_converged": true,
+            "colebrook_iteration_count": 5,
+            "dn": 10,
+            "friction_factor": 0.0323439714601239,
+            "friction_method": "colebrook",
+            "from_label": "L2B-R01",
+            "internal_diameter_m": 0.0088,
+            "k_total": 3.0999999999999996,
+            "length_m": 6.0,
+            "local_pressure_drop_Pa": 1501.82095352061,
+            "material_key": "copper",
+            "material_label": "Copper EN1057",
+            "material_roughness_m": 1.5e-06,
+            "order": 2,
+            "pipe_size_label": "10 mm",
+            "pressure_gradient_Pa_per_m": 1780.6031546512716,
+            "reynolds_number": 8653.487553930805,
+            "route_ids": [
+              "leg-002:leg-002-subleg-b"
+            ],
+            "section_id": "leg-002-subleg-b-section-002",
+            "section_scope": "route_section",
+            "section_total_pressure_drop_Pa": 12185.43988142824,
+            "straight_pressure_drop_Pa": 10683.61892790763,
+            "to_label": "L2B-R02",
+            "velocity_m_s": 0.9853215014040358
+          },
+          {
+            "carried_flow_kg_s": 0.039473684210526314,
+            "colebrook_converged": true,
+            "colebrook_iteration_count": 6,
+            "dn": 10,
+            "friction_factor": 0.036202433868686566,
+            "friction_method": "colebrook",
+            "from_label": "L2B-R02",
+            "internal_diameter_m": 0.0088,
+            "k_total": 2.4,
+            "length_m": 5.5,
+            "local_pressure_drop_Pa": 506.472160531802,
+            "material_key": "copper",
+            "material_label": "Copper EN1057",
+            "material_roughness_m": 1.5e-06,
+            "order": 3,
+            "pipe_size_label": "10 mm",
+            "pressure_gradient_Pa_per_m": 868.1593228211822,
+            "reynolds_number": 5711.301785594331,
+            "route_ids": [
+              "leg-002:leg-002-subleg-b"
+            ],
+            "section_id": "leg-002-subleg-b-section-003",
+            "section_scope": "route_section",
+            "section_total_pressure_drop_Pa": 5281.3484360483035,
+            "straight_pressure_drop_Pa": 4774.876275516502,
+            "to_label": "L2B-R03",
+            "velocity_m_s": 0.6503121909266636
+          },
+          {
+            "carried_flow_kg_s": 0.022727272727272728,
+            "colebrook_converged": true,
+            "colebrook_iteration_count": 7,
+            "dn": 10,
+            "friction_factor": 0.04247710602278814,
+            "friction_method": "colebrook",
+            "from_label": "L2B-R03",
+            "internal_diameter_m": 0.0088,
+            "k_total": 2.0,
+            "length_m": 5.0,
+            "local_pressure_drop_Pa": 139.91157786346844,
+            "material_key": "copper",
+            "material_label": "Copper EN1057",
+            "material_roughness_m": 1.5e-06,
+            "order": 4,
+            "pipe_size_label": "10 mm",
+            "pressure_gradient_Pa_per_m": 337.6726662910299,
+            "reynolds_number": 3288.325270493706,
+            "route_ids": [
+              "leg-002:leg-002-subleg-b"
+            ],
+            "section_id": "leg-002-subleg-b-section-004",
+            "section_scope": "route_section",
+            "section_total_pressure_drop_Pa": 1828.2749093186178,
+            "straight_pressure_drop_Pa": 1688.3633314551494,
+            "to_label": "L2B-R04",
+            "velocity_m_s": 0.3744221705335336
+          },
+          {
+            "carried_flow_kg_s": 0.009569377990430622,
+            "colebrook_converged": true,
+            "colebrook_iteration_count": 0,
+            "dn": 10,
+            "friction_factor": 0.04622413766785878,
+            "friction_method": "colebrook",
+            "from_label": "L2B-R04",
+            "internal_diameter_m": 0.0088,
+            "k_total": 1.1,
+            "length_m": 4.5,
+            "local_pressure_drop_Pa": 13.642347758432381,
+            "material_key": "copper",
+            "material_label": "Copper EN1057",
+            "material_roughness_m": 1.5e-06,
+            "order": 5,
+            "pipe_size_label": "10 mm",
+            "pressure_gradient_Pa_per_m": 65.14522323332467,
+            "reynolds_number": 1384.5580086289285,
+            "route_ids": [
+              "leg-002:leg-002-subleg-b"
+            ],
+            "section_id": "leg-002-subleg-b-section-005",
+            "section_scope": "route_section",
+            "section_total_pressure_drop_Pa": 306.7958523083934,
+            "straight_pressure_drop_Pa": 293.15350454996104,
+            "to_label": "L2B-R05",
+            "velocity_m_s": 0.15765144022464572
+          }
+        ],
+        "status": "Ready \u2014 committed numeric proportioning hydraulic-input authority frozen"
+      },
+      "hydraulic_input_authority_status": "Ready \u2014 committed numeric proportioning hydraulic-input authority frozen",
+      "index_room_id": null,
+      "index_room_label": "\u2014",
+      "nominal_gradient_label": "50.0 \u0394p/m",
+      "note": "Frozen accepted proportioning basis only \u2014 no pump, valve product, pipe resizing, balancing, or final Proportioned result.",
+      "point_allocation_authority": {
+        "blockers": [],
+        "note": "Frozen point allocation and route-conservation evidence only; H-S56-C reconciliation remains deferred.",
+        "ready": true,
+        "route_conservation": [
+          {
+            "allocated_path_pressure_drop_Pa": 24387.0,
+            "conserved": true,
+            "contributing_balancing_point_ids": [
+              "balancing-point:leg:leg-001"
+            ],
+            "difference_Pa": 0.0,
+            "required_added_pressure_drop_Pa": 24387.0,
+            "route_id": "leg-001-primary-subleg",
+            "status": "Conserved \u2014 source route burden allocated exactly once"
+          },
+          {
+            "allocated_path_pressure_drop_Pa": 29928.1,
+            "conserved": true,
+            "contributing_balancing_point_ids": [
+              "balancing-point:leg:leg-001",
+              "balancing-point:subleg:leg-001-subleg-b"
+            ],
+            "difference_Pa": 0.0,
+            "required_added_pressure_drop_Pa": 29928.1,
+            "route_id": "leg-001-subleg-b",
+            "status": "Conserved \u2014 source route burden allocated exactly once"
+          },
+          {
+            "allocated_path_pressure_drop_Pa": 27806.6,
+            "conserved": true,
+            "contributing_balancing_point_ids": [
+              "balancing-point:subleg:leg-002-primary-subleg:downstream-exclusive"
+            ],
+            "difference_Pa": 0.0,
+            "required_added_pressure_drop_Pa": 27806.6,
+            "route_id": "leg-002-primary-subleg",
+            "status": "Conserved \u2014 source route burden allocated exactly once"
+          },
+          {
+            "allocated_path_pressure_drop_Pa": 0.0,
+            "conserved": true,
+            "contributing_balancing_point_ids": [],
+            "difference_Pa": 0.0,
+            "required_added_pressure_drop_Pa": 0.0,
+            "route_id": "leg-002-subleg-b",
+            "status": "Conserved \u2014 source route burden allocated exactly once"
+          }
+        ],
+        "rows": [
+          {
+            "allocated_added_pressure_drop_Pa": 0.0,
+            "allocated_resistance_Pa_per_kg_s2": 0.0,
+            "anchor_section_id": "common-main-to-leg-001-section-001",
+            "balancing_point_id": "balancing-point:main:leg-001",
+            "downstream_route_ids": [
+              "leg-001-primary-subleg",
+              "leg-001-subleg-b",
+              "leg-002-primary-subleg",
+              "leg-002-subleg-b"
+            ],
+            "is_route_exclusive": false,
+            "is_shared": true,
+            "label": "Common main to Heating Leg 1 take-off",
+            "parent_balancing_point_id": "",
+            "point_flow_kg_s": 0.3493,
+            "point_role": "common_main_takeoff",
+            "point_scope": "main",
+            "status": "No residual burden allocated at this point"
+          },
+          {
+            "allocated_added_pressure_drop_Pa": 0.0,
+            "allocated_resistance_Pa_per_kg_s2": 0.0,
+            "anchor_section_id": "common-main-to-leg-002-section-001",
+            "balancing_point_id": "balancing-point:main:leg-002",
+            "downstream_route_ids": [
+              "leg-002-primary-subleg",
+              "leg-002-subleg-b"
+            ],
+            "is_route_exclusive": false,
+            "is_shared": true,
+            "label": "Common main to Heating Leg 2 take-off",
+            "parent_balancing_point_id": "balancing-point:main:leg-001",
+            "point_flow_kg_s": 0.1794,
+            "point_role": "common_main_takeoff",
+            "point_scope": "main",
+            "status": "No residual burden allocated at this point"
+          },
+          {
+            "allocated_added_pressure_drop_Pa": 24387.0,
+            "allocated_resistance_Pa_per_kg_s2": 844834.4610148753,
+            "anchor_section_id": "leg-001-entry-section-001",
+            "balancing_point_id": "balancing-point:leg:leg-001",
+            "downstream_route_ids": [
+              "leg-001-primary-subleg",
+              "leg-001-subleg-b"
+            ],
+            "is_route_exclusive": false,
+            "is_shared": true,
+            "label": "Heating Leg 1 entry",
+            "parent_balancing_point_id": "balancing-point:main:leg-001",
+            "point_flow_kg_s": 0.1699,
+            "point_role": "leg_entry",
+            "point_scope": "leg",
+            "status": "Shared provisional burden allocated once"
+          },
+          {
+            "allocated_added_pressure_drop_Pa": 0.0,
+            "allocated_resistance_Pa_per_kg_s2": 0.0,
+            "anchor_section_id": "leg-002-entry-section-001",
+            "balancing_point_id": "balancing-point:leg:leg-002",
+            "downstream_route_ids": [
+              "leg-002-primary-subleg",
+              "leg-002-subleg-b"
+            ],
+            "is_route_exclusive": false,
+            "is_shared": true,
+            "label": "Heating Leg 2 entry",
+            "parent_balancing_point_id": "balancing-point:main:leg-002",
+            "point_flow_kg_s": 0.1794,
+            "point_role": "leg_entry",
+            "point_scope": "leg",
+            "status": "No residual burden allocated at this point"
+          },
+          {
+            "allocated_added_pressure_drop_Pa": 0.0,
+            "allocated_resistance_Pa_per_kg_s2": 0.0,
+            "anchor_section_id": "leg-001-primary-subleg-section-001",
+            "balancing_point_id": "balancing-point:subleg:leg-001-primary-subleg",
+            "downstream_route_ids": [
+              "leg-001-primary-subleg",
+              "leg-001-subleg-b"
+            ],
+            "is_route_exclusive": false,
+            "is_shared": true,
+            "label": "Heating Leg 1 / Leg 1A Common subleg entry",
+            "parent_balancing_point_id": "balancing-point:leg:leg-001",
+            "point_flow_kg_s": 0.1699,
+            "point_role": "common",
+            "point_scope": "subleg",
+            "status": "No residual burden allocated at this point"
+          },
+          {
+            "allocated_added_pressure_drop_Pa": 5541.0999999999985,
+            "allocated_resistance_Pa_per_kg_s2": 944361.8812589899,
+            "anchor_section_id": "leg-001-subleg-b-section-001",
+            "balancing_point_id": "balancing-point:subleg:leg-001-subleg-b",
+            "downstream_route_ids": [
+              "leg-001-subleg-b"
+            ],
+            "is_route_exclusive": true,
+            "is_shared": false,
+            "label": "Heating Leg 1 / Leg 1B Branch subleg entry",
+            "parent_balancing_point_id": "balancing-point:subleg:leg-001-primary-subleg",
+            "point_flow_kg_s": 0.0766,
+            "point_role": "branch",
+            "point_scope": "subleg",
+            "status": "Route-exclusive residual burden allocated"
+          },
+          {
+            "allocated_added_pressure_drop_Pa": 0.0,
+            "allocated_resistance_Pa_per_kg_s2": 0.0,
+            "anchor_section_id": "leg-002-primary-subleg-section-001",
+            "balancing_point_id": "balancing-point:subleg:leg-002-primary-subleg",
+            "downstream_route_ids": [
+              "leg-002-primary-subleg",
+              "leg-002-subleg-b"
+            ],
+            "is_route_exclusive": false,
+            "is_shared": true,
+            "label": "Heating Leg 2 / Leg 2A Common subleg entry",
+            "parent_balancing_point_id": "balancing-point:leg:leg-002",
+            "point_flow_kg_s": 0.1794,
+            "point_role": "common",
+            "point_scope": "subleg",
+            "status": "No residual burden allocated at this point"
+          },
+          {
+            "allocated_added_pressure_drop_Pa": 0.0,
+            "allocated_resistance_Pa_per_kg_s2": 0.0,
+            "anchor_section_id": "",
+            "balancing_point_id": "balancing-point:subleg:leg-001-primary-subleg:downstream-exclusive",
+            "downstream_route_ids": [
+              "leg-001-primary-subleg"
+            ],
+            "is_route_exclusive": true,
+            "is_shared": false,
+            "label": "Heating Leg 1 / Leg 1A Common subleg downstream route",
+            "parent_balancing_point_id": "balancing-point:subleg:leg-001-primary-subleg",
+            "point_flow_kg_s": 0.1699,
+            "point_role": "common_route_downstream",
+            "point_scope": "subleg",
+            "status": "No residual burden allocated at this point"
+          },
+          {
+            "allocated_added_pressure_drop_Pa": 0.0,
+            "allocated_resistance_Pa_per_kg_s2": 0.0,
+            "anchor_section_id": "leg-002-subleg-b-section-001",
+            "balancing_point_id": "balancing-point:subleg:leg-002-subleg-b",
+            "downstream_route_ids": [
+              "leg-002-subleg-b"
+            ],
+            "is_route_exclusive": true,
+            "is_shared": false,
+            "label": "Heating Leg 2 / Leg 2B Branch subleg entry",
+            "parent_balancing_point_id": "balancing-point:subleg:leg-002-primary-subleg",
+            "point_flow_kg_s": 0.0837,
+            "point_role": "branch",
+            "point_scope": "subleg",
+            "status": "No residual burden allocated at this point"
+          },
+          {
+            "allocated_added_pressure_drop_Pa": 27806.6,
+            "allocated_resistance_Pa_per_kg_s2": 863978.6529854872,
+            "anchor_section_id": "",
+            "balancing_point_id": "balancing-point:subleg:leg-002-primary-subleg:downstream-exclusive",
+            "downstream_route_ids": [
+              "leg-002-primary-subleg"
+            ],
+            "is_route_exclusive": true,
+            "is_shared": false,
+            "label": "Heating Leg 2 / Leg 2A Common subleg downstream route",
+            "parent_balancing_point_id": "balancing-point:subleg:leg-002-primary-subleg",
+            "point_flow_kg_s": 0.1794,
+            "point_role": "common_route_downstream",
+            "point_scope": "subleg",
+            "status": "Route-exclusive residual burden allocated"
+          }
+        ],
+        "schema": "committed_balancing_point_allocation_authority_v1",
+        "status": "Ready \u2014 committed balancing-point allocation authority frozen",
+        "tolerance_Pa": 0.05
+      },
+      "point_allocation_authority_status": "Ready \u2014 committed balancing-point allocation authority frozen",
+      "point_valve_basis_status": "3 manually approved generic-Kvs point basis row(s) frozen \u2014 no valve product selected",
+      "return_arrangement_basis": "REVERSE_RETURN",
+      "return_arrangement_status": "System return arrangement accepted: Reverse return",
+      "schema": "proportioned_basis_snapshot_v1",
+      "status": "COMMITTED_BASIS_ONLY",
+      "terminal_alignment_status": "Missing \u2014 no Basic index room selected",
+      "terminal_room_id": "room-l1a-006",
+      "terminal_room_label": "L1A-R06",
+      "total_index_length_label": "30.00 m"
+    },
+    "hydronic_proportioned_pipe_material_family_intent": {
+      "current_material_key": "copper",
+      "proposed_material_key": "steel",
+      "schema": "proportioned_pipe_material_family_intent_v1"
+    },
+    "hydronic_proportioned_pipe_resizing_schedule_acceptance_intent": {
+      "accepted_schedule": {
+        "accepted_material_key": "steel",
+        "current_material_key": "copper",
+        "schedule_fingerprint": "f2a5b0bdba18bb22f4a7e790b3466bf7b7a13576b8367e44bf1c97f63dac34f2",
+        "sections": [
+          {
+            "accepted_dn": 32,
+            "current_dn": 28,
+            "section_id": "common-main-to-leg-001-section-001"
+          },
+          {
+            "accepted_dn": 20,
+            "current_dn": 22,
+            "section_id": "common-main-to-leg-002-section-001"
+          },
+          {
+            "accepted_dn": 20,
+            "current_dn": 22,
+            "section_id": "leg-001-entry-section-001"
+          },
+          {
+            "accepted_dn": 20,
+            "current_dn": 22,
+            "section_id": "leg-001-primary-subleg-section-001"
+          },
+          {
+            "accepted_dn": 20,
+            "current_dn": 15,
+            "section_id": "leg-001-primary-subleg-section-002"
+          },
+          {
+            "accepted_dn": 15,
+            "current_dn": 10,
+            "section_id": "leg-001-primary-subleg-section-003"
+          },
+          {
+            "accepted_dn": 15,
+            "current_dn": 10,
+            "section_id": "leg-001-primary-subleg-section-004"
+          },
+          {
+            "accepted_dn": 15,
+            "current_dn": 10,
+            "section_id": "leg-001-primary-subleg-section-005"
+          },
+          {
+            "accepted_dn": 15,
+            "current_dn": 10,
+            "section_id": "leg-001-primary-subleg-section-006"
+          },
+          {
+            "accepted_dn": 15,
+            "current_dn": 10,
+            "section_id": "leg-001-subleg-b-section-001"
+          },
+          {
+            "accepted_dn": 15,
+            "current_dn": 10,
+            "section_id": "leg-001-subleg-b-section-002"
+          },
+          {
+            "accepted_dn": 15,
+            "current_dn": 10,
+            "section_id": "leg-001-subleg-b-section-003"
+          },
+          {
+            "accepted_dn": 15,
+            "current_dn": 10,
+            "section_id": "leg-001-subleg-b-section-004"
+          },
+          {
+            "accepted_dn": 20,
+            "current_dn": 22,
+            "section_id": "leg-002-entry-section-001"
+          },
+          {
+            "accepted_dn": 20,
+            "current_dn": 22,
+            "section_id": "leg-002-primary-subleg-section-001"
+          },
+          {
+            "accepted_dn": 20,
+            "current_dn": 15,
+            "section_id": "leg-002-primary-subleg-section-002"
+          },
+          {
+            "accepted_dn": 15,
+            "current_dn": 10,
+            "section_id": "leg-002-primary-subleg-section-003"
+          },
+          {
+            "accepted_dn": 15,
+            "current_dn": 10,
+            "section_id": "leg-002-primary-subleg-section-004"
+          },
+          {
+            "accepted_dn": 15,
+            "current_dn": 10,
+            "section_id": "leg-002-primary-subleg-section-005"
+          },
+          {
+            "accepted_dn": 15,
+            "current_dn": 15,
+            "section_id": "leg-002-subleg-b-section-001"
+          },
+          {
+            "accepted_dn": 15,
+            "current_dn": 10,
+            "section_id": "leg-002-subleg-b-section-002"
+          },
+          {
+            "accepted_dn": 15,
+            "current_dn": 10,
+            "section_id": "leg-002-subleg-b-section-003"
+          },
+          {
+            "accepted_dn": 15,
+            "current_dn": 10,
+            "section_id": "leg-002-subleg-b-section-004"
+          },
+          {
+            "accepted_dn": 15,
+            "current_dn": 10,
+            "section_id": "leg-002-subleg-b-section-005"
+          }
+        ]
+      },
+      "schema": "proportioned_pipe_resizing_schedule_acceptance_intent_v1"
+    },
+    "hydronic_pump_duty_acceptance": null,
+    "hydronic_pump_duty_basis": null,
+    "hydronic_pump_preview_basis": null,
+    "hydronic_return_arrangement_intent": {
+      "leg_arrangements": {},
+      "leg_rr_added_length_basis_modes": {},
+      "leg_rr_added_lengths_m": {},
+      "rr_added_length_basis_mode": "downstream_proxy",
+      "rr_added_length_m": 0.0,
+      "schema": "return_arrangement_intent_v1",
+      "subleg_arrangements": {},
+      "subleg_rr_added_length_basis_modes": {},
+      "subleg_rr_added_lengths_m": {},
+      "system_arrangement": "REVERSE_RETURN"
+    },
+    "hydronic_room_paired_pipe_length_intent": null,
+    "hydronic_topology": {
+      "heat_source_location_mode": "served_room",
+      "heat_source_room_id": "room-l1a-001",
+      "legs": [
+        {
+          "index_room_id": "room-l1a-006",
+          "label": "Heating Leg 1",
+          "leg_id": "leg-001",
+          "route_room_ids": [
+            "room-l1a-001",
+            "room-l1a-002",
+            "room-l1a-003",
+            "room-l1a-004",
+            "room-l1a-005",
+            "room-l1a-006"
+          ],
+          "sublegs": [
+            {
+              "index_room_id": "room-l1a-006",
+              "label": "Leg 1A Common subleg",
+              "origin_room_id": "common-main",
+              "route_room_ids": [
+                "room-l1a-001",
+                "room-l1a-002",
+                "room-l1a-003",
+                "room-l1a-004",
+                "room-l1a-005",
+                "room-l1a-006"
+              ],
+              "subleg_id": "leg-001-primary-subleg",
+              "sublegs": []
+            },
+            {
+              "index_room_id": "room-l1b-004",
+              "label": "Leg 1B Branch subleg",
+              "origin_room_id": "room-l1a-002",
+              "route_room_ids": [
+                "room-l1b-001",
+                "room-l1b-002",
+                "room-l1b-003",
+                "room-l1b-004"
+              ],
+              "subleg_id": "leg-001-subleg-b",
+              "sublegs": []
+            }
+          ]
+        },
+        {
+          "index_room_id": "room-l2a-005",
+          "label": "Heating Leg 2",
+          "leg_id": "leg-002",
+          "route_room_ids": [
+            "room-l2a-001",
+            "room-l2a-002",
+            "room-l2a-003",
+            "room-l2a-004",
+            "room-l2a-005"
+          ],
+          "sublegs": [
+            {
+              "index_room_id": "room-l2a-005",
+              "label": "Leg 2A Common subleg",
+              "origin_room_id": "common-main",
+              "route_room_ids": [
+                "room-l2a-001",
+                "room-l2a-002",
+                "room-l2a-003",
+                "room-l2a-004",
+                "room-l2a-005"
+              ],
+              "subleg_id": "leg-002-primary-subleg",
+              "sublegs": []
+            },
+            {
+              "index_room_id": "room-l2b-005",
+              "label": "Leg 2B Branch subleg",
+              "origin_room_id": "room-l2a-002",
+              "route_room_ids": [
+                "room-l2b-001",
+                "room-l2b-002",
+                "room-l2b-003",
+                "room-l2b-004",
+                "room-l2b-005"
+              ],
+              "subleg_id": "leg-002-subleg-b",
+              "sublegs": []
+            }
+          ]
+        }
+      ]
+    },
+    "hydronics": {
+      "results": null,
+      "valid": false
+    },
+    "name": "HVACgooee \u2014 20-room example",
+    "openings": {},
+    "project_id": "HVACGOOEE-SAMPLE-20ROOM-V1",
+    "room_opening_schedules": {
+      "room-l1a-001": {
+        "openings": [
+          {
+            "construction_id": "DEV-WINDOW",
+            "height_m": 0.9,
+            "opening_type": "WINDOW",
+            "profile_id": "SMALL_WINDOW",
+            "profile_name": "Small Window",
+            "quantity": 1,
+            "width_m": 0.6
+          }
+        ],
+        "room_id": "room-l1a-001"
+      }
+    },
+    "rooms": {
+      "room-l1a-001": {
+        "ach_override": null,
+        "fabric_elements": [],
+        "geometry": {
+          "external_wall_length_m": null,
+          "height_m": 2.4,
+          "length_m": 4.0,
+          "width_m": 3.0
+        },
+        "internal_temp_override_C": null,
+        "name": "L1A-R01",
+        "room_ref": "",
+        "storey_index": 0,
+        "storey_label": "Ground Floor"
+      },
+      "room-l1a-002": {
+        "ach_override": null,
+        "fabric_elements": [],
+        "geometry": {
+          "external_wall_length_m": null,
+          "height_m": 2.4,
+          "length_m": 4.0,
+          "width_m": 3.0
+        },
+        "internal_temp_override_C": null,
+        "name": "L1A-R02",
+        "room_ref": "",
+        "storey_index": 0,
+        "storey_label": "Ground Floor"
+      },
+      "room-l1a-003": {
+        "ach_override": null,
+        "fabric_elements": [],
+        "geometry": {
+          "external_wall_length_m": null,
+          "height_m": 2.4,
+          "length_m": 4.0,
+          "width_m": 3.0
+        },
+        "internal_temp_override_C": null,
+        "name": "L1A-R03",
+        "room_ref": "",
+        "storey_index": 0,
+        "storey_label": "Ground Floor"
+      },
+      "room-l1a-004": {
+        "ach_override": null,
+        "fabric_elements": [],
+        "geometry": {
+          "external_wall_length_m": null,
+          "height_m": 2.4,
+          "length_m": 4.0,
+          "width_m": 3.0
+        },
+        "internal_temp_override_C": null,
+        "name": "L1A-R04",
+        "room_ref": "",
+        "storey_index": 0,
+        "storey_label": "Ground Floor"
+      },
+      "room-l1a-005": {
+        "ach_override": null,
+        "fabric_elements": [],
+        "geometry": {
+          "external_wall_length_m": null,
+          "height_m": 2.4,
+          "length_m": 4.0,
+          "width_m": 3.0
+        },
+        "internal_temp_override_C": null,
+        "name": "L1A-R05",
+        "room_ref": "",
+        "storey_index": 0,
+        "storey_label": "Ground Floor"
+      },
+      "room-l1a-006": {
+        "ach_override": null,
+        "fabric_elements": [],
+        "geometry": {
+          "external_wall_length_m": null,
+          "height_m": 2.4,
+          "length_m": 4.0,
+          "width_m": 3.0
+        },
+        "internal_temp_override_C": null,
+        "name": "L1A-R06",
+        "room_ref": "",
+        "storey_index": 0,
+        "storey_label": "Ground Floor"
+      },
+      "room-l1b-001": {
+        "ach_override": null,
+        "fabric_elements": [],
+        "geometry": {
+          "external_wall_length_m": null,
+          "height_m": 2.4,
+          "length_m": 4.0,
+          "width_m": 3.0
+        },
+        "internal_temp_override_C": null,
+        "name": "L1B-R01",
+        "room_ref": "",
+        "storey_index": 0,
+        "storey_label": "Ground Floor"
+      },
+      "room-l1b-002": {
+        "ach_override": null,
+        "fabric_elements": [],
+        "geometry": {
+          "external_wall_length_m": null,
+          "height_m": 2.4,
+          "length_m": 4.0,
+          "width_m": 3.0
+        },
+        "internal_temp_override_C": null,
+        "name": "L1B-R02",
+        "room_ref": "",
+        "storey_index": 0,
+        "storey_label": "Ground Floor"
+      },
+      "room-l1b-003": {
+        "ach_override": null,
+        "fabric_elements": [],
+        "geometry": {
+          "external_wall_length_m": null,
+          "height_m": 2.4,
+          "length_m": 4.0,
+          "width_m": 3.0
+        },
+        "internal_temp_override_C": null,
+        "name": "L1B-R03",
+        "room_ref": "",
+        "storey_index": 0,
+        "storey_label": "Ground Floor"
+      },
+      "room-l1b-004": {
+        "ach_override": null,
+        "fabric_elements": [],
+        "geometry": {
+          "external_wall_length_m": null,
+          "height_m": 2.4,
+          "length_m": 4.0,
+          "width_m": 3.0
+        },
+        "internal_temp_override_C": null,
+        "name": "L1B-R04",
+        "room_ref": "",
+        "storey_index": 0,
+        "storey_label": "Ground Floor"
+      },
+      "room-l2a-001": {
+        "ach_override": null,
+        "fabric_elements": [],
+        "geometry": {
+          "external_wall_length_m": null,
+          "height_m": 2.4,
+          "length_m": 4.0,
+          "width_m": 3.0
+        },
+        "internal_temp_override_C": null,
+        "name": "L2A-R01",
+        "room_ref": "",
+        "storey_index": 0,
+        "storey_label": "Ground Floor"
+      },
+      "room-l2a-002": {
+        "ach_override": null,
+        "fabric_elements": [],
+        "geometry": {
+          "external_wall_length_m": null,
+          "height_m": 2.4,
+          "length_m": 4.0,
+          "width_m": 3.0
+        },
+        "internal_temp_override_C": null,
+        "name": "L2A-R02",
+        "room_ref": "",
+        "storey_index": 0,
+        "storey_label": "Ground Floor"
+      },
+      "room-l2a-003": {
+        "ach_override": null,
+        "fabric_elements": [],
+        "geometry": {
+          "external_wall_length_m": null,
+          "height_m": 2.4,
+          "length_m": 4.0,
+          "width_m": 3.0
+        },
+        "internal_temp_override_C": null,
+        "name": "L2A-R03",
+        "room_ref": "",
+        "storey_index": 0,
+        "storey_label": "Ground Floor"
+      },
+      "room-l2a-004": {
+        "ach_override": null,
+        "fabric_elements": [],
+        "geometry": {
+          "external_wall_length_m": null,
+          "height_m": 2.4,
+          "length_m": 4.0,
+          "width_m": 3.0
+        },
+        "internal_temp_override_C": null,
+        "name": "L2A-R04",
+        "room_ref": "",
+        "storey_index": 0,
+        "storey_label": "Ground Floor"
+      },
+      "room-l2a-005": {
+        "ach_override": null,
+        "fabric_elements": [],
+        "geometry": {
+          "external_wall_length_m": null,
+          "height_m": 2.4,
+          "length_m": 4.0,
+          "width_m": 3.0
+        },
+        "internal_temp_override_C": null,
+        "name": "L2A-R05",
+        "room_ref": "",
+        "storey_index": 0,
+        "storey_label": "Ground Floor"
+      },
+      "room-l2b-001": {
+        "ach_override": null,
+        "fabric_elements": [],
+        "geometry": {
+          "external_wall_length_m": null,
+          "height_m": 2.4,
+          "length_m": 4.0,
+          "width_m": 3.0
+        },
+        "internal_temp_override_C": null,
+        "name": "L2B-R01",
+        "room_ref": "",
+        "storey_index": 0,
+        "storey_label": "Ground Floor"
+      },
+      "room-l2b-002": {
+        "ach_override": null,
+        "fabric_elements": [],
+        "geometry": {
+          "external_wall_length_m": null,
+          "height_m": 2.4,
+          "length_m": 4.0,
+          "width_m": 3.0
+        },
+        "internal_temp_override_C": null,
+        "name": "L2B-R02",
+        "room_ref": "",
+        "storey_index": 0,
+        "storey_label": "Ground Floor"
+      },
+      "room-l2b-003": {
+        "ach_override": null,
+        "fabric_elements": [],
+        "geometry": {
+          "external_wall_length_m": null,
+          "height_m": 2.4,
+          "length_m": 4.0,
+          "width_m": 3.0
+        },
+        "internal_temp_override_C": null,
+        "name": "L2B-R03",
+        "room_ref": "",
+        "storey_index": 0,
+        "storey_label": "Ground Floor"
+      },
+      "room-l2b-004": {
+        "ach_override": null,
+        "fabric_elements": [],
+        "geometry": {
+          "external_wall_length_m": null,
+          "height_m": 2.4,
+          "length_m": 4.0,
+          "width_m": 3.0
+        },
+        "internal_temp_override_C": null,
+        "name": "L2B-R04",
+        "room_ref": "",
+        "storey_index": 0,
+        "storey_label": "Ground Floor"
+      },
+      "room-l2b-005": {
+        "ach_override": null,
+        "fabric_elements": [],
+        "geometry": {
+          "external_wall_length_m": null,
+          "height_m": 2.4,
+          "length_m": 4.0,
+          "width_m": 3.0
+        },
+        "internal_temp_override_C": null,
+        "name": "L2B-R05",
+        "room_ref": "",
+        "storey_index": 0,
+        "storey_label": "Ground Floor"
+      }
+    },
+    "schema_version": 4,
+    "surface_construction_map": {}
+  },
+  "schema_version": 4
+}

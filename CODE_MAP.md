@@ -62,6 +62,29 @@ This file identifies the current active code path.
 
 For current project status, see `CURRENT_STATE.md`.
 
+## B1-D sample opening view
+
+- `run_gui_v3.py`: requests Sample-only Heat Loss startup presentation.
+- `MainWindowV3`: consumes the request in existing deferred workspace restoration, reusing floating Heat Loss and independent Navigation placement.
+- `test_beta1d_sample_opening_view_v1.py`: saved-view preservation, one-shot selection and unchanged engineering state.
+
+
+## B1-C 20-room sample
+
+- `HVAC/examples/twenty_room_multileg_v1/project.json`: bundled checksummed copy of the supplied 20-room multi-leg example.
+- `HVAC/gui_v3/context/sample_project_v1.py`: existing loader, fresh project ID and unsaved copy binding; no engineering acceptance writes.
+- Startup Sample selects this example; normal Save routes the unsaved copy through Save As.
+- `HVAC/dev/test_beta1c_twenty_room_sample_v1.py`: preservation, fresh copies, checksum rejection and Save As/reopen.
+
+
+## B1-B job-folder entry
+
+- `HVAC/gui_v3/context/project_workspace_v1.py`: shared installation-relative HVACprojects root.
+- `HVAC/gui_v3/widgets/new_project_folder_v1.py`: fresh-folder chooser; existing factory and checksummed saver; cancel/error preserves current job.
+- Startup chooser and MainWindow New bind only a successfully saved new job.
+- `HVAC/dev/test_beta1b_project_folders_v1.py`: root, New, cancel, preservation, save failure and reopen regression.
+
+
 ## H-S73-B2 Pump density draft and concise guidance
 
 - `pump_preview_controller_v1.pump_preview_draft_defaults_v1`: read-only editor

@@ -34,6 +34,7 @@ from pathlib import Path
 from typing import Optional, Literal, Callable, List
 from PySide6.QtCore import QObject, Signal
 from HVAC.gui_v3.context.gui_settings import GuiSettings
+from HVAC.gui_v3.context import project_workspace_v1
 from HVAC.project.project_state import ProjectState
 
 
@@ -109,7 +110,7 @@ class GuiProjectContext(QObject):
         self.project_dir: Path | None = None
 
         # Workspace root (default open/save location)
-        self.workspace_root: Path = Path.home() / "Documents" / "HVACgooee"
+        self.workspace_root: Path = project_workspace_v1.default_project_root_v1()
         self.workspace_root.mkdir(parents=True, exist_ok=True)
 
         # ---------------- GUI-only focus ----------------
